@@ -47,8 +47,9 @@ const TABS = {
     ['EFEMERIDES_DIAS', '45', 'Días hacia adelante para mostrar efemérides'],
     ['IA_MAX_POR_CORRIDA', '12', 'Cuántas tarjetas nuevas analiza la IA por actualización (cada una cuesta centavos)'],
     ['CAL_EXCLUIR', 'finanzas,cobro,factura,ipc,ajuste,propiedad', 'Eventos del calendario que no ve el equipo'],
+    ['CAL_OTROS_NOMBRES', 'zaira,fede,lu,bauti,luisi,juan', 'Otros colaboradores: los eventos que los nombran (y no a vos) no aparecen'],
     ['LINK_REPORTES', 'https://ideamiacontacto-lab.github.io/reportes-ideamia/', ''],
-    ['LINK_BRAINSTORMING', 'https://brainstormings-ideamia.netlify.app/', ''],
+    ['LINK_BRAINSTORMING', 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/', ''],
     ['LINK_NOTION', 'https://app.notion.com/p/3d1bab9b1a168166b3cfe5a8818a9265', 'Operación Ideamia'],
     ['LINK_DRIVE', '', '']],
   Equipo: [['nombre', 'clave', 'rol', 'nombres en el calendario'],
@@ -370,13 +371,17 @@ function eventos_(cfg, cat, desde, hasta) {
   const cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'ideamia.contacto@gmail.com');
   if (!cal) return [];
   const excluir = lista_(cfg.CAL_EXCLUIR);
+  const otros = lista_(cfg.CAL_OTROS_NOMBRES == null ? 'zaira,fede,lu,bauti,luisi,juan' : cfg.CAL_OTROS_NOMBRES);
+  const palabras_ = t => ' ' + norm_(t).replace(/[^a-z0-9ñ]+/g, ' ') + ' ';
   return cal.getEvents(desde, hasta).filter(e => {
     const t = norm_(e.getTitle());
     return !excluir.some(x => t.indexOf(x) >= 0);
   }).map(e => {
     const titulo = e.getTitle();
-    const personas = cat.equipo.filter(p => p.alias.some(a => (' ' + norm_(titulo).replace(/[^a-z0-9ñ]+/g, ' ') + ' ').indexOf(' ' + a + ' ') >= 0)).map(p => p.clave);
+    const w = palabras_(titulo);
+    const personas = cat.equipo.filter(p => p.alias.some(a => w.indexOf(' ' + a + ' ') >= 0)).map(p => p.clave);
     return {
+      otros: otros.some(a => w.indexOf(' ' + a + ' ') >= 0),
       id: e.getId() + '@' + ymd_(e.getStartTime()), t: titulo, s: e.getStartTime().toISOString(), f: e.getEndTime().toISOString(),
       dia: e.isAllDayEvent(), marcas: marcasEn_(titulo, cat.marcas), personas: personas, desc: String(e.getDescription() || '').replace(/<[^>]+>/g, ' ').slice(0, 300)
     };
@@ -483,6 +488,7 @@ function panel_(personaClave) {
   const evs = eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5)).filter(e => {
     if (esProject) return true;
     if (e.personas.length) return e.personas.indexOf(yo.clave) >= 0;
+    if (e.otros) return false;
     if (e.marcas.length) return e.marcas.some(s => slugs.indexOf(s) >= 0);
     return true;
   });
