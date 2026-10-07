@@ -250,15 +250,18 @@ function leerTrello_(cat) {
     rutas.push('/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,dateLastActivity,labels&attachments=true&attachment_fields=name,url,mimeType');
   });
   const res = trelloVarios_(rutas);
-  const cards = [];
+  const cards = [], haceUnaSemana = Date.now() - 7 * 864e5;
   elegidos.forEach((b, i) => {
     const listas = {}; (res[i * 2] || []).forEach(l => listas[l.id] = l);
     (res[i * 2 + 1] || []).forEach(c => {
       const l = listas[c.idList]; if (!l) return;
       const catL = catLista_(l.name);
+      // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
+      if (catL === 'hecho' && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input';
+      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente'].indexOf(catL) >= 0 || b.tipo === 'project';
       cards.push({
-        id: c.id, n: c.name, d: String(c.desc || '').slice(0, 700), due: c.due, dc: !!c.dueComplete, ini: c.start,
+        id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
         lista: l.name, cat: catL, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity,
         lab: (c.labels || []).map(x => x.name).filter(Boolean),
         att: conAdjuntos ? (c.attachments || []).slice(0, 8).map(a => ({ n: a.name, u: a.url })) : [],
@@ -364,6 +367,16 @@ function actualizar() {
     CacheService.getScriptCache().remove('snap');
     return { ok: true, tarjetas: snap.cards.length, generado: snap.generado };
   } finally { lock.releaseLock(); }
+}
+
+/* Para revisar desde el editor: cuántas tarjetas trajo por marca y tipo de lista. */
+function resumen() {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json');
+  const t = {};
+  (snap.cards || []).forEach(c => { const k = (c.m[0] || 'sin marca') + ' · ' + c.cat; t[k] = (t[k] || 0) + 1; });
+  console.log('Generado: ' + snap.generado + ' · tableros: ' + (snap.tableros || []).length + ' · tarjetas: ' + (snap.cards || []).length + ' · lecturas IA: ' + Object.keys(ia).length);
+  console.log((snap.tableros || []).map(b => b.tipo + ':' + b.nombre + '→' + (b.marca || '-')).join(' | '));
+  console.log(Object.keys(t).sort().map(k => k + ' = ' + t[k]).join('\n'));
 }
 
 /* ---------------- calendario ---------------- */
