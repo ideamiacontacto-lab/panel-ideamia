@@ -90,7 +90,8 @@ window.PANEL_DEMO = (function () {
     marcas, project: T("30dl2puJ"), cards, rutinas, reuniones, eventos,
     cobertura: { "isco": { hasta: "2026-10-30", objetivo: "2026-11-07" }, "gabriel-varisco": { hasta: "2026-11-08", objetivo: "2026-11-07" }, "skilfulblack": { hasta: "2026-10-24", objetivo: "2026-11-07" }, "tritato": { hasta: "2026-11-02", objetivo: "2026-11-07" }, "vice-burger": { hasta: "2026-11-07", objetivo: "2026-11-07" } },
     links: { reportes: "https://ideamiacontacto-lab.github.io/reportes-ideamia/", brainstorming: "https://ideamiacontacto-lab.github.io/brainstormings-ideamia/", notion: "https://app.notion.com/p/3d1bab9b1a168166b3cfe5a8818a9265", drive: "" },
-    ajustes: { inputDias: 3, porVencer: 3, efemDias: 45 }
+    ajustes: { inputDias: 3, porVencer: 3, efemDias: 45 },
+    feriados: [{ n: 'Día del Respeto a la Diversidad Cultural', d: '2026-10-12' }, { n: 'Día de la Soberanía Nacional', d: '2026-11-23' }]
   };
 })();
 

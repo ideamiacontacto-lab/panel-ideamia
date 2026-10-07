@@ -237,24 +237,190 @@
     const chk = (x.tipo === 'reunion' || x.tipo === 'input')
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
-    return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" data-card-det="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
   }
   function vHoy(t) {
     const pend = t.filter(x => !hecho(x.obj)), done = t.filter(x => hecho(x.obj));
     const urg = pend.filter(x => x.u >= 3), resto = pend.filter(x => x.u < 3);
     const L = S.data.links;
-    return '<div class="cols"><div>' +
+    // accesos rápidos + los próximos 7 días
+    const nVen = vencidas().length, fs = proximasFechas(30), nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length;
+    const ag = itemsAgenda(7);
+    const tira = [0, 1, 2, 3, 4, 5, 6].map(i => {
+      const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + i), de = ag.filter(it => diasA(it.d) === i);
+      const tipos = { evento: 0, card: 0, fecha: 0, reunion: 0 }; de.forEach(it => tipos[it.tipo]++);
+      return '<button class="dia' + (i === 0 ? ' hoy' : '') + (d.getDay() === 0 || d.getDay() === 6 ? ' fin' : '') + '" data-dia="' + i + '"><small>' + (i === 0 ? 'hoy' : DIAS[d.getDay()]) + '</small><b>' + d.getDate() + '</b><span class="pts">' +
+        (tipos.card ? '<i class="p-card" title="vencimientos"></i>' : '') + (tipos.evento || tipos.reunion ? '<i class="p-ev" title="calendario"></i>' : '') + (tipos.fecha ? '<i class="p-f" title="fechas"></i>' : '') + '</span><em>' + (de.length ? de.length : '') + '</em></button>';
+    }).join('');
+    const rapidos = '<div class="rapidos">' +
+      '<button class="rp' + (nVen ? ' bad' : '') + '" data-vencidas><b>' + nVen + '</b><span>vencidas<br><small>últimos 15 días</small></span></button>' +
+      '<button class="rp' + (nInp ? ' y' : '') + '" data-tab="inputs"><b>' + nInp + '</b><span>inputs<br><small>para revisar</small></span></button>' +
+      '<button class="rp' + (nReu ? ' warn' : '') + '" data-tab="reuniones"><b>' + nReu + '</b><span>reuniones<br><small>sin fecha</small></span></button>' +
+      '<button class="rp" data-fechas><b>' + fs.length + '</b><span>fechas<br><small>próximos 30 días</small></span></button></div>';
+    const seVienen = fs.filter(f => f.tipo !== 'feriado' || diasA(f.d) <= 14).slice(0, 6);
+    return rapidos + '<div class="tira">' + tira + '</div>' +
+      '<div class="cols"><div>' +
       (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + urg.map(fila).join('') + '</div></div>' : '') +
       '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + resto.map(fila).join('') + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' +
       (done.length ? '<div class="sec"><div class="sec-h"><h2>Hecho<small>' + done.length + '</small></h2></div><div class="list">' + done.map(fila).join('') + '</div></div>' : '') +
       '</div><aside class="side">' +
-      (() => { const sg = sugerencias(), max = S.todasSug ? 99 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias</h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
+      (seVienen.length ? '<div class="box"><h3><span class="spark">✦</span>Se vienen</h3>' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '<div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
+      (() => { const sg = sugerencias(), max = S.todasSug ? 99 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
       '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
       '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button> <button class="btn ghost" data-copiar-plan>Copiar</button></div>' +
       '</div></div>' +
       '<div class="box"><h3>Accesos</h3><div class="links">' +
       [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
       '</div></div></aside></div>';
+  }
+
+  /* ---------------- fechas útiles por rubro (aunque no estén en el calendario anual de Trello) ----------------
+     r: rubros a los que les sirve ('todos' = cualquier marca). f: fecha fija 'MM-DD' o función (año) → Date. */
+  const nDom = (y, m, n) => { const d = new Date(y, m, 1); d.setDate(1 + ((7 - d.getDay()) % 7) + (n - 1) * 7); return d; }; // n-ésimo domingo
+  const FECHAS = [
+    { n: 'San Valentín', f: '02-14', r: ['todos'], tip: 'Combos para regalar o compartir de a dos.' },
+    { n: 'Día Internacional de la Pizza', f: '02-09', r: ['gastronomia'] },
+    { n: 'Día de la Mujer', f: '03-08', r: ['todos'], tip: 'Mejor contenido de reconocimiento que de promo.' },
+    { n: 'Vuelta a clases', f: '03-01', r: ['reposteria', 'gastronomia'], tip: 'Viandas, meriendas y tortas de cumple escolares.' },
+    { n: 'Día Mundial del Té', f: '05-21', r: ['reposteria', 'gastronomia'] },
+    { n: 'Día Mundial de la Hamburguesa', f: '05-28', r: ['gastronomia'] },
+    { n: 'Día del Padre', f: y => nDom(y, 5, 3), r: ['todos'], tip: 'Regalos, combos y recetas para papá.' },
+    { n: 'Día del Arquitecto', f: '07-01', r: ['inmobiliaria'] },
+    { n: 'Día Mundial del Chocolate', f: '07-07', r: ['reposteria', 'gastronomia'] },
+    { n: 'Vacaciones de invierno', f: '07-13', r: ['viajes', 'reposteria'], tip: 'Planes y actividades para chicos.' },
+    { n: 'Día del Amigo', f: '07-20', r: ['todos'], tip: 'Sorteo de a dos o "etiquetá a tu amigo".' },
+    { n: 'Día del Niño', f: y => nDom(y, 7, 3), r: ['todos'] },
+    { n: 'Día Internacional del Chocolate', f: '09-13', r: ['reposteria'] },
+    { n: 'Primavera y Día del Estudiante', f: '09-21', r: ['todos'] },
+    { n: 'Día Mundial del Turismo', f: '09-27', r: ['viajes'] },
+    { n: 'Día Internacional del Café', f: '10-01', r: ['reposteria', 'gastronomia'] },
+    { n: 'Día Nacional del Dulce de Leche', f: '10-11', r: ['reposteria', 'gastronomia'], tip: 'Receta o producto con dulce de leche: rinde muchísimo en AR.' },
+    { n: 'Día Mundial de la Alimentación', f: '10-16', r: ['gastronomia', 'reposteria'] },
+    { n: 'Día Mundial del Pan', f: '10-16', r: ['gastronomia', 'reposteria'] },
+    { n: 'Día de la Madre', f: y => nDom(y, 9, 3), r: ['todos'], tip: 'La fecha comercial más fuerte de octubre: arrancá 10 días antes.' },
+    { n: 'Día Internacional del Chef', f: '10-20', r: ['gastronomia'] },
+    { n: 'Halloween', f: '10-31', r: ['reposteria', 'gastronomia', 'todos'], tip: 'Recetas tenebrosas, decoración y promos temáticas.' },
+    { n: 'Día Mundial del Veganismo', f: '11-01', r: ['gastronomia', 'reposteria'] },
+    { n: 'CyberMonday (a confirmar fecha)', f: '11-02', r: ['todos'], tip: 'Pedí las promos con al menos 2 semanas de anticipación.' },
+    { n: 'Día Mundial del Sándwich', f: '11-03', r: ['gastronomia'] },
+    { n: 'Día de la Tradición', f: '11-10', r: ['todos'], tip: 'Contenido criollo: mate, asado, campo.' },
+    { n: 'Black Friday', f: y => { const d = new Date(y, 10, 1); d.setDate(1 + ((4 - d.getDay() + 7) % 7) + 21 + 1); return d; }, r: ['todos'] },
+    { n: 'Día de la Galletita (Cookie Day)', f: '12-04', r: ['reposteria'] },
+    { n: 'Día del Brownie', f: '12-08', r: ['reposteria'] },
+    { n: 'Día del Cupcake', f: '12-15', r: ['reposteria'] },
+    { n: 'Nochebuena y Navidad', f: '12-24', r: ['todos'], tip: 'Arrancá a fines de noviembre: regalos, mesa navideña, horarios.' },
+    { n: 'Año Nuevo', f: '12-31', r: ['todos'], tip: 'Cierre de año, agradecimiento y horarios de fiestas.' },
+    { n: 'Temporada de verano', f: '12-15', r: ['viajes', 'inmobiliaria'], tip: 'Alquileres temporarios y escapadas.' },
+    { n: 'Reyes', f: '01-06', r: ['reposteria'], tip: 'Rosca de Reyes.' }
+  ];
+  // Rubro de cada marca: sale de la columna "rubro / contexto" de la pestaña Marcas; si está vacía se deduce del nombre.
+  const RUBRO_DEF = { 'isco': 'reposteria', 'quality-tienda': 'reposteria gastronomia', 'quality-mayorista': 'reposteria gastronomia', 'tritato': 'gastronomia', 'vice-burger': 'gastronomia', '1talquecocina': 'gastronomia', 'dyb': 'inmobiliaria', 'upper-trip': 'viajes' };
+  function rubros(m) {
+    const t = norm(m.rubro || '') + ' ' + (RUBRO_DEF[m.slug] || '');
+    const out = [];
+    if (/repost|pastel|insumo|torta|dulce/.test(t)) out.push('reposteria');
+    if (/gastron|burger|hambur|sandw|cocina|resto|comida|pizza/.test(t)) out.push('gastronomia');
+    if (/inmob|propiedad|alquiler/.test(t)) out.push('inmobiliaria');
+    if (/viaj|turis/.test(t)) out.push('viajes');
+    return out;
+  }
+  function norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function proxFecha(f) {
+    for (const y of [NOW.getFullYear(), NOW.getFullYear() + 1]) {
+      const d = typeof f.f === 'function' ? f.f(y) : new Date(y, Number(f.f.slice(0, 2)) - 1, Number(f.f.slice(3)));
+      if (diasA(d) >= 0) return d;
+    }
+    return null;
+  }
+  /* Todas las fechas que se vienen para mis marcas: las del calendario anual de Trello, las sugeridas por rubro y los feriados. */
+  function proximasFechas(dias) {
+    const D = S.data, out = [];
+    D.cards.filter(c => c.cat === 'efem' && c.due).forEach(c => { const d = new Date(c.due); if (diasA(d) >= 0 && diasA(d) <= dias) out.push({ d, n: c.n, tipo: 'trello', marcas: c.m, card: c, enCalendario: c.enCalendario }); });
+    FECHAS.forEach(f => {
+      const d = proxFecha(f); if (!d || diasA(d) > dias) return;
+      const marcas = D.marcas.filter(m => f.r.indexOf('todos') >= 0 || rubros(m).some(r => f.r.indexOf(r) >= 0)).map(m => m.slug)
+        .filter(s => !out.some(o => o.tipo === 'trello' && o.marcas[0] === s && norm(o.n).indexOf(norm(f.n).split(' ').slice(-1)[0]) >= 0)); // si ya está en Trello no la repito
+      if (marcas.length) out.push({ d, n: f.n, tipo: 'sugerida', marcas, tip: f.tip || '' });
+    });
+    (D.feriados || []).forEach(h => { const d = ymdD(h.d); if (diasA(d) >= 0 && diasA(d) <= dias) out.push({ d, n: h.n, tipo: 'feriado', marcas: [], tip: 'Feriado: revisá horarios de los locales y lo programado.' }); });
+    return out.filter(o => o.tipo === 'feriado' || pasa(o.marcas)).sort((a, b) => a.d - b.d);
+  }
+  function promptFecha(f) {
+    const ms = f.marcas.map(s => (marca(s) || {}).nombre).filter(Boolean);
+    return 'Sos especialista senior en redes sociales de un estudio creativo argentino. Se viene ' + f.n + ' (' + f.d.toLocaleDateString('es-AR') + ').' +
+      (ms.length ? ' Manejo estas marcas: ' + ms.map(n => { const m = S.data.marcas.find(x => x.nombre === n); return n + (m && m.rubro ? ' (' + m.rubro + ')' : ''); }).join(', ') + '.' : '') +
+      (f.tip ? ' Pista: ' + f.tip : '') + '\n\nPara cada marca decime en voseo y concreto: qué pieza haría (carrusel, reel, historias, canal social, promo o sorteo), con qué enfoque, un copy corto y qué le pido al cliente. Hoy es ' + NOW.toLocaleDateString('es-AR') + '.';
+  }
+
+  /* ---------------- todo lo que pasa en un día (agenda, tira semanal y panel de detalle) ---------------- */
+  function itemsAgenda(dias) {
+    const D = S.data, items = [];
+    D.eventos.forEach(e => { if (pasa(e.marcas.length ? e.marcas : [S.marca])) items.push({ d: new Date(e.s), h: e.dia ? '—' : hm(new Date(e.s)), x: esc(e.t), k: e.marcas.length ? tagM(e.marcas[0]) : '<span class="k">calendario</span>', cl: hecho(e) ? 'done' : '', tipo: 'evento' }); });
+    D.cards.forEach(c => {
+      if (!c.due || !pasa(c.m) || c.cat === 'efem') return;
+      if (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project') items.push({ d: new Date(c.due), h: 'vence', x: '<button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button> <span class="k">· ' + esc(c.cat === 'corr' ? 'corrección' : c.lista) + '</span>', k: tagM(c.m[0]), cl: 'card', tipo: 'card' });
+    });
+    proximasFechas(dias || 14).forEach(f => items.push({ d: f.d, h: f.tipo === 'feriado' ? '★' : '✦', x: '<button class="lnk" data-fecha="' + esc(fkey(f)) + '">' + esc(f.n) + '</button>' + (f.tipo === 'sugerida' ? ' <span class="pill">sugerida</span>' : f.tipo === 'trello' && !f.enCalendario ? ' <span class="pill warn">no está en el calendario</span>' : ''), k: f.marcas.length ? (f.marcas.length > 2 ? '<span class="k">' + f.marcas.length + ' marcas</span>' : f.marcas.map(tagM).join(' ')) : '<span class="k">feriado</span>', cl: f.tipo === 'feriado' ? 'fer' : f.tipo === 'sugerida' ? 'sug' : 'efem', tipo: 'fecha' }));
+    D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '', tipo: 'reunion' }); } });
+    return items;
+  }
+  const vencidas = () => S.data.cards.filter(c => c.due && !c.dc && diasA(new Date(c.due)) < 0 && pasa(c.m) && (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project'));
+  const fkey = f => norm(f.n) + '|' + f.d.toDateString() + '|' + f.tipo;
+  function panelLateral(titulo, html) {
+    cerrarPanel();
+    const p = document.createElement('div'); p.className = 'drawer'; p.id = 'drawer';
+    p.innerHTML = '<div class="dw-bg"></div><aside class="dw"><div class="dw-h"><h3>' + titulo + '</h3><button class="dw-x" aria-label="Cerrar">✕</button></div><div class="dw-b">' + html + '</div></aside>';
+    document.body.appendChild(p);
+    requestAnimationFrame(() => p.classList.add('on'));
+    $('.dw-bg', p).onclick = cerrarPanel; $('.dw-x', p).onclick = cerrarPanel;
+    bind(p);
+  }
+  function cerrarPanel() { const p = $('#drawer'); if (p) p.remove(); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarPanel(); });
+
+  function detalleDia(d) {
+    const its = itemsAgenda(14).filter(it => diasA(it.d) === diasA(d)).sort((a, b) => a.h.localeCompare(b.h));
+    panelLateral(DIAS_L[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()],
+      its.length ? its.map(it => '<div class="ag ' + it.cl + '"><span class="h">' + it.h + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') : '<div class="empty">Nada cargado para este día.</div>');
+  }
+  function detalleFecha(f) {
+    const tipo = { trello: 'Está en el calendario anual de Trello', sugerida: 'Sugerida según el rubro de la marca (no está en Trello)', feriado: 'Feriado nacional' }[f.tipo];
+    panelLateral(esc(f.n),
+      '<div class="dw-big">' + f.d.getDate() + ' <small>' + MESES[f.d.getMonth()] + ' · ' + cuando(f.d) + '</small></div>' +
+      '<p class="dw-p">' + tipo + '.' + (f.tipo === 'trello' && !f.enCalendario ? ' <b>Todavía no la veo en el calendario editorial.</b>' : '') + '</p>' +
+      (f.marcas.length ? '<div class="dw-l">Le sirve a</div><div class="mks">' + f.marcas.map(s => '<span class="mk"><i style="background:' + color(s) + '"></i>' + esc((marca(s) || {}).nombre || s) + '</span>').join('') + '</div>' : '') +
+      (f.tip ? '<div class="dw-l">Idea</div><p class="dw-p">' + esc(f.tip) + '</p>' : '') +
+      '<div class="dw-acts"><button class="btn y" data-claude-fecha="1">✦ Ideas con Claude</button><button class="btn ghost" data-copiar-fecha="1">Copiar</button>' + (f.card ? '<a class="btn" href="' + esc(f.card.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a>' : '') + '</div>');
+    const p = $('#drawer');
+    $('[data-claude-fecha]', p).onclick = () => abrirClaude(promptFecha(f));
+    $('[data-copiar-fecha]', p).onclick = () => copiar(promptFecha(f));
+  }
+  function detalleCard(c) {
+    const lec = c.ia || ideaRapida(c);
+    panelLateral(esc(c.n),
+      '<div class="mt" style="display:flex;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)">' + tagM(c.m[0]) + '<span>' + esc(c.tablero) + ' · ' + esc(c.lista) + '</span>' + (c.due ? '<span>' + (diasA(new Date(c.due)) < 0 ? '<span class="pill bad">' + cuando(new Date(c.due)) + '</span>' : 'vence ' + cuando(new Date(c.due))) + '</span>' : '') + '</div>' +
+      (c.d ? '<p class="dw-p" style="white-space:pre-line">' + esc(c.d) + '</p>' : '') +
+      (c.att && c.att.length ? '<div class="att" style="padding:0;margin:10px 0">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
+      (['input', 'brainstorming', 'efem', 'corr'].includes(c.cat) || c.tipo === 'project' ? '<div class="ia' + (lec.auto ? ' auto' : '') + '" style="margin:14px 0 0"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + lec.acciones.map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol></div>' : '') +
+      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a>' + btnClaude(c.id) + '</div>');
+  }
+
+  /* ---------------- "Idea rápida": sugerencia automática y gratis según lo que dice la tarjeta (sin IA) ---------------- */
+  const REGLAS_IDEA = [
+    [/receta|recetario|cocin|prepar/, [['Carrusel paso a paso con la receta y los productos de la marca', 'carrusel'], ['Reel corto de la preparación', 'reel'], ['Tanda de historias con la receta y encuesta', 'historias']], ['Fotos o video del resultado final', 'Productos usados y precios']],
+    [/video|videos|grab|filmac|clip/, [['Reel con cortes rápidos y audio en tendencia', 'reel'], ['Historias con los clips sueltos y sticker de pregunta', 'historias']], ['Confirmar qué se quiere comunicar con los videos']],
+    [/promo|oferta|descuento|%|off|2x1|cuotas|precio/, [['Historias con sticker de link y cuenta regresiva', 'historias'], ['Aviso en el canal social', 'canal social'], ['Post o carrusel con la promo', 'post']], ['Condiciones, vigencia y medios de pago']],
+    [/lanzamiento|nuevo|nueva|llego|ingreso|novedad/, [['Reel de presentación del producto', 'reel'], ['Carrusel con detalles y usos', 'carrusel'], ['Historias "llegó" con link', 'historias']], ['Fotos en buena calidad', 'Precio y presentación']],
+    [/foto|fotos|sesion|imagen/, [['Carrusel con las mejores fotos', 'carrusel'], ['Post destacado', 'post']], ['Fotos en alta']],
+    [/sorteo|concurso|giveaway/, [['Post del sorteo con bases claras', 'post'], ['Historias para empujar participación', 'historias']], ['Premio, fecha de cierre y condiciones']],
+    [/horario|feriado|cerrado|vacacion/, [['Placa de horarios en historias destacadas', 'historias'], ['Post de aviso', 'post']], ['Confirmar horarios exactos']],
+    [/evento|feria|demo|capacitacion|taller/, [['Previa en historias para generar expectativa', 'historias'], ['Reel del evento', 'reel']], ['Fecha, lugar y quiénes participan']]
+  ];
+  function ideaRapida(c) {
+    const t = norm(c.n + ' ' + (c.d || ''));
+    const r = REGLAS_IDEA.find(x => x[0].test(t));
+    if (!r) return { titular: 'No queda claro qué hay que hacer con esto: primero confirmalo con el project.', acciones: [{ que: 'Preguntale al project qué necesita y para cuándo', formato: 'consulta' }, { que: 'Mientras tanto, pensá si sirve para historias de esta semana', formato: 'historias' }], pedir: [], auto: true };
+    return { titular: 'Idea rápida según lo que dice la tarjeta:', acciones: r[1].map(a => ({ que: a[0], formato: a[1] })), pedir: r[2], auto: true };
   }
 
   /* ---------------- "Preguntale a Claude": abre el Claude del equipo con la consulta ya escrita (no gasta créditos del panel) ---------------- */
@@ -290,8 +456,8 @@
   /* ---------------- vista INPUTS ---------------- */
   function cardInput(c) {
     const p = inputPide(c), m = marca(c.m[0]);
-    const ia = c.ia ? '<div class="ia"><div class="t">' + esc(c.ia.titular) + '</div><ol>' + (c.ia.acciones || []).map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol>' + ((c.ia.pedir || []).length ? '<div class="pd"><b>Pedile al cliente o al project:</b> ' + c.ia.pedir.map(esc).join(' · ') + '</div>' : '') + '</div>'
-      : '<div class="ia none"><div class="t">Sin lectura automática. Tocá "Preguntale a Claude" y te arma la idea con todo el contexto.</div></div>';
+    const lec = c.ia || ideaRapida(c);
+    const ia = '<div class="ia' + (lec.auto ? ' auto' : '') + '"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + (lec.acciones || []).map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol>' + ((lec.pedir || []).length ? '<div class="pd"><b>Pedile al cliente o al project:</b> ' + lec.pedir.map(esc).join(' · ') + '</div>' : '') + (lec.auto ? '<div class="pd" style="margin-top:8px">Para una idea a medida, tocá <b>Preguntale a Claude</b>.</div>' : '') + '</div>';
     const st = c.estado ? '<span class="state">' + ({ procesado: 'Lo procesaste', project: 'Hablaste con el project', hecho: 'Hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha) + '</span>' : '<span class="state">Sin tocar · cargado ' + hace(c.act) + '</span>';
     return '<article class="cardx" id="in-' + esc(c.id) + '"><div class="hd"><div><div class="mt" style="font-size:12.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">' + tagM(c.m[0]) + '<span>' + esc(c.lista) + '</span>' + (c.due ? '<span>para ' + cuando(new Date(c.due)) + '</span>' : '') + (c.ia ? '<span class="pill ' + (c.ia.prioridad === 'alta' ? 'bad' : c.ia.prioridad === 'media' ? 'warn' : '') + '">prioridad ' + esc(c.ia.prioridad) + '</span>' : '') + '</div><h4>' + esc(c.n) + '</h4></div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a></div>' +
       (c.d ? '<div class="ds">' + esc(c.d) + '</div>' : '') +
@@ -327,18 +493,12 @@
 
   /* ---------------- vista AGENDA ---------------- */
   function vAgenda() {
-    const D = S.data, dias = [];
+    const dias = [];
     for (let i = 0; i < 14; i++) dias.push(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + i));
-    const items = [];
-    D.eventos.forEach(e => { if (pasa(e.marcas.length ? e.marcas : [S.marca])) items.push({ d: new Date(e.s), h: e.dia ? '—' : hm(new Date(e.s)), x: esc(e.t), k: e.marcas.length ? tagM(e.marcas[0]) : '<span class="k">calendario</span>', cl: hecho(e) ? 'done' : '' }); });
-    D.cards.forEach(c => {
-      if (!c.due || !pasa(c.m)) return;
-      if (c.cat === 'efem') items.push({ d: new Date(c.due), h: '✦', x: esc(c.n) + (c.enCalendario ? '' : ' <span class="pill warn">no está en el calendario</span>') + ' <button class="a" style="font-size:12px;color:var(--muted)" data-claude="' + esc(c.id) + '">ideas con Claude →</button>', k: tagM(c.m[0]), cl: 'efem' });
-      else if (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project') items.push({ d: new Date(c.due), h: 'vence', x: '<a href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a> <span class="k">· ' + esc(c.cat === 'corr' ? 'corrección' : c.lista) + '</span>', k: tagM(c.m[0]), cl: 'card' });
-    });
-    D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '' }); } });
+    const items = itemsAgenda(14);
     const atras = items.filter(it => diasA(it.d) < 0 && it.cl === 'card');
-    return (atras.length ? '<div class="day today"><div class="dd">!<small>vencidas</small></div><div>' + atras.map(it => '<div class="ag card"><span class="h">' + cuando(it.d) + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') + '</div></div>' : '') +
+    return '<p class="leyenda"><span class="lg efem">✦ Fecha del calendario anual</span><span class="lg sug">✦ Fecha sugerida por rubro</span><span class="lg fer">★ Feriado</span><span class="lg">Tocá cualquier fecha o tarjeta para ver el detalle</span></p>' +
+      (atras.length ? '<div class="day today"><div class="dd">!<small>vencidas</small></div><div>' + atras.map(it => '<div class="ag card"><span class="h">' + cuando(it.d) + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') + '</div></div>' : '') +
       dias.map(d => {
         const de = items.filter(it => diasA(it.d) === diasA(d)).sort((a, b) => a.h.localeCompare(b.h));
         const wk = d.getDay() === 0 || d.getDay() === 6;
@@ -376,7 +536,7 @@
       return '<div class="brand"><h4><i style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</h4>' + cov +
         '<div class="stats"><div><b>' + nInp + '</b><small>inputs</small></div><div><b>' + nCorr + '</b><small>correcciones</small></div><div><b>' + nVen + '</b><small>por vencer</small></div><div><b>' + efs.length + '</b><small>efemérides</small></div></div>' +
         '<div class="boards">' + m.tableros.map(b => '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + (nom[b.tipo] || b.tipo) + ' ↗</a>').join('') + '</div>' +
-        (efs[0] ? '<div class="next">Próxima efeméride: <b>' + esc(efs[0].n) + '</b> · ' + cuando(new Date(efs[0].due)) + (efs[1] ? ' · después ' + esc(efs[1].n) : '') + '</div>' : '') + '</div>';
+        (() => { const fm = proximasFechas(60).filter(f => f.marcas.indexOf(m.slug) >= 0).slice(0, 5); return fm.length ? '<div class="dw-l" style="margin-top:16px">Fechas que le sirven · 60 días</div>' + fm.map(f => '<button class="fecha mini" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'sugerida' ? 'sugerida por rubro' : f.enCalendario ? 'en el calendario' : 'en Trello · falta en el calendario') + '</small></span></button>').join('') : ''; })() + '</div>';
     }).join('') + '</div>';
   }
 
@@ -417,6 +577,17 @@
     root.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.copiar); if (c) copiar(promptTarjeta(c)); });
     root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
+    root.querySelectorAll('[data-fecha]').forEach(b => b.onclick = () => { const f = proximasFechas(120).find(x => fkey(x) === b.dataset.fecha); if (f) detalleFecha(f); });
+    root.querySelectorAll('[data-card-det]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.cardDet); if (c) detalleCard(c); });
+    root.querySelectorAll('[data-dia]').forEach(b => b.onclick = () => detalleDia(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + Number(b.dataset.dia))));
+    root.querySelectorAll('[data-vencidas]').forEach(b => b.onclick = () => {
+      const v = vencidas();
+      panelLateral('Vencidas · últimos 15 días', v.length ? v.sort((a, b) => new Date(a.due) - new Date(b.due)).map(c => '<div class="ag card"><span class="h">' + cuando(new Date(c.due)).replace('venció ', '') + '</span><span class="x"><button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button> <span class="k">· ' + esc(c.lista) + '</span></span>' + tagM(c.m[0]) + '</div>').join('') : '<div class="empty">No hay nada vencido. Bien ahí.</div>');
+    });
+    root.querySelectorAll('[data-fechas]').forEach(b => b.onclick = () => {
+      const fs = proximasFechas(45);
+      panelLateral('Fechas que se vienen · 45 días', fs.length ? fs.map(f => '<div class="ag ' + (f.tipo === 'feriado' ? 'fer' : f.tipo === 'sugerida' ? 'sug' : 'efem') + '"><span class="h">' + corto(f.d) + '</span><span class="x"><button class="lnk" data-fecha="' + esc(fkey(f)) + '">' + esc(f.n) + '</button>' + (f.tipo === 'sugerida' ? ' <span class="pill">sugerida</span>' : '') + '</span>' + (f.marcas.length > 2 ? '<span class="k">' + f.marcas.length + ' marcas</span>' : f.marcas.map(tagM).join(' ')) + '</div>').join('') : '<div class="empty">No hay fechas en los próximos 45 días.</div>');
+    });
   }
 
   async function marcar(k) {

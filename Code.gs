@@ -62,6 +62,7 @@ const TABS = {
     ['IA_MAX_POR_CORRIDA', '6', 'Cuántas tarjetas nuevas lee la IA por actualización (cada lectura ~US$ 0,003)'],
     ['IA_MAX_POR_MES', '150', 'Tope de lecturas automáticas por mes (150 ≈ US$ 0,50)'],
     ['CAL_EXCLUIR', 'finanzas,cobro,factura,ipc,ajuste,propiedad', 'Eventos del calendario que no ve el equipo'],
+    ['CAL_EQUIPO', 'reporte,entrega quincenal,reels,guion,guiones,revision,reunion ideamia,brainstorming', 'Eventos generales que ve todo el equipo (lo que no nombra persona ni marca y no está acá, solo lo ve el project)'],
     ['CAL_OTROS_NOMBRES', 'zaira,fede,lu,bauti,luisi,juan', 'Otros colaboradores: los eventos que los nombran (y no a vos) no aparecen'],
     ['LINK_REPORTES', 'https://ideamiacontacto-lab.github.io/reportes-ideamia/', ''],
     ['LINK_BRAINSTORMING', 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/', ''],
@@ -474,8 +475,18 @@ function contexto_() {
   const cfg = config_(), cat = catalogo_(), hoy = hoyAR_();
   return {
     cfg, cat, hoy, snap: snapshot_(), ia: leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'),
-    eventos: eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5))
+    eventos: eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5)),
+    feriados: feriados_(hoy)
   };
+}
+
+/* Feriados de Argentina (calendario público de Google), próximos 60 días. */
+function feriados_(hoy) {
+  try {
+    const cal = CalendarApp.getCalendarById('es.ar#holiday@group.v.calendar.google.com');
+    if (!cal) return [];
+    return cal.getEvents(hoy, new Date(hoy.getTime() + 60 * 864e5)).map(e => ({ n: e.getTitle(), d: ymd_(e.getStartTime()) }));
+  } catch (e) { return []; }
 }
 
 /* Panel "base" de una persona: sin lo que tildó (eso se suma al momento con aplicarEstados_). */
@@ -512,13 +523,17 @@ function panel_(personaClave, ctx) {
   const piezas = todas.filter(c => c.tipo === 'scl' && ['trabajo', 'hecho', 'corr', 'urgente', 'espera'].indexOf(c.cat) >= 0).map(c => ({ m: c.m[0], n: norm_(c.n) }));
   const clave_ = s => norm_(s).replace(/^(dia (del|de la|de los|de las|de) )/, '').replace(/[^a-z0-9ñ ]/g, '').trim();
 
-  const enVentana = (c, dias) => c.due && !c.dc && new Date(c.due) <= new Date(hoy.getTime() + dias * 864e5);
+  // Vencidas: solo las de los últimos 15 días (lo más viejo ya no suma).
+  const hace15 = new Date(hoy.getTime() - 15 * 864e5);
+  const reciente = c => !c.due || new Date(c.due) >= hace15;
+  const enVentana = (c, dias) => c.due && !c.dc && new Date(c.due) >= hace15 && new Date(c.due) <= new Date(hoy.getTime() + dias * 864e5);
   const limiteEfem = new Date(hoy.getTime() + ajustes.efemDias * 864e5), ayer = new Date(hoy.getTime() - 864e5);
   const cards = todas.filter(c => {
-    if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup;
+    if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
-    if (['input', 'corr', 'recursos', 'fichas', 'brainstorming'].indexOf(c.cat) >= 0) return true;
+    if (c.cat === 'corr') return reciente(c);
+    if (['input', 'recursos', 'fichas', 'brainstorming'].indexOf(c.cat) >= 0) return true;
     if (c.cat === 'hecho') return false;
     return enVentana(c, ajustes.porVencer);
   }).map(c => {
@@ -552,12 +567,17 @@ function panel_(personaClave, ctx) {
   });
 
   // calendario: 2 días atrás a 21 adelante
+  // Calendario personal: cada uno ve lo suyo.
+  const equipoKw = lista_(cfg.CAL_EQUIPO == null ? 'reporte,entrega quincenal,reels,guion,guiones,revision,reunion ideamia,brainstorming' : cfg.CAL_EQUIPO);
   const evs = ctx.eventos.map(e => Object.assign({}, e)).filter(e => {
     if (esProject) return true;
-    if (e.personas.length) return e.personas.indexOf(yo.clave) >= 0;
-    if (e.otros) return false;
-    if (e.marcas.length) return e.marcas.some(s => slugs.indexOf(s) >= 0);
-    return true;
+    if (e.personas.length) return e.personas.indexOf(yo.clave) >= 0;            // nombra a alguien → solo a esa persona
+    if (e.otros) return false;                                                  // nombra a otro colaborador
+    if (e.marcas.length) return e.marcas.some(s => slugs.indexOf(s) >= 0);      // nombra una marca → solo a quien la tiene
+    const w = ' ' + norm_(e.t).replace(/[^a-z0-9ñ]+/g, ' ') + ' ';
+    if (w.indexOf(' cm ') >= 0) return esCM;                                    // "Reporte Semanal CM" → Ale
+    if (w.indexOf(' scl ') >= 0) return !esCM;                                  // "Reporte Semanal SCL" → social media
+    return equipoKw.some(k => w.indexOf(' ' + k) >= 0);                         // general del equipo; lo demás queda para el project
   });
   evs.forEach(e => { if (est['cal:' + e.id]) e.estado = est['cal:' + e.id]; });
 
@@ -565,7 +585,8 @@ function panel_(personaClave, ctx) {
     ok: true, generado: snap.generado || null, hoy: ymd_(hoy),
     yo: { clave: yo.clave, nombre: yo.nombre, rol: yo.rol },
     equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })),
-    marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ tipo: b.tipo, url: b.url, nombre: b.nombre })) })),
+    feriados: ctx.feriados || [],
+    marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ tipo: b.tipo, url: b.url, nombre: b.nombre })) })),
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     cards, cobertura, rutinas, reuniones, eventos: evs,
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE },
