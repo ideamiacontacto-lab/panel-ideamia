@@ -45,7 +45,8 @@ const TABS = {
     ['INPUT_RECORDATORIO_DIAS', '3', 'Cada cuántos días vuelve a preguntar por un input ya procesado'],
     ['POR_VENCER_DIAS', '3', 'Días hacia adelante para "tarjetas próximas a vencer"'],
     ['EFEMERIDES_DIAS', '45', 'Días hacia adelante para mostrar efemérides'],
-    ['IA_MAX_POR_CORRIDA', '12', 'Cuántas tarjetas nuevas analiza la IA por actualización (cada una cuesta centavos)'],
+    ['IA_MAX_POR_CORRIDA', '6', 'Cuántas tarjetas nuevas lee la IA por actualización (cada lectura ~US$ 0,003)'],
+    ['IA_MAX_POR_MES', '150', 'Tope de lecturas automáticas por mes (150 ≈ US$ 0,50)'],
     ['CAL_EXCLUIR', 'finanzas,cobro,factura,ipc,ajuste,propiedad', 'Eventos del calendario que no ve el equipo'],
     ['CAL_OTROS_NOMBRES', 'zaira,fede,lu,bauti,luisi,juan', 'Otros colaboradores: los eventos que los nombran (y no a vos) no aparecen'],
     ['LINK_REPORTES', 'https://ideamiacontacto-lab.github.io/reportes-ideamia/', ''],
@@ -315,14 +316,15 @@ const IA_SISTEMA = 'Sos especialista senior en redes sociales de Ideamia, un est
 
 function claude_(sistema, usuario, schema, maxTokens) {
   const key = P.getProperty('ANTHROPIC_KEY'); if (!key) return null;
+  // Claude Haiku 4.5: el modelo más económico (US$ 1 / 5 por millón de tokens). Cada lectura cuesta ~US$ 0,003.
   const body = {
-    model: 'claude-opus-5-5', max_tokens: maxTokens || 4000, fallbacks: 'default',
-    system: sistema, messages: [{ role: 'user', content: usuario }],
-    output_config: Object.assign({ effort: 'low' }, schema ? { format: { type: 'json_schema', schema: schema } } : {})
+    model: 'claude-haiku-4-5', max_tokens: maxTokens || 1200,
+    system: sistema, messages: [{ role: 'user', content: usuario }]
   };
+  if (schema) body.output_config = { format: { type: 'json_schema', schema: schema } };
   const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify(body),
-    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'server-side-fallback-2026-07-01' }
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }
   });
   if (r.getResponseCode() >= 300) { console.warn('Claude ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300)); return null; }
   const j = JSON.parse(r.getContentText());
@@ -336,21 +338,23 @@ function hash_(s) { return Utilities.base64Encode(Utilities.computeDigest(Utilit
 
 function recomendarTarjetas_(snap, cat, cfg) {
   const ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json');
-  const hoy = new Date(), lim = Number(cfg.IA_MAX_POR_CORRIDA || 12);
-  const en30 = new Date(hoy.getTime() + 30 * 864e5);
-  const hace30 = new Date(hoy.getTime() - 30 * 864e5);
+  const hoy = new Date(), lim = Number(cfg.IA_MAX_POR_CORRIDA || 6);
+  // Tope mensual de lecturas automáticas (para no pasarse del presupuesto). Lo demás se consulta con el botón "Preguntale a Claude".
+  const mes = ym_(hoy), topeMes = Number(cfg.IA_MAX_POR_MES || 150);
+  let usadas = P.getProperty('IA_MES') === mes ? Number(P.getProperty('IA_USADAS') || 0) : 0;
+  const hace14 = new Date(hoy.getTime() - 14 * 864e5);
   const candidatas = snap.cards.filter(c => {
+    if (new Date(c.act) < hace14) return false; // solo lo nuevo: el historial no se lee
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && c.m.length > 0;
     if (c.cat === 'input') return c.tipo !== 'cm';
-    if (c.cat === 'brainstorming') return c.tipo === 'scl' && new Date(c.act) >= hace30;
-    if (c.cat === 'efem') return c.due && new Date(c.due) >= hoy && new Date(c.due) <= en30;
     return false;
   }).sort((a, b) => new Date(b.act) - new Date(a.act));
   let hechas = 0;
   candidatas.forEach(c => {
-    const h = hash_(c.n + '|' + c.d + '|' + c.due + '|' + c.lista);
+    const h = hash_(c.n + '|' + c.d); // mover la tarjeta de lista o cambiarle la fecha no genera otra lectura
     if (ia[c.id] && ia[c.id].h === h) return;
-    if (hechas >= lim) return;
+    if (hechas >= lim || usadas >= topeMes) return;
+    usadas++;
     const marca = cat.marcas.filter(m => m.slug === c.m[0])[0];
     const recientes = snap.cards.filter(x => x.m[0] === c.m[0] && x.tipo === 'scl' && (x.cat === 'trabajo' || x.cat === 'hecho')).slice(0, 15).map(x => '- ' + x.n).join('\n');
     const efem = snap.cards.filter(x => x.m[0] === c.m[0] && x.cat === 'efem' && x.due && new Date(x.due) >= hoy).sort((a, b) => new Date(a.due) - new Date(b.due)).slice(0, 6).map(x => '- ' + x.n + ' (' + x.due.slice(0, 10) + ')').join('\n');
@@ -362,6 +366,7 @@ function recomendarTarjetas_(snap, cat, cfg) {
     hechas++;
     if (reco) ia[c.id] = { h: h, r: reco, t: new Date().toISOString() };
   });
+  P.setProperty('IA_MES', mes); P.setProperty('IA_USADAS', String(usadas));
   const vivas = {}; snap.cards.forEach(c => vivas[c.id] = 1);
   Object.keys(ia).forEach(id => { if (!vivas[id]) delete ia[id]; });
   guardarJson_('IA_FILE_ID', 'panel-ideamia-ia.json', ia);
@@ -614,14 +619,6 @@ function doPost(e) {
         return json_({ ok: true });
       case 'actualizar':
         return json_(actualizar());
-      case 'consejo': { // plan del día armado por la IA, a pedido
-        const c = CacheService.getScriptCache(), k = 'consejo:' + quien + ':' + ymd_(new Date());
-        const hit = c.get(k); if (hit && !b.forzar) return json_({ ok: true, texto: hit });
-        const txt = claude_('Sos especialista senior en redes sociales de Ideamia. Armás el plan del día de una persona del equipo: en voseo, breve, en 4 a 6 viñetas ordenadas por prioridad, cada una con una acción concreta. Usá solo lo que está en el resumen. Sin títulos ni introducción.', String(b.resumen || '').slice(0, 12000), null, 3000);
-        if (!txt) return json_({ error: 'ia', mensaje: 'La IA no respondió. ¿Está cargada la clave de Claude?' });
-        c.put(k, txt, 21600);
-        return json_({ ok: true, texto: txt });
-      }
     }
     return json_({ error: 'accion' });
   } catch (err) { return json_({ error: 'servidor', mensaje: String(err.message || err) }); }

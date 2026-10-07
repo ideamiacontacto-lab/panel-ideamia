@@ -3,8 +3,8 @@
    Sin API_URL en config.js funciona en modo demo. */
 (function () {
   const C = window.PANEL_CONFIG || {};
-  const DEMO = !C.API_URL;
   const qs = new URLSearchParams(location.search);
+  const DEMO = !C.API_URL || qs.get('demo') === '1';
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
   const LS = {
@@ -249,25 +249,49 @@
       (done.length ? '<div class="sec"><div class="sec-h"><h2>Hecho<small>' + done.length + '</small></h2></div><div class="list">' + done.map(fila).join('') + '</div></div>' : '') +
       '</div><aside class="side">' +
       (() => { const sg = sugerencias(), max = S.todasSug ? 99 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias</h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
-      '<div class="box"><h3><span class="spark">✦</span>Plan del día con IA</h3><div class="plan">' +
-      (S.planCargando ? '<div class="wait">Leyendo tus tarjetas, reuniones y entregas…</div>' : S.plan ? S.plan + '<div style="padding-bottom:12px"><button class="btn ghost" id="plan">Volver a armar</button></div>' : '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">La IA mira todo lo que tenés pendiente y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" id="plan">Armame el plan</button></div>') +
+      '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
+      '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button></div>' +
       '</div></div>' +
       '<div class="box"><h3>Accesos</h3><div class="links">' +
       [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
       '</div></div></aside></div>';
   }
 
+  /* ---------------- "Preguntale a Claude": abre el Claude del equipo con la consulta ya escrita (no gasta créditos del panel) ---------------- */
+  function abrirClaude(txt) {
+    try { navigator.clipboard.writeText(txt); } catch (e) {}
+    window.open('https://claude.ai/new?q=' + encodeURIComponent(txt.slice(0, 6000)), '_blank', 'noopener');
+    toast('Abrí Claude con la consulta escrita. Si no aparece, pegala con Ctrl+V.');
+  }
+  function promptTarjeta(c) {
+    const m = marca(c.m[0]) || { nombre: 'la marca' };
+    const efs = S.data.cards.filter(x => x.cat === 'efem' && x.m[0] === c.m[0] && x.due && diasA(new Date(x.due)) >= 0).sort((a, b) => new Date(a.due) - new Date(b.due)).slice(0, 6);
+    const tipo = c.cat === 'efem' ? 'una efeméride del calendario anual' : c.cat === 'brainstorming' ? 'una idea de campaña / brainstorming' : 'un input que me dejó el project';
+    return 'Sos especialista senior en redes sociales de un estudio creativo argentino. Trabajo como social media de la marca ' + m.nombre + '.\n\n' +
+      'En Trello tengo ' + tipo + ':\n- Título: ' + c.n + (c.d ? '\n- Descripción: ' + c.d : '') + (c.due ? '\n- Fecha: ' + new Date(c.due).toLocaleDateString('es-AR') : '') +
+      (c.lab && c.lab.length ? '\n- Etiquetas: ' + c.lab.join(', ') : '') + (c.att && c.att.length ? '\n- Adjuntos: ' + c.att.map(a => a.n).join(', ') : '') + '\n- Lista: ' + c.lista +
+      (efs.length ? '\n\nPróximas efemérides de la marca: ' + efs.map(x => x.n + ' (' + new Date(x.due).toLocaleDateString('es-AR') + ')').join(', ') : '') +
+      '\n\nHoy es ' + NOW.toLocaleDateString('es-AR') + '. Decime en voseo y concreto:\n1. Qué piezas haría (carrusel, reel, historias, canal social, oferta, sorteo) y con qué enfoque.\n2. Un copy sugerido para la pieza principal.\n3. Qué le pido al cliente o al project (promos, productos, fotos, precios).\n4. Para cuándo lo programaría.';
+  }
+  function promptPlan() {
+    const pend = agrupado().filter(x => !hecho(x.obj));
+    return 'Sos especialista senior en redes sociales de un estudio creativo argentino. Armame el plan del día en 5 viñetas ordenadas por prioridad, en voseo, cada una con una acción concreta. Soy ' + S.data.yo.nombre + ' (' + S.data.yo.rol + ') y hoy es ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '.\n\nPendientes:\n' +
+      pend.map(x => '- ' + x.t + (x.marca ? ' [' + ((marca(x.marca) || {}).nombre || '') + ']' : '') + (x.items ? ' [' + x.items.filter(i => !hecho(i.obj)).map(i => (marca(i.marca) || {}).nombre).join(', ') + ']' : '') + ' · ' + x.meta.join(' · ').replace(/<[^>]+>/g, '')).join('\n') +
+      '\n\nAlertas:\n' + sugerencias().map(s => '- ' + s.h.replace(/<[^>]+>/g, '')).join('\n');
+  }
+  const btnClaude = id => '<button class="btn" data-claude="' + esc(id) + '"><span style="color:var(--y)">✦</span> Preguntale a Claude</button>';
+
   /* ---------------- vista INPUTS ---------------- */
   function cardInput(c) {
     const p = inputPide(c), m = marca(c.m[0]);
     const ia = c.ia ? '<div class="ia"><div class="t">' + esc(c.ia.titular) + '</div><ol>' + (c.ia.acciones || []).map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol>' + ((c.ia.pedir || []).length ? '<div class="pd"><b>Pedile al cliente o al project:</b> ' + c.ia.pedir.map(esc).join(' · ') + '</div>' : '') + '</div>'
-      : '<div class="ia none"><div class="t">Todavía no la leí. Aparece en la próxima actualización (cada hora).</div></div>';
+      : '<div class="ia none"><div class="t">Sin lectura automática. Tocá "Preguntale a Claude" y te arma la idea con todo el contexto.</div></div>';
     const st = c.estado ? '<span class="state">' + ({ procesado: 'Lo procesaste', project: 'Hablaste con el project', hecho: 'Hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha) + '</span>' : '<span class="state">Sin tocar · cargado ' + hace(c.act) + '</span>';
     return '<article class="cardx" id="in-' + esc(c.id) + '"><div class="hd"><div><div class="mt" style="font-size:12.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">' + tagM(c.m[0]) + '<span>' + esc(c.lista) + '</span>' + (c.due ? '<span>para ' + cuando(new Date(c.due)) + '</span>' : '') + (c.ia ? '<span class="pill ' + (c.ia.prioridad === 'alta' ? 'bad' : c.ia.prioridad === 'media' ? 'warn' : '') + '">prioridad ' + esc(c.ia.prioridad) + '</span>' : '') + '</div><h4>' + esc(c.n) + '</h4></div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a></div>' +
       (c.d ? '<div class="ds">' + esc(c.d) + '</div>' : '') +
       (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + ia +
       (p ? '<div class="nudge">' + (p === 'nuevo' ? '<b>Input nuevo.</b> ' : '<b>Hace unos días que no lo tocás.</b> ') + '¿Necesitás este input? ¿Lo procesaste? ¿Hablaste con el project?</div>' : '') +
-      '<div class="ft"><button class="btn' + (p ? ' y' : '') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Lo procesé</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button><span class="sp"></span>' + st + '</div></article>';
+      '<div class="ft"><button class="btn' + (p ? ' y' : '') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Lo procesé</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
   }
   function vInputs() {
     const pri = c => ({ alta: 3, media: 2, baja: 1 })[c.ia && c.ia.prioridad] || 2;
@@ -276,7 +300,7 @@
     const brains = S.data.cards.filter(c => c.cat === 'brainstorming' && pasa(c.m));
     return '<div class="sec"><div class="sec-h"><h2>Para revisar<small>' + pend.length + '</small></h2><span class="act">Te vuelvo a preguntar cada ' + S.data.ajustes.inputDias + ' días</span></div>' + (pend.length ? pend.map(cardInput).join('') : '<div class="empty">No hay inputs nuevos. Cuando el project cargue uno en Trello aparece acá con la lectura de la IA.</div>') + '</div>' +
       (resto.length ? '<div class="sec"><div class="sec-h"><h2>Ya revisados<small>' + resto.length + '</small></h2></div>' + resto.map(cardInput).join('') + '</div>' : '') +
-      (brains.length ? '<div class="sec"><div class="sec-h"><h2>Brainstorming y campañas<small>' + brains.length + '</small></h2><a class="act" href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></div>' + brains.map(c => { const x = Object.assign({}, c); return cardInput(x).replace(/<div class="nudge">[\s\S]*?<\/div>/, '').replace(/<div class="ft">[\s\S]*<\/div><\/article>$/, '<div class="ft"><span class="sp"></span><span class="state">' + esc(c.lista) + '</span></div></article>'); }).join('') + '</div>' : '');
+      (brains.length ? '<div class="sec"><div class="sec-h"><h2>Brainstorming y campañas<small>' + brains.length + '</small></h2><a class="act" href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></div>' + brains.map(c => { const x = Object.assign({}, c); return cardInput(x).replace(/<div class="nudge">[\s\S]*?<\/div>/, '').replace(/<div class="ft">[\s\S]*<\/div><\/article>$/, '<div class="ft">' + btnClaude(c.id) + '<span class="sp"></span><span class="state">' + esc(c.lista) + '</span></div></article>'); }).join('') + '</div>' : '');
   }
 
   /* ---------------- vista REUNIONES ---------------- */
@@ -303,7 +327,7 @@
     D.eventos.forEach(e => { if (pasa(e.marcas.length ? e.marcas : [S.marca])) items.push({ d: new Date(e.s), h: e.dia ? '—' : hm(new Date(e.s)), x: esc(e.t), k: e.marcas.length ? tagM(e.marcas[0]) : '<span class="k">calendario</span>', cl: hecho(e) ? 'done' : '' }); });
     D.cards.forEach(c => {
       if (!c.due || !pasa(c.m)) return;
-      if (c.cat === 'efem') items.push({ d: new Date(c.due), h: '✦', x: esc(c.n) + (c.enCalendario ? '' : ' <span class="pill warn">no está en el calendario</span>'), k: tagM(c.m[0]), cl: 'efem' });
+      if (c.cat === 'efem') items.push({ d: new Date(c.due), h: '✦', x: esc(c.n) + (c.enCalendario ? '' : ' <span class="pill warn">no está en el calendario</span>') + ' <button class="a" style="font-size:12px;color:var(--muted)" data-claude="' + esc(c.id) + '">ideas con Claude →</button>', k: tagM(c.m[0]), cl: 'efem' });
       else if (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project') items.push({ d: new Date(c.due), h: 'vence', x: '<a href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a> <span class="k">· ' + esc(c.cat === 'corr' ? 'corrección' : c.lista) + '</span>', k: tagM(c.m[0]), cl: 'card' });
     });
     D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '' }); } });
@@ -382,7 +406,8 @@
     root.querySelectorAll('[data-archivar]').forEach(b => b.onclick = () => archivar(b.dataset.archivar));
     const q = $('#qres', root); if (q) q.oninput = () => { S.filtroRes = q.value; const pos = q.selectionStart; render(); const n = $('#qres'); n.focus(); n.setSelectionRange(pos, pos); };
     const fr = $('#freg', root); if (fr) fr.onchange = () => { S.filtroReg = fr.value; render(); };
-    const pl = $('#plan', root); if (pl) pl.onclick = planIA;
+    root.querySelectorAll('[data-claude]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.claude); if (c) abrirClaude(promptTarjeta(c)); });
+    root.querySelectorAll('[data-claude-plan]').forEach(b => b.onclick = () => abrirClaude(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
   }
 
@@ -451,21 +476,6 @@
     });
   }
 
-  async function planIA() {
-    S.planCargando = true; render();
-    const pend = tareasHoy().filter(x => !hecho(x.obj));
-    const resumen = 'Hoy es ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '. Persona: ' + S.data.yo.nombre + ' (' + S.data.yo.rol + ').\n\nPendientes:\n' +
-      pend.map(x => '- ' + x.t + (x.marca ? ' [' + (marca(x.marca) || {}).nombre + ']' : '') + ' · ' + x.meta.join(' · ').replace(/<[^>]+>/g, '')).join('\n') +
-      '\n\nAlertas:\n' + sugerencias().map(s => '- ' + s.h.replace(/<[^>]+>/g, '')).join('\n') +
-      '\n\nInputs con lectura de la IA:\n' + inputs().filter(c => c.ia).map(c => '- ' + c.n + ' [' + ((marca(c.m[0]) || {}).nombre || '') + ']: ' + c.ia.titular).join('\n');
-    try {
-      let txt;
-      if (DEMO) { await new Promise(r => setTimeout(r, 900)); txt = '- Arrancá por **CHANTILLY TIPS** de Isco: venció ayer, mandala corregida antes del mediodía.\n- Agendá hoy la **reunión mensual** con Tritato y Gabriel Varisco: la ventana cierra el 10.\n- Bajá el **recetario de Halloween** a un carrusel y pedile a Isco las promos de moldes; con eso cubrís Halloween, que todavía no está en el calendario.\n- Usá los **videos de descarga de Guido** para un reel de "llegó lo nuevo" y un aviso en el canal social.\n- Antes del viernes 16 llevá **SkilfulBlack** hasta el 07/11: es la marca más atrasada (le faltan 14 días).'; }
-      else txt = (await post({ action: 'consejo', resumen })).texto;
-      S.plan = '<ul>' + txt.split('\n').map(l => l.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean).map(l => '<li>' + esc(l).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</li>').join('') + '</ul>';
-    } catch (e) { S.plan = '<div class="wait">No pude armarlo: ' + esc(e.message) + '</div>'; }
-    S.planCargando = false; render();
-  }
 
   async function actualizar() {
     if (S.sync) return;
