@@ -552,6 +552,12 @@ function claveOk_(k, project) {
 function doGet(e) {
   const q = e.parameter || {};
   try {
+    if (q.action === 'estado') { // diagnóstico: solo cantidades, nada de contenido ni claves
+      const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'), t = {};
+      (snap.cards || []).forEach(c => { const k = (c.m[0] || 'sin-marca') + ':' + c.cat; t[k] = (t[k] || 0) + 1; });
+      return json_({ ok: true, generado: snap.generado || null, tableros: (snap.tableros || []).map(b => b.tipo + ' ' + b.nombre + ' → ' + (b.marca || '-')), tarjetas: (snap.cards || []).length, lecturasIA: Object.keys(ia).length, porMarca: t,
+        claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY') } }, q.cb);
+    }
     if (q.action === 'equipo') return json_({ ok: true, equipo: catalogo_().equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })) }, q.cb);
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
