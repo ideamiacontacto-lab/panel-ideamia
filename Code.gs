@@ -221,6 +221,7 @@ function tipoTablero_(nombre) {
 }
 function catLista_(nombre) {
   const n = norm_(nombre);
+  if (/anterior|publicad|terminad/.test(n)) return 'hecho';
   if (n.indexOf('efemer') >= 0) return 'efem';
   if (n.indexOf('input') >= 0 || n.indexOf('pedidos') >= 0) return 'input';
   if (n.indexOf('correcc') >= 0) return 'corr';
@@ -250,12 +251,13 @@ function leerTrello_(cat) {
     rutas.push('/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,dateLastActivity,labels&attachments=true&attachment_fields=name,url,mimeType');
   });
   const res = trelloVarios_(rutas);
-  const cards = [], haceUnaSemana = Date.now() - 7 * 864e5;
+  const cards = [], haceUnaSemana = Date.now() - 7 * 864e5, indice = {};
   elegidos.forEach((b, i) => {
     const listas = {}; (res[i * 2] || []).forEach(l => listas[l.id] = l);
     (res[i * 2 + 1] || []).forEach(c => {
       const l = listas[c.idList]; if (!l) return;
       const catL = catLista_(l.name);
+      if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre };
       // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
       if (catL === 'hecho' && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input';
@@ -268,6 +270,16 @@ function leerTrello_(cat) {
         m: b.tipo === 'project' ? marcasEn_(c.name + ' ' + (c.labels || []).map(x => x.name).join(' '), cat.marcas) : [b.marca]
       });
     });
+  });
+  // Las tarjetas del Project suelen ser enlaces a una tarjeta de otro tablero (el título es la URL): se toma marca y título de la original.
+  const vivas = {}; cards.forEach(c => vivas[c.id] = 1);
+  cards.forEach(c => {
+    if (c.tipo !== 'project') return;
+    const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n);
+    const orig = m && indice[m[1]];
+    if (!orig) return;
+    c.n = orig.n; c.m = orig.m ? [orig.m] : c.m; c.origen = orig.tablero + ' · ' + orig.lista;
+    if (vivas[orig.id]) c.dup = true; // la original ya aparece en el panel
   });
   return { tableros: elegidos, cards };
 }
@@ -326,10 +338,12 @@ function recomendarTarjetas_(snap, cat, cfg) {
   const ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json');
   const hoy = new Date(), lim = Number(cfg.IA_MAX_POR_CORRIDA || 12);
   const en30 = new Date(hoy.getTime() + 30 * 864e5);
+  const hace30 = new Date(hoy.getTime() - 30 * 864e5);
   const candidatas = snap.cards.filter(c => {
-    if (c.cat === 'input' || c.cat === 'brainstorming') return c.tipo !== 'cm';
+    if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && c.m.length > 0;
+    if (c.cat === 'input') return c.tipo !== 'cm';
+    if (c.cat === 'brainstorming') return c.tipo === 'scl' && new Date(c.act) >= hace30;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= hoy && new Date(c.due) <= en30;
-    if (c.tipo === 'project') return c.cat !== 'hecho';
     return false;
   }).sort((a, b) => new Date(b.act) - new Date(a.act));
   let hechas = 0;
@@ -462,7 +476,8 @@ function panel_(personaClave) {
   const enVentana = (c, dias) => c.due && !c.dc && new Date(c.due) <= new Date(hoy.getTime() + dias * 864e5);
   const limiteEfem = new Date(hoy.getTime() + ajustes.efemDias * 864e5), ayer = new Date(hoy.getTime() - 864e5);
   const cards = todas.filter(c => {
-    if (c.tipo === 'project') return c.cat !== 'hecho';
+    if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup;
+    if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
     if (['input', 'corr', 'recursos', 'fichas', 'brainstorming'].indexOf(c.cat) >= 0) return true;
     if (c.cat === 'hecho') return false;

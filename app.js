@@ -113,7 +113,7 @@
       if (c.cat === 'corr' && n > D.ajustes.porVencer && n !== 99) return;
       out.push({
         k: 'card:' + c.id, tipo: 'card', marca: c.m[0], t: c.n, url: c.url, obj: c,
-        meta: [c.cat === 'corr' ? 'Corrección' : (c.tipo === 'project' ? 'Project · ' + c.lista : c.lista), d ? (n < 0 ? '<span class="pill bad">' + cuando(d) + '</span>' : 'vence ' + cuando(d)) : 'sin fecha'],
+        meta: [c.cat === 'corr' ? 'Corrección' : (c.tipo === 'project' ? 'Project · ' + (c.origen || c.lista) : c.lista), d ? (n < 0 ? '<span class="pill bad">' + cuando(d) + '</span>' : 'vence ' + cuando(d)) : 'sin fecha'],
         u: n < 0 ? 4 : n === 0 ? 3 : n === 1 ? 2 : 1
       });
     });
