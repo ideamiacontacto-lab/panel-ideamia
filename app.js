@@ -250,7 +250,7 @@
       '</div><aside class="side">' +
       (() => { const sg = sugerencias(), max = S.todasSug ? 99 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias</h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
       '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
-      '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button></div>' +
+      '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button> <button class="btn ghost" data-copiar-plan>Copiar</button></div>' +
       '</div></div>' +
       '<div class="box"><h3>Accesos</h3><div class="links">' +
       [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
@@ -259,9 +259,9 @@
 
   /* ---------------- "Preguntale a Claude": abre el Claude del equipo con la consulta ya escrita (no gasta créditos del panel) ---------------- */
   function abrirClaude(txt) {
-    try { navigator.clipboard.writeText(txt); } catch (e) {}
+    try { navigator.clipboard.writeText(txt).catch(() => {}); } catch (e) {}
     window.open('https://claude.ai/new?q=' + encodeURIComponent(txt.slice(0, 6000)), '_blank', 'noopener');
-    toast('Abrí Claude con la consulta escrita. Si no aparece, pegala con Ctrl+V.');
+    toast('Abrí tu Claude con la consulta escrita. Si no aparece, pegala con Ctrl+V.');
   }
   function promptTarjeta(c) {
     const m = marca(c.m[0]) || { nombre: 'la marca' };
@@ -279,7 +279,13 @@
       pend.map(x => '- ' + x.t + (x.marca ? ' [' + ((marca(x.marca) || {}).nombre || '') + ']' : '') + (x.items ? ' [' + x.items.filter(i => !hecho(i.obj)).map(i => (marca(i.marca) || {}).nombre).join(', ') + ']' : '') + ' · ' + x.meta.join(' · ').replace(/<[^>]+>/g, '')).join('\n') +
       '\n\nAlertas:\n' + sugerencias().map(s => '- ' + s.h.replace(/<[^>]+>/g, '')).join('\n');
   }
-  const btnClaude = id => '<button class="btn" data-claude="' + esc(id) + '"><span style="color:var(--y)">✦</span> Preguntale a Claude</button>';
+  // Abre claude.ai en el navegador de quien usa el panel (su propia cuenta). "Copiar" sirve para pegarlo en un chat o en la app que ya tenga abierta.
+  const btnClaude = id => '<button class="btn" data-claude="' + esc(id) + '" title="Abre tu Claude con la consulta escrita"><span style="color:var(--y)">✦</span> Preguntale a Claude</button><button class="btn ghost" data-copiar="' + esc(id) + '" title="Copia la consulta para pegarla en tu Claude">Copiar</button>';
+  function copiar(txt) {
+    const ok = () => toast('Consulta copiada. Pegala en tu Claude con Ctrl+V.');
+    try { navigator.clipboard.writeText(txt).then(ok, () => { fallbackCopiar(txt); ok(); }); } catch (e) { fallbackCopiar(txt); ok(); }
+  }
+  function fallbackCopiar(txt) { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e) {} t.remove(); }
 
   /* ---------------- vista INPUTS ---------------- */
   function cardInput(c) {
@@ -408,6 +414,8 @@
     const fr = $('#freg', root); if (fr) fr.onchange = () => { S.filtroReg = fr.value; render(); };
     root.querySelectorAll('[data-claude]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.claude); if (c) abrirClaude(promptTarjeta(c)); });
     root.querySelectorAll('[data-claude-plan]').forEach(b => b.onclick = () => abrirClaude(promptPlan()));
+    root.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.copiar); if (c) copiar(promptTarjeta(c)); });
+    root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
   }
 
