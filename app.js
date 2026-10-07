@@ -1,0 +1,544 @@
+/* Panel diario · Ideamia
+   Lee todo del Apps Script (Trello + Calendar + IA + Registro) y lo ordena en "qué hago hoy".
+   Sin API_URL en config.js funciona en modo demo. */
+(function () {
+  const C = window.PANEL_CONFIG || {};
+  const DEMO = !C.API_URL;
+  const qs = new URLSearchParams(location.search);
+  const $ = (s, el) => (el || document).querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem('pi:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('pi:' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const NOW = DEMO ? new Date(2026, 9, 7, 12, 30) : new Date();
+  const S = {
+    data: null, proj: null, tab: LS.get('tab', 'hoy'), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
+    persona: qs.get('p') || LS.get('persona', null), key: LS.get('key', ''), pkey: LS.get('pkey', ''), sync: false
+  };
+
+  /* ---------------- iconos ---------------- */
+  const I = {
+    check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    out: '<svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>',
+    clip: '<svg viewBox="0 0 24 24"><path d="M20 11.5l-8.2 8.2a5 5 0 01-7.1-7.1l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8"/></svg>',
+    cal: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5M16 5.5a3 3 0 010 5.6M18 14c1.7.6 2.7 2.3 3 5"/></svg>',
+    inbox: '<svg viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v6H4zM4 13h4.5l1 2h5l1-2H20"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.6L19.5 10l-5.7 1.4L12 17l-1.8-5.6L4.5 10l5.7-1.4z"/></svg>',
+    flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+    archive: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V19h14V8.5M10 12.5h4"/></svg>',
+    msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>'
+  };
+
+  /* ---------------- fechas ---------------- */
+  const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  const DIAS_L = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const sod = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const ymdD = s => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+  const diasA = d => Math.round((sod(d) - sod(NOW)) / 864e5);
+  const dm = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+  const hm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  const corto = d => DIAS[d.getDay()] + ' ' + d.getDate();
+  function cuando(d) {
+    const n = diasA(d);
+    if (n < -1) return 'venció hace ' + (-n) + ' días';
+    if (n === -1) return 'venció ayer';
+    if (n === 0) return 'hoy';
+    if (n === 1) return 'mañana';
+    if (n < 7) return DIAS_L[d.getDay()].toLowerCase() + ' ' + d.getDate();
+    return corto(d) + '/' + (d.getMonth() + 1);
+  }
+  function hace(txt) { // "2026-10-07 09:12" o ISO
+    if (!txt) return '';
+    const d = /T/.test(txt) ? new Date(txt) : new Date(txt.replace(' ', 'T'));
+    const min = Math.round((NOW - d) / 6e4);
+    if (min < 2) return 'recién';
+    if (min < 60) return 'hace ' + min + ' min';
+    if (min < 60 * 24) return 'hace ' + Math.round(min / 60) + ' h';
+    const dd = Math.round(min / 1440); return dd === 1 ? 'ayer' : 'hace ' + dd + ' días';
+  }
+  const ahoraTxt = () => { const d = DEMO ? NOW : new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + hm(d); };
+
+  /* ---------------- marcas ---------------- */
+  const PALETA = ['#FFF200', '#7CC4FF', '#FF8FB1', '#5CE38A', '#FFB454', '#B69CFF', '#4FD1C5', '#FF7A59', '#D0D0D0', '#E9A8FF'];
+  const marca = slug => (S.data && S.data.marcas.find(m => m.slug === slug)) || (S.proj && S.proj.marcas.find(m => m.slug === slug)) || null;
+  const color = slug => { const all = (S.data ? S.data.marcas : (S.proj ? S.proj.marcas : [])).map(m => m.slug); const i = all.indexOf(slug); return i < 0 ? '#888' : PALETA[i % PALETA.length]; };
+  const tagM = slug => slug ? '<span class="tag"><i style="background:' + color(slug) + '"></i>' + esc((marca(slug) || { nombre: slug }).nombre) + '</span>' : '';
+  const pasa = slugs => S.marca === 'todas' || (Array.isArray(slugs) ? slugs : [slugs]).indexOf(S.marca) >= 0;
+
+  /* ---------------- red ---------------- */
+  async function get(params) {
+    if (DEMO) return null;
+    const u = C.API_URL + '?' + new URLSearchParams(params).toString();
+    const r = await fetch(u, { cache: 'no-store' });
+    return r.json();
+  }
+  async function post(body) {
+    if (DEMO) { await new Promise(r => setTimeout(r, 350)); return { ok: true, demo: true }; }
+    const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ k: S.key, persona: S.data ? S.data.yo.clave : S.persona }, body)) });
+    const j = await r.json();
+    if (j.error) throw new Error(j.mensaje || j.error);
+    return j;
+  }
+
+  let toastT;
+  function toast(msg, deshacer) {
+    const t = $('#toast');
+    t.innerHTML = '<span>' + msg + '</span>' + (deshacer ? '<button>Deshacer</button>' : '');
+    if (deshacer) $('button', t).onclick = () => { t.classList.remove('on'); deshacer(); };
+    t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 4200);
+  }
+
+  /* ---------------- estado de cada cosa ---------------- */
+  const hecho = o => !!(o && o.estado && (o.estado.estado === 'hecho' || o.estado.estado === 'agendada'));
+  function inputPide(c) { // ¿hay que volver a preguntar por este input?
+    if (!c.estado) return 'nuevo';
+    if (c.estado.estado === 'archivado') return null;
+    const f = c.estado.fecha ? new Date(c.estado.fecha.replace(' ', 'T')) : NOW;
+    return (NOW - f) / 864e5 >= (S.data.ajustes.inputDias || 3) ? 'recordar' : null;
+  }
+  const inputs = () => S.data.cards.filter(c => c.cat === 'input' && !(c.estado && c.estado.estado === 'archivado'));
+  const reuPend = () => S.data.reuniones.filter(r => !hecho(r));
+
+  /* ---------------- tareas de hoy ---------------- */
+  function tareasHoy() {
+    const D = S.data, out = [];
+    D.cards.forEach(c => {
+      if (!['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) && c.tipo !== 'project') return;
+      if (c.tipo === 'project' && !c.due) return;
+      const d = c.due ? new Date(c.due) : null, n = d ? diasA(d) : 99;
+      if (c.cat !== 'corr' && n > D.ajustes.porVencer) return;
+      if (c.cat === 'corr' && n > D.ajustes.porVencer && n !== 99) return;
+      out.push({
+        k: 'card:' + c.id, tipo: 'card', marca: c.m[0], t: c.n, url: c.url, obj: c,
+        meta: [c.cat === 'corr' ? 'Corrección' : (c.tipo === 'project' ? 'Project · ' + c.lista : c.lista), d ? (n < 0 ? '<span class="pill bad">' + cuando(d) + '</span>' : 'vence ' + cuando(d)) : 'sin fecha'],
+        u: n < 0 ? 4 : n === 0 ? 3 : n === 1 ? 2 : 1
+      });
+    });
+    D.eventos.forEach(e => {
+      const s = new Date(e.s), n = diasA(s);
+      if (n < 0 || n > 1) return;
+      out.push({ k: 'cal:' + e.id, tipo: 'evento', marca: e.marcas[0] || '', marcas: e.marcas, t: e.t, obj: e, meta: ['Calendario', n === 0 ? (e.dia ? 'hoy' : 'hoy ' + hm(s)) : (e.dia ? 'mañana' : 'mañana ' + hm(s))], u: n === 0 ? 3 : 1 });
+    });
+    D.rutinas.forEach(r => out.push({ k: r.clave, tipo: 'rutina', marca: r.marca, t: r.tarea, obj: r, hint: r.ayuda, enlace: r.enlace, meta: [r.vencida && r.etiqueta === 'esta semana' ? 'pendiente desde el ' + (r.id === 'salida' ? 'miércoles' : r.id === 'canal' || r.id === 'coordinar' ? 'viernes' : 'lunes') : r.vencida ? '<span class="pill warn">vencida</span>' : r.etiqueta], u: r.vencida ? 2 : 1 }));
+    D.reuniones.forEach(r => {
+      if (hecho(r)) return;
+      const faltan = r.hasta - NOW.getDate();
+      out.push({ k: r.clave, tipo: 'reunion', marca: r.marca, t: 'Organizar: ' + r.nombre, obj: r, meta: ['con ' + r.con, r.vencida ? '<span class="pill bad">se pasó la fecha</span>' : 'tiene que ser del ' + r.desde + ' al ' + r.hasta], u: r.vencida ? 4 : faltan <= 3 ? 3 : 1 });
+    });
+    inputs().forEach(c => {
+      const p = inputPide(c); if (!p) return;
+      out.push({ k: 'inp:' + c.id, tipo: 'input', marca: c.m[0], t: (p === 'nuevo' ? 'Input nuevo: ' : '¿Seguís necesitando? ') + c.n, obj: c, meta: [p === 'nuevo' ? 'cargado ' + hace(c.act) : 'lo tocaste ' + hace(c.estado.fecha)], u: p === 'nuevo' ? 2 : 1 });
+    });
+    return out.filter(x => pasa(x.marcas && x.marcas.length ? x.marcas : (x.marca ? [x.marca] : [S.marca]))).sort((a, b) => (hecho(a.obj) - hecho(b.obj)) || (b.u - a.u));
+  }
+  /* Las rutinas y reuniones que se repiten por marca van en un solo renglón con una ficha por marca. */
+  function agrupado() {
+    const t = tareasHoy(), out = [], grupos = {};
+    t.forEach(x => {
+      if ((x.tipo === 'rutina' || x.tipo === 'reunion') && x.marca) {
+        const g = x.tipo + ':' + x.obj.id;
+        if (!grupos[g]) { grupos[g] = { k: g, tipo: 'grupo', sub: x.tipo, t: x.t, hint: x.hint, enlace: x.enlace, items: [], meta: x.meta, u: 0, obj: {} }; out.push(grupos[g]); }
+        grupos[g].items.push(x); grupos[g].u = Math.max(grupos[g].u, x.u);
+      } else out.push(x);
+    });
+    out.forEach(x => { if (x.tipo === 'grupo') { x.obj.estado = x.items.every(i => hecho(i.obj)) ? { estado: 'hecho' } : null; if (x.items.length === 1) Object.assign(x, x.items[0]); } });
+    return out.sort((a, b) => (hecho(a.obj) - hecho(b.obj)) || (b.u - a.u));
+  }
+
+  /* ---------------- sugerencias (reglas + IA) ---------------- */
+  function sugerencias() {
+    const D = S.data, out = [];
+    // entregas que vienen (del calendario)
+    const prox = (re) => D.eventos.filter(e => re.test(e.t) && diasA(new Date(e.s)) >= 0).sort((a, b) => new Date(a.s) - new Date(b.s))[0];
+    const cal = prox(/calendario/i), reels = prox(/ideas de reels/i);
+    if (cal && diasA(new Date(cal.s)) <= 9) {
+      const d = new Date(cal.s), obj = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+      out.push({ c: 'y', h: '<b>' + cuando(d).replace(/^./, x => x.toUpperCase()) + ' entregás calendario.</b> Cada marca tiene que quedar cubierta hasta el <b>' + dm(obj) + '</b>.', go: 'marcas', a: 'Ver cobertura' });
+    }
+    if (reels && diasA(new Date(reels.s)) <= 7) out.push({ c: 'y', h: '<b>' + cuando(new Date(reels.s)).replace(/^./, x => x.toUpperCase()) + ' entregás 4 ideas de reels</b> del mes que viene. Revisá si los guiones que hay se pueden hacer como están.', go: 'marcas', a: 'Abrir Guiones' });
+    // cobertura por marca
+    D.marcas.filter(m => pasa(m.slug)).forEach(m => {
+      const cv = D.cobertura && D.cobertura[m.slug]; if (!cv) return;
+      if (!cv.hasta) { out.push({ c: 'bad', h: '<b>' + esc(m.nombre) + '</b> no tiene fechas cargadas en el calendario editorial.', go: 'marcas' }); return; }
+      const falta = Math.round((ymdD(cv.objetivo) - ymdD(cv.hasta)) / 864e5);
+      if (falta > 0) out.push({ c: falta > 7 ? 'bad' : 'warn', h: '<b>' + esc(m.nombre) + '</b>: calendario cargado hasta el ' + dm(ymdD(cv.hasta)) + '. Para llegar al ' + dm(ymdD(cv.objetivo)) + ' faltan <b>' + falta + ' días</b> de contenido.', go: 'marcas' });
+    });
+    // correcciones vencidas
+    const venc = D.cards.filter(c => c.cat === 'corr' && c.due && diasA(new Date(c.due)) < 0 && pasa(c.m));
+    if (venc.length) out.push({ c: 'bad', h: '<b>' + venc.length + (venc.length === 1 ? ' corrección vencida' : ' correcciones vencidas') + '</b>: ' + venc.slice(0, 3).map(c => esc(c.n)).join(', ') + '.', go: 'hoy' });
+    // efemérides cerca que no están en el calendario
+    D.cards.filter(c => c.cat === 'efem' && pasa(c.m) && !c.enCalendario).map(c => ({ c, n: diasA(new Date(c.due)) })).filter(x => x.n >= 0 && x.n <= 25).sort((a, b) => a.n - b.n).slice(0, 3).forEach(x => {
+      out.push({ c: 'warn', h: '<b>' + esc(x.c.n) + '</b> (' + esc((marca(x.c.m[0]) || {}).nombre || '') + ') ' + (x.n === 0 ? 'es hoy' : 'en ' + x.n + ' días') + ' y no la veo en el calendario editorial.' + (x.c.ia ? '<br><span style="color:var(--muted)">' + esc(x.c.ia.titular) + '</span>' : ''), go: 'agenda', a: 'Ver agenda' });
+    });
+    // inputs con lectura de la IA
+    inputs().filter(c => pasa(c.m) && c.ia && inputPide(c)).slice(0, 3).forEach(c => out.push({ c: 'y', h: esc(c.ia.titular), go: 'inputs', a: 'Ver recomendación · ' + esc((marca(c.m[0]) || {}).nombre || '') }));
+    // reuniones por vencer
+    const rp = reuPend().filter(r => pasa(r.marca || S.marca) && (r.vencida || r.hasta - NOW.getDate() <= 4));
+    if (rp.length) out.push({ c: 'bad', h: '<b>' + rp.length + (rp.length === 1 ? ' reunión' : ' reuniones') + ' sin fecha</b> y se termina la ventana: ' + rp.slice(0, 3).map(r => esc(r.nombre) + (r.marca ? ' · ' + esc((marca(r.marca) || {}).nombre) : '')).join(', ') + '.', go: 'reuniones', a: 'Agendar' });
+    if (!out.length) out.push({ c: 'ok', h: 'Todo en orden por ahora. Buen momento para adelantar el calendario del mes que viene.' });
+    return out;
+  }
+
+  /* ---------------- render general ---------------- */
+  function render() {
+    const app = $('#app');
+    if (S.proj) { app.innerHTML = vistaProject(); bind(app); return; }
+    const D = S.data; if (!D) return;
+    const t = agrupado(), tot = t.length, ok = t.filter(x => hecho(x.obj)).length;
+    const hoyD = NOW, nombre = D.yo.nombre;
+    const nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length;
+    const tabs = [['hoy', 'Hoy', tot - ok], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
+    app.innerHTML =
+      '<section class="hero"><div><div class="kick">— ' + DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()] + '</div>' +
+      '<h1>Hola, ' + esc(nombre) + ' <em>· ' + (hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches') + '</em></h1>' +
+      '<p>' + (tot - ok ? 'Tenés <b>' + (tot - ok) + (tot - ok === 1 ? ' cosa' : ' cosas') + '</b> para hoy' + (nInp ? ', <b>' + nInp + ' input' + (nInp > 1 ? 's' : '') + '</b> para revisar' : '') + (nReu ? ' y <b>' + nReu + (nReu > 1 ? ' reuniones' : ' reunión') + '</b> por organizar.' : '.') : 'Terminaste lo de hoy. Mirá las sugerencias para adelantar.') + '</p></div>' +
+      '<div class="meter"><div class="l">Hecho hoy</div><div class="n">' + ok + '<small>/' + tot + '</small></div><div class="bar"><i style="width:' + (tot ? Math.round(ok / tot * 100) : 0) + '%"></i></div></div></section>' +
+      '<div class="ctrl"><div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? 'Todas las marcas' : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>' +
+      '<nav class="tabs">' + tabs.map(x => '<button class="tab' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + (x[2] ? '<span class="badge' + (x[3] ? ' hot' : '') + '">' + x[2] + '</span>' : '') + '</button>').join('') + '</nav></div>' +
+      '<div class="view" id="view">' + ({ hoy: vHoy, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas }[S.tab] || vHoy)(t) + '</div>';
+    bind(app);
+    renderTop();
+  }
+
+  function renderTop() {
+    const D = S.data, w = $('#who');
+    if (D || S.proj) {
+      const yo = D ? D.yo : { nombre: 'Project', rol: 'Project' };
+      w.innerHTML = '<b>' + esc(yo.nombre) + '</b>' + esc(yo.rol) + ' · cambiar'; w.classList.remove('hidden');
+      w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; history.replaceState(null, '', location.pathname); gate(); };
+    }
+    const gen = (D && D.generado) || null;
+    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello y la IA">' + (S.sync ? '<span class="spin">↻</span> Actualizando' : '↻ Actualizar') + '</button>';
+    $('#rf').onclick = actualizar;
+  }
+
+  /* ---------------- vista HOY ---------------- */
+  function filaGrupo(x) {
+    const done = hecho(x.obj), n = x.items.filter(i => hecho(i.obj)).length;
+    const chips = x.items.map(i => {
+      const ok = hecho(i.obj), m = marca(i.marca) || { nombre: i.marca };
+      if (x.sub === 'reunion') return '<button class="mk' + (ok ? ' on' : '') + (i.u >= 3 && !ok ? ' late' : '') + '" ' + (ok ? 'disabled' : 'data-agendar="' + esc(i.k) + '"') + '><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + (ok && i.obj.estado.detalle ? ' · ' + corto(ymdD(i.obj.estado.detalle.slice(0, 10))) : '') + '</button>';
+      return '<button class="mk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '"><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
+    }).join('');
+    const ico = x.sub === 'reunion' ? '<span class="ico">' + I.users + '</span>' : '<span class="prog' + (done ? ' full' : '') + '">' + n + '/' + x.items.length + '</span>';
+    return '<div class="row' + (done ? ' done' : '') + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + (x.enlace ? '<a class="go" href="' + esc(x.enlace) + '" target="_blank" rel="noopener">' + I.out + '</a>' : '') + '</div></div>';
+  }
+  function fila(x) {
+    if (x.tipo === 'grupo') return filaGrupo(x);
+    const done = hecho(x.obj);
+    let accion = '';
+    if (x.tipo === 'reunion') accion = '<button class="btn y" data-agendar="' + esc(x.k) + '">' + I.cal + 'Agendar</button>';
+    else if (x.tipo === 'input') accion = '<button class="btn" data-ver-input="' + esc(x.obj.id) + '">Revisar</button>';
+    else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
+    else if (x.enlace) accion = '<a class="go" href="' + esc(x.enlace) + '" target="_blank" rel="noopener" title="Abrir">' + I.out + '</a>';
+    const chk = (x.tipo === 'reunion' || x.tipo === 'input')
+      ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : I.inbox) + '</span>'
+      : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
+    return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
+  }
+  function vHoy(t) {
+    const pend = t.filter(x => !hecho(x.obj)), done = t.filter(x => hecho(x.obj));
+    const urg = pend.filter(x => x.u >= 3), resto = pend.filter(x => x.u < 3);
+    const L = S.data.links;
+    return '<div class="cols"><div>' +
+      (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + urg.map(fila).join('') + '</div></div>' : '') +
+      '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + resto.map(fila).join('') + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' +
+      (done.length ? '<div class="sec"><div class="sec-h"><h2>Hecho<small>' + done.length + '</small></h2></div><div class="list">' + done.map(fila).join('') + '</div></div>' : '') +
+      '</div><aside class="side">' +
+      (() => { const sg = sugerencias(), max = S.todasSug ? 99 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias</h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
+      '<div class="box"><h3><span class="spark">✦</span>Plan del día con IA</h3><div class="plan">' +
+      (S.planCargando ? '<div class="wait">Leyendo tus tarjetas, reuniones y entregas…</div>' : S.plan ? S.plan + '<div style="padding-bottom:12px"><button class="btn ghost" id="plan">Volver a armar</button></div>' : '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">La IA mira todo lo que tenés pendiente y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" id="plan">Armame el plan</button></div>') +
+      '</div></div>' +
+      '<div class="box"><h3>Accesos</h3><div class="links">' +
+      [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
+      '</div></div></aside></div>';
+  }
+
+  /* ---------------- vista INPUTS ---------------- */
+  function cardInput(c) {
+    const p = inputPide(c), m = marca(c.m[0]);
+    const ia = c.ia ? '<div class="ia"><div class="t">' + esc(c.ia.titular) + '</div><ol>' + (c.ia.acciones || []).map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol>' + ((c.ia.pedir || []).length ? '<div class="pd"><b>Pedile al cliente o al project:</b> ' + c.ia.pedir.map(esc).join(' · ') + '</div>' : '') + '</div>'
+      : '<div class="ia none"><div class="t">Todavía no la leí. Aparece en la próxima actualización (cada hora).</div></div>';
+    const st = c.estado ? '<span class="state">' + ({ procesado: 'Lo procesaste', project: 'Hablaste con el project', hecho: 'Hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha) + '</span>' : '<span class="state">Sin tocar · cargado ' + hace(c.act) + '</span>';
+    return '<article class="cardx" id="in-' + esc(c.id) + '"><div class="hd"><div><div class="mt" style="font-size:12.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">' + tagM(c.m[0]) + '<span>' + esc(c.lista) + '</span>' + (c.due ? '<span>para ' + cuando(new Date(c.due)) + '</span>' : '') + (c.ia ? '<span class="pill ' + (c.ia.prioridad === 'alta' ? 'bad' : c.ia.prioridad === 'media' ? 'warn' : '') + '">prioridad ' + esc(c.ia.prioridad) + '</span>' : '') + '</div><h4>' + esc(c.n) + '</h4></div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a></div>' +
+      (c.d ? '<div class="ds">' + esc(c.d) + '</div>' : '') +
+      (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + ia +
+      (p ? '<div class="nudge">' + (p === 'nuevo' ? '<b>Input nuevo.</b> ' : '<b>Hace unos días que no lo tocás.</b> ') + '¿Necesitás este input? ¿Lo procesaste? ¿Hablaste con el project?</div>' : '') +
+      '<div class="ft"><button class="btn' + (p ? ' y' : '') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Lo procesé</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button><span class="sp"></span>' + st + '</div></article>';
+  }
+  function vInputs() {
+    const pri = c => ({ alta: 3, media: 2, baja: 1 })[c.ia && c.ia.prioridad] || 2;
+    const L = inputs().filter(c => pasa(c.m)).sort((a, b) => (!!inputPide(b) - !!inputPide(a)) || (pri(b) - pri(a)) || (new Date(b.act) - new Date(a.act)));
+    const pend = L.filter(c => inputPide(c)), resto = L.filter(c => !inputPide(c));
+    const brains = S.data.cards.filter(c => c.cat === 'brainstorming' && pasa(c.m));
+    return '<div class="sec"><div class="sec-h"><h2>Para revisar<small>' + pend.length + '</small></h2><span class="act">Te vuelvo a preguntar cada ' + S.data.ajustes.inputDias + ' días</span></div>' + (pend.length ? pend.map(cardInput).join('') : '<div class="empty">No hay inputs nuevos. Cuando el project cargue uno en Trello aparece acá con la lectura de la IA.</div>') + '</div>' +
+      (resto.length ? '<div class="sec"><div class="sec-h"><h2>Ya revisados<small>' + resto.length + '</small></h2></div>' + resto.map(cardInput).join('') + '</div>' : '') +
+      (brains.length ? '<div class="sec"><div class="sec-h"><h2>Brainstorming y campañas<small>' + brains.length + '</small></h2><a class="act" href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></div>' + brains.map(c => { const x = Object.assign({}, c); return cardInput(x).replace(/<div class="nudge">[\s\S]*?<\/div>/, '').replace(/<div class="ft">[\s\S]*<\/div><\/article>$/, '<div class="ft"><span class="sp"></span><span class="state">' + esc(c.lista) + '</span></div></article>'); }).join('') + '</div>' : '');
+  }
+
+  /* ---------------- vista REUNIONES ---------------- */
+  function vReuniones() {
+    const L = S.data.reuniones.filter(r => pasa(r.marca || S.marca));
+    const pend = L.filter(r => !hecho(r)).sort((a, b) => (b.vencida - a.vencida) || (a.hasta - b.hasta));
+    const ok = L.filter(hecho).sort((a, b) => String(a.estado.detalle || '').localeCompare(String(b.estado.detalle || '')));
+    const row = r => {
+      const ag = hecho(r), det = r.estado && r.estado.detalle ? r.estado.detalle : '';
+      const d = det ? ymdD(det.slice(0, 10)) : null;
+      return '<div class="row reu' + (ag ? '' : '') + '"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(r.nombre) + '</div><div class="mt">' + tagM(r.marca) + '<span>con ' + esc(r.con) + '</span><span>' + (ag ? 'agendada ' + hace(r.estado.fecha || '') : r.vencida ? '<span class="pill bad">se pasó: tenía que ser del ' + r.desde + ' al ' + r.hasta + '</span>' : 'tiene que ser del ' + r.desde + ' al ' + r.hasta + ' de ' + MESES[NOW.getMonth()]) + '</span></div></div>' +
+        '<div>' + (ag ? '<div class="when">' + (d ? corto(d) : '') + '<small>' + esc(det.slice(11, 16)) + (/evento creado/.test(det) ? ' · en calendario' : '') + '</small></div>' : '<button class="btn y" data-agendar="' + esc(r.clave) + '">' + I.cal + 'Ponerle fecha</button>') + '</div></div>';
+    };
+    return '<div class="cols"><div><div class="sec"><div class="sec-h"><h2>Por organizar<small>' + pend.length + '</small></h2><span class="act">Te lo recuerdo hasta que le pongas fecha y hora</span></div>' + (pend.length ? '<div class="list">' + pend.map(row).join('') + '</div>' : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
+      '<div class="sec"><div class="sec-h"><h2>Agendadas<small>' + ok.length + '</small></h2></div>' + (ok.length ? '<div class="list">' + ok.map(row).join('') + '</div>' : '<div class="empty">Ninguna todavía.</div>') + '</div></div>' +
+      '<aside class="side"><div class="box"><h3>Cómo funciona</h3><div class="sug"><i class="y"></i><div>Cada reunión tiene su ventana: la de <b>Ads</b> es la última semana del mes, la <b>mensual con el cliente</b> y la de <b>entrega de reportes</b>, los primeros 10 días.</div></div><div class="sug"><i></i><div>Cuando le ponés fecha y hora, el project la ve en su panel y se crea el evento en el calendario de Ideamia.</div></div><div class="sug"><i></i><div>Las reglas se cambian en la pestaña <b>Reuniones</b> del Sheet.</div></div></div></aside></div>';
+  }
+
+  /* ---------------- vista AGENDA ---------------- */
+  function vAgenda() {
+    const D = S.data, dias = [];
+    for (let i = 0; i < 14; i++) dias.push(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + i));
+    const items = [];
+    D.eventos.forEach(e => { if (pasa(e.marcas.length ? e.marcas : [S.marca])) items.push({ d: new Date(e.s), h: e.dia ? '—' : hm(new Date(e.s)), x: esc(e.t), k: e.marcas.length ? tagM(e.marcas[0]) : '<span class="k">calendario</span>', cl: hecho(e) ? 'done' : '' }); });
+    D.cards.forEach(c => {
+      if (!c.due || !pasa(c.m)) return;
+      if (c.cat === 'efem') items.push({ d: new Date(c.due), h: '✦', x: esc(c.n) + (c.enCalendario ? '' : ' <span class="pill warn">no está en el calendario</span>'), k: tagM(c.m[0]), cl: 'efem' });
+      else if (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project') items.push({ d: new Date(c.due), h: 'vence', x: '<a href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a> <span class="k">· ' + esc(c.cat === 'corr' ? 'corrección' : c.lista) + '</span>', k: tagM(c.m[0]), cl: 'card' });
+    });
+    D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '' }); } });
+    const atras = items.filter(it => diasA(it.d) < 0 && it.cl === 'card');
+    return (atras.length ? '<div class="day today"><div class="dd">!<small>vencidas</small></div><div>' + atras.map(it => '<div class="ag card"><span class="h">' + cuando(it.d) + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') + '</div></div>' : '') +
+      dias.map(d => {
+        const de = items.filter(it => diasA(it.d) === diasA(d)).sort((a, b) => a.h.localeCompare(b.h));
+        const wk = d.getDay() === 0 || d.getDay() === 6;
+        if (wk && !de.length) return '';
+        return '<div class="day' + (diasA(d) === 0 ? ' today' : '') + (wk ? ' weekend' : '') + '"><div class="dd">' + d.getDate() + '<small>' + (diasA(d) === 0 ? 'hoy' : diasA(d) === 1 ? 'mañana' : DIAS[d.getDay()]) + '</small></div><div>' + (de.length ? de.map(it => '<div class="ag ' + it.cl + '"><span class="h">' + it.h + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') : '<div class="ag"><span class="h"></span><span class="x" style="color:var(--dim)">Sin entregas</span></div>') + '</div></div>';
+      }).join('');
+  }
+
+  /* ---------------- vista RECURSOS ---------------- */
+  function vRecursos() {
+    const f = S.filtroRes.toLowerCase();
+    const L = S.data.cards.filter(c => (c.cat === 'recursos' || c.cat === 'fichas') && pasa(c.m) && (!f || (c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase().includes(f)));
+    const porMarca = {}; L.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
+    const tile = c => '<div class="res"><div class="k">' + (c.cat === 'fichas' ? 'Ficha técnica' : 'Recurso corporativo') + '</div><div class="n">' + esc(c.n) + '</div>' + (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + '<a class="op" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir tarjeta ↗</a></div>';
+    return '<input class="search" id="qres" placeholder="Buscar logo, manual, ficha, menú…" value="' + esc(S.filtroRes) + '">' +
+      (Object.keys(porMarca).length ? Object.keys(porMarca).map(s => '<div class="sec"><div class="sec-h"><h2>' + tagM(s) + '<small>' + porMarca[s].length + '</small></h2></div><div class="grid">' + porMarca[s].sort((a, b) => a.cat.localeCompare(b.cat)).map(tile).join('') + '</div></div>').join('') : '<div class="empty">' + (f ? 'No encontré nada con "' + esc(S.filtroRes) + '".' : 'Todavía no hay recursos corporativos ni fichas técnicas en los tableros SCL.') + '</div>');
+  }
+
+  /* ---------------- vista MARCAS ---------------- */
+  function vMarcas() {
+    const D = S.data;
+    return '<div class="brands">' + D.marcas.filter(m => pasa(m.slug)).map(m => {
+      const cv = (D.cobertura || {})[m.slug] || {};
+      const cs = D.cards.filter(c => c.m[0] === m.slug);
+      const nInp = cs.filter(c => c.cat === 'input' && inputPide(c)).length, nCorr = cs.filter(c => c.cat === 'corr').length;
+      const efs = cs.filter(c => c.cat === 'efem' && diasA(new Date(c.due)) >= 0).sort((a, b) => new Date(a.due) - new Date(b.due));
+      const nVen = cs.filter(c => ['trabajo', 'urgente', 'espera'].includes(c.cat)).length;
+      let cov = '<div class="cov"><div class="l"><span>Calendario cargado</span><b>sin fechas</b></div><div class="bar"><i class="bad" style="width:4%"></i></div></div>';
+      if (cv.hasta) {
+        const total = Math.max(1, Math.round((ymdD(cv.objetivo) - sod(NOW)) / 864e5)), lleno = Math.round((ymdD(cv.hasta) - sod(NOW)) / 864e5);
+        const pct = Math.max(3, Math.min(100, Math.round(lleno / total * 100))), falta = total - lleno;
+        cov = '<div class="cov"><div class="l"><span>Calendario hasta el <b>' + dm(ymdD(cv.hasta)) + '</b></span><span>objetivo ' + dm(ymdD(cv.objetivo)) + '</span></div><div class="bar"><i class="' + (falta > 7 ? 'bad' : falta > 0 ? 'warn' : '') + '" style="width:' + pct + '%"></i><u></u></div></div>';
+      }
+      const nom = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones' };
+      return '<div class="brand"><h4><i style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</h4>' + cov +
+        '<div class="stats"><div><b>' + nInp + '</b><small>inputs</small></div><div><b>' + nCorr + '</b><small>correcciones</small></div><div><b>' + nVen + '</b><small>por vencer</small></div><div><b>' + efs.length + '</b><small>efemérides</small></div></div>' +
+        '<div class="boards">' + m.tableros.map(b => '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + (nom[b.tipo] || b.tipo) + ' ↗</a>').join('') + '</div>' +
+        (efs[0] ? '<div class="next">Próxima efeméride: <b>' + esc(efs[0].n) + '</b> · ' + cuando(new Date(efs[0].due)) + (efs[1] ? ' · después ' + esc(efs[1].n) : '') + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  /* ---------------- vista PROJECT ---------------- */
+  function vistaProject() {
+    const P = S.proj, f = S.filtroReg;
+    const nm = c => { const p = P.personas.find(x => x.clave === c); return p ? p.nombre : c; };
+    const ms = s => { const m = P.marcas.find(x => x.slug === s); return m ? m.nombre : s; };
+    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Equipo <em>· al día</em></h1><p>Qué tildó cada uno, qué reuniones coordinó y qué inputs siguen sin tocar. Todo queda también en la pestaña <b>Registro</b> del Sheet.</p></div></section>' +
+      '<div class="view"><div class="ppl">' + P.personas.map(p => {
+        const pct = p.rutinas.total ? Math.round(p.rutinas.hechas / p.rutinas.total * 100) : 0;
+        const ag = p.reuniones.filter(r => r.estado), sin = p.reuniones.filter(r => !r.estado);
+        return '<div class="person"><div class="rl">' + esc(p.rol) + '</div><h4>' + esc(p.nombre) + '</h4>' +
+          '<div class="pr"><span>Rutinas de hoy y la semana</span><b>' + p.rutinas.hechas + '/' + p.rutinas.total + '</b></div><div class="bar"><i style="width:' + pct + '%"></i></div>' +
+          '<div class="pr"><span>Inputs sin tocar</span><b' + (p.inputs.sinTocar ? ' style="color:var(--warn)"' : '') + '>' + p.inputs.sinTocar + ' de ' + p.inputs.total + '</b></div>' +
+          (p.reuniones.length ? '<div class="lst">' + sin.concat(ag).map(r => '<div class="it"><span>' + esc(r.nombre) + (r.marca ? ' · ' + esc(ms(r.marca)) : '') + '</span><span>' + (r.estado ? '<span class="pill ok">' + (/^\d{4}-\d\d-\d\d/.test(r.estado.detalle) ? corto(ymdD(r.estado.detalle)) + ' · ' + esc(r.estado.detalle.slice(11, 16)) : esc(r.estado.detalle.slice(0, 16))) + '</span>' : '<span class="pill ' + (r.vencida ? 'bad' : 'warn') + '">sin fecha · hasta el ' + r.hasta + '</span>') + '</span></div>').join('') + '</div>' : '') +
+          '<div style="margin-top:14px"><a class="btn" href="?p=' + encodeURIComponent(p.clave) + '">Ver su panel →</a></div></div>';
+      }).join('') + '</div>' +
+      '<div class="sec"><div class="sec-h"><h2>Registro<small>últimos movimientos</small></h2><select class="search" id="freg" style="width:auto;margin:0;padding:6px 10px"><option value="">Todos</option>' + P.personas.map(p => '<option value="' + esc(p.clave) + '"' + (f === p.clave ? ' selected' : '') + '>' + esc(p.nombre) + '</option>').join('') + '</select></div>' +
+      '<table class="tbl"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th class="hm">Marca</th><th>Estado</th></tr></thead><tbody>' +
+      P.registro.filter(r => !f || r.persona === f).map(r => '<tr><td class="m">' + esc(r.fecha.slice(5)) + '</td><td>' + esc(nm(r.persona)) + '</td><td>' + esc(({ reunion: 'Reunión', rutina: 'Rutina', input: 'Input', evento: 'Calendario', card: 'Tarjeta' })[r.tipo] || r.tipo) + ' · <span style="color:var(--muted)">' + esc((r.clave.split(':')[1] || '').replace(/-/g, ' ')) + '</span>' + (r.detalle ? '<div style="color:var(--muted);font-size:12px">' + esc(r.detalle) + '</div>' : '') + '</td><td class="hm m">' + esc(r.marca ? ms(r.marca) : '—') + '</td><td><span class="pill ' + ({ hecho: 'ok', agendada: 'ok', archivado: '', procesado: 'y', project: 'y' }[r.estado] || '') + '">' + esc(r.estado) + '</span></td></tr>').join('') +
+      '</tbody></table></div></div>';
+  }
+
+  /* ---------------- interacción ---------------- */
+  function bind(root) {
+    root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
+    root.querySelectorAll('[data-check]').forEach(b => b.onclick = () => marcar(b.dataset.check));
+    root.querySelectorAll('[data-agendar]').forEach(b => b.onclick = () => agendar(b.dataset.agendar));
+    root.querySelectorAll('[data-ver-input]').forEach(b => b.onclick = () => { S.tab = 'inputs'; LS.set('tab', 'inputs'); render(); const el = document.getElementById('in-' + b.dataset.verInput); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    root.querySelectorAll('[data-inp]').forEach(b => b.onclick = () => inputAccion(b.dataset.id, b.dataset.inp));
+    root.querySelectorAll('[data-archivar]').forEach(b => b.onclick = () => archivar(b.dataset.archivar));
+    const q = $('#qres', root); if (q) q.oninput = () => { S.filtroRes = q.value; const pos = q.selectionStart; render(); const n = $('#qres'); n.focus(); n.setSelectionRange(pos, pos); };
+    const fr = $('#freg', root); if (fr) fr.onchange = () => { S.filtroReg = fr.value; render(); };
+    const pl = $('#plan', root); if (pl) pl.onclick = planIA;
+    const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
+  }
+
+  async function marcar(k) {
+    const x = tareasHoy().find(t => t.k === k); if (!x) return;
+    const o = x.obj, antes = o.estado || null, ya = hecho(o);
+    o.estado = ya ? null : { estado: 'hecho', fecha: ahoraTxt(), persona: S.data.yo.clave };
+    render();
+    const periodo = x.tipo === 'rutina' ? k.split(':').pop() : '';
+    try {
+      await post({ action: 'marcar', tipo: x.tipo, clave: k, marca: x.marca, estado: ya ? 'deshacer' : 'hecho', periodo, detalle: x.tipo === 'evento' ? x.t : (x.tipo === 'card' ? x.t : '') });
+      if (!ya) toast('Hecho: ' + esc(x.t.slice(0, 48)), () => marcar(k));
+    } catch (e) { o.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
+  }
+
+  async function inputAccion(id, estado) {
+    const c = S.data.cards.find(x => x.id === id); if (!c) return;
+    const antes = c.estado || null;
+    c.estado = { estado, fecha: ahoraTxt(), persona: S.data.yo.clave };
+    render();
+    try {
+      await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado, detalle: c.n });
+      toast(estado === 'procesado' ? 'Listo. Te vuelvo a preguntar en ' + S.data.ajustes.inputDias + ' días.' : 'Anotado que lo hablaste con el project.', async () => { c.estado = antes; render(); try { await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado: 'deshacer' }); } catch (e) {} });
+    } catch (e) { c.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
+  }
+
+  function modal(html, onOk) {
+    const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = '<div class="mb">' + html + '</div>';
+    document.body.appendChild(m);
+    const cerrar = () => m.remove();
+    m.onclick = e => { if (e.target === m) cerrar(); };
+    $('[data-x]', m).onclick = cerrar;
+    $('[data-ok]', m).onclick = async () => { const b = $('[data-ok]', m); b.disabled = true; b.textContent = 'Guardando…'; try { await onOk(m); cerrar(); } catch (e) { $('.err', m).textContent = e.message; b.disabled = false; b.textContent = 'Reintentar'; } };
+    document.addEventListener('keydown', function esc_(e) { if (e.key === 'Escape') { cerrar(); document.removeEventListener('keydown', esc_); } });
+    const f = m.querySelector('input'); if (f) f.focus();
+    return m;
+  }
+
+  function archivar(id) {
+    const c = S.data.cards.find(x => x.id === id); if (!c) return;
+    modal('<h3>¿Archivar "' + esc(c.n) + '"?</h3><p>Se archiva en Trello (' + esc(c.tablero) + '). Si te equivocás, se recupera desde "Elementos archivados" del tablero. Queda registrado para el project.</p><div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Archivar en Trello</button></div>', async () => {
+      await post({ action: 'archivar', cardId: id, marca: c.m[0], nombre: c.n });
+      c.estado = { estado: 'archivado', fecha: ahoraTxt() };
+      render(); toast('Archivada en Trello: ' + esc(c.n));
+    });
+  }
+
+  function agendar(k) {
+    const r = S.data.reuniones.find(x => x.clave === k); if (!r) return;
+    const y = NOW.getFullYear(), mo = NOW.getMonth();
+    const dia = Math.max(NOW.getDate(), r.desde || NOW.getDate());
+    const def = new Date(y, mo, Math.min(dia, r.hasta || dia));
+    while ((def.getDay() === 0 || def.getDay() === 6) && def.getDate() < (r.hasta || 31)) def.setDate(def.getDate() + 1);
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const titulo = r.nombre + (r.marca ? ' · ' + (marca(r.marca) || {}).nombre : '');
+    modal('<h3>' + esc(titulo) + '</h3><p>Tiene que ser del ' + r.desde + ' al ' + r.hasta + ' de ' + MESES[mo] + ', con ' + esc(r.con) + '.</p>' +
+      '<div class="two"><label class="field"><span>Fecha</span><input type="date" id="fF" value="' + iso(def) + '"></label><label class="field"><span>Hora</span><input type="time" id="fH" value="11:00"></label></div>' +
+      '<label class="field"><span>Nota (opcional)</span><input id="fN" placeholder="Link de Meet, quiénes van…"></label>' +
+      '<label class="check"><input type="checkbox" id="fC" checked> Crear el evento en el calendario de Ideamia</label><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Agendar</button></div>', async m => {
+      const fecha = $('#fF', m).value, hora = $('#fH', m).value, nota = $('#fN', m).value.trim(), crear = $('#fC', m).checked;
+      if (!fecha || !hora) throw new Error('Poné fecha y hora.');
+      await post({ action: 'agendar', clave: r.clave, marca: r.marca, periodo: r.periodo, fecha, hora, nota, crearEvento: crear, titulo: titulo, duracion: r.duracion });
+      r.estado = { estado: 'agendada', fecha: ahoraTxt(), detalle: fecha + ' ' + hora + (nota ? ' · ' + nota : '') + (crear ? ' · evento creado' : '') };
+      render(); toast('Agendada: ' + esc(titulo) + ' · ' + corto(ymdD(fecha)) + ' ' + hora);
+    });
+  }
+
+  async function planIA() {
+    S.planCargando = true; render();
+    const pend = tareasHoy().filter(x => !hecho(x.obj));
+    const resumen = 'Hoy es ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '. Persona: ' + S.data.yo.nombre + ' (' + S.data.yo.rol + ').\n\nPendientes:\n' +
+      pend.map(x => '- ' + x.t + (x.marca ? ' [' + (marca(x.marca) || {}).nombre + ']' : '') + ' · ' + x.meta.join(' · ').replace(/<[^>]+>/g, '')).join('\n') +
+      '\n\nAlertas:\n' + sugerencias().map(s => '- ' + s.h.replace(/<[^>]+>/g, '')).join('\n') +
+      '\n\nInputs con lectura de la IA:\n' + inputs().filter(c => c.ia).map(c => '- ' + c.n + ' [' + ((marca(c.m[0]) || {}).nombre || '') + ']: ' + c.ia.titular).join('\n');
+    try {
+      let txt;
+      if (DEMO) { await new Promise(r => setTimeout(r, 900)); txt = '- Arrancá por **CHANTILLY TIPS** de Isco: venció ayer, mandala corregida antes del mediodía.\n- Agendá hoy la **reunión mensual** con Tritato y Gabriel Varisco: la ventana cierra el 10.\n- Bajá el **recetario de Halloween** a un carrusel y pedile a Isco las promos de moldes; con eso cubrís Halloween, que todavía no está en el calendario.\n- Usá los **videos de descarga de Guido** para un reel de "llegó lo nuevo" y un aviso en el canal social.\n- Antes del viernes 16 llevá **SkilfulBlack** hasta el 07/11: es la marca más atrasada (le faltan 14 días).'; }
+      else txt = (await post({ action: 'consejo', resumen })).texto;
+      S.plan = '<ul>' + txt.split('\n').map(l => l.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean).map(l => '<li>' + esc(l).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</li>').join('') + '</ul>';
+    } catch (e) { S.plan = '<div class="wait">No pude armarlo: ' + esc(e.message) + '</div>'; }
+    S.planCargando = false; render();
+  }
+
+  async function actualizar() {
+    if (S.sync) return;
+    S.sync = true; renderTop();
+    try {
+      if (!DEMO) await post({ action: 'actualizar' });
+      await cargar(true);
+      toast('Actualizado con lo último de Trello.');
+    } catch (e) { toast('No se pudo actualizar: ' + esc(e.message)); }
+    S.sync = false; renderTop();
+  }
+
+  /* ---------------- ingreso ---------------- */
+  async function gate(msg) {
+    const app = $('#app');
+    let equipo = DEMO ? window.PANEL_DEMO.equipo : null;
+    if (!equipo) { try { const j = await get({ action: 'equipo' }); equipo = j.equipo || []; } catch (e) { equipo = []; } }
+    const elegido = S.persona;
+    app.innerHTML = '<div class="gate"><div class="kick">— Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1>' +
+      '<div class="ppl2">' + equipo.map(p => '<button data-p="' + esc(p.clave) + '" class="' + (p.clave === elegido ? 'on' : '') + '"><span>' + esc(p.nombre) + '</span><small>' + esc(p.rol) + '</small></button>').join('') + '</div>' +
+      (DEMO ? '' : '<label class="field"><span>Clave del equipo</span><input type="password" id="gk" value="' + esc(S.key) + '" placeholder="La que te pasó el project"></label>') +
+      '<div class="err">' + esc(msg || '') + '</div></div>';
+    $('#who').classList.add('hidden'); $('#sync').innerHTML = '';
+    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+      S.persona = b.dataset.p; LS.set('persona', S.persona);
+      const k = $('#gk'); if (k) { S.key = k.value.trim(); LS.set('key', S.key); }
+      const p = equipo.find(x => x.clave === S.persona);
+      if (p && /project/i.test(p.rol)) { S.pkey = S.pkey || S.key; LS.set('pkey', S.pkey); }
+      inicio();
+    });
+  }
+
+  async function cargar(silencioso) {
+    if (DEMO) {
+      S.data = JSON.parse(JSON.stringify(Object.assign({}, window.PANEL_DEMO)));
+      const p = S.data.equipo.find(x => x.clave === S.persona) || S.data.equipo[0];
+      S.data.yo = p;
+      return;
+    }
+    const j = await get({ p: S.persona, k: S.key });
+    if (j.error === 'clave') throw Object.assign(new Error(j.mensaje), { gate: true });
+    if (j.error) throw new Error(j.mensaje || j.error);
+    if (!silencioso) S.marca = 'todas';
+    S.data = j;
+  }
+
+  async function inicio() {
+    $('#demoBar').classList.toggle('hidden', !DEMO);
+    if (!S.persona) return gate();
+    $('#app').innerHTML = '<div class="loading"><b>Cargando</b>Trayendo tus tarjetas, reuniones y calendario…</div>';
+    const equipoDemo = DEMO ? window.PANEL_DEMO.equipo : null;
+    const esProject = qs.get('vista') === 'project' || S.persona === 'project' || (equipoDemo && (equipoDemo.find(p => p.clave === S.persona) || {}).rol === 'Project');
+    try {
+      if (esProject && !qs.get('p')) {
+        if (DEMO) S.proj = JSON.parse(JSON.stringify(window.PANEL_DEMO_PROJECT));
+        else {
+          const j = await get({ action: 'project', k: S.pkey || S.key });
+          if (j.error) throw Object.assign(new Error(j.mensaje || j.error), { gate: j.error === 'clave' });
+          S.proj = j;
+        }
+        render(); renderTop(); return;
+      }
+      await cargar();
+      if (DEMO && S.data.yo.clave !== 'orne') S.data.yo = Object.assign({}, S.data.yo); // en demo todos ven las marcas de Orne
+      render();
+    } catch (e) {
+      if (e.gate) { LS.set('key', ''); S.key = ''; return gate(e.message); }
+      $('#app').innerHTML = '<div class="loading"><b>Ups</b>' + esc(e.message || 'No pude conectar con el Apps Script') + '<br><br><button class="btn" id="re">Reintentar</button> <button class="btn ghost" id="ch">Cambiar de persona</button></div>';
+      $('#re').onclick = inicio; $('#ch').onclick = () => { S.persona = null; LS.set('persona', null); gate(); };
+    }
+  }
+
+  // Si la pestaña queda abierta, se refresca sola cada 15 minutos.
+  setInterval(() => { if (!DEMO && S.data && document.visibilityState === 'visible') cargar(true).then(render).catch(() => {}); }, 15 * 60 * 1000);
+  inicio();
+})();
