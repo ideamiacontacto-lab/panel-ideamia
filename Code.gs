@@ -21,8 +21,21 @@ function onOpen() {
     .addItem('1 · Crear pestañas', 'setup')
     .addItem('2 · Cargar claves', 'cargarClaves')
     .addItem('3 · Actualizar Trello e IA ahora', 'actualizar')
+    .addSeparator()
+    .addItem('Cambiar clave del project', 'cambiarClaveProject')
+    .addItem('Cambiar clave del equipo', 'cambiarClaveEquipo')
     .addToUi();
 }
+
+function cambiarClave_(prop, titulo) {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt(titulo, 'Escribila y tocá Aceptar. Es la que se va a pedir al entrar a la web.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK || !r.getResponseText().trim()) return ui.alert('No se cambió nada.');
+  P.setProperty(prop, r.getResponseText().trim());
+  ui.alert('Listo. La clave nueva ya funciona.');
+}
+function cambiarClaveProject() { cambiarClave_('PROJECT_KEY', 'Nueva clave del project'); }
+function cambiarClaveEquipo() { cambiarClave_('TEAM_KEY', 'Nueva clave del equipo'); }
 
 function cargarClaves() {
   const ui = SpreadsheetApp.getUi();
