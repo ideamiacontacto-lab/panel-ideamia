@@ -45,6 +45,7 @@ const TABS = {
     ['INPUT_RECORDATORIO_DIAS', '3', 'Cada cuántos días vuelve a preguntar por un input ya procesado'],
     ['POR_VENCER_DIAS', '3', 'Días hacia adelante para "tarjetas próximas a vencer"'],
     ['EFEMERIDES_DIAS', '45', 'Días hacia adelante para mostrar efemérides'],
+    ['IA_AUTOMATICA', 'no', 'sí = la IA lee sola los inputs nuevos con la API de Claude (gasta créditos). no = solo el botón "Preguntale a Claude"'],
     ['IA_MAX_POR_CORRIDA', '6', 'Cuántas tarjetas nuevas lee la IA por actualización (cada lectura ~US$ 0,003)'],
     ['IA_MAX_POR_MES', '150', 'Tope de lecturas automáticas por mes (150 ≈ US$ 0,50)'],
     ['CAL_EXCLUIR', 'finanzas,cobro,factura,ipc,ajuste,propiedad', 'Eventos del calendario que no ve el equipo'],
@@ -69,7 +70,7 @@ const TABS = {
     ['Upper Trip', 'upper', 'rama', '', 'no', ''],
     ['1talquecocina', '1tal,1talquecocina', 'rama', 'ale', 'sí', ''],
     ['DyB', 'dyb,demichelis', 'rama', 'ale', 'no', ''],
-    ['SFB', 'sfb', '', 'ale', 'no', '']],
+    ['SFB', 'sfb', 'orne', 'ale', 'no', '']],
   // cuando: diaria · semana:lun · mes:1-5 · mes:ultima-semana · meses:1,4,7,10/1-10
   // por marca: sí / no / canal (solo marcas con canal social)
   Rutinas: [['id', 'tarea', 'cuando', 'por marca', 'rol', 'ayuda', 'enlace'],
@@ -382,8 +383,10 @@ function actualizar() {
     const snap = leerTrello_(cat);
     snap.generado = new Date().toISOString();
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
-    recomendarTarjetas_(snap, cat, cfg);
+    // Lectura automática con la API de Claude: apagada salvo que Config → IA_AUTOMATICA diga "sí" (gasta créditos).
+    if (si_(cfg.IA_AUTOMATICA)) recomendarTarjetas_(snap, cat, cfg);
     CacheService.getScriptCache().remove('snap');
+    construirBases_();
     return { ok: true, tarjetas: snap.cards.length, generado: snap.generado };
   } finally { lock.releaseLock(); }
 }
@@ -446,17 +449,28 @@ function snapshot_() {
   return snap;
 }
 
-function panel_(personaClave) {
-  const cfg = config_(), cat = catalogo_();
+/* Todo lo pesado (Trello, calendario, planillas) se lee una sola vez y se comparte entre las personas. */
+function contexto_() {
+  const cfg = config_(), cat = catalogo_(), hoy = hoyAR_();
+  return {
+    cfg, cat, hoy, snap: snapshot_(), ia: leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'),
+    eventos: eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5))
+  };
+}
+
+/* Panel "base" de una persona: sin lo que tildó (eso se suma al momento con aplicarEstados_). */
+function panel_(personaClave, ctx) {
+  ctx = ctx || contexto_();
+  const cfg = ctx.cfg, cat = ctx.cat;
   const yo = cat.equipo.filter(p => p.clave === norm_(personaClave))[0];
   if (!yo) return { error: 'No encuentro a "' + personaClave + '" en la pestaña Equipo', equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })) };
   const esCM = /cm/i.test(yo.rol), esProject = /project/i.test(yo.rol);
   const misMarcas = cat.marcas.filter(m => esProject || m.sm === yo.clave || m.cm === yo.clave);
   const slugs = misMarcas.map(m => m.slug);
-  const hoy = hoyAR_();
-  const snap = snapshot_();
-  const ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json');
-  const est = estados_();
+  const hoy = ctx.hoy;
+  const snap = ctx.snap;
+  const ia = ctx.ia;
+  const est = {};
 
   const ajustes = { inputDias: Number(cfg.INPUT_RECORDATORIO_DIAS || 3), porVencer: Number(cfg.POR_VENCER_DIAS || 3), efemDias: Number(cfg.EFEMERIDES_DIAS || 45) };
   const todas = (snap.cards || []).filter(c => c.m.some(s => slugs.indexOf(s) >= 0) && (esProject || !esCM || c.tipo === 'cm' || c.tipo === 'project'));
@@ -518,7 +532,7 @@ function panel_(personaClave) {
   });
 
   // calendario: 2 días atrás a 21 adelante
-  const evs = eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5)).filter(e => {
+  const evs = ctx.eventos.map(e => Object.assign({}, e)).filter(e => {
     if (esProject) return true;
     if (e.personas.length) return e.personas.indexOf(yo.clave) >= 0;
     if (e.otros) return false;
@@ -539,11 +553,62 @@ function panel_(personaClave) {
   };
 }
 
+/* ---------------- paneles listos (se arman al actualizar; abrir la web solo suma lo tildado) ---------------- */
+function cachePut_(k, obj) {
+  const s = JSON.stringify(obj), c = CacheService.getScriptCache(), tam = 45000, m = {};
+  const n = Math.ceil(s.length / tam);
+  for (let i = 0; i < n; i++) m[k + ':' + i] = s.substr(i * tam, tam);
+  m[k] = String(n);
+  c.putAll(m, 21600);
+}
+function cacheGet_(k) {
+  const c = CacheService.getScriptCache(), n = Number(c.get(k) || 0);
+  if (!n) return null;
+  const keys = []; for (let i = 0; i < n; i++) keys.push(k + ':' + i);
+  const m = c.getAll(keys); let s = '';
+  for (let i = 0; i < keys.length; i++) { if (m[keys[i]] == null) return null; s += m[keys[i]]; }
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+
+function construirBases_() {
+  const ctx = contexto_(), bases = {};
+  ctx.cat.equipo.forEach(p => { bases[p.clave] = panel_(p.clave, ctx); cachePut_('base:' + p.clave, bases[p.clave]); });
+  cachePut_('equipo', ctx.cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })));
+  cachePut_('marcasLista', ctx.cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })));
+  guardarJson_('BASES_FILE_ID', 'panel-ideamia-bases.json', bases);
+  return bases;
+}
+
+function base_(clave) {
+  clave = norm_(clave);
+  const hoy = ymd_(hoyAR_());
+  let b = cacheGet_('base:' + clave);
+  if (!b) { const todas = leerJson_('BASES_FILE_ID', 'panel-ideamia-bases.json'); b = todas[clave] || null; if (b) cachePut_('base:' + clave, b); }
+  if (!b || b.hoy !== hoy) { b = panel_(clave); if (b && b.ok) cachePut_('base:' + clave, b); }
+  return b;
+}
+
+/* Suma al panel base lo que la persona fue tildando (pestaña Registro). */
+function aplicarEstados_(b, est) {
+  if (!b || !b.ok) return b;
+  (b.cards || []).forEach(c => { const e = est['inp:' + c.id] || est['card:' + c.id]; c.estado = e || undefined; });
+  (b.rutinas || []).forEach(r => r.estado = est[r.clave] || null);
+  (b.reuniones || []).forEach(r => r.estado = est[r.clave] || null);
+  (b.eventos || []).forEach(e => e.estado = est['cal:' + e.id] || undefined);
+  return b;
+}
+
+function equipo_() {
+  let eq = cacheGet_('equipo');
+  if (!eq) { eq = catalogo_().equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })); cachePut_('equipo', eq); }
+  return eq;
+}
+
 /* Vista del project: qué hizo y qué coordinó cada persona. */
 function vistaProject_() {
-  const cat = catalogo_(), hoy = hoyAR_();
-  const personas = cat.equipo.filter(p => !/project/i.test(p.rol)).map(p => {
-    const pn = panel_(p.clave);
+  const eq = equipo_(), hoy = hoyAR_(), est = estados_();
+  const personas = eq.filter(p => !/project/i.test(p.rol)).map(p => {
+    const pn = aplicarEstados_(base_(p.clave), est) || {};
     const r = pn.rutinas || [], re = pn.reuniones || [];
     const inputs = (pn.cards || []).filter(c => c.cat === 'input');
     return {
@@ -554,7 +619,8 @@ function vistaProject_() {
     };
   });
   const reg = rows_('Registro').slice(-60).reverse().map(r => ({ fecha: r[0], persona: r[1], tipo: r[2], clave: r[3], marca: r[4], estado: r[5], detalle: r[6] }));
-  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) };
+  const marcas = cacheGet_('marcasLista') || catalogo_().marcas.map(m => ({ slug: m.slug, nombre: m.nombre }));
+  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas };
 }
 
 /* ---------------- web app ---------------- */
@@ -578,13 +644,13 @@ function doGet(e) {
       return json_({ ok: true, generado: snap.generado || null, tableros: (snap.tableros || []).map(b => b.tipo + ' ' + b.nombre + ' → ' + (b.marca || '-')), tarjetas: (snap.cards || []).length, lecturasIA: Object.keys(ia).length, porMarca: t,
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY') } }, q.cb);
     }
-    if (q.action === 'equipo') return json_({ ok: true, equipo: catalogo_().equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })) }, q.cb);
+    if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       return json_(vistaProject_(), q.cb);
     }
     if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
-    return json_(panel_(q.p), q.cb);
+    return json_(aplicarEstados_(base_(q.p), estados_()), q.cb);
   } catch (err) { return json_({ error: 'servidor', mensaje: String(err.message || err) }, q.cb); }
 }
 

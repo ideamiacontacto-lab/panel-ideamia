@@ -77,7 +77,7 @@
   }
   async function post(body) {
     if (DEMO) { await new Promise(r => setTimeout(r, 350)); return { ok: true, demo: true }; }
-    const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ k: S.key, persona: S.data ? S.data.yo.clave : S.persona }, body)) });
+    const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ k: S.key || S.pkey, persona: S.data ? S.data.yo.clave : S.persona }, body)) });
     const j = await r.json();
     if (j.error) throw new Error(j.mensaje || j.error);
     return j;
@@ -501,19 +501,36 @@
     const app = $('#app');
     let equipo = DEMO ? window.PANEL_DEMO.equipo : null;
     if (!equipo) { try { const j = await get({ action: 'equipo' }); equipo = j.equipo || []; } catch (e) { equipo = []; } }
-    const elegido = S.persona;
+    let elegido = S.persona;
+    const esProj = c => /project/i.test((equipo.find(x => x.clave === c) || {}).rol || '');
     app.innerHTML = '<div class="gate"><div class="kick">— Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1>' +
       '<div class="ppl2">' + equipo.map(p => '<button data-p="' + esc(p.clave) + '" class="' + (p.clave === elegido ? 'on' : '') + '"><span>' + esc(p.nombre) + '</span><small>' + esc(p.rol) + '</small></button>').join('') + '</div>' +
-      (DEMO ? '' : '<label class="field"><span>Clave del equipo</span><input type="password" id="gk" value="' + esc(S.key) + '" placeholder="La que te pasó el project"></label>') +
+      (DEMO ? '' : '<form id="gf" class="' + (elegido ? '' : 'hidden') + '"><label class="field"><span id="gl"></span><input type="password" id="gk" autocomplete="current-password"></label><button class="btn y" style="width:100%;justify-content:center;padding:12px">Entrar</button></form>') +
       '<div class="err">' + esc(msg || '') + '</div></div>';
     $('#who').classList.add('hidden'); $('#sync').innerHTML = '';
-    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
-      S.persona = b.dataset.p; LS.set('persona', S.persona);
-      const k = $('#gk'); if (k) { S.key = k.value.trim(); LS.set('key', S.key); }
-      const p = equipo.find(x => x.clave === S.persona);
-      if (p && /project/i.test(p.rol)) { S.pkey = S.pkey || S.key; LS.set('pkey', S.pkey); }
+    const pintarClave = () => {
+      const l = $('#gl'), k = $('#gk'); if (!l) return;
+      const pj = esProj(elegido);
+      l.textContent = pj ? 'Clave del project' : 'Clave del equipo';
+      k.placeholder = pj ? 'La clave del project' : 'La que te pasó el project';
+      k.value = pj ? (S.pkey || '') : (S.key || '');
+      setTimeout(() => k.focus(), 30);
+    };
+    const entrar = () => {
+      S.persona = elegido; LS.set('persona', S.persona);
+      if (!DEMO) {
+        const v = $('#gk').value.trim(); if (!v) { $('.err').textContent = 'Escribí la clave.'; return; }
+        if (esProj(elegido)) { S.pkey = v; LS.set('pkey', v); } else { S.key = v; LS.set('key', v); }
+      }
       inicio();
+    };
+    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+      elegido = b.dataset.p;
+      app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b));
+      if (DEMO) return entrar();
+      $('#gf').classList.remove('hidden'); pintarClave();
     });
+    const f = $('#gf'); if (f) { f.onsubmit = e => { e.preventDefault(); entrar(); }; if (elegido) pintarClave(); }
   }
 
   async function cargar(silencioso) {
@@ -523,34 +540,45 @@
       S.data.yo = p;
       return;
     }
-    const j = await get({ p: S.persona, k: S.key });
+    const j = await get({ p: S.persona, k: S.key || S.pkey });
     if (j.error === 'clave') throw Object.assign(new Error(j.mensaje), { gate: true });
     if (j.error) throw new Error(j.mensaje || j.error);
     if (!silencioso) S.marca = 'todas';
     S.data = j;
+    try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(j)); } catch (e) {}
   }
+  // Lo último que se cargó en este navegador: se muestra al instante mientras llega lo nuevo.
+  function cacheLocal(clave) { try { return JSON.parse(localStorage.getItem('pi:cache:' + clave) || 'null'); } catch (e) { return null; } }
 
   async function inicio() {
     $('#demoBar').classList.toggle('hidden', !DEMO);
     if (!S.persona) return gate();
-    $('#app').innerHTML = '<div class="loading"><b>Cargando</b>Trayendo tus tarjetas, reuniones y calendario…</div>';
     const equipoDemo = DEMO ? window.PANEL_DEMO.equipo : null;
     const esProject = qs.get('vista') === 'project' || S.persona === 'project' || (equipoDemo && (equipoDemo.find(p => p.clave === S.persona) || {}).rol === 'Project');
+    const ck = esProject && !qs.get('p') ? '__project' : S.persona;
+    const previo = DEMO ? null : cacheLocal(ck);
+    if (previo) {
+      // se ve al instante lo último guardado; arriba avisa que está trayendo lo nuevo
+      if (ck === '__project') S.proj = previo; else S.data = previo;
+      render(); S.sync = true; renderTop();
+    } else $('#app').innerHTML = '<div class="loading"><b>Cargando</b>Trayendo tus tarjetas, reuniones y calendario…</div>';
     try {
-      if (esProject && !qs.get('p')) {
+      if (ck === '__project') {
         if (DEMO) S.proj = JSON.parse(JSON.stringify(window.PANEL_DEMO_PROJECT));
         else {
           const j = await get({ action: 'project', k: S.pkey || S.key });
           if (j.error) throw Object.assign(new Error(j.mensaje || j.error), { gate: j.error === 'clave' });
           S.proj = j;
+          try { localStorage.setItem('pi:cache:__project', JSON.stringify(j)); } catch (e) {}
         }
-        render(); renderTop(); return;
+        S.sync = false; render(); renderTop(); return;
       }
       await cargar();
-      if (DEMO && S.data.yo.clave !== 'orne') S.data.yo = Object.assign({}, S.data.yo); // en demo todos ven las marcas de Orne
-      render();
+      S.sync = false; render();
     } catch (e) {
-      if (e.gate) { LS.set('key', ''); S.key = ''; return gate(e.message); }
+      S.sync = false;
+      if (e.gate) { if (ck === '__project') { LS.set('pkey', ''); S.pkey = ''; } else { LS.set('key', ''); S.key = ''; } try { localStorage.removeItem('pi:cache:' + ck); } catch (x) {} S.data = null; S.proj = null; return gate(e.message); }
+      if (previo) { renderTop(); toast('No pude traer lo último: ' + esc(e.message || 'sin conexión') + '. Te muestro lo de la última vez.'); return; }
       $('#app').innerHTML = '<div class="loading"><b>Ups</b>' + esc(e.message || 'No pude conectar con el Apps Script') + '<br><br><button class="btn" id="re">Reintentar</button> <button class="btn ghost" id="ch">Cambiar de persona</button></div>';
       $('#re').onclick = inicio; $('#ch').onclick = () => { S.persona = null; LS.set('persona', null); gate(); };
     }
