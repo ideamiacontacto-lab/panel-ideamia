@@ -123,9 +123,16 @@ function setup() {
   });
   const def = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
   if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(def);
-  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'actualizar').forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('actualizar').timeBased().everyHours(1).create();
-  try { SpreadsheetApp.getUi().alert('Pestañas listas y actualización automática cada hora. Seguí con "2 · Cargar claves".'); } catch (e) {}
+  ScriptApp.getProjectTriggers().filter(t => ['actualizar', 'actualizarProgramado'].indexOf(t.getHandlerFunction()) >= 0).forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('actualizarProgramado').timeBased().everyMinutes(15).create();
+  try { SpreadsheetApp.getUi().alert('Pestañas listas. Trello se actualiza solo cada 15 minutos de 8 a 21 h, y una vez por hora de noche.'); } catch (e) {}
+}
+
+/* Disparador automático: cada 15 min en horario de trabajo; de noche solo una vez por hora (para quedar dentro de la cuota gratis de Google). */
+function actualizarProgramado() {
+  const h = Number(Utilities.formatDate(new Date(), TZ, 'H')), m = Number(Utilities.formatDate(new Date(), TZ, 'm'));
+  if ((h < 8 || h >= 21) && m >= 15) return;
+  actualizar();
 }
 
 /* ---------------- lectura de pestañas ---------------- */

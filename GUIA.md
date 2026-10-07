@@ -31,7 +31,7 @@ Después: *Panel Ideamia → 2 · Cargar claves*. Pega cada clave cuando te la p
 
 Las claves quedan guardadas en las propiedades del script. No están en el Sheet ni en la web.
 
-Por último: *Panel Ideamia → 3 · Actualizar Trello e IA ahora*. La primera vez tarda 1 o 2 minutos. Desde ahí se actualiza solo cada hora.
+Por último: *Panel Ideamia → 3 · Actualizar Trello e IA ahora*. La primera vez tarda 1 o 2 minutos. Desde ahí se actualiza solo: cada 15 minutos de 8 a 21 h y una vez por hora de noche.
 
 ## 3. Publicar el Apps Script (2 min)
 
