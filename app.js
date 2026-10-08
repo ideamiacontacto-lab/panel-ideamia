@@ -645,19 +645,21 @@
     const c = S.data.cards.find(x => x.id === id); if (!c) return;
     panelLateral(esc(c.n), '<div class="pz-cargando">Trayendo la tarjeta de Trello…</div>');
     let v = null;
-    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ n: 'placa-1.png', u: '#', img: false }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
+    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ id: 'a1', card: 'p1', n: 'placa-1.png', u: '#', ver: true, subido: true }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
     catch (e) { const b = $('#drawer .dw-b'); if (b) b.innerHTML = '<div class="empty">No pude traer la tarjeta: ' + esc(e.message) + '</div>'; return; }
     const p = v.pieza || {}, o = v.original || {};
     const adj = (p.att || []).concat(o.att || []);
     const coms = (p.com || []).concat(o.com || []).sort((a, b) => b.f.localeCompare(a.f)).slice(0, 6);
     const html =
       '<div class="mt" style="margin-bottom:12px">' + tagM(c.m[0]) + '<span class="pill">' + esc(c.tablero || '') + '</span>' + (c.salida ? '<span>sale ' + cuando(new Date(c.salida)) + '</span>' : '') + '</div>' +
-      (adj.length ? '<div class="dw-l">Archivos</div><div class="pz-adj">' + adj.map(a => a.img ? '<a href="' + esc(a.u) + '" target="_blank" rel="noopener" class="pz-img"><img src="' + esc(a.u) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'sin\')"><span>' + esc(a.n) + '</span></a>' : '<a href="' + esc(a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
+      (adj.length ? '<div class="dw-l">Lo que cargaron</div><div class="pz-adj">' + adj.map((a, i) => a.ver
+        ? '<div class="pz-prev' + (i === 0 ? ' grande' : '') + '" data-att="' + esc(a.id) + '" data-card="' + esc(a.card) + '"><div class="pz-ph">Cargando vista previa…</div><div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span><a href="' + esc(a.u) + '" target="_blank" rel="noopener">abrir ↗</a></div></div>'
+        : '<a href="' + esc(a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + (a.video ? '🎬' : I.clip) + '<span>' + esc(a.n) + '</span><em>' + (a.subido ? 'abrir en Trello' : 'abrir link') + ' ↗</em></a>').join('') + '</div>' : '<div class="empty" style="padding:12px 0">La tarjeta no tiene archivos adjuntos.</div>') +
       (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + esc(o.d) + '</div>' : '') +
       (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
-      (coms.length ? '<div class="dw-l">Comentarios</div>' + coms.map(x => '<div class="pz-com"><b>' + esc(x.q) + '</b> <small>' + hace(x.f) + '</small><div>' + esc(x.t) + '</div></div>').join('') : '') +
-      '<div class="pz-acc"><textarea id="pzcom" rows="3" placeholder="¿Qué hay que corregir? (para mandarlo a corregir es obligatorio)"></textarea>' +
-      '<div class="pz-btns"><button class="btn ghost" id="pzcor">✏️ Mandar a corregir</button><button class="btn y" id="pzok">✓ Aprobar</button></div>' +
+      '<div id="pzcoms">' + (coms.length ? '<div class="dw-l">Comentarios</div>' + coms.map(x => '<div class="pz-com"><b>' + esc(x.q) + '</b> <small>' + hace(x.f) + '</small><div>' + esc(x.t) + '</div></div>').join('') : '') + '</div>' +
+      '<div class="pz-acc"><textarea id="pzcom" rows="3" placeholder="Escribí un comentario o qué hay que corregir…"></textarea>' +
+      '<div class="pz-btns"><button class="btn ghost" id="pzcomb">💬 Comentar</button><button class="btn ghost" id="pzcor">✏️ A corregir</button><button class="btn y" id="pzok">✓ Aprobar</button></div>' +
       '<div class="err" id="pzerr"></div><a class="ayuda" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div>';
     const b = $('#drawer .dw-b'); if (!b) return;
     b.innerHTML = html;
@@ -674,6 +676,29 @@
     };
     $('#pzok').onclick = () => enviar('aprobar');
     $('#pzcor').onclick = () => enviar('corregir');
+    // comentario suelto: queda en la tarjeta de Diseño/Producción sin moverla
+    $('#pzcomb').onclick = async () => {
+      const txt = $('#pzcom').value.trim();
+      if (!txt) { $('#pzerr').textContent = 'Escribí el comentario.'; $('#pzcom').focus(); return; }
+      $('#pzcomb').disabled = true; $('#pzerr').textContent = '';
+      try {
+        await post({ action: 'comentarTarjeta', cardId: c.id, texto: txt, marca: c.m[0], nombre: c.n });
+        const cont = $('#pzcoms');
+        if (cont) { if (!cont.querySelector('.dw-l')) cont.innerHTML = '<div class="dw-l">Comentarios</div>'; cont.querySelector('.dw-l').insertAdjacentHTML('afterend', '<div class="pz-com nuevo"><b>Vos</b> <small>recién</small><div>' + esc(txt) + '</div></div>'); }
+        $('#pzcom').value = ''; toast('💬 Comentario enviado a la tarjeta');
+      } catch (e) { $('#pzerr').textContent = 'No se pudo: ' + e.message; }
+      $('#pzcomb').disabled = false;
+    };
+    // vistas previas: el servidor baja cada archivo de Trello y lo devuelve como imagen; tocándola se ve en grande
+    b.querySelectorAll('.pz-prev').forEach(async el => {
+      const ph = el.querySelector('.pz-ph');
+      try {
+        const r = DEMO ? { ok: true, data: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#FFF200"/><text x="50%" y="45%" font-size="90" text-anchor="middle" font-family="Impact" fill="#0A0A0A">PROMO</text><text x="50%" y="58%" font-size="60" text-anchor="middle" font-family="Arial" fill="#0A0A0A">10% OFF</text></svg>') } : await post({ action: 'adjunto', cardId: el.dataset.card, attId: el.dataset.att });
+        if (!r.ok || !r.data) { ph.textContent = 'Sin vista previa · tocá "abrir"'; ph.classList.add('sin'); return; }
+        ph.outerHTML = '<img src="' + r.data + '" alt="">';
+        el.querySelector('img').onclick = () => { const z = document.createElement('div'); z.className = 'pz-zoom'; z.innerHTML = '<img src="' + r.data + '" alt="">'; z.onclick = () => z.remove(); document.body.appendChild(z); };
+      } catch (e) { ph.textContent = 'Sin vista previa · tocá "abrir"'; ph.classList.add('sin'); }
+    });
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarPanel(); });
 
