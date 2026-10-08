@@ -217,7 +217,7 @@
     const ivo = esRevisa();
     if (ivo && ['revision', 'guiones', 'discord', 'agenda'].indexOf(S.tab) < 0) S.tab = 'revision';
     const Rv = ivo ? datosRevision() : null;
-    const resumenIvo = ivo ? 'Tenés <b>' + Rv.revDis.length + ' diseños</b> y <b>' + Rv.revVid.length + ' videos</b> en revisión, y <b>' + Rv.gui.length + ' guiones</b> para la reunión del ' + dm(Rv.lun) + '.' : '';
+    const resumenIvo = ivo ? 'Tenés <b>' + Rv.revDis.length + ' diseños</b> y <b>' + Rv.revVid.length + ' videos</b> en revisión, y <b>' + Rv.gui.length + ' guiones</b> para la reunión del ' + dm(Rv.lun) + '.' + (Rv.atras.length ? ' <b class="rojo">Faltó entregar ' + Rv.atras.length + '.</b>' : '') : '';
     const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas }[S.tab] || vHoy)(t);
     if (S.movil) {
       // celular: estilo app. Portada corta solo en Hoy, título chico en el resto y pestañas fijas abajo.
@@ -733,24 +733,44 @@
   /* ---------------- vista REVISIÓN (Ivo): diseños y videos en revisión, entregas que faltan, guiones de la semana ---------------- */
   const esRevisa = () => /project|direcc|creativ/i.test((S.data.yo || {}).rol || '');
   const esVideo = c => c.formato ? ['reel', 'historia', 'video'].indexOf(c.formato) >= 0 : /reel|video|histori/i.test(c.n + ' ' + (c.lab || []).join(' '));
-  // solo lo que dejan en revisión en los tableros de Diseño (diseños) y Producción (videos), más los guiones de la semana
+  // Plazos de entrega: diseño → los martes entregan lo que sale lun/mar/mié de la semana siguiente y los jueves lo de jue/vie/sáb(/dom).
+  // Video → reel 48 h antes de publicar; historia 1 día antes (o el mismo día avisando).
+  function plazoEntrega(p) {
+    const s = p.salida ? new Date(p.salida) : null; if (!s) return null;
+    if (p.formato === 'reel' || p.formato === 'video') return new Date(s.getTime() - 48 * 36e5);
+    if (p.formato === 'historia') return new Date(s.getTime() - 24 * 36e5);
+    const dow = s.getDay(), lunes = new Date(s.getFullYear(), s.getMonth(), s.getDate() - ((dow + 6) % 7) - 7);
+    return new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + (dow >= 1 && dow <= 3 ? 1 : 3), 18, 0);
+  }
+  // lo que dejan en revisión en los tableros de Diseño (diseños) y Producción (videos), las próximas entregas y los guiones de la semana
   function datosRevision() {
     const rev = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.etapa === 'revision').sort((a, b) => new Date(a.salida || 9e15) - new Date(b.salida || 9e15));
+    // próximas entregas: lo pendiente en Diseño y Producción que se entrega en los próximos 7 días o que ya se tendría que haber entregado
+    const limite = new Date(NOW.getTime() + 7 * 864e5);
+    const prox = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.etapa === 'pendiente').map(c => Object.assign({}, c, { plazo: plazoEntrega(c) })).filter(c => c.plazo && c.plazo < limite).sort((a, b) => a.plazo - b.plazo);
     const lun = proxLunes(), finSem = new Date(lun.getTime() + 7 * 864e5);
     const gui = guiones().filter(g => !g.salio && (g.gest === 'revisar' || (g.gest === 'pendiente' && g.entrega && new Date(g.entrega) < finSem)));
-    return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), atras: [], gui, lun };
+    return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun };
   }
   function vRevision() {
     const R = datosRevision();
     const FMT = { reel: 'Reel', historia: 'Historia', video: 'Video', carrusel: 'Carrusel', diseno: 'Diseño', guion: 'Guion' };
     const fila = (c, extra) => '<div class="row"><span class="ico">' + (esVideo(c) ? I.flag : I.pen) + '</span><div><div class="tt"><a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a></div><div class="mt">' + tagM(c.m[0]) + '<span class="pill">' + (FMT[c.formato] || (esVideo(c) ? 'Video' : 'Diseño')) + '</span>' + extra + (c.salida || c.due ? '<span>sale ' + cuando(new Date(c.salida || c.due)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en ' + esc(c.tablero || 'Trello') + '">' + I.out + '</a></div></div>';
     const sec = (t, sub, L, f, vacio) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + L.length + '</small></h2>' + (sub ? '<span class="act">' + sub + '</span>' : '') + '</div>' + (L.length ? '<div class="list">' + L.map(f).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
-    return '<div class="rapidos tres">' +
+    return '<div class="rapidos">' +
       '<div class="rp' + (R.revDis.length ? ' y' : '') + '"><b>' + R.revDis.length + '</b><span>diseños<br><small>en revisión</small></span></div>' +
       '<div class="rp' + (R.revVid.length ? ' y' : '') + '"><b>' + R.revVid.length + '</b><span>videos<br><small>en revisión</small></span></div>' +
+      '<div class="rp' + (R.atras.length ? ' bad' : '') + '"><b>' + R.atras.length + '</b><span>faltó<br><small>entregar</small></span></div>' +
       '<div class="rp"><b>' + R.gui.length + '</b><span>guiones<br><small>reunión del ' + dm(R.lun) + '</small></span></div></div>' +
       sec('Diseños en revisión', 'Tableros de Diseño', R.revDis, c => fila(c, '<span>' + esc(c.tablero) + '</span>'), 'No hay diseños esperando revisión.') +
       sec('Videos en revisión', 'Tableros de Producción', R.revVid, c => fila(c, '<span>' + esc(c.tablero) + '</span>'), 'No hay videos esperando revisión.') +
+      (() => {
+        // próximas entregas por marca: diseñadoras martes (lun–mié de la semana siguiente) y jueves (jue–sáb); reel 48 h antes; historia 1 día antes
+        const plazo = c => c.plazo < new Date() ? '<span class="pill bad">faltó entregar · era el ' + dm(c.plazo) + '</span>' : '<span' + (diasA(c.plazo) <= 1 ? ' class="pill warn"' : '') + '>entrega ' + cuando(c.plazo) + (c.formato === 'historia' ? ' (o el mismo día avisando)' : '') + '</span>';
+        const porMarca = {}; R.prox.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
+        return '<div class="sec"><div class="sec-h"><h2>Próximas entregas<small>' + R.prox.length + '</small></h2><span class="act">Diseño: martes (lun a mié) y jueves (jue a sáb) · Reel 48 h antes · Historia 1 día antes</span></div>' +
+          (R.prox.length ? Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + '</div><div class="list">' + porMarca[s].map(c => fila(c, plazo(c))).join('') + '</div>').join('') : '<div class="empty">Nada pendiente de entrega para los próximos días.</div>') + '</div>';
+      })() +
       sec('Guiones para la reunión', 'Lunes ' + dm(R.lun), R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), 'No hay guiones para ver esta semana.');
   }
   // en Hoy (para Ivo): resumen de lo que tiene para revisar

@@ -725,3 +725,5 @@ body{background:
 @media(max-width:700px){.revbox{flex-wrap:wrap;gap:4px 10px}.revbox b{font-size:22px}}
 .rapidos.tres{grid-template-columns:repeat(3,1fr)}
 .ivo .bnav{grid-template-columns:repeat(4,1fr)}
+
+.rojo{color:var(--bad)!important}

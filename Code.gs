@@ -677,7 +677,7 @@ function panel_(personaClave, ctx) {
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
     if (c.cat === 'guion') return true;
     // Ivo: solo lo que le dejan en revisión en Diseño y Producción (más los guiones, arriba)
-    if (c.cat === 'pieza') return esRevisa && c.etapa === 'revision' && !c.salio && !/^https?:\/\/trello\.com\/c\//.test(c.n);
+    if (c.cat === 'pieza') return esRevisa && (c.etapa === 'revision' || c.etapa === 'pendiente') && !c.salio && !/^https?:\/\/trello\.com\/c\//.test(c.n);
     if (esRevisa && !esProject) return false;
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
