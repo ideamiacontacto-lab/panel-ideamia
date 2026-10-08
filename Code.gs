@@ -582,7 +582,8 @@ function panel_(personaClave, ctx) {
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
     if (c.cat === 'corr') return reciente(c);
     if (['input', 'recursos', 'fichas', 'brainstorming'].indexOf(c.cat) >= 0) return true;
-    if (c.cat === 'hecho') return false;
+    // aprobado / programado que sale en los próximos días: para el chequeo "por salir" (reels y carruseles)
+    if (c.cat === 'hecho') return c.tipo === 'scl' && c.due && !c.dc && new Date(c.due) >= ayer && new Date(c.due) <= new Date(hoy.getTime() + ajustes.porVencer * 864e5);
     return enVentana(c, ajustes.porVencer);
   }).map(c => {
     const o = Object.assign({}, c);

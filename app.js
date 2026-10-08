@@ -322,7 +322,7 @@
         (tipos.card ? '<i class="p-card" title="vencimientos"></i>' : '') + (tipos.evento || tipos.reunion ? '<i class="p-ev" title="calendario"></i>' : '') + (tipos.fecha ? '<i class="p-f" title="fechas"></i>' : '') + '</span><em>' + (de.length ? de.length : '') + '</em></button>';
     }).join('');
     const rapidos = '<div class="rapidos">' +
-      '<button class="rp' + (nVen ? ' bad' : '') + '" data-vencidas><b>' + nVen + '</b><span>vencidas<br><small>últimos 15 días</small></span></button>' +
+      (() => { const n = porSalir().length; return '<button class="rp' + (n ? ' warn' : '') + '" data-por-salir><b>' + n + '</b><span>por salir<br><small>reels y carruseles · ¿están ok?</small></span></button>'; })() +
       '<button class="rp' + (nInp ? ' y' : '') + '" data-tab="inputs"><b>' + nInp + '</b><span>inputs<br><small>para revisar</small></span></button>' +
       '<button class="rp' + (nReu ? ' warn' : '') + '" data-tab="reuniones"><b>' + nReu + '</b><span>reuniones<br><small>sin fecha</small></span></button>' +
       '<button class="rp" data-fechas><b>' + fs.length + '</b><span>fechas<br><small>próximos 30 días</small></span></button></div>';
@@ -452,6 +452,9 @@
     D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '', tipo: 'reunion' }); } });
     return items;
   }
+  // reels, carruseles y piezas del calendario que salen en los próximos días (para chequear que estén ok)
+  const porSalir = () => S.data.cards.filter(c => c.due && !c.dc && (!c.tipo || c.tipo === 'scl') && pasa(c.m) && ['input', 'recursos', 'fichas', 'efem', 'brainstorming'].indexOf(c.cat) < 0 && diasA(new Date(c.due)) >= 0 && diasA(new Date(c.due)) <= S.data.ajustes.porVencer).sort((a, b) => new Date(a.due) - new Date(b.due));
+  const formato = c => { const t = (c.n + ' ' + (c.lab || []).join(' ')).toLowerCase(); return /reel|video/.test(t) ? 'Reel' : /carrus|carousel/.test(t) ? 'Carrusel' : /histori|story/.test(t) ? 'Historia' : 'Pieza'; };
   const vencidas = () => S.data.cards.filter(c => c.due && !c.dc && diasA(new Date(c.due)) < 0 && pasa(c.m) && (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project'));
   const fkey = f => norm(f.n) + '|' + f.d.toDateString() + '|' + f.tipo;
   function panelLateral(titulo, html) {
@@ -714,9 +717,21 @@
     const f = S.filtroRes.toLowerCase();
     const L = S.data.cards.filter(c => (c.cat === 'recursos' || c.cat === 'fichas') && pasa(c.m) && (!f || (c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase().includes(f)));
     const porMarca = {}; L.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
-    const tile = c => '<div class="res"><div class="k">' + (c.cat === 'fichas' ? 'Ficha técnica' : 'Recurso corporativo') + '</div><div class="n">' + esc(c.n) + '</div>' + (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + '<a class="op" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir tarjeta ↗</a></div>';
+    // dentro de cada marca, agrupado por tipo de material
+    const TIPOS_RES = [['logos', 'Logos e identidad', /logo|isotipo|imagotipo|identidad|manual|tipograf|paleta|brand/], ['menus', 'Menús, precios y catálogos', /men[uú]|carta|precio|catalog|lista de|tarifa/], ['fotos', 'Fotos y videos', /foto|video|imagen|banco|render|sesion|sesión/], ['otros', 'Otros', /./]];
+    const tipoRes = c => c.cat === 'fichas' ? ['fichas', 'Fichas técnicas'] : TIPOS_RES.find(t => t[2].test((c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase())).slice(0, 2);
+    const fila = c => '<div class="rrow"><div><a class="n" href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + ' <span>↗</span></a>' + (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + '</div></div>';
+    const marcas = Object.keys(porMarca), todoAbierto = !!f || marcas.length === 1;
+    S.resAb = S.resAb || {};
+    const bloque = s => {
+      const ab = todoAbierto || S.resAb[s], grupos = {};
+      porMarca[s].forEach(c => { const t = tipoRes(c); (grupos[t[1]] = grupos[t[1]] || []).push(c); });
+      const orden = ['Logos e identidad', 'Fichas técnicas', 'Menús, precios y catálogos', 'Fotos y videos', 'Otros'].filter(t => grupos[t]);
+      return '<div class="rbox' + (ab ? ' on' : '') + '"><button class="rhead" data-res-m="' + esc(s) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><span class="rchips">' + orden.map(t => '<em>' + t.split(/[ ,]/)[0] + ' ' + grupos[t].length + '</em>').join('') + '</span><i>' + (ab ? '−' : '+') + '</i></button>' +
+        (ab ? '<div class="rbody">' + orden.map(t => '<div class="dw-l">' + t + '</div>' + grupos[t].map(fila).join('')).join('') + '</div>' : '') + '</div>';
+    };
     return '<input class="search" id="qres" placeholder="Buscar logo, manual, ficha, menú…" value="' + esc(S.filtroRes) + '">' +
-      (Object.keys(porMarca).length ? Object.keys(porMarca).map(s => '<div class="sec"><div class="sec-h"><h2>' + tagM(s) + '<small>' + porMarca[s].length + '</small></h2></div><div class="grid">' + porMarca[s].sort((a, b) => a.cat.localeCompare(b.cat)).map(tile).join('') + '</div></div>').join('') : '<div class="empty">' + (f ? 'No encontré nada con "' + esc(S.filtroRes) + '".' : 'Todavía no hay recursos corporativos ni fichas técnicas en los tableros SCL.') + '</div>');
+      (marcas.length ? marcas.map(bloque).join('') : '<div class="empty">' + (f ? 'No encontré nada con "' + esc(S.filtroRes) + '".' : 'Todavía no hay recursos corporativos ni fichas técnicas en los tableros SCL.') + '</div>');
   }
 
   /* ---------------- vista MARCAS ---------------- */
@@ -795,6 +810,16 @@
     root.querySelectorAll('[data-fecha]').forEach(b => b.onclick = () => { const f = proximasFechas(120).find(x => fkey(x) === b.dataset.fecha); if (f) detalleFecha(f); });
     root.querySelectorAll('[data-card-det]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.cardDet); if (c) detalleCard(c); });
     root.querySelectorAll('[data-dia]').forEach(b => b.onclick = () => detalleDia(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + Number(b.dataset.dia))));
+    root.querySelectorAll('[data-por-salir]').forEach(b => b.onclick = () => {
+      const L = porSalir(), dias = {};
+      L.forEach(c => { const k = diasA(new Date(c.due)); (dias[k] = dias[k] || []).push(c); });
+      panelLateral('Por salir · próximos ' + S.data.ajustes.porVencer + ' días', L.length
+        ? '<p class="dw-p">Reels, carruseles y piezas que salen pronto. Abrí cada una y chequeá <b>copy, diseño, fecha y hashtags</b>: si algo cambió (precio, promo, stock), corregilo antes de que salga.</p>' +
+          Object.keys(dias).sort((a, b) => a - b).map(k => '<div class="dw-l">' + (k == 0 ? 'Hoy' : k == 1 ? 'Mañana' : cuando(new Date(dias[k][0].due))) + '</div>' +
+            dias[k].map(c => '<div class="ag card"><span class="h">' + hm(new Date(c.due)) + '</span><span class="x"><span class="pill">' + formato(c) + '</span> <button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button> <span class="k">· ' + esc(c.lista) + '</span></span>' + tagM(c.m[0]) + '</div>').join('')).join('')
+        : '<div class="empty">No sale nada en los próximos días.</div>');
+    });
+    root.querySelectorAll('[data-res-m]').forEach(b => b.onclick = () => { S.resAb = S.resAb || {}; S.resAb[b.dataset.resM] = !S.resAb[b.dataset.resM]; render(); });
     root.querySelectorAll('[data-vencidas]').forEach(b => b.onclick = () => {
       const v = vencidas();
       panelLateral('Vencidas · últimos 15 días', v.length ? v.sort((a, b) => new Date(a.due) - new Date(b.due)).map(c => '<div class="ag card"><span class="h">' + cuando(new Date(c.due)).replace('venció ', '') + '</span><span class="x"><button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button> <span class="k">· ' + esc(c.lista) + '</span></span>' + tagM(c.m[0]) + '</div>').join('') : '<div class="empty">No hay nada vencido. Bien ahí.</div>');
