@@ -857,3 +857,5 @@ body{background:
 }
 .mhead,.mtit,.avisos{max-width:820px;margin-left:auto;margin-right:auto;width:100%}
 @media(max-width:700px){.avisos{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:4px 16px 12px;width:auto}.avisos::-webkit-scrollbar{display:none}.av{flex:none}.mhead .kick{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+
+.racha{color:var(--warn);font-weight:600;white-space:nowrap}

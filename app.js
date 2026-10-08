@@ -229,7 +229,7 @@
     const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
     const portada = S.tab === (ivo ? 'revision' : 'hoy');
     const head = portada
-      ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
       : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
@@ -386,6 +386,26 @@
   // en el celular cada sección muestra 5 y el resto se abre con "Ver todas"
   const corta = (id, L) => !S.movil || S.abiertos[id] || L.length <= 6 ? L.map(fila).join('') : L.slice(0, 5).map(fila).join('') + '<button class="vermas" data-pliegue="' + id + '">Ver ' + (L.length - 5) + ' más</button>';
   const hoyId = () => NOW.toDateString();
+  // racha: días hábiles seguidos en que eligió sus prioridades ("Listo, a trabajar"); el fin de semana no la corta
+  const diaKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function racha() {
+    const hechos = {}; LS.get('racha', []).forEach(x => hechos[x] = 1);
+    const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
+    if (!hechos[diaKey(d)]) d.setDate(d.getDate() - 1); // si todavía no arrancó hoy, la racha sigue viva desde ayer
+    let n = 0;
+    for (let i = 0; i < 90; i++) {
+      if (d.getDay() === 0 || d.getDay() === 6) { d.setDate(d.getDate() - 1); continue; }
+      if (!hechos[diaKey(d)]) break;
+      n++; d.setDate(d.getDate() - 1);
+    }
+    return n;
+  }
+  function sumarRacha() {
+    const k = diaKey(NOW), dias = LS.get('racha', []);
+    if (dias.indexOf(k) < 0) { dias.push(k); LS.set('racha', dias.slice(-200)); }
+    // queda en la pestaña Registro del Sheet: el project ve quién arranca el día con el panel
+    if (!DEMO) post({ action: 'marcar', tipo: 'plan', clave: 'plan:' + k, marca: '', estado: 'hecho', periodo: k, detalle: 'eligió ' + (S.prioSel || []).length + ' prioridades' }).catch(() => {});
+  }
   // hora del día para la línea de tiempo (solo lo que pasa hoy y tiene horario)
   const horaDe = x => { const o = x.obj || {}; let d = null;
     if (x.tipo === 'evento' && !o.dia) d = new Date(o.s);
@@ -401,7 +421,7 @@
       const sug = pend.slice().sort((a, b) => b.u - a.u).slice(0, S.movil ? 6 : 8);
       if (!S.prioSel) S.prioSel = sug.slice(0, 3).map(x => x.k);
       const n = S.prioSel.length;
-      arranque = '<div class="arranque"><div class="arr-h"><span class="kick">— Arrancá el día</span><h3>¿Cuáles son tus 3 prioridades de hoy?</h3><p>Te marqué las más urgentes. Tocá para cambiarlas.' + (pend.length > 15 ? ' <b>Tenés ' + pend.length + ' cosas: es mucho para un día, elegí bien.</b>' : '') + '</p></div>' +
+      arranque = '<div class="arranque"><div class="arr-h"><span class="kick">— Arrancá el día' + (racha() ? ' · 🔥 racha de ' + racha() + (racha() === 1 ? ' día' : ' días') + ', no la cortes' : '') + '</span><h3>¿Cuáles son tus 3 prioridades de hoy?</h3><p>Te marqué las más urgentes. Tocá para cambiarlas.' + (pend.length > 15 ? ' <b>Tenés ' + pend.length + ' cosas: es mucho para un día, elegí bien.</b>' : '') + '</p></div>' +
         '<div class="arr-l">' + sug.map(x => { const i = S.prioSel.indexOf(x.k); return '<button class="arr-i' + (i >= 0 ? ' on' : '') + '" data-prio="' + esc(x.k) + '"><i style="background:' + color(x.marca) + '"></i><span>' + esc(x.t) + '</span><em>' + (i >= 0 ? i + 1 : '') + '</em></button>'; }).join('') + '</div>' +
         '<div class="arr-a">' + (n > 3 ? '<span class="arr-w">Elegiste ' + n + ': con 3 alcanza</span>' : '') + '<button class="btn ghost" data-prio-skip>Ahora no</button><button class="btn y" data-prio-ok' + (n ? '' : ' disabled') + '>Listo, a trabajar →</button></div></div>';
     }
@@ -1002,7 +1022,7 @@
       }).join('') + '</div>' +
       '<div class="sec"><div class="sec-h"><h2>Registro<small>últimos movimientos</small></h2><select class="search" id="freg" style="width:auto;margin:0;padding:6px 10px"><option value="">Todos</option>' + P.personas.map(p => '<option value="' + esc(p.clave) + '"' + (f === p.clave ? ' selected' : '') + '>' + esc(p.nombre) + '</option>').join('') + '</select></div>' +
       '<table class="tbl"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th class="hm">Marca</th><th>Estado</th></tr></thead><tbody>' +
-      P.registro.filter(r => !f || r.persona === f).map(r => '<tr><td class="m">' + esc(r.fecha.slice(5)) + '</td><td>' + esc(nm(r.persona)) + '</td><td>' + esc(({ reunion: 'Reunión', rutina: 'Rutina', input: 'Input', evento: 'Calendario', card: 'Tarjeta' })[r.tipo] || r.tipo) + ' · <span style="color:var(--muted)">' + esc((r.clave.split(':')[1] || '').replace(/-/g, ' ')) + '</span>' + (r.detalle ? '<div style="color:var(--muted);font-size:12px">' + esc(r.detalle) + '</div>' : '') + '</td><td class="hm m">' + esc(r.marca ? ms(r.marca) : '—') + '</td><td><span class="pill ' + ({ hecho: 'ok', agendada: 'ok', archivado: '', procesado: 'y', project: 'y' }[r.estado] || '') + '">' + esc(r.estado) + '</span></td></tr>').join('') +
+      P.registro.filter(r => !f || r.persona === f).map(r => '<tr><td class="m">' + esc(r.fecha.slice(5)) + '</td><td>' + esc(nm(r.persona)) + '</td><td>' + esc(({ reunion: 'Reunión', rutina: 'Rutina', input: 'Input', evento: 'Calendario', card: 'Tarjeta', plan: 'Arrancó el día' })[r.tipo] || r.tipo) + ' · <span style="color:var(--muted)">' + esc((r.clave.split(':')[1] || '').replace(/-/g, ' ')) + '</span>' + (r.detalle ? '<div style="color:var(--muted);font-size:12px">' + esc(r.detalle) + '</div>' : '') + '</td><td class="hm m">' + esc(r.marca ? ms(r.marca) : '—') + '</td><td><span class="pill ' + ({ hecho: 'ok', agendada: 'ok', archivado: '', procesado: 'y', project: 'y' }[r.estado] || '') + '">' + esc(r.estado) + '</span></td></tr>').join('') +
       '</tbody></table></div></div>';
   }
 
@@ -1039,7 +1059,7 @@
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
     // "Arrancá el día": elegir prioridades
     root.querySelectorAll('[data-prio]').forEach(b => b.onclick = () => { const k = b.dataset.prio, i = S.prioSel.indexOf(k); if (i >= 0) S.prioSel.splice(i, 1); else S.prioSel.push(k); render(); });
-    root.querySelectorAll('[data-prio-ok]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: S.prioSel.slice(0, 5) }); confeti(); render(); });
+    root.querySelectorAll('[data-prio-ok]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: S.prioSel.slice(0, 5) }); sumarRacha(); confeti(); render(); const n = racha(); toast(n > 1 ? '🔥 ' + n + ' días seguidos arrancando el día. ¡Seguí así!' : '🔥 Arrancaste el día. Mañana suma racha.'); });
     root.querySelectorAll('[data-prio-skip]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [] }); render(); });
     root.querySelectorAll('[data-prio-reset]').forEach(b => b.onclick = () => { LS.set('plan', {}); S.prioSel = null; render(); });
     root.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { S.segSem = b.dataset.seg; render(); });
