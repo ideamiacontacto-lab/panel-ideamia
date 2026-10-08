@@ -19,6 +19,8 @@
     key: LS.get('key', '') || localStorage.getItem('ideamia:clave') || '', pkey: LS.get('pkey', ''), sync: false,
     movil: window.matchMedia('(max-width:700px)').matches, segSem: null, diaSem: null
   };
+  // si ya había entrado antes de que existiera la sesión compartida, la clave se copia ahora
+  try { if (!localStorage.getItem('ideamia:clave') && (S.key || S.pkey)) localStorage.setItem('ideamia:clave', S.key || S.pkey); } catch (e) {}
 
   /* ---------------- iconos ---------------- */
   const I = {
@@ -1418,7 +1420,8 @@
       S.persona = elegido; LS.set('persona', S.persona);
       if (!DEMO) {
         const v = $('#gk').value.trim(); if (!v) { $('.err').textContent = 'Escribí la clave.'; return; }
-        if (esProj(elegido)) { S.pkey = v; LS.set('pkey', v); } else { S.key = v; LS.set('key', v); try { localStorage.setItem('ideamia:clave', v); } catch (e) {} }
+        if (esProj(elegido)) { S.pkey = v; LS.set('pkey', v); } else { S.key = v; LS.set('key', v); }
+        try { localStorage.setItem('ideamia:clave', v); } catch (e) {}  // Brainstormings la prueba al abrir (equipo o Joaquín)
       }
       // para que Reportes y Brainstormings ya sepan quién es
       try { const p = equipo.find(x => x.clave === elegido); localStorage.setItem('ideamia:persona', elegido); if (p) localStorage.setItem('ideamia:nombre', p.nombre); } catch (e) {}
