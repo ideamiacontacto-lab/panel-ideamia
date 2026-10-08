@@ -1008,8 +1008,8 @@ function vistaCliente_(marca, dias) {
   res.slice(boards.length * 2).forEach(acts => (acts || []).forEach(a => {
     const d = a.data || {}, t = String(d.text || ''), id = d.card && d.card.id; if (!id) return;
     const cli = /^💬 Cliente(?: \(([^)]*)\))?: ([\s\S]*)$/.exec(t), resp = /^para el cliente\s*:\s*([\s\S]*)$/i.exec(t);
-    if (cli) (coments[id] = coments[id] || []).push({ de: 'cliente', q: cli[1] || 'Cliente', t: cli[2].slice(0, 1500), f: a.date });
-    else if (resp) (coments[id] = coments[id] || []).push({ de: 'equipo', q: 'Ideamia', t: resp[1].slice(0, 1500), f: a.date });
+    if (cli) (coments[id] = coments[id] || []).push({ de: 'cliente', q: cli[1] || 'Cliente', t: cli[2].slice(0, 1500), f: a.date, id: a.id });
+    else if (resp) (coments[id] = coments[id] || []).push({ de: 'equipo', q: 'Ideamia', t: resp[1].slice(0, 1500), f: a.date, id: a.id });
   }));
   boards.forEach((b, i) => {
     const listas = {}; (res[i * 2] || []).forEach(l => listas[l.id] = l.name);
@@ -1070,9 +1070,28 @@ function comentarCliente_(b) {
   const c = CacheService.getScriptCache(), tk = 'cli-tope:' + marca, n = Number(c.get(tk) || 0);
   if (n >= 30) return { error: 'tope', mensaje: 'Recibimos muchos comentarios seguidos. Probá de nuevo en un rato.' };
   c.put(tk, String(n + 1), 3600);
-  trello_('/cards/' + it.id + '/actions/comments', { text: '💬 Cliente (' + nombre + '): ' + texto }, 'post');
+  const act = trello_('/cards/' + it.id + '/actions/comments', { text: '💬 Cliente (' + nombre + '): ' + texto }, 'post');
+  // clave para poder editarlo o borrarlo después desde el mismo celular (acá se guarda solo su huella)
+  const tok = Utilities.getUuid(); P.setProperty('cc:' + act.id, hash_(tok));
   try { registrar_('cliente', 'comentario', 'card:' + it.id, marca, 'comentó', (it.n + ' · ' + nombre + ': ' + texto).slice(0, 300), ''); } catch (e) {}
   ['cli:' + marca + ':15', 'cli:' + marca + ':31'].forEach(k => c.remove(k)); // que la página lo muestre enseguida
+  return { ok: true, id: act.id, tok: tok };
+}
+/* Editar o borrar un comentario propio: solo con la clave que recibió el celular al mandarlo. */
+function cambiarComentarioCliente_(b) {
+  const id = String(b.id || ''), guardada = id && P.getProperty('cc:' + id);
+  if (!guardada || hash_(String(b.tok || '')) !== guardada) return { error: 'permiso', mensaje: 'Solo se puede cambiar desde el celular que lo mandó' };
+  const marca = norm_(b.marca).replace(/[^a-z0-9]+/g, '-');
+  if (b.borrar) {
+    trello_('/actions/' + id, {}, 'delete');
+    P.deleteProperty('cc:' + id);
+  } else {
+    const texto = String(b.texto || '').trim().slice(0, 1500), nombre = String(b.nombre || '').replace(/[()]/g, '').trim().slice(0, 40) || 'Cliente';
+    if (!texto) return { error: 'datos', mensaje: 'Escribí el comentario' };
+    trello_('/actions/' + id, { text: '💬 Cliente (' + nombre + '): ' + texto }, 'put');
+  }
+  try { registrar_('cliente', 'comentario', 'accion:' + id, marca, b.borrar ? 'borró' : 'editó', String(b.texto || '').slice(0, 300), ''); } catch (e) {}
+  const c = CacheService.getScriptCache(); ['cli:' + marca + ':15', 'cli:' + marca + ':31'].forEach(k => c.remove(k));
   return { ok: true };
 }
 
@@ -1115,6 +1134,7 @@ function doPost(e) {
   try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
   try {
     if (b.action === 'comentarCliente') return json_(comentarCliente_(b)); // página de links del cliente: no lleva clave
+    if (b.action === 'cambiarComentarioCliente') return json_(cambiarComentarioCliente_(b)); // editar/borrar: pide la clave de ese comentario
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
