@@ -337,7 +337,7 @@ function leerTrello_(cat) {
     (res[i * 2 + 1] || []).forEach(c => {
       const l = listas[c.idList]; if (!l) return;
       const catL = catLista_(l.name);
-      if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre, ini: c.start, due: c.due, url: c.shortUrl, lab: (c.labels || []).map(x => x.name).filter(Boolean) };
+      if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre, ini: c.start, due: c.due, dc: !!c.dueComplete, url: c.shortUrl, lab: (c.labels || []).map(x => x.name).filter(Boolean) };
       // Tableros de guiones (los maneja Fede): cada tarjeta es un enlace a la idea aprobada en SCL.
       // Ideas recibidas = Fede tiene que entregar · listos para revisión = verlo en la reunión · Correcciones · Aprobado.
       if (b.tipo === 'guiones') {
@@ -368,6 +368,8 @@ function leerTrello_(cat) {
     const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), orig = m && indice[m[1]];
     if (!orig) return;
     c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = orig.lab || [];
+    // a veces se publica directo sin pasar la tarjeta de guiones: si la original ya salió, se marca para ordenar
+    c.salio = /publicad|programad|anterior|terminad/.test(norm_(orig.lista)) || orig.dc || (!!orig.due && new Date(orig.due).getTime() < Date.now());
   });
   cards.forEach(c => {
     if (c.tipo !== 'project') return;

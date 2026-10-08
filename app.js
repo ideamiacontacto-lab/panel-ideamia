@@ -139,7 +139,7 @@
       out.push({ k: 'inp:' + c.id, tipo: 'input', marca: c.m[0], t: (p === 'nuevo' ? 'Input nuevo: ' : p === 'pospuesto' ? 'Te pediste acordarte: ' : '¿Seguís necesitando? ') + c.n, obj: c, meta: [p === 'nuevo' ? 'cargado ' + hace(c.act) : p === 'pospuesto' ? 'lo pospusiste' : 'lo tocaste ' + hace(c.estado.fecha)], u: p === 'pospuesto' ? 3 : p === 'nuevo' ? 2 : 1 });
     });
     // guiones que piden algo: sin fecha de entrega, Fede atrasado o por entregar ya, listos para ver en la reunión
-    guiones().forEach(g => {
+    guiones().filter(g => !g.salio).forEach(g => {
       const e = g.entrega ? new Date(g.entrega) : null, n = e ? diasA(e) : 99, base = { k: 'gui:' + g.id, tipo: 'guion', marca: g.m[0], obj: g, url: g.ourl || g.url };
       if (g.gest === 'pendiente' && !e) out.push(Object.assign(base, { t: 'Guion sin fecha de entrega: ' + g.n, meta: ['<span class="pill bad">ponele fecha de inicio en SCL</span>', 'Fede no sabe cuándo entregarlo'], u: 3 }));
       else if (g.gest === 'pendiente' && n <= 1) out.push(Object.assign(base, { t: 'Guion de Fede: ' + g.n, meta: [n < 0 ? '<span class="pill bad">atrasado · era el ' + dm(e) + '</span>' : '<span class="pill warn">lo entrega ' + cuando(e) + '</span>', 'Guiones · pendiente de entrega'], u: n < 0 ? 4 : 2 }));
@@ -488,7 +488,7 @@
   // guiones (tableros GUIONES de cada marca, los maneja Fede)
   const guiones = () => (S.data.cards || []).filter(c => c.cat === 'guion' && pasa(c.m));
   const proxLunes = () => { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate()); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d; };
-  const guionAtencion = () => guiones().filter(g => (g.gest === 'pendiente' && (!g.entrega || diasA(new Date(g.entrega)) <= 1)) || g.gest === 'revisar').length;
+  const guionAtencion = () => guiones().filter(g => !g.salio).filter(g => (g.gest === 'pendiente' && (!g.entrega || diasA(new Date(g.entrega)) <= 1)) || g.gest === 'revisar').length;
   // reels, carruseles y piezas del calendario que salen en los próximos días (para chequear que estén ok)
   const porSalir = () => S.data.cards.filter(c => c.due && !c.dc && (!c.tipo || c.tipo === 'scl') && pasa(c.m) && ['input', 'recursos', 'fichas', 'efem', 'brainstorming', 'guion'].indexOf(c.cat) < 0 && diasA(new Date(c.due)) >= 0 && diasA(new Date(c.due)) <= S.data.ajustes.porVencer).sort((a, b) => new Date(a.due) - new Date(b.due));
   const formato = c => { const t = (c.n + ' ' + (c.lab || []).join(' ')).toLowerCase(); return /reel|video/.test(t) ? 'Reel' : /carrus|carousel/.test(t) ? 'Carrusel' : /histori|story/.test(t) ? 'Historia' : 'Pieza'; };
@@ -724,17 +724,20 @@
 
   /* ---------------- vista GUIONES: qué tiene que entregar Fede, qué ver en la reunión del lunes ---------------- */
   function vGuiones() {
-    const G = guiones(), lun = proxLunes();
+    const todos = guiones(), lun = proxLunes();
+    // ya salió (se publicó directo sin mover la tarjeta de guiones): va aparte para ordenar
+    const yaSalio = todos.filter(g => g.salio && g.gest !== 'aprobado'), G = todos.filter(g => !g.salio || g.gest === 'aprobado');
     const sinFecha = G.filter(g => g.gest === 'pendiente' && !g.entrega);
     const pend = G.filter(g => g.gest === 'pendiente' && g.entrega).sort((a, b) => new Date(a.entrega) - new Date(b.entrega));
     const rev = G.filter(g => g.gest === 'revisar'), corr = G.filter(g => g.gest === 'correccion'), apr = G.filter(g => g.gest === 'aprobado');
-    const fila = (g, extra) => '<div class="row"><span class="ico">' + I.pen + '</span><div><div class="tt"><a class="lnk" href="' + esc(g.ourl || g.url) + '" target="_blank" rel="noopener">' + esc(g.n) + '</a></div><div class="mt">' + tagM(g.m[0]) + extra + (g.salida ? '<span>sale ' + dm(new Date(g.salida)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(g.url) + '" target="_blank" rel="noopener" title="Abrir en el tablero de guiones">' + I.out + '</a></div></div>';
+    const fila = (g, extra) => '<div class="row"><span class="ico">' + I.pen + '</span><div><div class="tt"><a class="lnk" href="' + esc(g.ourl || g.url) + '" target="_blank" rel="noopener">' + esc(g.n) + '</a></div><div class="mt">' + tagM(g.m[0]) + extra + (g.salida ? '<span>' + (diasA(new Date(g.salida)) < 0 ? 'salió ' : 'sale ') + dm(new Date(g.salida)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(g.url) + '" target="_blank" rel="noopener" title="Abrir en el tablero de guiones">' + I.out + '</a></div></div>';
     const sec = (t, sub, L, f, vacio) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + L.length + '</small></h2>' + (sub ? '<span class="act">' + sub + '</span>' : '') + '</div>' + (L.length ? '<div class="list">' + L.map(f).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
     return '<div class="gcomo"><b>Cómo va:</b> presentan la idea en la reunión del lunes → la aprueban en SCL <u>con fecha de inicio</u> (= entrega del guion, el lunes siguiente) → Fede la recibe en su tablero → la entrega → la ven en la reunión. Próxima reunión: <b>' + cuando(lun) + '</b>.</div>' +
       (sinFecha.length ? sec('Sin fecha de entrega', 'Ponele fecha de inicio a la tarjeta en SCL', sinFecha, g => fila(g, '<span class="pill bad">falta fecha de inicio</span>'), '') : '') +
       sec('Fede tiene que entregar', 'La fecha de inicio de la tarjeta es la entrega', pend, g => { const n = diasA(new Date(g.entrega)); return fila(g, '<span' + (n < 0 ? ' class="pill bad">atrasado · era el ' + dm(new Date(g.entrega)) : (n <= 1 ? ' class="pill warn">entrega ' : '>entrega ') + cuando(new Date(g.entrega))) + '</span>'); }, 'Nada pendiente de entrega.') +
       sec('Listos para ver en la reunión', 'Lunes ' + dm(lun), rev, g => fila(g, '<span class="pill y">entregado · a revisar</span>'), 'Nada para revisar todavía.') +
       (corr.length ? sec('En corrección', 'Fede los está ajustando', corr, g => fila(g, '<span>en corrección</span>'), '') : '') +
+      (yaSalio.length ? sec('Ya salió · ordenar en Trello', 'Se publicó pero la tarjeta sigue en el tablero de guiones: pasala a Aprobado o archivala', yaSalio, g => fila(g, '<span class="pill ok">ya se publicó</span><span>sigue en ' + esc(g.lista) + '</span>'), '') : '') +
       (apr.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.gapr ? ' on' : '') + '" data-pliegue="gapr"><span>Aprobados esta semana<small>' + apr.length + '</small></span><i>' + (S.abiertos.gapr ? '−' : '+') + '</i></button>' + (S.abiertos.gapr ? '<div class="list">' + apr.map(g => fila(g, '<span class="pill ok">aprobado</span>')).join('') + '</div>' : '') + '</div>' : '');
   }
 
