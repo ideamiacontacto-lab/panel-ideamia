@@ -718,6 +718,8 @@ function reportesConfig_() {
   return cfg;
 }
 
+// Desde qué semana (lunes) se le piden reportes a cada marca que arranca después del resto.
+const REP_DESDE_MARCA = { 'vice-burger': '2026-10-12' };
 const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const lunes_ = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 
@@ -756,13 +758,15 @@ function tareasReportes_(clave, rol) {
   const marcas = cfg.marcas.filter(m => esProj || (esCM ? m.cm === clave : m.sm === clave));
   const dd = d => ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
   marcas.forEach(m => {
+    // marcas que arrancan más tarde (ej. Vice publica desde el 12/10): no se piden reportes de antes
+    const desde = REP_DESDE_MARCA[m.slug] || '';
     // semanal (SM y CM): las últimas 3 semanas ya terminadas
     const tipos = esProj ? ['sm', 'cm'] : [esCM ? 'cm' : 'sm'];
     tipos.forEach(tipo => {
       const dl = cfg.deadline[tipo] || { dia: 1, hora: 12 };
       let w = lunes_(new Date(ahora.getTime() - 7 * 864e5));
       for (let i = 0; i < 3; i++, w = new Date(w.getTime() - 7 * 864e5)) {
-        const id = ymd_(w); if (id < cfg.semanalDesde) break;
+        const id = ymd_(w); if (id < cfg.semanalDesde || id < desde) break;
         if (env[tipo + '|' + m.slug + '|' + id]) continue;
         const vence = new Date(w.getFullYear(), w.getMonth(), w.getDate() + 7 + (dl.dia - 1), dl.hora);
         const fin = new Date(w.getTime() + 6 * 864e5);
@@ -772,12 +776,12 @@ function tareasReportes_(clave, rol) {
     // mensual y trimestral: los carga el social media
     if (esCM && !esProj) return;
     const mesAnt = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1), idM = ym_(mesAnt);
-    if (idM >= cfg.mensualDesde && !env['mensual|' + m.slug + '|' + idM]) {
+    if (idM >= cfg.mensualDesde && idM >= desde.slice(0, 7) && !env['mensual|' + m.slug + '|' + idM]) {
       out.push({ k: 'rep:mensual:' + m.slug + ':' + idM, tipo: 'mensual', marca: m.slug, periodo: idM, label: 'Reporte mensual · ' + MESES_ES[mesAnt.getMonth()], vence: new Date(ahora.getFullYear(), ahora.getMonth(), cfg.mesDia, cfg.hora).toISOString(), resp: m.sm });
     }
     if ([0, 3, 6, 9].indexOf(ahora.getMonth()) >= 0) {
       const ini = new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + '+3';
-      if (ym_(ini) >= cfg.periodicoDesde && !env['periodico|' + m.slug + '|' + idT]) {
+      if (ym_(ini) >= cfg.periodicoDesde && ym_(ini) >= desde.slice(0, 7) && !env['periodico|' + m.slug + '|' + idT]) {
         out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
       }
     }
