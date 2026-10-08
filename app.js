@@ -345,7 +345,8 @@
     const a = (url, ico, t, sub, cl) => url ? '<a class="atajo' + (cl || '') + '" href="' + esc(url) + '" target="_blank" rel="noopener"><span class="ic">' + ico + '</span><span><b>' + t + '</b><small>' + sub + '</small></span><i>↗</i></a>' : '';
     return '<div class="atajos">' +
       a(D.linkReportes || L.reportes, I.flag, '¿Reportes?', nRep ? nRep + ' por cargar' : 'todo al día ✓', nRep ? ' hot' : '') +
-      a(L.brainstorming, I.star, 'Brainstormings', 'ideas y votación') + '</div>';
+      a(L.brainstorming, I.star, 'Brainstormings', L.claveBrain ? 'contraseña: <u>' + esc(L.claveBrain) + '</u>' : 'ideas y votación') + '</div>' +
+      (L.claveBrain ? '<button class="btn ghost copiar-clave" data-copiar-clave>Copiar la contraseña de brainstormings</button>' : '');
   }
   function costado(chico) {
     const fs = proximasFechas(30), L = S.data.links;
@@ -775,6 +776,7 @@
     root.querySelectorAll('[data-claude]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.claude); if (c) abrirClaude(promptTarjeta(c)); });
     root.querySelectorAll('[data-claude-plan]').forEach(b => b.onclick = () => abrirClaude(promptPlan()));
     root.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.copiar); if (c) copiar(promptTarjeta(c)); });
+    root.querySelectorAll('[data-copiar-clave]').forEach(b => b.onclick = () => copiar(S.data.links.claveBrain));
     root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
     root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = b.dataset.todavia; render(); if ($('#drawer')) { const c = S.data.cards.find(x => x.id === S.todavia); if (c) detalleInput(c); } });

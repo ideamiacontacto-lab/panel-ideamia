@@ -666,3 +666,5 @@ body{background:
   .atajo small{font-size:11px}
   .atajo i{display:none}
 }
+.copiar-clave{display:block;margin:-4px 0 12px auto;font-size:12px;padding:5px 10px}
+.atajo small u{text-decoration:none;color:var(--y);font-weight:600}
