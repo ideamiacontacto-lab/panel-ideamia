@@ -727,3 +727,50 @@ body{background:
 .ivo .bnav{grid-template-columns:repeat(4,1fr)}
 
 .rojo{color:var(--bad)!important}
+
+/* ===== Mi día: arranque (Sunsama), línea de tiempo (Structured), filas limpias (Todoist) ===== */
+.arranque{border:1px solid rgba(255,242,0,.45);border-radius:16px;padding:18px 18px 14px;margin-bottom:16px;background:radial-gradient(500px 200px at 100% 0,rgba(255,242,0,.12),transparent 70%),var(--s1);animation:entra .5s var(--ease)}
+.arr-h h3{font-family:var(--f-t);font-weight:800;font-size:20px;margin:6px 0 4px;line-height:1.2}
+.arr-h p{margin:0 0 12px;font-size:13.5px;color:var(--muted)}
+.arr-h p b{color:var(--warn)}
+.arr-l{display:flex;flex-direction:column;gap:6px}
+.arr-i{display:flex;align-items:center;gap:10px;text-align:left;padding:10px 12px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);transition:all .18s var(--ease)}
+.arr-i:hover{border-color:var(--muted)}
+.arr-i i{width:8px;height:8px;border-radius:50%;flex:none}
+.arr-i span{flex:1;font-size:14px;line-height:1.3}
+.arr-i em{font-style:normal;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.arr-i.on{border-color:var(--y);background:rgba(255,242,0,.07)}
+.arr-i.on em{background:var(--y);border-color:var(--y);color:var(--y-ink)}
+.arr-a{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}
+.arr-w{font-size:12.5px;color:var(--warn);margin-right:auto}
+.prios .list{border:1px solid rgba(255,242,0,.3);border-radius:12px;padding:0 12px;background:rgba(255,242,0,.03)}
+.prios .row:last-child{border-bottom:0}
+
+/* línea de tiempo */
+.tl{position:relative;padding-left:4px}
+.tl-i{display:grid;grid-template-columns:46px 14px minmax(0,1fr);align-items:start;gap:0 10px;position:relative}
+.tl-i:before{content:"";position:absolute;left:62px;top:0;bottom:0;width:2px;background:var(--line)}
+.tl-h{font-family:var(--f-d);font-size:18px;color:var(--muted);padding-top:13px;text-align:right}
+.tl-p{width:14px;height:14px;border-radius:50%;background:var(--c,var(--y));margin-top:16px;position:relative;z-index:1;box-shadow:0 0 0 4px var(--bg)}
+.tl-c .row{border-bottom:0;padding-left:0}
+.tl-i.pasado{opacity:.5}
+.tl-ahora{display:grid;grid-template-columns:46px 14px minmax(0,1fr);gap:0 10px;align-items:center;margin:2px 0}
+.tl-ahora span{font-size:11px;font-weight:700;color:var(--bad);text-align:right}
+.tl-ahora i{width:10px;height:10px;border-radius:50%;background:var(--bad);margin-left:2px;box-shadow:0 0 0 4px var(--bg),0 0 12px var(--bad)}
+.tl-ahora b{height:2px;background:linear-gradient(90deg,var(--bad),transparent);font-size:0}
+
+/* filas tipo Todoist: círculo con el color de la urgencia */
+.chk{border-radius:50%;border-width:2px}
+.row.u4 .chk{border-color:var(--bad);background:rgba(255,107,107,.08)}
+.row.u3 .chk{border-color:var(--warn);background:rgba(255,180,84,.08)}
+.row.u2 .chk{border-color:var(--info)}
+.row.u4 .ico{color:var(--bad)}.row.u3 .ico{color:var(--warn)}
+.row .tt{font-weight:500}
+@media(max-width:700px){
+  .arranque{padding:14px 14px 12px}
+  .arr-h h3{font-size:18px}
+  .tl-i,.tl-ahora{grid-template-columns:40px 12px minmax(0,1fr);gap:0 8px}
+  .tl-i:before{left:52px}
+  .tl-h{font-size:16px}
+  .tl-p{width:12px;height:12px}
+}

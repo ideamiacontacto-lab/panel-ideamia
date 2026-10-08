@@ -216,6 +216,7 @@
     // Ivo: solo Revisión, Guiones, Discord y Agenda; entra directo a Revisión
     const ivo = esRevisa();
     if (ivo && ['revision', 'guiones', 'discord', 'agenda'].indexOf(S.tab) < 0) S.tab = 'revision';
+    if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? 'Tenés <b>' + Rv.revDis.length + ' diseños</b> y <b>' + Rv.revVid.length + ' videos</b> en revisión, y <b>' + Rv.gui.length + ' guiones</b> para la reunión del ' + dm(Rv.lun) + '.' + (Rv.atras.length ? ' <b class="rojo">Faltó entregar ' + Rv.atras.length + '.</b>' : '') : '';
     const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas }[S.tab] || vHoy)(t);
@@ -301,7 +302,7 @@
       return '<button class="mk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '"><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
     }).join('');
     const ico = x.sub === 'reunion' ? '<span class="ico">' + I.users + '</span>' : '<span class="prog' + (done ? ' full' : '') + '">' + n + '/' + x.items.length + '</span>';
-    return '<div class="row' + (done ? ' done' : '') + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(x.enlace, x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(x.enlace, x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
   }
   // "crear:produccion" en la columna enlace de Rutinas = botón para crear la tarjeta en ese tablero de la marca
   function botonEnlace(enlace, marcas) {
@@ -323,7 +324,7 @@
     const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || x.tipo === 'guion')
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : x.tipo === 'guion' ? I.pen : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
-    return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
   }
   function vHoy(t) {
     const pend = t.filter(x => !hecho(x.obj)), done = t.filter(x => hecho(x.obj));
@@ -344,18 +345,59 @@
       '<button class="rp' + (nReu ? ' warn' : '') + '" data-tab="reuniones"><b>' + nReu + '</b><span>reuniones<br><small>sin fecha</small></span></button>' +
       '<button class="rp" data-fechas><b>' + fs.length + '</b><span>fechas<br><small>próximos 30 días</small></span></button></div>';
     const festejo = t.length && !pend.length ? '<div class="festejo"><b>¡Día<br>completo!</b><span>Terminaste todo lo de hoy. ' + (S.movil ? 'En <b>Más</b> tenés' : 'Al costado tenés') + ' fechas y sugerencias para adelantar.</span></div>' : '';
-    // en el celular cada sección muestra 5 y el resto se abre con "Ver todas"
-    const corta = (id, L) => !S.movil || S.abiertos[id] || L.length <= 6 ? L.map(fila).join('') : L.slice(0, 5).map(fila).join('') + '<button class="vermas" data-pliegue="' + id + '">Ver ' + (L.length - 5) + ' más</button>';
-    if (S.movil) return festejo + bloqueRevision() + atajos() + bloqueDiscord() + rapidos + '<div class="tira">' + tira + '</div>' +
-      (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + corta('urg', urg) + '</div></div>' : '') +
-      (resto.length || !urg.length ? '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + corta('resto', resto) + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' : '') +
-      (done.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>' : '');
-    return festejo + bloqueRevision() + atajos() + bloqueDiscord() + rapidos + '<div class="tira">' + tira + '</div>' +
-      '<div class="cols"><div>' +
-      (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + urg.map(fila).join('') + '</div></div>' : '') +
-      '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + resto.map(fila).join('') + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' +
-      (done.length ? '<div class="sec"><div class="sec-h"><h2>Hecho<small>' + done.length + '</small></h2></div><div class="list">' + done.map(fila).join('') + '</div></div>' : '') +
-      '</div><aside class="side">' + costado() + '</aside></div>';
+    const md = miDia(t, pend, done);
+    if (S.movil) return festejo + md.arranque + bloqueRevision() + atajos() + bloqueDiscord() + rapidos + md.cuerpo;
+    return festejo + md.arranque + bloqueRevision() + atajos() + bloqueDiscord() + rapidos +
+      '<div class="cols"><div>' + md.cuerpo + '</div><aside class="side">' + costado() + '</aside></div>';
+  }
+
+  /* ---------------- "Mi día": arrancar con 3 prioridades (estilo Sunsama), línea de tiempo con lo que tiene hora
+     (estilo Structured) y el resto agrupado en Hoy / Mañana / Esta semana (estilo Todoist) ---------------- */
+  // en el celular cada sección muestra 5 y el resto se abre con "Ver todas"
+  const corta = (id, L) => !S.movil || S.abiertos[id] || L.length <= 6 ? L.map(fila).join('') : L.slice(0, 5).map(fila).join('') + '<button class="vermas" data-pliegue="' + id + '">Ver ' + (L.length - 5) + ' más</button>';
+  const hoyId = () => NOW.toDateString();
+  // hora del día para la línea de tiempo (solo lo que pasa hoy y tiene horario)
+  const horaDe = x => { const o = x.obj || {}; let d = null;
+    if (x.tipo === 'evento' && !o.dia) d = new Date(o.s);
+    else if (x.tipo === 'card' && o.due) d = new Date(o.due);
+    else if (x.tipo === 'reporte' && o.vence) d = new Date(o.vence);
+    return d && diasA(d) === 0 ? d : null; };
+  const diaDe = x => { const o = x.obj || {}; const d = x.tipo === 'card' ? o.due : x.tipo === 'reporte' ? o.vence : x.tipo === 'evento' ? o.s : x.tipo === 'guion' ? o.entrega : null; return d ? diasA(new Date(d)) : 0; };
+  function miDia(t, pend, done) {
+    const plan = LS.get('plan', {}), prioIds = plan.dia === hoyId() ? plan.ids : null, porK = {};
+    t.forEach(x => porK[x.k] = x);
+    let arranque = '', cuerpo = '';
+    if (!prioIds && pend.length) {
+      const sug = pend.slice().sort((a, b) => b.u - a.u).slice(0, S.movil ? 6 : 8);
+      if (!S.prioSel) S.prioSel = sug.slice(0, 3).map(x => x.k);
+      const n = S.prioSel.length;
+      arranque = '<div class="arranque"><div class="arr-h"><span class="kick">— Arrancá el día</span><h3>¿Cuáles son tus 3 prioridades de hoy?</h3><p>Te marqué las más urgentes. Tocá para cambiarlas.' + (pend.length > 15 ? ' <b>Tenés ' + pend.length + ' cosas: es mucho para un día, elegí bien.</b>' : '') + '</p></div>' +
+        '<div class="arr-l">' + sug.map(x => { const i = S.prioSel.indexOf(x.k); return '<button class="arr-i' + (i >= 0 ? ' on' : '') + '" data-prio="' + esc(x.k) + '"><i style="background:' + color(x.marca) + '"></i><span>' + esc(x.t) + '</span><em>' + (i >= 0 ? i + 1 : '') + '</em></button>'; }).join('') + '</div>' +
+        '<div class="arr-a">' + (n > 3 ? '<span class="arr-w">Elegiste ' + n + ': con 3 alcanza</span>' : '') + '<button class="btn ghost" data-prio-skip>Ahora no</button><button class="btn y" data-prio-ok' + (n ? '' : ' disabled') + '>Listo, a trabajar →</button></div></div>';
+    }
+    const prio = (prioIds || []).map(k => porK[k]).filter(Boolean), enPrio = {};
+    prio.forEach(x => enPrio[x.k] = 1);
+    if (prio.length) {
+      const ok = prio.filter(x => hecho(x.obj)).length;
+      cuerpo += '<div class="sec prios"><div class="sec-h"><h2>Tus prioridades<small>' + ok + ' de ' + prio.length + '</small></h2><button class="act lnk" data-prio-reset>cambiar</button></div><div class="list">' + prio.map(fila).join('') + '</div></div>';
+    }
+    const resto = pend.filter(x => !enPrio[x.k]);
+    const conHora = resto.map(x => ({ x, h: horaDe(x) })).filter(o => o.h).sort((a, b) => a.h - b.h);
+    const sinHora = resto.filter(x => !horaDe(x));
+    if (conHora.length) {
+      let puesto = false;
+      const ahora = '<div class="tl-ahora"><span>' + hm(NOW) + '</span><i></i><b>ahora</b></div>';
+      cuerpo += '<div class="sec"><div class="sec-h"><h2>Mi día<small>' + conHora.length + ' con horario</small></h2></div><div class="tl">' +
+        conHora.map(o => { let s = ''; if (!puesto && o.h > NOW) { puesto = true; s = ahora; }
+          return s + '<div class="tl-i' + (o.h < NOW ? ' pasado' : '') + '"><span class="tl-h">' + hm(o.h) + '</span><span class="tl-p" style="--c:' + color(o.x.marca) + '"></span><div class="tl-c">' + fila(o.x) + '</div></div>'; }).join('') +
+        (puesto ? '' : ahora) + '</div></div>';
+    }
+    [['hoy', 'En el día', sinHora.filter(x => diaDe(x) <= 0)], ['manana', 'Mañana', sinHora.filter(x => diaDe(x) === 1)], ['semana', 'Esta semana', sinHora.filter(x => diaDe(x) >= 2)]].forEach(g => {
+      if (g[2].length) cuerpo += '<div class="sec"><div class="sec-h"><h2>' + g[1] + '<small>' + g[2].length + '</small></h2></div><div class="list">' + corta(g[0], g[2].sort((a, b) => b.u - a.u)) + '</div></div>';
+    });
+    if (!t.length) cuerpo += '<div class="empty">Nada para hoy.</div>';
+    if (done.length) cuerpo += '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>';
+    return { arranque, cuerpo };
   }
   // atajos grandes a las otras dos webs del estudio
   function atajos() {
@@ -921,6 +963,11 @@
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
     root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
+    // "Arrancá el día": elegir prioridades
+    root.querySelectorAll('[data-prio]').forEach(b => b.onclick = () => { const k = b.dataset.prio, i = S.prioSel.indexOf(k); if (i >= 0) S.prioSel.splice(i, 1); else S.prioSel.push(k); render(); });
+    root.querySelectorAll('[data-prio-ok]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: S.prioSel.slice(0, 5) }); confeti(); render(); });
+    root.querySelectorAll('[data-prio-skip]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [] }); render(); });
+    root.querySelectorAll('[data-prio-reset]').forEach(b => b.onclick = () => { LS.set('plan', {}); S.prioSel = null; render(); });
     root.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { S.segSem = b.dataset.seg; render(); });
     root.querySelectorAll('[data-diasem]').forEach(b => b.onclick = () => { S.diaSem = Number(b.dataset.diasem); render(); });
     root.querySelectorAll('[data-celda]').forEach(b => b.onclick = () => marcarCelda(b.dataset.celda));
