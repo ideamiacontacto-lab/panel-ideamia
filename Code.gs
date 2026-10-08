@@ -198,6 +198,8 @@ function evaluarCuando_(cuando, hoy, anticipacion) {
   anticipacion = anticipacion || 0;
   const dia = hoy.getDate(), mes = hoy.getMonth() + 1, ultimo = finDeMes_(hoy), dow = hoy.getDay();
   if (cuando === 'diaria') return (dow === 0 || dow === 6) ? null : { periodo: ymd_(hoy), etiqueta: 'hoy' };
+  let d = /^dias:([a-z,\s]+)$/.exec(cuando); // solo ciertos días de la semana: "dias:mie,sab"
+  if (d) return d[1].split(',').map(x => DIAS[x.trim().slice(0, 3)]).indexOf(dow) >= 0 ? { periodo: ymd_(hoy), etiqueta: 'hoy' } : null;
   let m = /^semana:(\w+)$/.exec(cuando);
   if (m) {
     const desde = DIAS[m[1].slice(0, 3)]; if (desde == null) return null;
@@ -402,10 +404,30 @@ function recomendarTarjetas_(snap, cat, cfg) {
 }
 
 /* ---------------- actualización (cada hora + botón) ---------------- */
+/* Rutinas nuevas que se suman a la pestaña Rutinas una sola vez (si después las borrás, no vuelven). */
+const RUTINAS_NUEVAS = [
+  ['dyb-propiedades', '¿Las propiedades siguen siendo las mismas? ¿Ninguna se dio de baja?', 'semana:lun', 'dyb', 'SM', 'Confirmá con la inmobiliaria qué se vendió, alquiló o bajó, y sacalo de lo programado.', ''],
+  ['isco-maquinarias', 'Mover el área de maquinarias', 'semana:mar', 'isco', 'SM', 'Algo del área de maquinarias toda la semana: historia, post o canal social.', ''],
+  ['promo-isco', 'Mover los productos con descuento de la promo del día', 'dias:mie,sab', 'isco', 'SM', 'Mostrá el precio final con el descuento. Ej.: si comprás $80.000, el dulce de leche de $50.000 con 10% off te queda en $45.000.', ''],
+  ['promo-quality', 'Mover los productos con descuento de la promo del día', 'dias:mie,vie', 'quality tienda', 'SM', 'Mostrá el precio final con el descuento. Ej.: si comprás $80.000, el dulce de leche de $50.000 con 10% off te queda en $45.000.', ''],
+  ['produccion-bauti', 'Organizar la producción de Bauti de la semana que viene', 'semana:mie', 'isco, quality tienda, gabriel varisco, vice burger', 'SM', 'Hablá con el dueño: ¿hay descargas?, ¿quieren mover algo puntual la semana que viene?, ¿promos o productos para mostrar? Dejale a Bauti 3 o 4 temas o ideas generales en una tarjeta de Producción.', 'crear:produccion'],
+  ['colaboraciones', 'Buscar colaboradores para campañas o hacer colaboraciones en redes', 'mes:1-31', 'sí', 'SM', 'Cuentas afines, emprendedores o influencers locales: una colaboración por mes por marca.', ''],
+  ['trimestral-check', '¿Este mes toca reporte trimestral? Organizalo con tiempo', 'mes:1-7', 'no', 'SM', 'Los trimestrales se entregan en enero, abril, julio y octubre.', 'LINK_REPORTES']
+];
+function asegurarRutinas_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('Rutinas'); if (!sh) return;
+  const ya = (P.getProperty('RUTINAS_AGREGADAS') || '').split(',').filter(Boolean);
+  const ids = rows_('Rutinas').map(r => r[0]);
+  let cambio = false;
+  RUTINAS_NUEVAS.forEach(r => { if (ya.indexOf(r[0]) >= 0) return; if (ids.indexOf(r[0]) < 0) sh.appendRow(r); ya.push(r[0]); cambio = true; });
+  if (cambio) P.setProperty('RUTINAS_AGREGADAS', ya.join(','));
+}
+
 function actualizar() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return { ok: false, error: 'Ya se está actualizando' };
   try {
+    try { asegurarRutinas_(); } catch (e) {}
     const cat = catalogo_(), cfg = config_();
     const snap = leerTrello_(cat);
     snap.generado = new Date().toISOString();
@@ -567,20 +589,29 @@ function panel_(personaClave, ctx) {
   });
 
   // Los reportes semanales, mensuales y trimestrales se siguen solos con la web de reportes: no van como rutina manual.
-  const misRutinas = cat.rutinas.filter(r => (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')) && ['rep-mensual', 'rep-trim'].indexOf(r.id) < 0);
+  // "por marca": sí (todas mis marcas) · canal (las que tienen canal social) · no (una sola, general) · o una lista de marcas ("isco, quality tienda").
+  const marcasDeRutina = r => {
+    if (r.porMarca === 'si' || r.porMarca === 'sí') return misMarcas;
+    if (r.porMarca === 'canal') return misMarcas.filter(m => m.canal);
+    if (!r.porMarca || r.porMarca === 'no') return null;
+    const l = lista_(r.porMarca);
+    return misMarcas.filter(m => l.some(a => m.alias.indexOf(a) >= 0 || m.slug === a.replace(/[^a-z0-9]+/g, '-')));
+  };
+  const misRutinas = cat.rutinas.filter(r => (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')) && ['rep-mensual', 'rep-trim'].indexOf(r.id) < 0)
+    .filter(r => { const ms = marcasDeRutina(r); return ms === null || ms.length > 0; }); // si es de marcas que no son mías, no la veo
   // Para el checklist semanal: qué rutinas hay, para qué marcas y qué días/períodos tiene esta semana.
   const lunes = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - ((hoy.getDay() + 6) % 7));
-  const semanaInfo = { dias: [0, 1, 2, 3, 4].map(i => ymd_(new Date(lunes.getTime() + i * 864e5))), semana: semana_(hoy), mes: ym_(hoy) };
+  const semanaInfo = { dias: [0, 1, 2, 3, 4, 5].map(i => ymd_(new Date(lunes.getTime() + i * 864e5))), semana: semana_(hoy), mes: ym_(hoy) };
   const rutinasDef = misRutinas.map(r => ({
-    id: r.id, tarea: r.tarea, cuando: r.cuando, ayuda: r.ayuda,
-    marcas: r.porMarca === 'si' || r.porMarca === 'sí' ? slugs : r.porMarca === 'canal' ? misMarcas.filter(m => m.canal).map(m => m.slug) : []
+    id: r.id, tarea: r.tarea, cuando: r.cuando, ayuda: r.ayuda, enlace: cfg[r.enlace] || r.enlace || '',
+    marcas: (marcasDeRutina(r) || []).map(m => m.slug)
   }));
 
   // rutinas activas hoy
   const rutinas = [];
   misRutinas.forEach(r => {
     const ev = evaluarCuando_(r.cuando, hoy); if (!ev) return;
-    const marcasR = r.porMarca === 'si' || r.porMarca === 'sí' ? misMarcas : r.porMarca === 'canal' ? misMarcas.filter(m => m.canal) : [null];
+    const marcasR = marcasDeRutina(r) || [null];
     marcasR.forEach(m => {
       const clave = 'rut:' + r.id + ':' + (m ? m.slug : '-') + ':' + ev.periodo;
       rutinas.push({ clave, id: r.id, tarea: r.tarea, ayuda: r.ayuda, enlace: cfg[r.enlace] || r.enlace || '', marca: m ? m.slug : '', etiqueta: ev.etiqueta, vencida: !!ev.vencida, estado: est[clave] || null });

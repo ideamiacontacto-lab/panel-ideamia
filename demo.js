@@ -3,7 +3,7 @@
 window.PANEL_DEMO = (function () {
   const T = s => "https://trello.com/b/" + s;
   const marcas = [
-    { slug: "isco", nombre: "Isco", canal: true, tableros: [{ tipo: "scl", url: T("3edgu7Qr"), nombre: "SCL ISCO" }, { tipo: "cm", url: T("vRSs2fsU"), nombre: "CM ISCO" }, { tipo: "diseno", url: T("KjVwAluL"), nombre: "Diseño ISCO" }, { tipo: "guiones", url: T("jQNQjJct"), nombre: "GUIONES ISCO" }] },
+    { slug: "isco", nombre: "Isco", canal: true, tableros: [{ tipo: "scl", url: T("3edgu7Qr"), nombre: "SCL ISCO" }, { tipo: "cm", url: T("vRSs2fsU"), nombre: "CM ISCO" }, { tipo: "diseno", url: T("KjVwAluL"), nombre: "Diseño ISCO" }, { tipo: "produccion", url: T("Mk2S1uQK"), nombre: "Produccion ISCO" }, { tipo: "guiones", url: T("jQNQjJct"), nombre: "GUIONES ISCO" }] },
     { slug: "gabriel-varisco", nombre: "Gabriel Varisco", canal: false, tableros: [{ tipo: "scl", url: T("O4clu0an"), nombre: "SCL GV" }, { tipo: "cm", url: T("3qag6F89"), nombre: "CM GV" }, { tipo: "guiones", url: T("tk4Tgmtx"), nombre: "GUIONES GV" }] },
     { slug: "skilfulblack", nombre: "SkilfulBlack", canal: false, tableros: [{ tipo: "scl", url: T("3Zz1eV1r"), nombre: "SCL Skilful" }] },
     { slug: "tritato", nombre: "Tritato", canal: true, tableros: [{ tipo: "scl", url: T("8r1C9pFC"), nombre: "SCL Tritato" }, { tipo: "cm", url: T("8v9SQQsp"), nombre: "CM Tritato" }, { tipo: "guiones", url: T("n3dJ9pCN"), nombre: "GUIONES TRITATO" }] },
@@ -13,7 +13,7 @@ window.PANEL_DEMO = (function () {
   const LISTAS = {
     scl: ["Efemerides / Calendario Anual", "INPUTS / PEDIDOS DEL CLIENTE", "Calendario Editorial (para revision PM)", "Correcciones", "En revision", "Aprobado", "Brainstorming / Campañas", "Recursos Corporativos", "Fichas tecnicas"],
     cm: ["Listo para programar", "Filtro", "Contenido no programables", "Programado", "Publicado"],
-    diseno: ["Pedidos", "En proceso", "Para revisar", "Entregado"], guiones: ["Ideas", "Guion listo", "Grabado"]
+    diseno: ["Pedidos", "En proceso", "Para revisar", "Entregado"], produccion: ["Temas de la semana", "Grabado", "En edición", "Entregado"], guiones: ["Ideas", "Guion listo", "Grabado"]
   };
   const ETQ = [{ n: "Diseño", c: "purple" }, { n: "Carrusel", c: "orange" }, { n: "Reel", c: "red" }, { n: "Historia", c: "blue" }, { n: "Post", c: "green" }, { n: "Urgente", c: "yellow" }];
   marcas.forEach(m => m.tableros.forEach((t, i) => { t.id = m.slug + "-" + t.tipo; t.listas = (LISTAS[t.tipo] || LISTAS.scl).map((n, j) => ({ id: t.id + "-l" + j, n, cat: /aprobad|publicad|programado/i.test(n) ? "hecho" : /input/i.test(n) ? "input" : /correcc/i.test(n) ? "corr" : "trabajo" })); t.etiquetas = ETQ.map((e, j) => ({ id: t.id + "-e" + j, n: e.n, c: e.c })); }));
@@ -63,7 +63,11 @@ window.PANEL_DEMO = (function () {
     r("salida", "¿Reels y carruseles listos para salir?", "vice-burger", "esta semana"),
     r("salida", "¿Reels y carruseles listos para salir?", "tritato", "esta semana"),
     r("salida", "¿Reels y carruseles listos para salir?", "skilfulblack", "esta semana"),
-    r("salida", "¿Reels y carruseles listos para salir?", "gabriel-varisco", "esta semana")
+    r("salida", "¿Reels y carruseles listos para salir?", "gabriel-varisco", "esta semana"),
+    r("promo-isco", "Mover los productos con descuento de la promo del día", "isco", "hoy", { ayuda: "Mostrá el precio final con el descuento. Ej.: si comprás $80.000, el dulce de leche de $50.000 con 10% off te queda en $45.000." }),
+    r("produccion-bauti", "Organizar la producción de Bauti de la semana que viene", "isco", "esta semana", { enlace: "crear:produccion", ayuda: "Hablá con el dueño: ¿hay descargas?, ¿quieren mover algo puntual?, ¿promos o productos para mostrar? Dejale a Bauti 3 o 4 temas." }),
+    r("produccion-bauti", "Organizar la producción de Bauti de la semana que viene", "vice-burger", "esta semana", { enlace: "crear:produccion" }),
+    r("isco-maquinarias", "Mover el área de maquinarias", "isco", "esta semana", { vencida: true })
   ];
   const re = (id, nombre, con, marca, desde, hasta, extra) => Object.assign({ clave: "reu:" + id + ":" + (marca || "orne") + ":2026-10", id, nombre, con, marca: marca || "", desde, hasta, periodo: "2026-10", vencida: false, duracion: 45, estado: null }, extra || {});
   const reuniones = [
@@ -105,7 +109,7 @@ window.PANEL_DEMO = (function () {
       { k: "rep:sm:vice-burger:2026-09-28", tipo: "sm", marca: "vice-burger", periodo: "2026-09-28", label: "Reporte semanal Social Media · semana 28/09 al 04/10", vence: "2026-10-06T15:00:00Z" },
       { k: "rep:mensual:tritato:2026-09", tipo: "mensual", marca: "tritato", periodo: "2026-09", label: "Reporte mensual · septiembre", vence: "2026-10-05T15:00:00Z" }
     ],
-    semanaInfo: { dias: ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"], semana: "2026-W41", mes: "2026-10" },
+    semanaInfo: { dias: ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10"], semana: "2026-W41", mes: "2026-10" },
     rutinasDef: [
       { id: "correcciones", tarea: "Revisar Correcciones y tarjetas por vencer", cuando: "diaria", marcas: [] },
       { id: "inputs", tarea: "Revisar inputs nuevos del project", cuando: "diaria", marcas: [] },
@@ -113,7 +117,12 @@ window.PANEL_DEMO = (function () {
       { id: "ofertas", tarea: "¿Ofertas y diseños de la semana entregados?", cuando: "semana:lun", marcas: ["isco", "gabriel-varisco", "skilfulblack", "tritato", "vice-burger"] },
       { id: "salida", tarea: "¿Reels y carruseles listos para salir?", cuando: "semana:mie", marcas: ["isco", "gabriel-varisco", "skilfulblack", "tritato", "vice-burger"] },
       { id: "canal", tarea: "¿Se movió el canal social?", cuando: "semana:vie", marcas: ["isco", "tritato", "vice-burger"] },
-      { id: "coordinar", tarea: "Coordinar con el project los pendientes de la semana próxima", cuando: "semana:vie", marcas: [] }
+      { id: "coordinar", tarea: "Coordinar con el project los pendientes de la semana próxima", cuando: "semana:vie", marcas: [] },
+      { id: "promo-isco", tarea: "Mover los productos con descuento de la promo del día", cuando: "dias:mie,sab", marcas: ["isco"] },
+      { id: "isco-maquinarias", tarea: "Mover el área de maquinarias", cuando: "semana:mar", marcas: ["isco"] },
+      { id: "produccion-bauti", tarea: "Organizar la producción de Bauti de la semana que viene", cuando: "semana:mie", marcas: ["isco", "gabriel-varisco", "vice-burger"], enlace: "crear:produccion" },
+      { id: "colaboraciones", tarea: "Buscar colaboradores para campañas o hacer colaboraciones en redes", cuando: "mes:1-31", marcas: ["isco", "gabriel-varisco", "skilfulblack", "tritato", "vice-burger"] },
+      { id: "trimestral-check", tarea: "¿Este mes toca reporte trimestral? Organizalo con tiempo", cuando: "mes:1-7", marcas: [] }
     ],
     estRut: { "rut:correcciones:-:2026-10-05": { estado: "hecho" }, "rut:correcciones:-:2026-10-06": { estado: "hecho" }, "rut:inputs:-:2026-10-05": { estado: "hecho" }, "rut:inputs:-:2026-10-07": { estado: "hecho" }, "rut:promos:vice-burger:2026-W41": { estado: "hecho" }, "rut:ofertas:gabriel-varisco:2026-W41": { estado: "hecho" } }
   };

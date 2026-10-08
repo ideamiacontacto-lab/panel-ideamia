@@ -14,7 +14,8 @@
   const NOW = DEMO ? new Date(2026, 9, 7, 12, 30) : new Date();
   const S = {
     data: null, proj: null, abiertos: {}, reloj: null, tab: LS.get('tab', 'hoy'), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
-    persona: qs.get('p') || LS.get('persona', null), key: LS.get('key', ''), pkey: LS.get('pkey', ''), sync: false
+    persona: qs.get('p') || LS.get('persona', null), key: LS.get('key', ''), pkey: LS.get('pkey', ''), sync: false,
+    movil: window.matchMedia('(max-width:700px)').matches, segSem: null, diaSem: null
   };
 
   /* ---------------- iconos ---------------- */
@@ -28,7 +29,8 @@
     star: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.6L19.5 10l-5.7 1.4L12 17l-1.8-5.6L4.5 10l5.7-1.4z"/></svg>',
     flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
     archive: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V19h14V8.5M10 12.5h4"/></svg>',
-    msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>'
+    msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+    grid: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>'
   };
 
   /* ---------------- fechas ---------------- */
@@ -198,28 +200,78 @@
     const hoyD = NOW, nombre = D.yo.nombre;
     const nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length;
     const nRep = (D.reportes || []).filter(r => pasa(r.marca)).length;
-    const tabs = [['hoy', 'Hoy', tot - ok], ['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
-    app.innerHTML =
-      '<section class="hero"><div><div class="kick">— ' + DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()] + '</div>' +
-      '<h1>Hola, ' + esc(nombre) + ' <em>· ' + (hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches') + '</em></h1>' +
-      '<p>' + (tot - ok ? 'Tenés <b>' + (tot - ok) + (tot - ok === 1 ? ' cosa' : ' cosas') + '</b> para hoy' + (nInp ? ', <b>' + nInp + ' input' + (nInp > 1 ? 's' : '') + '</b> para revisar' : '') + (nReu ? ' y <b>' + nReu + (nReu > 1 ? ' reuniones' : ' reunión') + '</b> por organizar.' : '.') : 'Terminaste lo de hoy. Mirá las sugerencias para adelantar.') + '</p></div>' +
-      '<div class="meter"><div class="l">Hecho hoy</div><div class="n">' + ok + '<small>/' + tot + '</small></div><div class="bar"><i style="width:' + (tot ? Math.round(ok / tot * 100) : 0) + '%"></i></div></div></section>' +
-      '<div class="ctrl"><div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? 'Todas las marcas' : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>' +
-      '<nav class="tabs">' + tabs.map(x => '<button class="tab' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + (x[2] ? '<span class="badge' + (x[3] ? ' hot' : '') + '">' + x[2] + '</span>' : '') + '</button>').join('') + '</nav></div>' +
-      '<div class="view" id="view">' + ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas }[S.tab] || vHoy)(t) + '</div>';
+    const fecha = DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()];
+    const saludo = hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
+    const chips = '<div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? (S.movil ? 'Todas' : 'Todas las marcas') : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>';
+    if (!S.movil && S.tab === 'mas') S.tab = 'hoy';
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, mas: vMas }[S.tab] || vHoy)(t);
+    if (S.movil) {
+      // celular: estilo app. Portada corta solo en Hoy, título chico en el resto y pestañas fijas abajo.
+      const nav = [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid]];
+      const enMas = ['agenda', 'recursos', 'marcas', 'mas'].indexOf(S.tab) >= 0;
+      const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', mas: 'Más' };
+      app.innerHTML = (S.tab === 'hoy'
+        ? cinta() + '<section class="mhead"><div><div class="kick">— ' + fecha + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + saludo + (tot - ok ? ' · te quedan <b>' + (tot - ok) + '</b>' : ' · <b>todo listo</b>') + '</p></div>' + anillo(ok, tot) + '</section>'
+        : '<div class="mtit">' + (['agenda', 'recursos', 'marcas'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>') +
+        (S.tab === 'mas' ? '' : '<div class="ctrl">' + chips + '</div>') +
+        '<div class="view" id="view">' + vista + '</div>' +
+        '<nav class="bnav">' + nav.map(x => '<button class="' + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? 'on' : '') + '" data-tab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>';
+    } else {
+      const tabs = [['hoy', 'Hoy', tot - ok], ['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
+      app.innerHTML = cinta() +
+        '<section class="hero"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div>' +
+        '<h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1>' +
+        '<p>' + (tot - ok ? 'Tenés <b>' + (tot - ok) + (tot - ok === 1 ? ' cosa' : ' cosas') + '</b> para hoy' + (nInp ? ', <b>' + nInp + ' input' + (nInp > 1 ? 's' : '') + '</b> para revisar' : '') + (nReu ? ' y <b>' + nReu + (nReu > 1 ? ' reuniones' : ' reunión') + '</b> por organizar.' : '.') : 'Terminaste lo de hoy. Mirá las sugerencias para adelantar.') + '</p></div>' +
+        PIEZAS + anillo(ok, tot) + '</section>' +
+        '<div class="ctrl">' + chips +
+        '<nav class="tabs">' + tabs.map(x => '<button class="tab' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + (x[2] ? '<span class="badge' + (x[3] ? ' hot' : '') + '">' + x[2] + '</span>' : '') + '</button>').join('') + '</nav></div>' +
+        '<div class="view" id="view">' + vista + '</div>';
+    }
+    document.body.classList.toggle('movil', S.movil);
     bind(app);
     renderTop();
+  }
+  function anillo(ok, tot) {
+    const p = tot ? Math.round(ok / tot * 100) : 0;
+    return '<div class="anillo' + (tot && ok === tot ? ' full' : '') + '" style="--p:' + p + '"><div><b>' + ok + '<small>/' + tot + '</small></b><span>hecho hoy</span></div></div>';
+  }
+  const PZ = 'M20 20 H42 C40 12 44 6 50 6 C56 6 60 12 58 20 H80 V42 C88 40 94 44 94 50 C94 56 88 60 80 58 V80 H58 C60 88 56 94 50 94 C44 94 40 88 42 80 H20 V58 C12 60 6 56 6 50 C6 44 12 40 20 42 Z';
+  const PIEZAS = '<div class="piezas" aria-hidden="true"><svg viewBox="0 0 300 260"><g class="p p1" style="--r:-8deg"><path transform="translate(150 20) scale(1.25)" d="' + PZ + '" fill="#E9E9E9"/></g><g class="p p2" style="--r:6deg"><path transform="translate(40 110) scale(1.05)" d="' + PZ + '" fill="#FFF200"/></g><g class="p p3" style="--r:12deg"><path transform="translate(175 150) scale(.9)" d="' + PZ + '" fill="#4A4A4A"/></g></svg></div>';
+  // cinta amarilla que corre con lo urgente y lo que se viene
+  function cinta() {
+    const D = S.data, it = [];
+    (D.reportes || []).filter(r => pasa(r.marca)).slice(0, 4).forEach(r => { const h = (new Date(r.vence) - new Date()) / 36e5; it.push('<b>' + (h < 0 ? 'vencido' : 'reporte') + '</b>' + esc(r.label) + (h < 0 ? '' : ' · ' + (h < 24 ? 'vence en ' + plazo(h) : cuando(new Date(r.vence))))); });
+    const nV = vencidas().length; if (nV) it.push('<b>' + nV + '</b>tarjetas vencidas');
+    const nI = inputs().filter(c => inputPide(c) && pasa(c.m)).length; if (nI) it.push('<b>' + nI + '</b>inputs para revisar');
+    const nR = reuPend().filter(r => pasa(r.marca || S.marca)).length; if (nR) it.push('<b>' + nR + '</b>reuniones sin fecha');
+    proximasFechas(30).slice(0, 5).forEach(f => it.push(esc(f.n) + ' · ' + cuando(f.d)));
+    if (!it.length) return '';
+    const fila = it.map(x => '<span>' + x + '</span>').join('');
+    return '<div class="cinta" aria-hidden="true"><div class="pista">' + fila + fila + '</div></div>';
+  }
+  // festejo: confeti donde tocaste
+  let ptr = { x: innerWidth / 2, y: innerHeight / 2 };
+  document.addEventListener('pointerdown', e => { ptr = { x: e.clientX, y: e.clientY }; }, true);
+  function confeti() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cs = ['#FFF200', '#F5F5F5', '#7CC4FF', '#5CE38A', '#FFB454'];
+    for (let i = 0; i < 16; i++) {
+      const d = document.createElement('i'), a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 70;
+      d.className = 'cf'; d.style.left = ptr.x + 'px'; d.style.top = ptr.y + 'px'; d.style.background = cs[i % cs.length];
+      d.style.setProperty('--dx', Math.cos(a) * v + 'px'); d.style.setProperty('--dy', Math.sin(a) * v - 30 + 'px'); d.style.setProperty('--r', (Math.random() * 540 - 270) + 'deg');
+      document.body.appendChild(d); setTimeout(() => d.remove(), 950);
+    }
   }
 
   function renderTop() {
     const D = S.data, w = $('#who');
     if (D || S.proj) {
       const yo = D ? D.yo : { nombre: 'Project', rol: 'Project' };
-      w.innerHTML = '<b>' + esc(yo.nombre) + '</b>' + esc(yo.rol) + ' · cambiar'; w.classList.remove('hidden');
+      w.innerHTML = '<b>' + esc(yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · cambiar</span>'; w.classList.remove('hidden');
       w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; history.replaceState(null, '', location.pathname); gate(); };
     }
     const gen = (D && D.generado) || null;
-    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello y la IA">' + (S.sync ? '<span class="spin">↻</span> Actualizando' : '↻ Actualizar') + '</button>';
+    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello y la IA">' + (S.sync ? '<span class="spin">↻</span><span class="t"> Actualizando</span>' : '↻<span class="t"> Actualizar</span>') + '</button>';
     $('#rf').onclick = actualizar;
   }
 
@@ -232,7 +284,14 @@
       return '<button class="mk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '"><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
     }).join('');
     const ico = x.sub === 'reunion' ? '<span class="ico">' + I.users + '</span>' : '<span class="prog' + (done ? ' full' : '') + '">' + n + '/' + x.items.length + '</span>';
-    return '<div class="row' + (done ? ' done' : '') + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + (x.enlace ? '<a class="go" href="' + esc(x.enlace) + '" target="_blank" rel="noopener">' + I.out + '</a>' : '') + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(x.enlace, x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
+  }
+  // "crear:produccion" en la columna enlace de Rutinas = botón para crear la tarjeta en ese tablero de la marca
+  function botonEnlace(enlace, marcas) {
+    if (!enlace) return '';
+    const m = /^crear:(\w+)/.exec(enlace);
+    if (m) return '<button class="btn" data-crear-en="' + esc(m[1]) + '" data-marcas="' + esc((marcas || []).filter(Boolean).join(',')) + '">＋ Tarjeta en ' + esc(NOM_T[m[1]] || m[1]) + '</button>';
+    return '<a class="go" href="' + esc(enlace) + '" target="_blank" rel="noopener">' + I.out + '</a>';
   }
   function fila(x) {
     if (x.tipo === 'grupo') return filaGrupo(x);
@@ -242,7 +301,7 @@
     else if (x.tipo === 'reunion') accion = '<button class="btn y" data-agendar="' + esc(x.k) + '">' + I.cal + 'Agendar</button>';
     else if (x.tipo === 'input') accion = '<button class="btn" data-det-input="' + esc(x.obj.id) + '">Revisar</button>';
     else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
-    else if (x.enlace) accion = '<a class="go" href="' + esc(x.enlace) + '" target="_blank" rel="noopener" title="Abrir">' + I.out + '</a>';
+    else if (x.enlace) accion = botonEnlace(x.enlace, [x.marca]);
     const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte')
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
@@ -266,21 +325,31 @@
       '<button class="rp' + (nInp ? ' y' : '') + '" data-tab="inputs"><b>' + nInp + '</b><span>inputs<br><small>para revisar</small></span></button>' +
       '<button class="rp' + (nReu ? ' warn' : '') + '" data-tab="reuniones"><b>' + nReu + '</b><span>reuniones<br><small>sin fecha</small></span></button>' +
       '<button class="rp" data-fechas><b>' + fs.length + '</b><span>fechas<br><small>próximos 30 días</small></span></button></div>';
-    const seVienen = fs.filter(f => f.tipo !== 'feriado' || diasA(f.d) <= 14).slice(0, 6);
-    return rapidos + '<div class="tira">' + tira + '</div>' +
+    const festejo = t.length && !pend.length ? '<div class="festejo"><b>¡Día<br>completo!</b><span>Terminaste todo lo de hoy. ' + (S.movil ? 'En <b>Más</b> tenés' : 'Al costado tenés') + ' fechas y sugerencias para adelantar.</span></div>' : '';
+    // en el celular cada sección muestra 5 y el resto se abre con "Ver todas"
+    const corta = (id, L) => !S.movil || S.abiertos[id] || L.length <= 6 ? L.map(fila).join('') : L.slice(0, 5).map(fila).join('') + '<button class="vermas" data-pliegue="' + id + '">Ver ' + (L.length - 5) + ' más</button>';
+    if (S.movil) return festejo + rapidos + '<div class="tira">' + tira + '</div>' +
+      (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + corta('urg', urg) + '</div></div>' : '') +
+      (resto.length || !urg.length ? '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + corta('resto', resto) + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' : '') +
+      (done.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>' : '');
+    return festejo + rapidos + '<div class="tira">' + tira + '</div>' +
       '<div class="cols"><div>' +
       (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + urg.map(fila).join('') + '</div></div>' : '') +
       '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + resto.map(fila).join('') + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' +
       (done.length ? '<div class="sec"><div class="sec-h"><h2>Hecho<small>' + done.length + '</small></h2></div><div class="list">' + done.map(fila).join('') + '</div></div>' : '') +
-      '</div><aside class="side">' +
-      (seVienen.length ? '<div class="box"><h3><span class="spark">✦</span>Se vienen</h3>' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '<div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
-      (() => { const sg = sugerencias(), max = S.todasSug ? 99 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
-      '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
+      '</div><aside class="side">' + costado() + '</aside></div>';
+  }
+  function costado(chico) {
+    const fs = proximasFechas(30), L = S.data.links;
+    const seVienen = fs.filter(f => f.tipo !== 'feriado' || diasA(f.d) <= 14).slice(0, chico ? 4 : 6);
+    return (seVienen.length ? '<div class="box"><h3><span class="spark">✦</span>Se vienen</h3>' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '<div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
+      (() => { const sg = sugerencias(), max = S.todasSug ? 99 : chico ? 3 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
+      (chico ? '' : '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
       '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button> <button class="btn ghost" data-copiar-plan>Copiar</button></div>' +
-      '</div></div>' +
+      '</div></div>') +
       '<div class="box"><h3>Accesos</h3><div class="links">' +
       [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
-      '</div></div></aside></div>';
+      '</div></div>';
   }
 
   /* ---------------- fechas útiles por rubro (aunque no estén en el calendario anual de Trello) ----------------
@@ -537,33 +606,81 @@
     const celda = (k, futuro) => { if (!futuro) { total++; if (ok(k)) hechos++; } return '<button class="cel' + (ok(k) ? ' on' : '') + (futuro ? ' fut' : '') + '" ' + (futuro ? 'disabled' : 'data-celda="' + esc(k) + '"') + '>' + (ok(k) ? '✓' : '') + '</button>'; };
     const mesActual = NOW.getMonth() + 1;
     const aplicaMes = c => { const mm = /^meses:([\d,]+)\//.exec(c); return !mm || mm[1].split(',').map(Number).indexOf(mesActual) >= 0; };
-    const diarias = (D.rutinasDef || []).filter(r => r.cuando === 'diaria');
+    const diarias = (D.rutinasDef || []).filter(r => r.cuando === 'diaria' || /^dias:/.test(r.cuando));
+    const DSEM = { lun: 1, mar: 2, mie: 3, jue: 4, vie: 5, sab: 6 };
+    const diasRegla = r => r.cuando === 'diaria' ? [1, 2, 3, 4, 5] : r.cuando.slice(5).split(',').map(x => DSEM[x.trim().slice(0, 3)]);
+    const conSab = diarias.some(r => diasRegla(r).indexOf(6) >= 0);
+    const cols = si.dias.slice(0, conSab ? 6 : 5);
     const semanales = (D.rutinasDef || []).filter(r => /^semana:/.test(r.cuando));
     const mensuales = (D.rutinasDef || []).filter(r => /^(mes|meses):/.test(r.cuando) && aplicaMes(r.cuando));
-    const DN = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
-    const tablaDias = diarias.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + si.dias.map((d, i) => '<th' + (d === hoyY ? ' class="hoy"' : '') + '>' + DN[i] + ' ' + Number(d.slice(8)) + '</th>').join('') + '</tr></thead><tbody>' +
-      diarias.map(r => (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => '<tr><td>' + esc(r.tarea) + (s !== '-' ? ' ' + tagM(s) : '') + '</td>' + si.dias.map(d => '<td>' + celda('rut:' + r.id + ':' + s + ':' + d, d > hoyY) + '</td>').join('') + '</tr>').join('')).join('') + '</tbody></table></div>' : '';
+    const DN = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const tablaDias = diarias.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + cols.map((d, i) => '<th' + (d === hoyY ? ' class="hoy"' : '') + '>' + DN[i] + ' ' + Number(d.slice(8)) + '</th>').join('') + '</tr></thead><tbody>' +
+      diarias.map(r => (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => '<tr><td>' + esc(r.tarea) + (s !== '-' ? ' ' + tagM(s) : '') + (r.cuando !== 'diaria' ? '<small>' + esc(r.cuando.slice(5).replace(/,/g, ' y ')) + '</small>' : '') + '</td>' + cols.map((d, i) => '<td>' + (diasRegla(r).indexOf(i + 1) >= 0 ? celda('rut:' + r.id + ':' + s + ':' + d, d > hoyY) : '<span class="na">·</span>') + '</td>').join('') + '</tr>').join('')).join('') + '</tbody></table></div>' : '';
     const tablaMarcas = (defs, per) => defs.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + marcasV.map(m => '<th><i class="dotm" style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</th>').join('') + '</tr></thead><tbody>' +
       defs.map(r => '<tr><td>' + esc(r.tarea) + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
         (r.marcas.length ? marcasV.map(m => '<td>' + (r.marcas.indexOf(m.slug) >= 0 ? celda('rut:' + r.id + ':' + m.slug + ':' + per, false) : '<span class="na">·</span>') + '</td>').join('')
           : '<td colspan="' + marcasV.length + '" class="gen">' + celda('rut:' + r.id + ':-:' + per, false) + ' <span>general</span></td>') + '</tr>').join('') + '</tbody></table></div>' : '';
     const reps = (D.reportes || []).filter(r => pasa(r.marca));
+    // reuniones del mes (brainstorming, cliente, entrega de reportes, Ads): con fecha ✓ o "organizar"
+    const grupos = {};
+    (D.reuniones || []).filter(r => pasa(r.marca || S.marca)).forEach(r => (grupos[r.id] = grupos[r.id] || []).push(r));
+    const reus = Object.keys(grupos).map(id => { const rs = grupos[id]; return '<div class="row"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(rs[0].nombre) + '</div><div class="mt"><span>tiene que ser del ' + rs[0].desde + ' al ' + rs[0].hasta + '</span></div><div class="mks">' +
+      rs.map(r => { const ok = hecho(r), nom = r.marca ? (marca(r.marca) || {}).nombre : 'general'; return ok ? '<span class="mk on"><i style="background:' + color(r.marca) + '"></i>' + esc(nom) + (r.estado.detalle ? ' · ' + corto(ymdD(r.estado.detalle.slice(0, 10))) : '') + '</span>' : '<button class="mk' + (r.vencida ? ' late' : '') + '" data-agendar="' + esc(r.clave) + '"><i style="background:' + color(r.marca) + '"></i>' + esc(nom) + ' · organizar</button>'; }).join('') + '</div></div><div></div></div>'; }).join('');
     const cuerpo =
       '<div class="sec"><div class="sec-h"><h2>Reportes<small>' + reps.length + ' por cargar</small></h2><a class="act" href="' + esc(D.linkReportes || D.links.reportes) + '" target="_blank" rel="noopener">Abrir la web de reportes ↗</a></div>' +
       (reps.length ? '<div class="list">' + reps.map(r => { const v = new Date(r.vence), h = (v - new Date()) / 36e5; return '<div class="row"><span class="ico">' + I.flag + '</span><div><div class="tt">' + esc(r.label) + '</div><div class="mt">' + tagM(r.marca) + '<span>' + (h < 0 ? '<span class="pill bad">vencido hace ' + plazo(-h) + '</span>' : h < 24 ? '<span class="pill warn">vence en ' + plazo(h) + '</span>' : 'vence ' + cuando(v) + ' ' + hm(v)) + '</span></div></div><div><a class="btn y" href="' + esc(D.linkReportes) + '" target="_blank" rel="noopener">Cargar ↗</a></div></div>'; }).join('') + '</div>' : '<div class="empty">Todos los reportes al día ✓. Cuando cargás uno en la web de reportes, desaparece de acá solo.</div>') + '</div>' +
       (tablaDias ? '<div class="sec"><div class="sec-h"><h2>Todos los días</h2><span class="act">Podés tildar días anteriores si te olvidaste</span></div>' + tablaDias + '</div>' : '') +
       (semanales.length ? '<div class="sec"><div class="sec-h"><h2>Una vez por semana</h2></div>' + tablaMarcas(semanales, si.semana) + '</div>' : '') +
-      (mensuales.length ? '<div class="sec"><div class="sec-h"><h2>Este mes</h2></div>' + tablaMarcas(mensuales, si.mes) + '</div>' : '');
+      (mensuales.length || reus ? '<div class="sec"><div class="sec-h"><h2>Este mes</h2></div>' + tablaMarcas(mensuales, si.mes) + (reus ? '<div class="dw-l" style="margin-top:18px">Reuniones del mes</div><div class="list">' + reus + '</div>' : '') + '</div>' : '');
     const pct = total ? Math.round(hechos / total * 100) : 0;
+    if (S.movil) {
+      // celular: una sección a la vez, filas con botones por marca en vez de tablas anchas
+      const chipK = (k, s, nom) => '<button class="mk' + (ok(k) ? ' on' : '') + '" data-celda="' + esc(k) + '"><i style="background:' + color(s) + '"></i>' + esc(nom) + '</button>';
+      const filaR = (r, chips, n, de, cuando) => '<div class="row' + (n === de ? ' done' : '') + '"><span class="prog' + (n === de ? ' full' : '') + '">' + n + '/' + de + '</span><div><div class="tt">' + esc(r.tarea) + '</div>' + (cuando ? '<div class="mt"><span>' + esc(cuando) + '</span></div>' : '') + '<div class="mks">' + chips + '</div></div><div>' + botonEnlace(r.enlace, r.marcas) + '</div></div>';
+      const listaM = (defs, per) => defs.map(r => {
+        const ms = r.marcas.length ? marcasV.filter(m => r.marcas.indexOf(m.slug) >= 0) : null;
+        if (ms && !ms.length) return '';
+        const ks = ms ? ms.map(m => ['rut:' + r.id + ':' + m.slug + ':' + per, m.slug, m.nombre]) : [['rut:' + r.id + ':-:' + per, '', 'general']];
+        return filaR(r, ks.map(x => chipK(x[0], x[1], x[2])).join(''), ks.filter(x => ok(x[0])).length, ks.length, r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días '));
+      }).join('');
+      const iHoy = Math.max(0, cols.indexOf(hoyY)), di = S.diaSem == null ? iHoy : Math.min(S.diaSem, cols.length - 1), dsel = cols[di];
+      const delDia = diarias.filter(r => diasRegla(r).indexOf(di + 1) >= 0).map(r => {
+        const ks = (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => ['rut:' + r.id + ':' + s + ':' + dsel, s === '-' ? '' : s, s === '-' ? 'hecho' : (marca(s) || {}).nombre]);
+        if (!ks.length) return '';
+        return dsel > hoyY ? filaR(r, '<span class="na">todavía no</span>', 0, ks.length) : filaR(r, ks.map(x => chipK(x[0], x[1], x[2])).join(''), ks.filter(x => ok(x[0])).length, ks.length);
+      }).join('');
+      const segs = [['rep', 'Reportes', reps.length], ['dia', 'Días'], ['sem', 'Semana'], ['mes', 'Mes']];
+      const seg = S.segSem || (reps.length ? 'rep' : 'dia');
+      const repsM = reps.length ? '<div class="list">' + reps.map(r => { const v = new Date(r.vence), h = (v - new Date()) / 36e5; return '<div class="row"><span class="ico">' + I.flag + '</span><div><div class="tt">' + esc(r.label) + '</div><div class="mt">' + tagM(r.marca) + '<span>' + (h < 0 ? '<span class="pill bad">vencido hace ' + plazo(-h) + '</span>' : h < 24 ? '<span class="pill warn">vence en ' + plazo(h) + '</span>' : 'vence ' + cuando(v)) + '</span></div></div><div><a class="btn y" href="' + esc(D.linkReportes) + '" target="_blank" rel="noopener">Cargar</a></div></div>'; }).join('') + '</div>' : '<div class="empty">Todos los reportes al día ✓</div>';
+      const body = {
+        rep: repsM,
+        dia: '<div class="dsel">' + cols.map((d, i) => '<button class="' + (i === di ? 'on' : '') + (d === hoyY ? ' hoy' : '') + '" data-diasem="' + i + '"><small>' + DN[i] + '</small><b>' + Number(d.slice(8)) + '</b></button>').join('') + '</div>' + (delDia ? '<div class="list">' + delDia + '</div>' : '<div class="empty">Nada fijo para este día.</div>'),
+        sem: semanales.length ? '<div class="list">' + listaM(semanales, si.semana) + '</div>' : '<div class="empty">No hay tareas semanales.</div>',
+        mes: (mensuales.length ? '<div class="list">' + listaM(mensuales, si.mes) + '</div>' : '') + (reus ? '<div class="dw-l" style="margin-top:18px">Reuniones del mes</div><div class="list">' + reus + '</div>' : '')
+      }[seg];
+      return '<div class="semana-h m"><b>' + hechos + '<small>/' + total + '</small></b><span>tildados esta semana</span><div class="bar"><i style="width:' + pct + '%"></i></div></div>' +
+        '<div class="seg">' + segs.map(x => '<button class="' + (seg === x[0] ? 'on' : '') + '" data-seg="' + x[0] + '">' + x[1] + (x[2] ? '<em>' + x[2] + '</em>' : '') + '</button>').join('') + '</div>' + body;
+    }
     return '<div class="semana-h"><div><div class="kick">— Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
   }
   async function marcarCelda(k) {
     const D = S.data, er = D.estRut || (D.estRut = {}), antes = er[k] || null, ya = !!(antes && antes.estado === 'hecho');
-    if (ya) delete er[k]; else er[k] = { estado: 'hecho', fecha: ahoraTxt() };
+    if (ya) delete er[k]; else { er[k] = { estado: 'hecho', fecha: ahoraTxt() }; confeti(); }
     const r = D.rutinas.find(x => x.clave === k); if (r) r.estado = ya ? null : er[k];
     render();
     try { await post({ action: 'marcar', tipo: 'rutina', clave: k, marca: k.split(':')[2] === '-' ? '' : k.split(':')[2], estado: ya ? 'deshacer' : 'hecho', periodo: k.split(':').pop() }); }
     catch (e) { if (antes) er[k] = antes; else delete er[k]; if (r) r.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
+  }
+
+  /* ---------------- vista MÁS (celular): lo que en la compu va al costado ---------------- */
+  function vMas() {
+    const nVen = vencidas().length, nF = proximasFechas(30).length;
+    const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
+    return '<div class="mas-g">' +
+      t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, nVen ? nVen + ' vencidas' : 'Vencidas', 'últimos 15 días') +
+      t('data-fechas', I.star, nF + ' fechas', 'próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') +
+      t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-claude-plan', I.msg, 'Plan del día', 'con Claude') +
+      '</div>' + costado(true);
   }
 
   /* ---------------- vista AGENDA ---------------- */
@@ -659,7 +776,10 @@
     root.querySelectorAll('[data-recordar]').forEach(b => b.onclick = () => recordar(b.dataset.id, b.dataset.recordar));
     root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
+    root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
+    root.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { S.segSem = b.dataset.seg; render(); });
+    root.querySelectorAll('[data-diasem]').forEach(b => b.onclick = () => { S.diaSem = Number(b.dataset.diasem); render(); });
     root.querySelectorAll('[data-celda]').forEach(b => b.onclick = () => marcarCelda(b.dataset.celda));
     root.querySelectorAll('[data-fecha]').forEach(b => b.onclick = () => { const f = proximasFechas(120).find(x => fkey(x) === b.dataset.fecha); if (f) detalleFecha(f); });
     root.querySelectorAll('[data-card-det]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.cardDet); if (c) detalleCard(c); });
@@ -678,6 +798,7 @@
     const x = tareasHoy().find(t => t.k === k); if (!x) return;
     const o = x.obj, antes = o.estado || null, ya = hecho(o);
     o.estado = ya ? null : { estado: 'hecho', fecha: ahoraTxt(), persona: S.data.yo.clave };
+    if (!ya) confeti();
     render();
     const periodo = x.tipo === 'rutina' ? k.split(':').pop() : '';
     try {
@@ -690,6 +811,7 @@
     const c = S.data.cards.find(x => x.id === id); if (!c) return;
     const antes = c.estado || null;
     c.estado = { estado, fecha: ahoraTxt(), persona: S.data.yo.clave };
+    confeti();
     render();
     try {
       await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado, detalle: c.n });
@@ -745,22 +867,27 @@
   const NOM_T = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones', project: 'Project' };
   function opcionesListas(t, sel) { return t.listas.map(l => '<option value="' + esc(l.id) + '"' + (l.id === sel ? ' selected' : '') + '>' + esc(l.n) + '</option>').join(''); }
 
-  function crearTarjeta(inputId, slugForzado) {
+  function crearTarjeta(inputId, slugForzado, tipoPref) {
     const c = inputId ? S.data.cards.find(x => x.id === inputId) : null;
     const slug = slugForzado || (c && c.m[0]) || (S.marca !== 'todas' ? S.marca : S.data.marcas[0].slug);
     const ts = tablerosDe(slug);
     if (!ts.length) { toast('Todavía no tengo las listas de los tableros. Tocá ↻ Actualizar y probá de nuevo.'); return; }
-    let t = ts.find(x => x.tipo === 'scl') || ts[0];
+    let t = (tipoPref && ts.find(x => x.tipo === tipoPref)) || ts.find(x => x.tipo === 'scl') || ts[0];
     const listaDef = tb => (tb.listas.find(l => /calendario editorial/i.test(l.n)) || tb.listas.find(l => /calendario/i.test(l.n) && l.cat !== 'efem') || tb.listas.find(l => l.cat === 'trabajo') || tb.listas[0]).id;
-    const desc = c ? (c.d ? c.d + '\n\n' : '') + 'Input: ' + c.url : '';
     const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const lunesProx = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + ((8 - NOW.getDay()) % 7 || 7));
+    const esProd = !c && tipoPref === 'produccion';
+    const desc = c ? (c.d ? c.d + '\n\n' : '') + 'Input: ' + c.url
+      : esProd ? 'Temas / ideas para grabar esta semana:\n1. \n2. \n3. \n4. \n\nDescargas de mercadería: \nQué quiere mover el dueño: \nPromos o productos para mostrar: ' : '';
+    const titulo = c ? c.n : esProd ? 'Producción semana del ' + dm(lunesProx) + ' · temas para Bauti' : '';
+    const fechaDef = esProd ? lunesProx : new Date(Date.now() + 3 * 864e5);
     const m = modal('<h3>Crear tarjeta en Trello</h3><p>' + (c ? 'A partir del input <b>' + esc(c.n) + '</b>.' : 'Nueva tarjeta.') + ' Si la mandás a otra lista al crearla, arrancan las automatizaciones (por ejemplo, Aprobado → Diseño).</p>' +
       '<div class="two"><label class="field"><span>Marca</span><select id="cM">' + S.data.marcas.map(x => '<option value="' + esc(x.slug) + '"' + (x.slug === slug ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></label>' +
       '<label class="field"><span>Tablero</span><select id="cT"></select></label></div>' +
       '<label class="field"><span>Lista donde se crea</span><select id="cL"></select></label>' +
-      '<label class="field"><span>Título</span><input id="cN" value="' + esc(c ? c.n : '') + '" placeholder="Ej: Carrusel receta Halloween"></label>' +
-      '<label class="field"><span>Descripción</span><textarea id="cD" rows="4">' + esc(desc) + '</textarea></label>' +
-      '<div class="two"><label class="field"><span>Fecha de salida</span><input type="date" id="cF" value="' + iso(new Date(Date.now() + 3 * 864e5)) + '"></label><label class="field"><span>Hora</span><input type="time" id="cH" value="10:00"></label></div>' +
+      '<label class="field"><span>Título</span><input id="cN" value="' + esc(titulo) + '" placeholder="Ej: Carrusel receta Halloween"></label>' +
+      '<label class="field"><span>Descripción</span><textarea id="cD" rows="' + (esProd ? 9 : 4) + '">' + esc(desc) + '</textarea></label>' +
+      '<div class="two"><label class="field"><span>' + (esProd ? 'Fecha de la producción' : 'Fecha de salida') + '</span><input type="date" id="cF" value="' + iso(fechaDef) + '"></label><label class="field"><span>Hora</span><input type="time" id="cH" value="10:00"></label></div>' +
       '<div class="field"><span>Etiquetas</span><div class="labs" id="cE"></div></div>' +
       '<label class="field"><span>Después de crearla, mandarla a</span><select id="cA"></select></label><div class="err"></div>' +
       '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Crear tarjeta</button></div>', async mm => {
@@ -784,7 +911,7 @@
     };
     pintar();
     $('#cT', m).onchange = () => { t = ts.find(x => x.id === $('#cT', m).value); pintar(); };
-    $('#cM', m).onchange = () => { const nts = tablerosDe($('#cM', m).value); if (!nts.length) return; ts.length = 0; nts.forEach(x => ts.push(x)); t = ts.find(x => x.tipo === 'scl') || ts[0]; pintar(); };
+    $('#cM', m).onchange = () => { const nts = tablerosDe($('#cM', m).value); if (!nts.length) return; ts.length = 0; nts.forEach(x => ts.push(x)); t = (tipoPref && ts.find(x => x.tipo === tipoPref)) || ts.find(x => x.tipo === 'scl') || ts[0]; pintar(); };
   }
 
   function moverTarjeta(id) {
@@ -931,5 +1058,6 @@
   const refrescar = () => { if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(() => { S.sync = false; renderTop(); }); };
   setInterval(() => { if (document.visibilityState === 'visible') refrescar(); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
+  window.matchMedia('(max-width:700px)').addEventListener('change', e => { S.movil = e.matches; if (S.data) render(); });
   inicio();
 })();
