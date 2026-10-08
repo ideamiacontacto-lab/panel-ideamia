@@ -211,39 +211,31 @@
     const nRep = (D.reportes || []).filter(r => pasa(r.marca)).length;
     const fecha = DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()];
     const saludo = hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
-    const chips = '<div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? (S.movil ? 'Todas' : 'Todas las marcas') : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>';
-    if (!S.movil && S.tab === 'mas') S.tab = 'hoy';
-    // Ivo: solo Revisión, Guiones, Discord y Agenda; entra directo a Revisión
+    // marcas: un solo selector en vez de una fila larga de botones
+    const selMarca = '<label class="selm"><span class="dot" style="background:' + (S.marca === 'todas' ? 'var(--y)' : color(S.marca)) + '"></span><select id="selm" aria-label="Marca">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<option value="' + s + '"' + (S.marca === s ? ' selected' : '') + '>' + (s === 'todas' ? 'Todas las marcas' : esc(marca(s).nombre)) + '</option>').join('') + '</select></label>';
+    // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa();
     if (ivo && ['revision', 'guiones', 'discord'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
-    const resumenIvo = ivo ? 'Tenés <b>' + Rv.revDis.length + ' diseños</b> y <b>' + Rv.revVid.length + ' videos</b> en revisión, y <b>' + Rv.gui.length + ' guiones</b> para la reunión del ' + dm(Rv.lun) + '.' + (Rv.atras.length ? ' <b class="rojo">Faltó entregar ' + Rv.atras.length + '.</b>' : '') : '';
+    const resumenIvo = ivo ? '<b>' + Rv.revDis.length + '</b> diseños y <b>' + Rv.revVid.length + '</b> videos en revisión · <b>' + Rv.gui.length + '</b> guiones para el ' + dm(Rv.lun) + (Rv.atras.length ? ' · <b class="rojo">faltó entregar ' + Rv.atras.length + '</b>' : '') : '';
     const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas }[S.tab] || vHoy)(t);
-    if (S.movil) {
-      // celular: estilo app. Portada corta solo en Hoy, título chico en el resto y pestañas fijas abajo.
-      const nav = ivo
-        ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
-        : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid]];
-      const enMas = ['agenda', 'recursos', 'marcas', 'guiones', 'discord', 'mas'].indexOf(S.tab) >= 0 && !nav.some(x => x[0] === S.tab && x[0] !== 'mas');
-      const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
-      app.innerHTML = (S.tab === (ivo ? 'revision' : 'hoy')
-        ? (ivo ? '' : cinta()) + '<section class="mhead"><div><div class="kick">— ' + fecha + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : saludo + (tot - ok ? ' · te quedan <b>' + (tot - ok) + '</b>' : ' · <b>todo listo</b>')) + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>'
-        : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>') +
-        (S.tab === 'mas' ? '' : '<div class="ctrl">' + chips + '</div>') +
-        '<div class="view" id="view">' + vista + '</div>' +
-        '<nav class="bnav">' + nav.map(x => '<button class="' + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? 'on' : '') + '" data-tab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>';
-    } else {
-      const tabs = ivo ? [['revision', 'Revisión', Rv.rev.length, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true]] : [['hoy', 'Hoy', tot - ok]].concat([['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']]);
-      app.innerHTML = (ivo ? '' : cinta()) +
-        '<section class="hero"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div>' +
-        '<h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1>' +
-        '<p>' + (ivo ? resumenIvo : tot - ok ? 'Tenés <b>' + (tot - ok) + (tot - ok === 1 ? ' cosa' : ' cosas') + '</b> para hoy' + (nInp ? ', <b>' + nInp + ' input' + (nInp > 1 ? 's' : '') + '</b> para revisar' : '') + (nReu ? ' y <b>' + nReu + (nReu > 1 ? ' reuniones' : ' reunión') + '</b> por organizar.' : '.') : 'Terminaste lo de hoy. Mirá las sugerencias para adelantar.') + '</p></div>' +
-        PIEZAS + (ivo ? '' : anillo(ok, tot)) + '</section>' +
-        '<div class="ctrl">' + chips +
-        '<nav class="tabs">' + tabs.map(x => '<button class="tab' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + (x[2] ? '<span class="badge' + (x[3] ? ' hot' : '') + '">' + x[2] + '</span>' : '') + '</button>').join('') + '</nav></div>' +
-        '<div class="view" id="view">' + vista + '</div>';
-    }
+    // la misma navegación en la compu y en el celular: 5 lugares (Ivo: 3)
+    const nMas = guionAtencion() + dcSinVer().length;
+    const nav = ivo
+      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
+      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid, nMas, nMas > 0]];
+    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord', 'mas'].indexOf(S.tab) >= 0;
+    const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
+    const portada = S.tab === (ivo ? 'revision' : 'hoy');
+    const head = portada
+      ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
+    const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
+    const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
+    app.innerHTML = S.movil
+      ? head + (S.tab === 'mas' ? '' : ctrl) + '<div class="view" id="view">' + vista + '</div><nav class="bnav">' + nav.map(botonNav).join('') + '</nav>'
+      : ctrl + head + '<div class="view" id="view">' + vista + '</div>';
     document.body.classList.toggle('movil', S.movil);
     document.body.classList.toggle('ivo', esRevisa());
     bind(app);
@@ -255,6 +247,24 @@
   }
   const PZ = 'M20 20 H42 C40 12 44 6 50 6 C56 6 60 12 58 20 H80 V42 C88 40 94 44 94 50 C94 56 88 60 80 58 V80 H58 C60 88 56 94 50 94 C44 94 40 88 42 80 H20 V58 C12 60 6 56 6 50 C6 44 12 40 20 42 Z';
   const PIEZAS = '<div class="piezas" aria-hidden="true"><svg viewBox="0 0 300 260"><g class="p p1" style="--r:-8deg"><path transform="translate(150 20) scale(1.25)" d="' + PZ + '" fill="#E9E9E9"/></g><g class="p p2" style="--r:6deg"><path transform="translate(40 110) scale(1.05)" d="' + PZ + '" fill="#FFF200"/></g><g class="p p3" style="--r:12deg"><path transform="translate(175 150) scale(.9)" d="' + PZ + '" fill="#4A4A4A"/></g></svg></div>';
+  // la cinta amarilla solo aparece si hay algo vencido (es una alarma, no decoración)
+  function cintaUrgente() {
+    const D = S.data, ahora = new Date();
+    const hay = (D.reportes || []).some(r => pasa(r.marca) && new Date(r.vence) < ahora) || vencidas().length || reuPend().some(r => r.vencida && pasa(r.marca || S.marca));
+    return hay ? cinta() : '';
+  }
+  // cuándo se creó una tarjeta de Trello (va dentro de su id) = cuándo se la cargaron
+  const cargada = c => /^[0-9a-f]{24}$/.test(c.id) ? new Date(parseInt(c.id.slice(0, 8), 16) * 1000) : null;
+  // en las piezas de Ivo: cuándo se la cargaron, cuándo le pusieron la fecha de salida (y si se la cambiaron), si es urgente y si la pidieron después del plazo
+  const diaCorto = d => diasA(d) === 0 ? 'hoy ' + hm(d) : diasA(d) === -1 ? 'ayer ' + hm(d) : DIAS[d.getDay()] + ' ' + dm(d);
+  const datoPieza = (c, plazo) => {
+    const h = c.hist || {}, k = h.cargada ? new Date(h.cargada) : cargada(c), f = h.fecha ? new Date(h.fecha) : null;
+    const urg = (c.lab || []).some(x => /urgent/i.test(x)), ultimo = [k, f].filter(Boolean).sort((a, b) => b - a)[0];
+    return (urg ? '<span class="pill bad">urgente</span>' : '') +
+      (k ? '<span>cargada ' + diaCorto(k) + '</span>' : '') +
+      (f ? '<span>fecha puesta ' + diaCorto(f) + (h.antes ? ' (antes ' + dm(new Date(h.antes)) + ')' : '') + '</span>' : '') +
+      (ultimo && plazo && ultimo > plazo ? '<span class="pill warn">pedida tarde</span>' : '');
+  };
   // cinta amarilla que corre con lo urgente y lo que se viene
   function cinta() {
     const D = S.data, it = [];
@@ -289,8 +299,13 @@
       w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; history.replaceState(null, '', location.pathname); gate(); };
     }
     const gen = (D && D.generado) || null;
-    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello y la IA">' + (S.sync ? '<span class="spin">↻</span><span class="t"> Actualizando</span>' : '↻<span class="t"> Actualizar</span>') + '</button>';
+    // Reportes y Brainstormings: siempre a mano arriba, sin ocupar lugar (brainstorming copia la contraseña al abrir)
+    const L = (D && D.links) || {}, nRep = D ? (D.reportes || []).length : 0;
+    const accesos = D && !S.proj ? '<a class="tico' + (nRep ? ' hot' : '') + '" href="' + esc(D.linkReportes || L.reportes || '#') + '" target="_blank" rel="noopener" title="Reportes' + (nRep ? ' · ' + nRep + ' por cargar' : '') + '">' + I.flag + '<span>Reportes</span>' + (nRep ? '<em>' + nRep + '</em>' : '') + '</a>' +
+      (L.brainstorming ? '<a class="tico" id="tbrain" href="' + esc(L.brainstorming) + '" target="_blank" rel="noopener" title="Brainstormings' + (L.claveBrain ? ' · al abrir se copia la contraseña' : '') + '">' + I.star + '<span>Brainstorm</span></a>' : '') : '';
+    $('#sync').innerHTML = accesos + (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
     $('#rf').onclick = actualizar;
+    const tb = $('#tbrain'); if (tb && L.claveBrain) tb.onclick = () => { copiar(L.claveBrain, 'Contraseña de brainstormings copiada: pegala con Ctrl+V.'); };
   }
 
   /* ---------------- vista HOY ---------------- */
@@ -346,9 +361,24 @@
       '<button class="rp" data-fechas><b>' + fs.length + '</b><span>fechas<br><small>próximos 30 días</small></span></button></div>';
     const festejo = t.length && !pend.length ? '<div class="festejo"><b>¡Día<br>completo!</b><span>Terminaste todo lo de hoy. ' + (S.movil ? 'En <b>Más</b> tenés' : 'Al costado tenés') + ' fechas y sugerencias para adelantar.</span></div>' : '';
     const md = miDia(t, pend, done);
-    if (S.movil) return festejo + md.arranque + bloqueRevision() + atajos() + bloqueDiscord() + rapidos + md.cuerpo;
-    return festejo + md.arranque + bloqueRevision() + atajos() + bloqueDiscord() + rapidos +
-      '<div class="cols"><div>' + md.cuerpo + '</div><aside class="side">' + costado() + '</aside></div>';
+    // una pantalla, una pregunta: ¿qué hago ahora? Primero la tarea; los avisos son chips chicos (solo los que no están en cero)
+    return festejo + md.arranque + '<div class="hoy1">' + md.cuerpo + '</div>';
+  }
+  function avisos() {
+    const D = S.data, ahora = new Date();
+    const nDc = D.discord ? dcSinVer().length : 0, nSal = porSalir().length, nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length;
+    const reps = (D.reportes || []).filter(r => pasa(r.marca)), nRepV = reps.filter(r => new Date(r.vence) < ahora).length;
+    const nVen = vencidas().length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length, nGui = guionAtencion();
+    const ch = (n, txt, attr, cl) => n ? '<button class="av' + (cl ? ' ' + cl : '') + '" ' + attr + '><i></i><b>' + n + '</b> ' + txt + '</button>' : '';
+    const html = ch(nVen, nVen === 1 ? 'vencida' : 'vencidas', 'data-vencidas', 'bad') +
+      ch(nRepV, nRepV === 1 ? 'reporte vencido' : 'reportes vencidos', 'data-tab="semana"', 'bad') +
+      ch(nDc, nDc === 1 ? 'mención' : 'menciones', 'data-tab="discord"', 'dc') +
+      ch(nSal, 'por salir', 'data-por-salir', 'warn') +
+      ch(nInp, nInp === 1 ? 'input' : 'inputs', 'data-tab="inputs"', 'y') +
+      ch(reps.length - nRepV, 'reportes', 'data-tab="semana"', '') +
+      ch(nReu, 'reuniones sin fecha', 'data-tab="reuniones"', '') +
+      ch(nGui, 'guiones', 'data-tab="guiones"', '');
+    return html ? '<div class="avisos">' + html + '</div>' : '';
   }
 
   /* ---------------- "Mi día": arrancar con 3 prioridades (estilo Sunsama), línea de tiempo con lo que tiene hora
@@ -530,20 +560,33 @@
     const D = S.data.discord;
     if (!D) return '<div class="empty">Discord todavía no está conectado. Cuando el project cargue el bot, acá aparecen las veces que te mencionan, con un link directo a cada mensaje.</div>';
     if (!D.conUsuario) return '<div class="empty">Falta tu usuario de Discord en la pestaña Equipo del Sheet (columna "usuario de Discord"). Pedíselo al project.</div>';
-    const L = menciones(), nuevos = dcSinVer();
+    // respeta el filtro de marca de arriba (lo que no es de ninguna marca se ve solo con "Todas")
+    const L = menciones().filter(m => S.marca === 'todas' || m.marca === S.marca), v = dcVistos(), nuevos = L.filter(m => !v[m.id]);
+    const modo = LS.get('dcmodo', 'dia');
+    // carpeta plegable (Hoy/Ayer o la marca) con cuántas hay y cuántas sin ver
+    const carpeta = (id, nombre, lista, abiertaDef, punto) => {
+      const nn = lista.filter(m => !v[m.id]).length, abierta = S.abiertos[id] != null ? S.abiertos[id] : abiertaDef;
+      return '<div class="dcdia' + (abierta ? ' on' : '') + '"><button class="dcdia-h" data-dcdia="' + id + '" data-abierta="' + (abierta ? 1 : 0) + '">' + (punto ? '<span class="dotm" style="background:' + punto + '"></span>' : '<span class="dcf">' + (abierta ? '📂' : '📁') + '</span>') + '<b>' + nombre + '</b><small>' + lista.length + (lista.length === 1 ? ' mención' : ' menciones') + '</small>' + (nn ? '<em>' + nn + ' nuevas</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
+        (abierta ? '<div class="dclist">' + lista.map(filaDiscord).join('') + '</div>' : '') + '</div>';
+    };
+    let cuerpo = '';
+    if (modo === 'marca') {
+      const grupos = {};
+      L.forEach(m => (grupos[m.marca || ''] = grupos[m.marca || ''] || []).push(m));
+      // primero las marcas con más menciones sin ver; "General" al final
+      cuerpo = Object.keys(grupos).sort((a, b) => (!a) - (!b) || grupos[b].filter(m => !v[m.id]).length - grupos[a].filter(m => !v[m.id]).length).map(s =>
+        carpeta('dcm-' + (s || 'general'), s ? esc((marca(s) || {}).nombre || s) : 'General · otros canales', grupos[s], grupos[s].some(m => !v[m.id]), s ? color(s) : 'var(--dim)')).join('');
+    } else {
+      const dias = {};
+      L.forEach(m => { const n = diasA(new Date(m.fecha)); (dias[n] = dias[n] || []).push(m); });
+      cuerpo = Object.keys(dias).map(Number).sort((a, b) => b - a).map(n => {
+        const lista = dias[n], nombre = n === 0 ? 'Hoy' : n === -1 ? 'Ayer' : (() => { const d = new Date(lista[0].fecha); return DIAS_L[d.getDay()] + ' ' + d.getDate(); })();
+        return carpeta('dc' + n, nombre, lista, n >= -1);
+      }).join('');
+    }
     return '<div class="sec"><div class="sec-h"><h2>Te mencionaron<small>' + nuevos.length + ' sin ver</small></h2>' + (nuevos.length ? '<button class="act lnk" data-dc-todo>Marcar todo como visto</button>' : '') + '</div>' +
-      (L.length ? (() => {
-        // carpetas por día: Hoy y Ayer abiertas por defecto, el resto plegado
-        const v = dcVistos(), dias = {};
-        L.forEach(m => { const n = diasA(new Date(m.fecha)); (dias[n] = dias[n] || []).push(m); });
-        return Object.keys(dias).map(Number).sort((a, b) => b - a).map(n => {
-          const lista = dias[n], nuevos = lista.filter(m => !v[m.id]).length, id = 'dc' + n;
-          const abierta = S.abiertos[id] != null ? S.abiertos[id] : n >= -1;
-          const nombre = n === 0 ? 'Hoy' : n === -1 ? 'Ayer' : (() => { const d = new Date(lista[0].fecha); return DIAS_L[d.getDay()] + ' ' + d.getDate(); })();
-          return '<div class="dcdia' + (abierta ? ' on' : '') + '"><button class="dcdia-h" data-dcdia="' + id + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dcf">' + (abierta ? '📂' : '📁') + '</span><b>' + nombre + '</b><small>' + lista.length + (lista.length === 1 ? ' mención' : ' menciones') + '</small>' + (nuevos ? '<em>' + nuevos + ' nuevas</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
-            (abierta ? '<div class="dclist">' + lista.map(filaDiscord).join('') + '</div>' : '') + '</div>';
-        }).join('');
-      })() : '<div class="empty">Nadie te mencionó en los últimos 7 días.</div>') +
+      '<div class="seg dcseg"><button class="' + (modo === 'dia' ? 'on' : '') + '" data-dcmodo="dia">Por día</button><button class="' + (modo === 'marca' ? 'on' : '') + '" data-dcmodo="marca">Por marca</button></div>' +
+      (L.length ? cuerpo : '<div class="empty">' + (S.marca === 'todas' ? 'Nadie te mencionó en los últimos 7 días.' : 'No hay menciones de esta marca en los últimos 7 días.') + '</div>') +
       '<p class="ayuda">Se actualiza cada 15 minutos. Tocá un mensaje y se abre Discord justo ahí. Los mensajes directos no aparecen.</p></div>';
   }
   // guiones (tableros GUIONES de cada marca, los maneja Fede)
@@ -636,8 +679,8 @@
   }
   // Abre claude.ai en el navegador de quien usa el panel (su propia cuenta). "Copiar" sirve para pegarlo en un chat o en la app que ya tenga abierta.
   const btnClaude = id => '<button class="btn" data-claude="' + esc(id) + '" title="Abre tu Claude con la consulta escrita"><span style="color:var(--y)">✦</span> Preguntale a Claude</button><button class="btn ghost" data-copiar="' + esc(id) + '" title="Copia la consulta para pegarla en tu Claude">Copiar</button>';
-  function copiar(txt) {
-    const ok = () => toast('Consulta copiada. Pegala en tu Claude con Ctrl+V.');
+  function copiar(txt, msg) {
+    const ok = () => toast(msg || 'Consulta copiada. Pegala en tu Claude con Ctrl+V.');
     try { navigator.clipboard.writeText(txt).then(ok, () => { fallbackCopiar(txt); ok(); }); } catch (e) { fallbackCopiar(txt); ok(); }
   }
   function fallbackCopiar(txt) { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e) {} t.remove(); }
@@ -830,7 +873,7 @@
           const porMarca = {}; faltan.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
           return '<div class="lote' + (paso && faltan.length ? ' tarde' : '') + '"><div class="lt-h"><div><b>' + nombre + ' ' + dm(ent) + '</b><small>entregan lo que sale ' + (temprano ? 'lun a mié' : 'jue a sáb') + ' de la semana del ' + dm(lun) + '</small></div>' + estado + '</div>' +
             (L.length ? '<div class="lt-bar"><i style="width:' + Math.round(listas / L.length * 100) + '%"></i></div><div class="lt-n">' + listas + ' de ' + L.length + ' en revisión</div>' : '') +
-            Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + ' · ' + (paso ? 'faltó entregar' : 'falta') + '</div><div class="list">' + porMarca[s].map(c => fila(c, '')).join('') + '</div>').join('') + '</div>';
+            Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + ' · ' + (paso ? 'faltó entregar' : 'falta') + '</div><div class="list">' + porMarca[s].map(c => fila(c, datoPieza(c, plazoEntrega(c)))).join('') + '</div>').join('') + '</div>';
         };
         return '<div class="sec"><div class="sec-h"><h2>Diseños de la semana que viene</h2><span class="act">¿Entregaron todo?</span></div><div class="lotes">' + lote(true, 'Martes') + lote(false, 'Jueves') + '</div></div>';
       })() +
@@ -839,7 +882,7 @@
         const plazo = c => c.plazo < new Date() ? '<span class="pill bad">faltó entregar · era el ' + dm(c.plazo) + '</span>' : '<span' + (diasA(c.plazo) <= 1 ? ' class="pill warn"' : '') + '>entrega ' + cuando(c.plazo) + (c.formato === 'historia' ? ' (o el mismo día avisando)' : '') + '</span>';
         const porMarca = {}; R.prox.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
         return '<div class="sec"><div class="sec-h"><h2>Próximas entregas<small>' + R.prox.length + '</small></h2><span class="act">Diseño: martes (lun a mié) y jueves (jue a sáb) · Reel 48 h antes · Historia 1 día antes</span></div>' +
-          (R.prox.length ? Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + '</div><div class="list">' + porMarca[s].map(c => fila(c, plazo(c))).join('') + '</div>').join('') : '<div class="empty">Nada pendiente de entrega para los próximos días.</div>') + '</div>';
+          (R.prox.length ? Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + '</div><div class="list">' + porMarca[s].map(c => fila(c, plazo(c) + datoPieza(c, c.plazo))).join('') + '</div>').join('') : '<div class="empty">Nada pendiente de entrega para los próximos días.</div>') + '</div>';
       })() +
       sec('Guiones para la reunión', 'Lunes ' + dm(R.lun), R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), 'No hay guiones para ver esta semana.');
   }
@@ -967,6 +1010,7 @@
   function bind(root) {
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
+    const sm = $('#selm', root); if (sm) sm.onchange = () => { S.marca = sm.value; render(); };
     root.querySelectorAll('[data-check]').forEach(b => b.onclick = () => marcar(b.dataset.check));
     root.querySelectorAll('[data-agendar]').forEach(b => b.onclick = () => agendar(b.dataset.agendar));
     root.querySelectorAll('[data-ver-input]').forEach(b => b.onclick = () => { S.tab = 'inputs'; LS.set('tab', 'inputs'); render(); const el = document.getElementById('in-' + b.dataset.verInput); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
@@ -977,7 +1021,7 @@
     root.querySelectorAll('[data-claude]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.claude); if (c) abrirClaude(promptTarjeta(c)); });
     root.querySelectorAll('[data-claude-plan]').forEach(b => b.onclick = () => abrirClaude(promptPlan()));
     root.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.copiar); if (c) copiar(promptTarjeta(c)); });
-    root.querySelectorAll('[data-copiar-clave]').forEach(b => b.onclick = () => copiar(S.data.links.claveBrain));
+    root.querySelectorAll('[data-copiar-clave]').forEach(b => b.onclick = () => copiar(S.data.links.claveBrain, 'Contraseña copiada: pegala con Ctrl+V.'));
     root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
     root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = b.dataset.todavia; render(); if ($('#drawer')) { const c = S.data.cards.find(x => x.id === S.todavia); if (c) detalleInput(c); } });
@@ -990,6 +1034,7 @@
     root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
     root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
+    root.querySelectorAll('[data-dcmodo]').forEach(b => b.onclick = () => { LS.set('dcmodo', b.dataset.dcmodo); render(); });
     root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
     // "Arrancá el día": elegir prioridades

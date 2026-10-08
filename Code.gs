@@ -49,10 +49,15 @@ function leerDiscord_(cfg, cat) {
     if (r.getResponseCode() !== 200) throw new Error((puente ? 'El puente' : 'Discord') + ' respondió ' + r.getResponseCode() + (ruta.indexOf('/channels') > 0 ? ' al leer los canales' : '') + ' (' + codigo(r) + ')');
     return JSON.parse(r.getContentText());
   };
-  const canales = get('/guilds/' + guild + '/channels').filter(c => c.type === 0 || c.type === 5 || c.type === 2);
+  const todosLosCanales = get('/guilds/' + guild + '/channels'), categorias = {};
+  todosLosCanales.forEach(c => { if (c.type === 4) categorias[c.id] = c.name; });
+  const canales = todosLosCanales.filter(c => c.type === 0 || c.type === 5 || c.type === 2);
   let hilos = []; try { hilos = (get('/guilds/' + guild + '/threads/active').threads || []); } catch (e) {}
   const todos = canales.concat(hilos), nombres = {};
   todos.forEach(c => nombres[c.id] = c.name);
+  // marca de cada canal: por el nombre del canal, de su canal padre (hilos) o de su categoría
+  const porId = {}; todosLosCanales.concat(hilos).forEach(c => porId[c.id] = c);
+  const marcaCanal = ch => { let s = ch.name || ''; const p = porId[ch.parent_id]; if (p) { s += ' ' + p.name; const g = porId[p.parent_id]; if (g) s += ' ' + g.name; } return marcasEn_(s, cat.marcas)[0] || ''; };
   const gente = cat.equipo.filter(p => p.discord.length), out = {};
   gente.forEach(p => out[p.clave] = []);
   const limite = Date.now() - 7 * 864e5, st = { codigos: {}, mensajes: 0, recientes: 0, menciones: 0, vacios: 0 };
@@ -75,7 +80,7 @@ function leerDiscord_(cfg, cat) {
           if (esDe(p, m.author)) return; // lo que escribió uno mismo no cuenta
           const directa = ments.some(u => esDe(p, u));
           if (!directa && !m.mention_everyone) return;
-          out[p.clave].push({ id: m.id, canal: nombres[ch.id] || '', autor: m.author.global_name || m.author.username, texto: texto.slice(0, 240) || (m.attachments && m.attachments.length ? '(adjunto)' : ''), fecha: m.timestamp, url: 'https://discord.com/channels/' + guild + '/' + ch.id + '/' + m.id, todos: !directa });
+          out[p.clave].push({ id: m.id, canal: nombres[ch.id] || '', marca: marcaCanal(ch), autor: m.author.global_name || m.author.username, texto: texto.slice(0, 240) || (m.attachments && m.attachments.length ? '(adjunto)' : ''), fecha: m.timestamp, url: 'https://discord.com/channels/' + guild + '/' + ch.id + '/' + m.id, todos: !directa });
         });
       });
     });
@@ -355,7 +360,7 @@ function leerTrello_(cat) {
         const etapa = /revisi/.test(n) ? 'revision' : /correc/.test(n) ? 'correccion' : /espera/.test(n) ? 'espera' : /pendiente|pedido/.test(n) ? 'pendiente' : '';
         if (etapa) {
           const fmt = /histori/.test(n) ? 'historia' : /reel|video/.test(n) ? 'reel' : b.tipo === 'produccion' ? 'video' : 'diseno';
-          cards.push({ id: c.id, n: c.name, d: '', due: c.due, dc: !!c.dueComplete, ini: c.start, lista: l.name, cat: 'pieza', etapa: etapa, formato: fmt, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity, lab: [], att: [], m: [b.marca] });
+          cards.push({ id: c.id, n: c.name, d: '', due: c.due, dc: !!c.dueComplete, ini: c.start, lista: l.name, cat: 'pieza', etapa: etapa, formato: fmt, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity, lab: (c.labels || []).map(x => x.name).filter(Boolean), att: [], m: [b.marca] });
           return;
         }
       }
@@ -379,6 +384,21 @@ function leerTrello_(cat) {
       });
     });
   });
+  // Historial de las piezas (para Ivo): cuándo se cargó la tarjeta en Diseño/Producción, cuándo le pusieron fecha de salida
+  // a la tarjeta de SCL (y para qué día) y cuándo la movieron por última vez. Últimos 21 días de actividad de esos tableros.
+  const hist = {};
+  try {
+    const desde = new Date(Date.now() - 21 * 864e5).toISOString();
+    const conHist = elegidos.filter(b => ['scl', 'diseno', 'produccion'].indexOf(b.tipo) >= 0);
+    const acts = trelloVarios_(conHist.map(b => '/boards/' + b.id + '/actions?filter=createCard,copyCard,updateCard:due,updateCard:idList&since=' + desde + '&limit=1000&fields=type,date,data'));
+    acts.forEach(lista => (lista || []).forEach(a => {
+      const d = a.data || {}, id = d.card && d.card.id; if (!id) return;
+      const h = hist[id] = hist[id] || {};
+      if (a.type === 'createCard' || a.type === 'copyCard') h.creada = h.creada && h.creada < a.date ? h.creada : a.date;
+      else if (d.old && 'due' in d.old) { if (!h.fecha || a.date > h.fecha) { h.fecha = a.date; h.para = d.card.due || null; h.antes = d.old.due || null; } }
+      else if (d.listAfter) { if (!h.movida || a.date > h.movida) { h.movida = a.date; h.a = d.listAfter.name; } }
+    }));
+  } catch (e) {}
   // Las tarjetas del Project suelen ser enlaces a una tarjeta de otro tablero (el título es la URL): se toma marca y título de la original.
   const vivas = {}; cards.forEach(c => vivas[c.id] = 1);
   // Guiones: título, fecha de entrega (= fecha de inicio de la tarjeta de SCL) y fecha de salida, de la tarjeta original.
@@ -386,9 +406,13 @@ function leerTrello_(cat) {
     if (c.cat !== 'guion' && c.cat !== 'pieza') return;
     const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), orig = m && indice[m[1]];
     if (!orig) return;
-    c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = orig.lab || [];
+    c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = (c.lab || []).concat((orig.lab || []).filter(x => (c.lab || []).indexOf(x) < 0));
     // a veces se publica directo sin pasar la tarjeta de guiones: si la original ya salió, se marca para ordenar
     c.salio = /publicad|programad|anterior|terminad/.test(norm_(orig.lista)) || orig.dc || (!!orig.due && new Date(orig.due).getTime() < Date.now());
+    if (c.cat === 'pieza') {
+      const hp = hist[c.id] || {}, ho = hist[orig.id] || {};
+      c.hist = { cargada: hp.creada || null, fecha: ho.fecha || null, para: ho.para || null, antes: ho.antes || null, movida: hp.movida || null, a: hp.a || null };
+    }
     if (c.cat === 'pieza') { const t = norm_(c.n + ' ' + c.lab.join(' ')); if (c.formato === 'video') c.formato = /histori/.test(t) ? 'historia' : 'reel'; else if (c.formato === 'diseno' && /carrus/.test(t)) c.formato = 'carrusel'; }
   });
   cards.forEach(c => {

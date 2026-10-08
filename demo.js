@@ -27,7 +27,7 @@ window.PANEL_DEMO = (function () {
     // piezas de Diseño y Producción (vista de revisión de Ivo)
     c({ id: "p1", url: "https://trello.com/c/demo-p1", n: "Carrusel promo miércoles Isco", cat: "pieza", etapa: "revision", formato: "carrusel", lista: "En revision", tipo: "diseno", tablero: "Diseño ISCO", m: ["isco"], salida: "2026-10-14T20:00:00Z" }),
     c({ id: "p2", url: "https://trello.com/c/demo-p2", n: "Reel combo doble", cat: "pieza", etapa: "revision", formato: "reel", lista: "En revision", tipo: "produccion", tablero: "Produccion Vice", m: ["vice-burger"], salida: "2026-10-10T20:00:00Z" }),
-    c({ id: "p3", url: "https://trello.com/c/demo-p3", n: "Post Día de la Madre GV", cat: "pieza", etapa: "pendiente", formato: "diseno", lista: "Pendiente de diseño", tipo: "diseno", tablero: "Diseño GV", m: ["gabriel-varisco"], salida: "2026-10-13T20:00:00Z" }),
+    c({ id: "p3", url: "https://trello.com/c/demo-p3", lab: ["Urgente"], hist: { cargada: "2026-10-06T21:10:00Z", fecha: "2026-10-07T10:30:00Z", antes: "2026-10-20T20:00:00Z" }, n: "Post Día de la Madre GV", cat: "pieza", etapa: "pendiente", formato: "diseno", lista: "Pendiente de diseño", tipo: "diseno", tablero: "Diseño GV", m: ["gabriel-varisco"], salida: "2026-10-13T20:00:00Z" }),
     c({ id: "p4", url: "https://trello.com/c/demo-p4", n: "Placas promo viernes Tritato", cat: "pieza", etapa: "pendiente", formato: "diseno", lista: "Pendiente de diseño", tipo: "diseno", tablero: "Diseño Tritato", m: ["tritato"], salida: "2026-10-16T20:00:00Z" }),
     c({ id: "p5", url: "https://trello.com/c/demo-p5", n: "Reel receta cookies", cat: "pieza", etapa: "pendiente", formato: "reel", lista: "Reels pendientes", tipo: "produccion", tablero: "Produccion ISCO", m: ["isco"], salida: "2026-10-08T20:00:00Z" }),
     c({ id: "p6", url: "https://trello.com/c/demo-p6", n: "Historia horarios feriado", cat: "pieza", etapa: "pendiente", formato: "historia", lista: "Historias pendientes", tipo: "produccion", tablero: "Produccion ISCO", m: ["isco"], salida: "2026-10-09T13:00:00Z" }),
@@ -115,7 +115,7 @@ window.PANEL_DEMO = (function () {
     equipo: [{ clave: "orne", nombre: "Orne", rol: "SM" }, { clave: "ivo", nombre: "Ivo", rol: "Dirección" }, { clave: "rama", nombre: "Rama", rol: "SM" }, { clave: "ale", nombre: "Ale", rol: "CM" }, { clave: "project", nombre: "Joaquín", rol: "Project" }],
     marcas, project: T("30dl2puJ"), cards, rutinas, reuniones, eventos,
     discord: { generado: "2026-10-07T15:00:00Z", conUsuario: true, menciones: [
-      { id: "d1", canal: "isco", autor: "Joaquín", texto: "@Orne ¿me pasás cómo quedó el carrusel de la promo del miércoles? Lo quiere ver el cliente hoy", fecha: "2026-10-07T14:20:00Z", url: "https://discord.com/channels/1/2/3", todos: false },
+      { id: "d1", canal: "isco", marca: "isco", autor: "Joaquín", texto: "@Orne ¿me pasás cómo quedó el carrusel de la promo del miércoles? Lo quiere ver el cliente hoy", fecha: "2026-10-07T14:20:00Z", url: "https://discord.com/channels/1/2/3", todos: false },
       { id: "d2", canal: "guiones", autor: "Fede", texto: "@Orne subí el guion de Tritato a revisión, lo vemos el lunes", fecha: "2026-10-07T11:05:00Z", url: "https://discord.com/channels/1/2/4", todos: false },
       { id: "d3", canal: "general", autor: "Ivo", texto: "@everyone mañana arrancamos 9:30 por la reunión con Quality", fecha: "2026-10-06T21:40:00Z", url: "https://discord.com/channels/1/2/5", todos: true }
     ] },
