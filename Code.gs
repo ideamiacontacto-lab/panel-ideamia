@@ -972,6 +972,77 @@ function vistaProject_() {
 }
 
 /* ---------------- web app ---------------- */
+/* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
+   Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
+   No pide clave: solo devuelve tarjetas con fecha de publicación de esa marca (título, copy, adjuntos y estado), nunca comentarios
+   ni otras marcas. Se guarda 10 minutos en caché para no pegarle a Trello en cada visita. */
+function entregaDiseno_(salida) {
+  // Las diseñadoras entregan en tandas: martes (lo que sale lun–mié de la semana siguiente) y jueves (lo que sale jue–dom).
+  const d = new Date(Utilities.formatDate(new Date(salida), TZ, "yyyy-MM-dd'T'12:00:00"));
+  const dia = d.getDay() || 7, lunes = new Date(d.getTime() - (dia - 1) * 864e5);
+  return new Date(lunes.getTime() - 7 * 864e5 + (dia <= 3 ? 1 : 3) * 864e5);
+}
+function vistaCliente_(marca, dias) {
+  marca = norm_(marca).replace(/[^a-z0-9]+/g, '-'); dias = Math.min(Math.max(Number(dias) || 15, 1), 31);
+  const ck = 'cli:' + marca + ':' + dias, c0 = cacheGet_(ck);
+  if (c0 && Date.now() - c0.t < 10 * 6e4) return c0.v;
+  const cat = catalogo_();
+  if (!cat.marcas.some(m => m.slug === marca)) return { error: 'marca', mensaje: 'Marca desconocida' };
+  const boards = trello_('/members/me/boards', { filter: 'open', fields: 'name' })
+    .map(b => ({ id: b.id, tipo: tipoTablero_(b.name), m: marcasEn_(b.name.replace(/^\S+\s*/, ''), cat.marcas)[0] }))
+    .filter(b => b.m === marca && ['scl', 'diseno', 'produccion', 'guiones'].indexOf(b.tipo) >= 0);
+  const rutas = [];
+  boards.forEach(b => {
+    rutas.push('/boards/' + b.id + '/lists?filter=open&fields=name');
+    rutas.push('/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,labels&attachments=true&attachment_fields=id,name,url,mimeType,isUpload');
+  });
+  const res = trelloVarios_(rutas), porLink = {}, scl = [];
+  const hoy = ymd_(new Date()), hasta = ymd_(new Date(Date.now() + dias * 864e5));
+  boards.forEach((b, i) => {
+    const listas = {}; (res[i * 2] || []).forEach(l => listas[l.id] = l.name);
+    (res[i * 2 + 1] || []).forEach(c => {
+      const lista = listas[c.idList] || '';
+      if (b.tipo === 'scl') { if (c.due) scl.push({ c: c, lista: lista }); return; }
+      const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.name); if (!m) return;
+      (porLink[m[1]] = porLink[m[1]] || []).push({ tipo: b.tipo, lista: norm_(lista), due: c.due, att: c.attachments || [], id: c.id });
+    });
+  });
+  const adj = (cardId, a) => ({ n: a.name, u: a.url, src: a.isUpload ? linkAdjunto_(cardId, a) : null,
+    img: /^image\//.test(a.mimeType || '') || /\.(png|jpe?g|gif|webp)$/i.test(a.name || ''), video: /^video\//.test(a.mimeType || '') || /\.(mp4|mov|webm)$/i.test(a.name || '') });
+  const items = scl.filter(x => { const f = ymd_(new Date(x.c.due)); return f >= hoy && f <= hasta; }).map(x => {
+    const c = x.c, l = norm_(x.lista), lab = (c.labels || []).map(y => y.name).filter(Boolean), labN = norm_(lab.join(' ')), link = String(c.shortUrl).split('/c/')[1];
+    const rel = porLink[link] || [];
+    const formato = /reel/.test(labN) ? 'Reel' : /carrus/.test(labN) ? 'Carrusel' : /histori/.test(labN) ? 'Historias' : /post|feed/.test(labN) ? 'Post' : 'Publicación';
+    const publicado = /publicad|anterior/.test(l) || c.dueComplete, programado = /programad/.test(l);
+    const copy = String(c.desc || '').trim();
+    const partes = [];
+    partes.push({ k: 'copy', estado: !copy ? 'falta' : /aprobad|programad|publicad/.test(l) ? 'listo' : /correc/.test(l) ? 'ajuste' : 'revision' });
+    const dis = rel.filter(r => r.tipo === 'diseno')[0];
+    if (dis || /diseno/.test(labN)) {
+      const e = !dis ? 'pendiente' : /aprobad|termin|listo/.test(dis.lista) ? 'listo' : /revisi/.test(dis.lista) ? 'revision' : /redise|correc/.test(dis.lista) ? 'ajuste' : 'pendiente';
+      partes.push({ k: 'diseno', estado: e, entrega: e === 'listo' || e === 'revision' ? null : (dis && dis.due) || entregaDiseno_(c.due).toISOString() });
+    }
+    const gui = rel.filter(r => r.tipo === 'guiones')[0];
+    if (gui || /guion/.test(labN)) {
+      const e = !gui ? 'pendiente' : /aprobad|termin/.test(gui.lista) ? 'listo' : /correc/.test(gui.lista) ? 'ajuste' : /revisi|listo/.test(gui.lista) ? 'revision' : 'pendiente';
+      partes.push({ k: 'guion', estado: e, entrega: e === 'pendiente' ? c.start || null : null });
+    }
+    const vid = rel.filter(r => r.tipo === 'produccion')[0];
+    if (vid || formato === 'Reel') {
+      const e = !vid ? 'pendiente' : /listo|entreg|aprobad/.test(vid.lista) ? 'listo' : /revisi/.test(vid.lista) ? 'revision' : /correc/.test(vid.lista) ? 'ajuste' : 'produccion';
+      partes.push({ k: 'video', estado: e, entrega: e === 'listo' || e === 'revision' ? null : (vid && vid.due) || null });
+    }
+    const archivos = (c.attachments || []).map(a => adj(c.id, a));
+    rel.filter(r => r.tipo !== 'guiones' && !/pendiente|pedido/.test(r.lista)).forEach(r => r.att.forEach(a => archivos.push(Object.assign(adj(r.id, a), { de: r.tipo }))));
+    return { n: c.name, salida: c.due, formato: formato, etiquetas: lab.filter(x => !/^\(i\)$|^diseno$|^guiones?$/i.test(norm_(x))),
+      estado: publicado ? 'publicado' : programado ? 'programado' : partes.every(p => p.estado === 'listo') ? 'listo' : 'proceso',
+      copy: copy.slice(0, 4000), partes: partes, archivos: archivos.slice(0, 12), url: c.shortUrl };
+  }).sort((a, b) => new Date(a.salida) - new Date(b.salida));
+  const out = { ok: true, marca: marca, generado: new Date().toISOString(), dias: dias, items: items };
+  cachePut_(ck, { t: Date.now(), v: out });
+  return out;
+}
+
 function json_(o, cb) {
   const s = JSON.stringify(o);
   return cb ? ContentService.createTextOutput(cb + '(' + s + ')').setMimeType(ContentService.MimeType.JAVASCRIPT)
@@ -996,6 +1067,7 @@ function doGet(e) {
         discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, stats: d.stats || null, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
+    if (q.action === 'cliente') return json_(vistaCliente_(q.marca, q.dias), q.cb); // calendario provisorio de una marca (página de links del cliente)
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       return json_(vistaProject_(), q.cb);
