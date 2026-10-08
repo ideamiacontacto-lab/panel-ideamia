@@ -442,9 +442,20 @@
           return s + '<div class="tl-i' + (o.h < NOW ? ' pasado' : '') + '"><span class="tl-h">' + hm(o.h) + '</span><span class="tl-p" style="--c:' + color(o.x.marca) + '"></span><div class="tl-c">' + fila(o.x) + '</div></div>'; }).join('') +
         (puesto ? '' : ahora) + '</div></div>';
     }
-    [['hoy', 'En el día', sinHora.filter(x => diaDe(x) <= 0)], ['manana', 'Mañana', sinHora.filter(x => diaDe(x) === 1)], ['semana', 'Esta semana', sinHora.filter(x => diaDe(x) >= 2)]].forEach(g => {
-      if (g[2].length) cuerpo += '<div class="sec"><div class="sec-h"><h2>' + g[1] + '<small>' + g[2].length + '</small></h2></div><div class="list">' + corta(g[0], g[2].sort((a, b) => b.u - a.u)) + '</div></div>';
-    });
+    // lo del día, agrupado por tipo en cards plegables; solo se abre sola la más urgente
+    const hoyL = sinHora.filter(x => diaDe(x) <= 0), usados = {};
+    const TIPOS_HOY = [['corr', 'Correcciones', I.pen, x => x.tipo === 'card' && x.obj.cat === 'corr'], ['card', 'Tarjetas por vencer', I.flag, x => x.tipo === 'card'], ['reporte', 'Reportes', I.flag, x => x.tipo === 'reporte'], ['guion', 'Guiones', I.pen, x => x.tipo === 'guion'], ['input', 'Inputs', I.inbox, x => x.tipo === 'input'], ['reunion', 'Reuniones', I.users, x => x.tipo === 'reunion' || x.sub === 'reunion'], ['evento', 'Calendario', I.cal, x => x.tipo === 'evento'], ['rutina', 'Rutinas', I.check, () => true]];
+    const grupos = TIPOS_HOY.map(tp => { const L = hoyL.filter(x => !usados[x.k] && tp[3](x)); L.forEach(x => usados[x.k] = 1); return [tp, L.sort((a, b) => b.u - a.u)]; })
+      .filter(g => g[1].length).sort((a, b) => Math.max.apply(null, b[1].map(x => x.u)) - Math.max.apply(null, a[1].map(x => x.u)));
+    let abrio = false;
+    if (grupos.length) cuerpo += '<div class="sec"><div class="sec-h"><h2>En el día<small>' + hoyL.length + '</small></h2></div>' + grupos.map(([tp, L]) => {
+      const urg = L.filter(x => x.u >= 3).length, def = !abrio && urg > 0; if (def) abrio = true;
+      return tarjeta('h-' + tp[0], tp[1], L.length, urg ? urg + (urg === 1 ? ' urgente' : ' urgentes') : '', def, () => L.map(fila).join(''), tp[2]);
+    }).join('') + '</div>';
+    const man = sinHora.filter(x => diaDe(x) === 1), sem = sinHora.filter(x => diaDe(x) >= 2);
+    if (man.length || sem.length) cuerpo += '<div class="sec"><div class="sec-h"><h2>Después</h2></div>' +
+      (man.length ? tarjeta('h-man', 'Mañana', man.length, '', false, () => man.sort((a, b) => b.u - a.u).map(fila).join(''), I.cal) : '') +
+      (sem.length ? tarjeta('h-sem', 'Esta semana', sem.length, '', false, () => sem.sort((a, b) => b.u - a.u).map(fila).join(''), I.cal) : '') + '</div>';
     if (!t.length) cuerpo += '<div class="empty">Nada para hoy.</div>';
     if (done.length) cuerpo += '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>';
     return { arranque, cuerpo };
@@ -739,6 +750,24 @@
     // al resolverlo desde el panel lateral, se cierra solo
     p.addEventListener('click', e => { if (e.target.closest('[data-inp],[data-recordar],[data-archivar],[data-crear],[data-mover]')) setTimeout(cerrarPanel, 30); });
   }
+  // card plegable: título, cuántas cosas tiene, alerta (urgentes/nuevos) y el contenido solo si está abierta
+  function tarjeta(id, titulo, n, alerta, abiertaDef, cuerpoFn, ico, punto) {
+    const abierta = S.abiertos[id] != null ? S.abiertos[id] : abiertaDef;
+    return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(id) + '" data-abierta="' + (abierta ? 1 : 0) + '">' +
+      (punto ? '<span class="dotm" style="background:' + punto + '"></span>' : ico ? '<span class="mcar-ic">' + ico + '</span>' : '') +
+      '<b>' + titulo + '</b><small>' + n + '</small>' + (alerta ? '<em>' + alerta + '</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
+      (abierta ? '<div class="list">' + cuerpoFn() + '</div>' : '') + '</div>';
+  }
+  // agrupa por marca en cards; abre sola la primera que tenga algo para mirar (o si hay una sola marca)
+  function cardsPorMarca(id, L, filaFn, alertaFn) {
+    const g = {}; L.forEach(c => { const s = (c.m ? c.m[0] : c.marca) || ''; (g[s] = g[s] || []).push(c); });
+    const ks = Object.keys(g).sort((a, b) => (alertaFn ? g[b].filter(alertaFn).length - g[a].filter(alertaFn).length : 0) || g[b].length - g[a].length);
+    let abrio = false;
+    return ks.map(s => {
+      const n = alertaFn ? g[s].filter(alertaFn).length : 0, def = ks.length === 1 || (!abrio && n > 0); if (def) abrio = true;
+      return tarjeta(id + ':' + (s || 'general'), s ? esc((marca(s) || {}).nombre || s) : 'General', g[s].length, n ? n + (n === 1 ? ' nuevo' : ' nuevos') : '', def, () => g[s].map(filaFn).join(''), null, s ? color(s) : 'var(--dim)');
+    }).join('');
+  }
   function vInputs() {
     const pri = c => ({ alta: 3, media: 2, baja: 1 })[c.ia && c.ia.prioridad] || 2;
     const L = inputs().filter(c => pasa(c.m)).sort((a, b) => (!!inputPide(b) - !!inputPide(a)) || (pri(b) - pri(a)) || (new Date(b.act) - new Date(a.act)));
@@ -747,7 +776,7 @@
     const nNuevos = pend.filter(c => inputPide(c) === 'nuevo').length;
     const plegable = (id, titulo, n, cuerpo) => '<div class="sec"><button class="pliegue' + (S.abiertos[id] ? ' on' : '') + '" data-pliegue="' + id + '"><span>' + titulo + '<small>' + n + '</small></span><i>' + (S.abiertos[id] ? '−' : '+') + '</i></button>' + (S.abiertos[id] ? '<div class="ilist">' + cuerpo + '</div>' : '') + '</div>';
     return '<div class="iresumen"><div><b>' + pend.length + '</b><span>para revisar' + (nNuevos ? ' · ' + nNuevos + (nNuevos === 1 ? ' nuevo' : ' nuevos') : '') + '</span></div><div><b>' + posp.length + '</b><span>pospuestos</span></div><div><b>' + resto.length + '</b><span>ya revisados</span></div><button class="btn" data-crear-nueva>＋ Nueva tarjeta</button></div>' +
-      '<div class="sec">' + (pend.length ? '<div class="ilist">' + pend.map(filaInput).join('') + '</div><p class="ayuda">Tocá el título para ver todo el input, la idea y más opciones (mover, hablar con el project, archivar, Claude).</p>' : '<div class="empty">Nada para revisar. Cuando el project cargue un input en Trello aparece acá.</div>') + '</div>' +
+      '<div class="sec">' + (pend.length ? cardsPorMarca('in', pend, filaInput, c => inputPide(c) === 'nuevo') + '<p class="ayuda">Tocá el título para ver todo el input, la idea y más opciones (mover, hablar con el project, archivar, Claude).</p>' : '<div class="empty">Nada para revisar. Cuando el project cargue un input en Trello aparece acá.</div>') + '</div>' +
       (posp.length ? plegable('posp', 'Pospuestos', posp.length, posp.sort((a, b) => a.estado.detalle.localeCompare(b.estado.detalle)).map(filaInput).join('')) : '') +
       (resto.length ? plegable('rev', 'Ya revisados', resto.length, resto.map(filaInput).join('')) : '') +
       (brains.length ? plegable('brain', 'Brainstorming y campañas', brains.length, brains.map(c => '<div class="irow visto"><i class="ibar" style="background:' + color(c.m[0]) + '"></i><div class="ibody"><button class="lnk it" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button><div class="mt"><span class="tag">' + esc((marca(c.m[0]) || {}).nombre || '') + '</span><span>' + esc(c.lista) + '</span></div></div><div class="ia-acts">' + btnClaude(c.id).split('</button>')[0] + '</button></div></div>').join('') + '<p class="ayuda"><a href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></p>') : '');
@@ -764,9 +793,11 @@
       return '<div class="row reu' + (ag ? '' : '') + '"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(r.nombre) + '</div><div class="mt">' + tagM(r.marca) + '<span>con ' + esc(r.con) + '</span><span>' + (ag ? 'agendada ' + hace(r.estado.fecha || '') : r.vencida ? '<span class="pill bad">se pasó: tenía que ser del ' + r.desde + ' al ' + r.hasta + '</span>' : 'tiene que ser del ' + r.desde + ' al ' + r.hasta + ' de ' + MESES[NOW.getMonth()]) + '</span></div></div>' +
         '<div>' + (ag ? '<div class="when">' + (d ? corto(d) : '') + '<small>' + esc(det.slice(11, 16)) + (/evento creado/.test(det) ? ' · en calendario' : '') + '</small></div>' : '<button class="btn y" data-agendar="' + esc(r.clave) + '">' + I.cal + 'Ponerle fecha</button>') + '</div></div>';
     };
-    return '<div class="cols"><div><div class="sec"><div class="sec-h"><h2>Por organizar<small>' + pend.length + '</small></h2><span class="act">Te lo recuerdo hasta que le pongas fecha y hora</span></div>' + (pend.length ? '<div class="list">' + pend.map(row).join('') + '</div>' : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
-      '<div class="sec"><div class="sec-h"><h2>Agendadas<small>' + ok.length + '</small></h2></div>' + (ok.length ? '<div class="list">' + ok.map(row).join('') + '</div>' : '<div class="empty">Ninguna todavía.</div>') + '</div></div>' +
-      '<aside class="side"><div class="box"><h3>Cómo funciona</h3><div class="sug"><i class="y"></i><div>Cada reunión tiene su ventana: la de <b>Ads</b> es la última semana del mes, la <b>mensual con el cliente</b> y la de <b>entrega de reportes</b>, los primeros 10 días.</div></div><div class="sug"><i></i><div>Cuando le ponés fecha y hora, el project la ve en su panel y se crea el evento en el calendario de Ideamia.</div></div><div class="sug"><i></i><div>Las reglas se cambian en la pestaña <b>Reuniones</b> del Sheet.</div></div></div></aside></div>';
+    // por marca en cards: se abre sola la que tiene una reunión que se pasó de fecha
+    return '<div class="sec"><div class="sec-h"><h2>Por organizar<small>' + pend.length + '</small></h2></div>' +
+      (pend.length ? cardsPorMarca('reu', pend, row, r => r.vencida).replace(/(\d+) nuevos?</g, (x, n) => n + (n === '1' ? ' vencida' : ' vencidas') + '<') : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
+      (ok.length ? '<div class="sec">' + tarjeta('reu-ok', 'Agendadas', ok.length, '', false, () => ok.map(row).join(''), I.check) + '</div>' : '') +
+      '<p class="ayuda">Ads: última semana del mes · mensual con el cliente y entrega de reportes: primeros 10 días. Al ponerle fecha, el project la ve y se crea el evento en el calendario del equipo.</p>';
   }
 
   /* ---------------- vista SEMANA: checklist de la semana ---------------- */

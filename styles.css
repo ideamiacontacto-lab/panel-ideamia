@@ -877,3 +877,13 @@ body{background:
 .mcar .row:last-child{border-bottom:0}
 .lote .mcar{margin-top:10px;background:var(--bg)}
 @media(max-width:700px){.revtabs .rp b{font-size:26px}.revtabs .rp span{font-size:11px}}
+
+/* cards plegables (Hoy, Inputs, Reuniones) */
+.mcar-ic{width:28px;height:28px;border-radius:8px;background:var(--s3);color:var(--muted);display:grid;place-items:center;flex:none}
+.mcar-ic svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none}
+.mcar.on .mcar-ic{background:var(--y-soft);color:var(--y)}
+.mcar-h em{background:rgba(255,107,107,.15);color:var(--bad)}
+.mcar .ilist,.mcar .irow{border:0}
+.mcar .irow{border-bottom:1px solid var(--line)}
+.mcar .irow:last-child{border-bottom:0}
+.hoy1 .sec{margin-bottom:16px}
