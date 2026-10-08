@@ -36,10 +36,11 @@ function cargarClaveDiscord() { cambiarClave_('DISCORD_TOKEN', 'Discord · token
 function leerDiscord_(cfg, cat) {
   const token = P.getProperty('DISCORD_TOKEN'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
   if (!token || !guild) return null;
+  if (!/^\d{15,22}$/.test(guild)) throw new Error('DISCORD_SERVIDOR tiene que ser el ID del servidor (solo números), no el token');
   const API = 'https://discord.com/api/v10', H = { Authorization: 'Bot ' + token };
   const get = ruta => {
     const r = UrlFetchApp.fetch(API + ruta, { headers: H, muteHttpExceptions: true });
-    if (r.getResponseCode() !== 200) throw new Error('Discord respondió ' + r.getResponseCode() + ' en ' + ruta.split('?')[0] + ': ' + r.getContentText().slice(0, 120));
+    if (r.getResponseCode() !== 200) throw new Error('Discord respondió ' + r.getResponseCode() + (ruta.indexOf('/channels') > 0 ? ' al leer los canales' : '') + ' (código ' + ((JSON.parse(r.getContentText() || '{}') || {}).code || '-') + ')');
     return JSON.parse(r.getContentText());
   };
   const canales = get('/guilds/' + guild + '/channels').filter(c => c.type === 0 || c.type === 5);
@@ -936,7 +937,7 @@ function doGet(e) {
         reportesPendientes: (() => { try { return tareasReportes_('project', 'Project').map(r => r.k + ' · vence ' + r.vence); } catch (e) { return 'error: ' + e.message; } })(),
         conListas: (snap.tableros || []).filter(b => b.listas && b.listas.length).length,
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY'), discord: !!P.getProperty('DISCORD_TOKEN') },
-        discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: P.getProperty('DISCORD_ERROR') || null }; })() }, q.cb);
+        discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'project') {
