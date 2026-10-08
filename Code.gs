@@ -1095,6 +1095,61 @@ function cambiarComentarioCliente_(b) {
   return { ok: true };
 }
 
+/* Burger del mes, cargada por el cliente desde la página (pestaña Anual). Cada mes es una tarjeta del tablero SCL de la marca,
+   en la lista de Brainstorming / Campañas, llamada "Burger del mes · <Mes> <año>": la fecha de vencimiento es el día de lanzamiento
+   y la descripción guarda nombre, ingredientes y notas. Así el equipo lo ve en Trello sin pasos extra. */
+const MESES_ = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function tableroSclDe_(marca) {
+  const cat = catalogo_();
+  const b = trello_('/members/me/boards', { filter: 'open', fields: 'name' })
+    .filter(x => tipoTablero_(x.name) === 'scl' && marcasEn_(x.name.replace(/^\S+\s*/, ''), cat.marcas)[0] === marca)[0];
+  return b || null;
+}
+function burgersMes_(marca) {
+  marca = norm_(marca).replace(/[^a-z0-9]+/g, '-');
+  const habilitadas = String(config_().CLIENTE_MARCAS || 'vice-burger').split(',').map(x => norm_(x).replace(/[^a-z0-9]+/g, '-'));
+  if (habilitadas.indexOf(marca) < 0) return { error: 'marca', mensaje: 'Marca no habilitada' };
+  const ck = 'bm:' + marca, c0 = cacheGet_(ck); if (c0 && Date.now() - c0.t < 5 * 6e4) return c0.v;
+  const b = tableroSclDe_(marca); if (!b) return { ok: true, meses: {} };
+  const cards = trello_('/boards/' + b.id + '/cards', { filter: 'open', fields: 'name,desc,due,shortUrl' });
+  const meses = {};
+  cards.forEach(c => {
+    const m = /^burger del mes · (\S+) (\d{4})$/i.exec(norm_(c.name)); if (!m) return;
+    const mi = MESES_.indexOf(m[1]); if (mi < 0) return;
+    const campo = k => { const r = new RegExp('^' + k + ':\\s*(.*)$', 'im').exec(c.desc || ''); return r ? r[1].trim() : ''; };
+    meses[m[2] + '-' + String(mi + 1).padStart(2, '0')] = { nombre: campo('Nombre'), ingredientes: campo('Ingredientes'), notas: campo('Notas'), fecha: c.due ? ymd_(new Date(c.due)) : '', url: c.shortUrl };
+  });
+  const out = { ok: true, meses: meses };
+  cachePut_(ck, { t: Date.now(), v: out });
+  return out;
+}
+function guardarBurgerMes_(b) {
+  const marca = norm_(b.marca).replace(/[^a-z0-9]+/g, '-');
+  const habilitadas = String(config_().CLIENTE_MARCAS || 'vice-burger').split(',').map(x => norm_(x).replace(/[^a-z0-9]+/g, '-'));
+  if (habilitadas.indexOf(marca) < 0) return { error: 'marca', mensaje: 'Marca no habilitada' };
+  const mm = /^(\d{4})-(\d{2})$/.exec(String(b.mes || '')); if (!mm) return { error: 'datos', mensaje: 'Mes inválido' };
+  const nombre = String(b.nombre || '').trim().slice(0, 80), ingredientes = String(b.ingredientes || '').replace(/\s*\n\s*/g, ', ').trim().slice(0, 400), notas = String(b.notas || '').replace(/\s*\n\s*/g, ' ').trim().slice(0, 400);
+  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || '')) ? b.fecha : '';
+  if (!nombre && !fecha) return { error: 'datos', mensaje: 'Poné al menos el nombre o la fecha' };
+  if (fecha && fecha.slice(0, 7) !== b.mes) return { error: 'datos', mensaje: 'La fecha tiene que ser de ese mes' };
+  const c = CacheService.getScriptCache(), tk = 'bm-tope:' + marca, n = Number(c.get(tk) || 0);
+  if (n >= 40) return { error: 'tope', mensaje: 'Muchos cambios seguidos. Probá de nuevo en un rato.' };
+  c.put(tk, String(n + 1), 3600);
+  const tab = tableroSclDe_(marca); if (!tab) return { error: 'tablero', mensaje: 'No encuentro el tablero de la marca' };
+  const listas = trello_('/boards/' + tab.id + '/lists', { filter: 'open', fields: 'name' });
+  const lista = listas.filter(l => /brainstorm|campan/.test(norm_(l.name)))[0] || listas[0];
+  const titulo = 'Burger del mes · ' + MESES_[+mm[2] - 1].charAt(0).toUpperCase() + MESES_[+mm[2] - 1].slice(1) + ' ' + mm[1];
+  const desc = 'Nombre: ' + nombre + '\nIngredientes: ' + ingredientes + '\nNotas: ' + notas + '\n\n(Cargado por el cliente desde la página de la marca.)';
+  const due = fecha ? new Date(fecha + 'T20:00:00-03:00').toISOString() : '';
+  const existe = trello_('/boards/' + tab.id + '/cards', { filter: 'open', fields: 'name' }).filter(x => norm_(x.name) === norm_(titulo))[0];
+  let card;
+  if (existe) card = trello_('/cards/' + existe.id, { desc: desc, due: due }, 'put');
+  else card = trello_('/cards', { idList: lista.id, name: titulo, desc: desc, due: due, pos: 'top' }, 'post');
+  try { registrar_('cliente', 'burger-del-mes', 'card:' + card.id, marca, existe ? 'editó' : 'cargó', (titulo + ' · ' + nombre + (fecha ? ' · ' + fecha : '')).slice(0, 300), ''); } catch (e) {}
+  ['bm:' + marca].forEach(k => c.remove(k));
+  return { ok: true, url: card.shortUrl };
+}
+
 function json_(o, cb) {
   const s = JSON.stringify(o);
   return cb ? ContentService.createTextOutput(cb + '(' + s + ')').setMimeType(ContentService.MimeType.JAVASCRIPT)
@@ -1120,6 +1175,7 @@ function doGet(e) {
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'cliente') return json_(vistaCliente_(q.marca, q.dias), q.cb); // calendario provisorio de una marca (página de links del cliente)
+    if (q.action === 'burgersMes') return json_(burgersMes_(q.marca), q.cb); // burger del mes cargada por el cliente (pestaña Anual)
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       return json_(vistaProject_(), q.cb);
@@ -1135,6 +1191,7 @@ function doPost(e) {
   try {
     if (b.action === 'comentarCliente') return json_(comentarCliente_(b)); // página de links del cliente: no lleva clave
     if (b.action === 'cambiarComentarioCliente') return json_(cambiarComentarioCliente_(b)); // editar/borrar: pide la clave de ese comentario
+    if (b.action === 'guardarBurgerMes') return json_(guardarBurgerMes_(b)); // el cliente define la burger del mes desde la página
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
