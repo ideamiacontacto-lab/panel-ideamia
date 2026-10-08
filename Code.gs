@@ -1048,6 +1048,28 @@ function doPost(e) {
         registrar_(quien, 'tarjeta', 'card:' + card.id, b.marca, 'creada', String(b.nombre).slice(0, 120) + ' · ' + card.shortUrl, '');
         return json_({ ok: true, url: card.shortUrl, id: card.id });
       }
+      case 'verTarjeta': { // contenido de una pieza para revisarla: la tarjeta de Diseño/Producción y la original de SCL
+        const ver = id => { if (!id) return null; try {
+          const c = trello_('/cards/' + id, { fields: 'name,desc,due,shortUrl', attachments: 'true', attachment_fields: 'name,url,mimeType,isUpload', actions: 'commentCard', actions_limit: 6, action_fields: 'data,date', action_memberCreator_fields: 'fullName' });
+          return { n: c.name, d: String(c.desc || '').slice(0, 2500), due: c.due, url: c.shortUrl,
+            att: (c.attachments || []).slice(0, 12).map(a => ({ n: a.name, u: a.url, img: /^image\//.test(a.mimeType || '') || /\.(png|jpe?g|gif|webp)$/i.test(a.url || '') })),
+            com: (c.actions || []).map(a => ({ t: (a.data || {}).text || '', f: a.date, q: (a.memberCreator || {}).fullName || '' })) };
+        } catch (e) { return null; } };
+        const orig = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(String(b.origUrl || ''));
+        return json_({ ok: true, pieza: ver(b.cardId), original: orig ? ver(orig[1]) : null });
+      }
+      case 'revisarPieza': { // Ivo aprueba o manda a corregir: se mueve dentro del tablero de Diseño/Producción (y el comentario queda en la tarjeta)
+        const listas = trello_('/boards/' + b.boardId + '/lists', { fields: 'name' });
+        const re = b.accion === 'aprobar' ? /aprobad/ : /correc/;
+        const dest = (listas || []).filter(l => re.test(norm_(l.name)))[0];
+        if (!dest) return json_({ error: 'lista', mensaje: 'No encuentro la lista "' + (b.accion === 'aprobar' ? 'Aprobado' : 'Correcciones') + '" en ese tablero de Trello' });
+        const texto = (b.accion === 'aprobar' ? '✅ Aprobado por ' : '✏️ Para corregir (' ) + (b.accion === 'aprobar' ? quien : quien + '): ') + (b.accion === 'aprobar' ? (b.comentario ? ' — ' + b.comentario : '') : String(b.comentario || ''));
+        if (b.comentario || b.accion === 'aprobar') trello_('/cards/' + b.cardId + '/actions/comments', { text: texto.slice(0, 3000) }, 'post');
+        trello_('/cards/' + b.cardId, { idList: dest.id }, 'put');
+        registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, b.accion === 'aprobar' ? 'aprobado' : 'a corregir', String(b.nombre || '').slice(0, 100) + (b.comentario ? ' · ' + String(b.comentario).slice(0, 150) : ''), '');
+        quitarDeSnapshot_(b.cardId);
+        return json_({ ok: true, lista: dest.name });
+      }
       case 'moverTarjeta': // mueve una tarjeta a otra lista o a otro tablero
         trello_('/cards/' + b.cardId, Object.assign({ idList: b.listId }, b.boardId ? { idBoard: b.boardId } : {}), 'put');
         registrar_(quien, 'tarjeta', 'card:' + b.cardId, b.marca, 'movida', String(b.nombre || '').slice(0, 100) + ' → ' + (b.destino || ''), '');

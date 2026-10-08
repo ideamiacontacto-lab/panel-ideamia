@@ -639,6 +639,42 @@
     bind(p);
   }
   function cerrarPanel() { const p = $('#drawer'); if (p) p.remove(); }
+
+  /* ---------------- Ivo: abrir una pieza, verla y aprobarla o mandarla a corregir ---------------- */
+  async function abrirPieza(id) {
+    const c = S.data.cards.find(x => x.id === id); if (!c) return;
+    panelLateral(esc(c.n), '<div class="pz-cargando">Trayendo la tarjeta de Trello…</div>');
+    let v = null;
+    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ n: 'placa-1.png', u: '#', img: false }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
+    catch (e) { const b = $('#drawer .dw-b'); if (b) b.innerHTML = '<div class="empty">No pude traer la tarjeta: ' + esc(e.message) + '</div>'; return; }
+    const p = v.pieza || {}, o = v.original || {};
+    const adj = (p.att || []).concat(o.att || []);
+    const coms = (p.com || []).concat(o.com || []).sort((a, b) => b.f.localeCompare(a.f)).slice(0, 6);
+    const html =
+      '<div class="mt" style="margin-bottom:12px">' + tagM(c.m[0]) + '<span class="pill">' + esc(c.tablero || '') + '</span>' + (c.salida ? '<span>sale ' + cuando(new Date(c.salida)) + '</span>' : '') + '</div>' +
+      (adj.length ? '<div class="dw-l">Archivos</div><div class="pz-adj">' + adj.map(a => a.img ? '<a href="' + esc(a.u) + '" target="_blank" rel="noopener" class="pz-img"><img src="' + esc(a.u) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'sin\')"><span>' + esc(a.n) + '</span></a>' : '<a href="' + esc(a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
+      (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + esc(o.d) + '</div>' : '') +
+      (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
+      (coms.length ? '<div class="dw-l">Comentarios</div>' + coms.map(x => '<div class="pz-com"><b>' + esc(x.q) + '</b> <small>' + hace(x.f) + '</small><div>' + esc(x.t) + '</div></div>').join('') : '') +
+      '<div class="pz-acc"><textarea id="pzcom" rows="3" placeholder="¿Qué hay que corregir? (para mandarlo a corregir es obligatorio)"></textarea>' +
+      '<div class="pz-btns"><button class="btn ghost" id="pzcor">✏️ Mandar a corregir</button><button class="btn y" id="pzok">✓ Aprobar</button></div>' +
+      '<div class="err" id="pzerr"></div><a class="ayuda" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div>';
+    const b = $('#drawer .dw-b'); if (!b) return;
+    b.innerHTML = html;
+    const enviar = async accion => {
+      const txt = $('#pzcom').value.trim();
+      if (accion === 'corregir' && !txt) { $('#pzerr').textContent = 'Escribí qué hay que corregir.'; $('#pzcom').focus(); return; }
+      $('#pzok').disabled = $('#pzcor').disabled = true; $('#pzerr').textContent = '';
+      try {
+        const r = await post({ action: 'revisarPieza', accion, cardId: c.id, boardId: (S.data.marcas.find(m => m.slug === c.m[0]) || { tableros: [] }).tableros.filter(t => t.nombre === c.tablero).map(t => t.id)[0] || '', comentario: txt, marca: c.m[0], nombre: c.n });
+        S.data.cards = S.data.cards.filter(x => x.id !== c.id);
+        cerrarPanel(); if (accion === 'aprobar') confeti();
+        render(); toast(accion === 'aprobar' ? '✓ Aprobado: ' + esc(c.n.slice(0, 40)) + (r.lista ? ' → ' + esc(r.lista) : '') : '✏️ Mandado a corregir con tu comentario');
+      } catch (e) { $('#pzerr').textContent = 'No se pudo: ' + e.message; $('#pzok').disabled = $('#pzcor').disabled = false; }
+    };
+    $('#pzok').onclick = () => enviar('aprobar');
+    $('#pzcor').onclick = () => enviar('corregir');
+  }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarPanel(); });
 
   function detalleDia(d) {
@@ -902,7 +938,7 @@
   function vRevision() {
     const R = datosRevision();
     const FMT = { reel: 'Reel', historia: 'Historia', video: 'Video', carrusel: 'Carrusel', diseno: 'Diseño', guion: 'Guion' };
-    const fila = (c, extra) => '<div class="row"><span class="ico">' + (esVideo(c) ? I.flag : I.pen) + '</span><div><div class="tt"><a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a></div><div class="mt"><span class="pill">' + (FMT[c.formato] || (esVideo(c) ? 'Video' : 'Diseño')) + '</span>' + extra + (c.salida || c.due ? '<span>sale ' + cuando(new Date(c.salida || c.due)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en ' + esc(c.tablero || 'Trello') + '">' + I.out + '</a></div></div>';
+    const fila = (c, extra) => '<div class="row"><span class="ico">' + (esVideo(c) ? I.flag : I.pen) + '</span><div><div class="tt">' + (c.cat === 'pieza' && c.etapa === 'revision' ? '<button class="lnk" data-pieza="' + esc(c.id) + '">' + esc(c.n) + '</button>' : '<a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a>') + '</div><div class="mt"><span class="pill">' + (FMT[c.formato] || (esVideo(c) ? 'Video' : 'Diseño')) + '</span>' + extra + (c.salida || c.due ? '<span>sale ' + cuando(new Date(c.salida || c.due)) + '</span>' : '') + '</div></div><div>' + (c.cat === 'pieza' && c.etapa === 'revision' ? '<button class="btn y" data-pieza="' + esc(c.id) + '">Revisar</button>' : '<a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en ' + esc(c.tablero || 'Trello') + '">' + I.out + '</a>') + '</div></div>';
     // carpetas por marca: se abren solas si tienen algo urgente/atrasado; si hay una sola marca, abierta
     const porMarca = (id, L, filaFn, urgente) => {
       const g = {}; L.forEach(c => (g[c.m[0]] = g[c.m[0]] || []).push(c));
@@ -1093,6 +1129,18 @@
     root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
     root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
+    // cualquier título de sección (— FEDE TIENE QUE ENTREGAR, — EN EL DÍA…) se pliega al tocarlo; queda recordado
+    if (root.id === 'app') {
+      const pleg = LS.get('plegadas', {});
+      root.querySelectorAll('#view .sec > .sec-h').forEach(h => {
+        const t = h.querySelector('h2'); if (!t) return;
+        const k = S.tab + ':' + t.childNodes[0].textContent.trim().toLowerCase();
+        if (pleg[k]) h.parentNode.classList.add('plegada');
+        h.classList.add('plegable');
+        h.onclick = e => { if (e.target.closest('button,a,select')) return; const p = LS.get('plegadas', {}); p[k] = !p[k]; LS.set('plegadas', p); h.parentNode.classList.toggle('plegada', !!p[k]); };
+      });
+    }
+    root.querySelectorAll('[data-pieza]').forEach(b => b.onclick = () => abrirPieza(b.dataset.pieza));
     root.querySelectorAll('[data-revseg]').forEach(b => b.onclick = () => { LS.set('revseg', b.dataset.revseg); render(); });
     root.querySelectorAll('[data-mcar]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.mcar] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dcmodo]').forEach(b => b.onclick = () => { LS.set('dcmodo', b.dataset.dcmodo); render(); });
