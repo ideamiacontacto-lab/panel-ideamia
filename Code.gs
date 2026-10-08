@@ -676,7 +676,7 @@ function panel_(personaClave, ctx) {
     // los inputs salen solo de los tableros SCL (en el Project y en los otros tableros quedan pedidos viejos)
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
     if (c.cat === 'guion') return true;
-    if (c.cat === 'pieza') return esRevisa && !c.salio;
+    if (c.cat === 'pieza') return esRevisa && !c.salio && !/^https?:\/\/trello\.com\/c\//.test(c.n); // si la original ya no existe, no suma
     if (esRevisa && c.tipo === 'scl' && /^en revisi/.test(norm_(c.lista))) return true; // lo que está en revisión en SCL
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
