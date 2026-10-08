@@ -270,13 +270,17 @@ function leerTrello_(cat) {
   });
   const rutas = [];
   elegidos.forEach(b => {
-    rutas.push('/boards/' + b.id + '/lists?filter=open&fields=name,pos');
+    rutas.push('/boards/' + b.id + '?fields=name&lists=open&list_fields=name,pos&labels=all&label_fields=name,color&labels_limit=100');
     rutas.push('/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,dateLastActivity,labels&attachments=true&attachment_fields=name,url,mimeType');
   });
   const res = trelloVarios_(rutas);
   const cards = [], haceUnaSemana = Date.now() - 7 * 864e5, indice = {};
   elegidos.forEach((b, i) => {
-    const listas = {}; (res[i * 2] || []).forEach(l => listas[l.id] = l);
+    const info = res[i * 2] || {}, listas = {};
+    (info.lists || []).forEach(l => listas[l.id] = l);
+    // listas y etiquetas del tablero: para crear y mover tarjetas desde el panel
+    b.listas = (info.lists || []).map(l => ({ id: l.id, n: l.name, cat: catLista_(l.name) }));
+    b.etiquetas = (info.labels || []).map(x => ({ id: x.id, n: x.name || '', c: x.color || '' }));
     (res[i * 2 + 1] || []).forEach(c => {
       const l = listas[c.idList]; if (!l) return;
       const catL = catLista_(l.name);
@@ -545,9 +549,19 @@ function panel_(personaClave, ctx) {
     return o;
   });
 
+  // Los reportes semanales, mensuales y trimestrales se siguen solos con la web de reportes: no van como rutina manual.
+  const misRutinas = cat.rutinas.filter(r => (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')) && ['rep-mensual', 'rep-trim'].indexOf(r.id) < 0);
+  // Para el checklist semanal: qué rutinas hay, para qué marcas y qué días/períodos tiene esta semana.
+  const lunes = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - ((hoy.getDay() + 6) % 7));
+  const semanaInfo = { dias: [0, 1, 2, 3, 4].map(i => ymd_(new Date(lunes.getTime() + i * 864e5))), semana: semana_(hoy), mes: ym_(hoy) };
+  const rutinasDef = misRutinas.map(r => ({
+    id: r.id, tarea: r.tarea, cuando: r.cuando, ayuda: r.ayuda,
+    marcas: r.porMarca === 'si' || r.porMarca === 'sí' ? slugs : r.porMarca === 'canal' ? misMarcas.filter(m => m.canal).map(m => m.slug) : []
+  }));
+
   // rutinas activas hoy
   const rutinas = [];
-  cat.rutinas.filter(r => esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')).forEach(r => {
+  misRutinas.forEach(r => {
     const ev = evaluarCuando_(r.cuando, hoy); if (!ev) return;
     const marcasR = r.porMarca === 'si' || r.porMarca === 'sí' ? misMarcas : r.porMarca === 'canal' ? misMarcas.filter(m => m.canal) : [null];
     marcasR.forEach(m => {
@@ -586,8 +600,10 @@ function panel_(personaClave, ctx) {
     yo: { clave: yo.clave, nombre: yo.nombre, rol: yo.rol },
     equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })),
     feriados: ctx.feriados || [],
-    marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ tipo: b.tipo, url: b.url, nombre: b.nombre })) })),
+    marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ id: b.id, tipo: b.tipo, url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] })) })),
+    rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
+    projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE },
     ajustes
@@ -629,9 +645,107 @@ function base_(clave) {
   return b;
 }
 
-/* Suma al panel base lo que la persona fue tildando (pestaña Registro). */
+/* ---------------- reportes: qué falta entregar en la web de reportes ----------------
+   Lee la configuración publicada de esa web (marcas, responsables, vencimientos) y su Sheet de reportes.
+   Cuando alguien carga un reporte, desaparece de acá en unos minutos (el Sheet se relee cada 3 min). */
+const REP_SHEET = '1lAcIG6J-8rheWwSHiNnZZ6K14BDi5pKnk8LW3P-X0Fk';
+const REP_WEB = 'https://ideamiacontacto-lab.github.io/reportes-ideamia/';
+
+function reportesConfig_() {
+  const c = CacheService.getScriptCache(), hit = c.get('repcfg');
+  if (hit) return JSON.parse(hit);
+  const cfg = { marcas: [], deadline: { cm: { dia: 1, hora: 12 }, sm: { dia: 2, hora: 12 } }, mesDia: 5, hora: 12, semanalDesde: '2026-09-28', mensualDesde: '2026-09', periodicoDesde: '2026-07' };
+  try {
+    const t = UrlFetchApp.fetch(REP_WEB + 'config.js?x=' + Date.now(), { muteHttpExceptions: true }).getContentText();
+    const re = /slug:\s*"([^"]+)"[^}\n]*?sm:\s*"([^"]*)"[^}\n]*?cm:\s*"([^"]*)"/g; let m;
+    while ((m = re.exec(t))) cfg.marcas.push({ slug: m[1], sm: norm_(m[2]), cm: norm_(m[3]) });
+    const g = k => { const x = new RegExp(k + ':\\s*"([^"]+)"').exec(t); return x ? x[1] : null; };
+    cfg.semanalDesde = g('SEMANAL_DESDE') || cfg.semanalDesde; cfg.mensualDesde = g('MENSUAL_DESDE') || cfg.mensualDesde; cfg.periodicoDesde = g('PERIODICO_DESDE') || cfg.periodicoDesde;
+    const dl = /DEADLINE:\s*\{\s*cm:\s*\{\s*dia:\s*(\d+),\s*hora:\s*(\d+)\s*\},\s*sm:\s*\{\s*dia:\s*(\d+),\s*hora:\s*(\d+)/.exec(t);
+    if (dl) cfg.deadline = { cm: { dia: +dl[1], hora: +dl[2] }, sm: { dia: +dl[3], hora: +dl[4] } };
+    const md = /MONTHLY_DEADLINE_DAY:\s*(\d+)/.exec(t); if (md) cfg.mesDia = +md[1];
+    const hh = /DEADLINE_HOUR:\s*(\d+)/.exec(t); if (hh) cfg.hora = +hh[1];
+  } catch (e) {}
+  if (cfg.marcas.length) c.put('repcfg', JSON.stringify(cfg), 21600);
+  return cfg;
+}
+
+const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const lunes_ = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+
+/* Qué reportes ya están cargados: "tipo|marca|período" (descontando los dados de baja). */
+function reportesEnviados_() {
+  const c = CacheService.getScriptCache(), hit = c.get('repenv');
+  if (hit) return JSON.parse(hit);
+  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
+  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  if (!/^enviado_en/.test(txt)) return null;
+  const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
+  const iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), iD = ix('datos_json');
+  const vivos = [], bajas = {};
+  rows.slice(1).forEach(r => {
+    const tipo = r[iT]; if (!tipo) return;
+    if (tipo === 'baja') { try { const d = JSON.parse(r[iD] || '{}'); bajas[d.ref_tipo + '|' + r[iM] + '|' + d.ref_enviado_en] = 1; } catch (e) {} return; }
+    let p = String(r[iP] || '').trim();
+    const dm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(p);
+    if (dm) p = dm[3] + '-' + ('0' + dm[2]).slice(-2) + '-' + ('0' + dm[1]).slice(-2);
+    if (tipo === 'mensual' && /^\d{4}-\d{2}-\d{2}$/.test(p)) p = p.slice(0, 7);
+    if ((tipo === 'sm' || tipo === 'cm') && /^\d{4}-\d{2}-\d{2}$/.test(p)) { const [y, mo, d] = p.split('-').map(Number); p = ymd_(lunes_(new Date(y, mo - 1, d))); }
+    vivos.push([tipo, r[iM], p, r[iE]]);
+  });
+  const env = {};
+  vivos.forEach(v => { if (!bajas[v[0] + '|' + v[1] + '|' + v[3]]) env[v[0] + '|' + v[1] + '|' + v[2]] = v[3]; });
+  c.put('repenv', JSON.stringify(env), 180);
+  return env;
+}
+
+/* Reportes que le faltan a una persona (o que vencen pronto). */
+function tareasReportes_(clave, rol) {
+  const cfg = reportesConfig_(), env = reportesEnviados_();
+  if (!env) return [];
+  const ahora = new Date(), out = [], esCM = /cm/i.test(rol), esProj = /project/i.test(rol);
+  const marcas = cfg.marcas.filter(m => esProj || (esCM ? m.cm === clave : m.sm === clave));
+  const dd = d => ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
+  marcas.forEach(m => {
+    // semanal (SM y CM): las últimas 3 semanas ya terminadas
+    const tipos = esProj ? ['sm', 'cm'] : [esCM ? 'cm' : 'sm'];
+    tipos.forEach(tipo => {
+      const dl = cfg.deadline[tipo] || { dia: 1, hora: 12 };
+      let w = lunes_(new Date(ahora.getTime() - 7 * 864e5));
+      for (let i = 0; i < 3; i++, w = new Date(w.getTime() - 7 * 864e5)) {
+        const id = ymd_(w); if (id < cfg.semanalDesde) break;
+        if (env[tipo + '|' + m.slug + '|' + id]) continue;
+        const vence = new Date(w.getFullYear(), w.getMonth(), w.getDate() + 7 + (dl.dia - 1), dl.hora);
+        const fin = new Date(w.getTime() + 6 * 864e5);
+        out.push({ k: 'rep:' + tipo + ':' + m.slug + ':' + id, tipo: tipo, marca: m.slug, periodo: id, label: 'Reporte semanal ' + (tipo === 'cm' ? 'CM' : 'Social Media') + ' · semana ' + dd(w) + ' al ' + dd(fin), vence: vence.toISOString(), resp: tipo === 'cm' ? m.cm : m.sm });
+      }
+    });
+    // mensual y trimestral: los carga el social media
+    if (esCM && !esProj) return;
+    const mesAnt = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1), idM = ym_(mesAnt);
+    if (idM >= cfg.mensualDesde && !env['mensual|' + m.slug + '|' + idM]) {
+      out.push({ k: 'rep:mensual:' + m.slug + ':' + idM, tipo: 'mensual', marca: m.slug, periodo: idM, label: 'Reporte mensual · ' + MESES_ES[mesAnt.getMonth()], vence: new Date(ahora.getFullYear(), ahora.getMonth(), cfg.mesDia, cfg.hora).toISOString(), resp: m.sm });
+    }
+    if ([0, 3, 6, 9].indexOf(ahora.getMonth()) >= 0) {
+      const ini = new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + '+3';
+      if (ym_(ini) >= cfg.periodicoDesde && !env['periodico|' + m.slug + '|' + idT]) {
+        out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
+      }
+    }
+  });
+  return out.sort((a, b) => a.vence.localeCompare(b.vence));
+}
+
+/* Suma al panel base lo que la persona fue tildando (pestaña Registro), los reportes que faltan y el checklist de la semana. */
 function aplicarEstados_(b, est) {
   if (!b || !b.ok) return b;
+  try { b.reportes = tareasReportes_(b.yo.clave, b.yo.rol); b.linkReportes = REP_WEB + '?resp=' + encodeURIComponent(b.yo.clave); } catch (e) { b.reportes = []; }
+  if (b.semanaInfo) {
+    const per = b.semanaInfo.dias.concat([b.semanaInfo.semana, b.semanaInfo.mes]);
+    b.estRut = {};
+    Object.keys(est).forEach(k => { if (k.indexOf('rut:') === 0 && per.indexOf(k.split(':').pop()) >= 0) b.estRut[k] = est[k]; });
+  }
   (b.cards || []).forEach(c => { const e = est['inp:' + c.id] || est['card:' + c.id]; c.estado = e || undefined; });
   (b.rutinas || []).forEach(r => r.estado = est[r.clave] || null);
   (b.reuniones || []).forEach(r => r.estado = est[r.clave] || null);
@@ -656,7 +770,8 @@ function vistaProject_() {
       clave: p.clave, nombre: p.nombre, rol: p.rol,
       rutinas: { total: r.length, hechas: r.filter(x => x.estado && x.estado.estado === 'hecho').length, pendientes: r.filter(x => !x.estado).map(x => ({ tarea: x.tarea, marca: x.marca, vencida: x.vencida })) },
       reuniones: re.map(x => ({ nombre: x.nombre, marca: x.marca, vencida: x.vencida, hasta: x.hasta, estado: x.estado })),
-      inputs: { total: inputs.length, sinTocar: inputs.filter(c => !c.estado).length }
+      inputs: { total: inputs.length, sinTocar: inputs.filter(c => !c.estado).length },
+      reportes: (pn.reportes || []).map(r => ({ label: r.label, marca: r.marca, vence: r.vence }))
     };
   });
   const reg = rows_('Registro').slice(-60).reverse().map(r => ({ fecha: r[0], persona: r[1], tipo: r[2], clave: r[3], marca: r[4], estado: r[5], detalle: r[6] }));
@@ -683,6 +798,8 @@ function doGet(e) {
       const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'), t = {};
       (snap.cards || []).forEach(c => { const k = (c.m[0] || 'sin-marca') + ':' + c.cat; t[k] = (t[k] || 0) + 1; });
       return json_({ ok: true, generado: snap.generado || null, tableros: (snap.tableros || []).map(b => b.tipo + ' ' + b.nombre + ' → ' + (b.marca || '-')), tarjetas: (snap.cards || []).length, lecturasIA: Object.keys(ia).length, porMarca: t,
+        reportesPendientes: (() => { try { return tareasReportes_('project', 'Project').map(r => r.k + ' · vence ' + r.vence); } catch (e) { return 'error: ' + e.message; } })(),
+        conListas: (snap.tableros || []).filter(b => b.listas && b.listas.length).length,
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY') } }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
@@ -726,6 +843,22 @@ function doPost(e) {
         return json_({ ok: true });
       case 'actualizar':
         return json_(actualizar());
+      case 'crearTarjeta': { // crea la tarjeta en Trello (y opcionalmente la manda a otra lista, que es lo que dispara las automatizaciones)
+        if (!b.listId || !b.nombre) return json_({ error: 'datos', mensaje: 'Falta el nombre o la lista' });
+        const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 1500), pos: 'top' };
+        if (b.due) q.due = b.due;
+        if (b.labels && b.labels.length) q.idLabels = b.labels.join(',');
+        const card = trello_('/cards', q, 'post');
+        if (b.moverA) trello_('/cards/' + card.id, Object.assign({ idList: b.moverA }, b.moverBoard ? { idBoard: b.moverBoard } : {}), 'put');
+        if (b.inputId) registrar_(quien, 'input', 'inp:' + b.inputId, b.marca, 'procesado', 'tarjeta creada: ' + card.shortUrl, '');
+        registrar_(quien, 'tarjeta', 'card:' + card.id, b.marca, 'creada', String(b.nombre).slice(0, 120) + ' · ' + card.shortUrl, '');
+        return json_({ ok: true, url: card.shortUrl, id: card.id });
+      }
+      case 'moverTarjeta': // mueve una tarjeta a otra lista o a otro tablero
+        trello_('/cards/' + b.cardId, Object.assign({ idList: b.listId }, b.boardId ? { idBoard: b.boardId } : {}), 'put');
+        registrar_(quien, 'tarjeta', 'card:' + b.cardId, b.marca, 'movida', String(b.nombre || '').slice(0, 100) + ' → ' + (b.destino || ''), '');
+        quitarDeSnapshot_(b.cardId);
+        return json_({ ok: true });
     }
     return json_({ error: 'accion' });
   } catch (err) { return json_({ error: 'servidor', mensaje: String(err.message || err) }); }

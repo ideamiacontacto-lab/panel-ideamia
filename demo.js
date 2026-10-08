@@ -9,6 +9,14 @@ window.PANEL_DEMO = (function () {
     { slug: "tritato", nombre: "Tritato", canal: true, tableros: [{ tipo: "scl", url: T("8r1C9pFC"), nombre: "SCL Tritato" }, { tipo: "cm", url: T("8v9SQQsp"), nombre: "CM Tritato" }, { tipo: "guiones", url: T("n3dJ9pCN"), nombre: "GUIONES TRITATO" }] },
     { slug: "vice-burger", nombre: "Vice Burger", canal: true, tableros: [{ tipo: "scl", url: T("eXwN58j7"), nombre: "SCL Vice" }, { tipo: "cm", url: T("WqXOtCbn"), nombre: "CM VICE" }, { tipo: "guiones", url: T("FQuf6QZx"), nombre: "GUIONES VICE" }] }
   ];
+  // listas y etiquetas como las de los tableros reales (para probar "Crear tarjeta" y "Mover")
+  const LISTAS = {
+    scl: ["Efemerides / Calendario Anual", "INPUTS / PEDIDOS DEL CLIENTE", "Calendario Editorial (para revision PM)", "Correcciones", "En revision", "Aprobado", "Brainstorming / Campañas", "Recursos Corporativos", "Fichas tecnicas"],
+    cm: ["Listo para programar", "Filtro", "Contenido no programables", "Programado", "Publicado"],
+    diseno: ["Pedidos", "En proceso", "Para revisar", "Entregado"], guiones: ["Ideas", "Guion listo", "Grabado"]
+  };
+  const ETQ = [{ n: "Diseño", c: "purple" }, { n: "Carrusel", c: "orange" }, { n: "Reel", c: "red" }, { n: "Historia", c: "blue" }, { n: "Post", c: "green" }, { n: "Urgente", c: "yellow" }];
+  marcas.forEach(m => m.tableros.forEach((t, i) => { t.id = m.slug + "-" + t.tipo; t.listas = (LISTAS[t.tipo] || LISTAS.scl).map((n, j) => ({ id: t.id + "-l" + j, n, cat: /aprobad|publicad|programado/i.test(n) ? "hecho" : /input/i.test(n) ? "input" : /correcc/i.test(n) ? "corr" : "trabajo" })); t.etiquetas = ETQ.map((e, j) => ({ id: t.id + "-e" + j, n: e.n, c: e.c })); }));
   const c = (o) => Object.assign({ d: "", lab: [], att: [], dc: false, url: "https://trello.com", act: "2026-10-07T12:00:00Z" }, o);
   const cards = [
     c({ id: "i1", n: "Recetario de Halloween", d: "Recetas tenebrosas para la semana de Halloween: cupcakes calabaza, galletas araña, brownies cementerio.", cat: "input", lista: "INPUTS / PEDIDOS DEL CLIENTE", tipo: "scl", tablero: "SCL ISCO", m: ["isco"], act: "2026-10-07T13:10:00Z", att: [{ n: "Recetario Halloween.pdf", u: "#" }],
@@ -91,7 +99,23 @@ window.PANEL_DEMO = (function () {
     cobertura: { "isco": { hasta: "2026-10-30", objetivo: "2026-11-07" }, "gabriel-varisco": { hasta: "2026-11-08", objetivo: "2026-11-07" }, "skilfulblack": { hasta: "2026-10-24", objetivo: "2026-11-07" }, "tritato": { hasta: "2026-11-02", objetivo: "2026-11-07" }, "vice-burger": { hasta: "2026-11-07", objetivo: "2026-11-07" } },
     links: { reportes: "https://ideamiacontacto-lab.github.io/reportes-ideamia/", brainstorming: "https://ideamiacontacto-lab.github.io/brainstormings-ideamia/", notion: "https://app.notion.com/p/3d1bab9b1a168166b3cfe5a8818a9265", drive: "" },
     ajustes: { inputDias: 3, porVencer: 3, efemDias: 45 },
-    feriados: [{ n: 'Día del Respeto a la Diversidad Cultural', d: '2026-10-12' }, { n: 'Día de la Soberanía Nacional', d: '2026-11-23' }]
+    feriados: [{ n: 'Día del Respeto a la Diversidad Cultural', d: '2026-10-12' }, { n: 'Día de la Soberanía Nacional', d: '2026-11-23' }],
+    linkReportes: "https://ideamiacontacto-lab.github.io/reportes-ideamia/?resp=orne",
+    reportes: [
+      { k: "rep:sm:vice-burger:2026-09-28", tipo: "sm", marca: "vice-burger", periodo: "2026-09-28", label: "Reporte semanal Social Media · semana 28/09 al 04/10", vence: "2026-10-06T15:00:00Z" },
+      { k: "rep:mensual:tritato:2026-09", tipo: "mensual", marca: "tritato", periodo: "2026-09", label: "Reporte mensual · septiembre", vence: "2026-10-05T15:00:00Z" }
+    ],
+    semanaInfo: { dias: ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"], semana: "2026-W41", mes: "2026-10" },
+    rutinasDef: [
+      { id: "correcciones", tarea: "Revisar Correcciones y tarjetas por vencer", cuando: "diaria", marcas: [] },
+      { id: "inputs", tarea: "Revisar inputs nuevos del project", cuando: "diaria", marcas: [] },
+      { id: "promos", tarea: "¿Las promos siguen siendo las mismas?", cuando: "semana:lun", marcas: ["isco", "gabriel-varisco", "skilfulblack", "tritato", "vice-burger"] },
+      { id: "ofertas", tarea: "¿Ofertas y diseños de la semana entregados?", cuando: "semana:lun", marcas: ["isco", "gabriel-varisco", "skilfulblack", "tritato", "vice-burger"] },
+      { id: "salida", tarea: "¿Reels y carruseles listos para salir?", cuando: "semana:mie", marcas: ["isco", "gabriel-varisco", "skilfulblack", "tritato", "vice-burger"] },
+      { id: "canal", tarea: "¿Se movió el canal social?", cuando: "semana:vie", marcas: ["isco", "tritato", "vice-burger"] },
+      { id: "coordinar", tarea: "Coordinar con el project los pendientes de la semana próxima", cuando: "semana:vie", marcas: [] }
+    ],
+    estRut: { "rut:correcciones:-:2026-10-05": { estado: "hecho" }, "rut:correcciones:-:2026-10-06": { estado: "hecho" }, "rut:inputs:-:2026-10-05": { estado: "hecho" }, "rut:inputs:-:2026-10-07": { estado: "hecho" }, "rut:promos:vice-burger:2026-W41": { estado: "hecho" }, "rut:ofertas:gabriel-varisco:2026-W41": { estado: "hecho" } }
   };
 })();
 

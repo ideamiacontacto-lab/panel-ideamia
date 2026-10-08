@@ -258,6 +258,47 @@ input,select,textarea{font:inherit;color:var(--text)}
 .ag.fer .x,.ag.fer .h{color:var(--warn)}
 .ag .x .lnk{border-bottom-color:transparent}
 
+/* ---------- checklist semanal ---------- */
+.semana-h{display:flex;align-items:center;gap:24px;margin-bottom:26px;flex-wrap:wrap}
+.semana-h b{font-family:var(--f-d);font-weight:400;font-size:56px;line-height:.9;display:inline-block;margin:6px 10px 0 0}
+.semana-h b small{font-size:26px;color:var(--dim)}
+.semana-h span{color:var(--muted);font-size:13px}
+.chk-t{width:100%;border-collapse:collapse;font-size:13.5px}
+.chk-t th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 6px;border-bottom:1px solid var(--line2);text-align:center;white-space:nowrap}
+.chk-t th:first-child{text-align:left}
+.chk-t th.hoy{color:var(--y)}
+.chk-t td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:center}
+.chk-t td:first-child{text-align:left;width:40%;line-height:1.35}
+.chk-t td:first-child small{display:block;color:var(--dim);font-size:11.5px}
+.chk-t td.gen{text-align:left}
+.chk-t td.gen span{color:var(--dim);font-size:12px;margin-left:6px}
+.dotm{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.cel{width:26px;height:26px;border:1.5px solid var(--line2);border-radius:4px;font-size:14px;font-weight:700;color:var(--y-ink);transition:all .12s;display:inline-grid;place-items:center}
+.cel:hover{border-color:var(--y)}
+.cel.on{background:var(--y);border-color:var(--y)}
+.cel.fut{opacity:.25;cursor:default}
+.na{color:var(--dim)}
+.tw{overflow-x:auto}
+/* ---------- inputs: ¿ya lo procesaste? ---------- */
+.nudge .nq{margin-bottom:10px}
+.nudge .nb{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.nudge .nb.no{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line2)}
+.nudge .nb.no span{font-size:13px;color:var(--muted);width:100%}
+/* ---------- crear tarjeta ---------- */
+.modal .mb.ancho{max-width:560px;max-height:92vh;overflow-y:auto}
+.labs{display:flex;flex-wrap:wrap;gap:6px}
+.lab{font-size:12.5px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border:1px solid var(--line2);border-radius:999px;color:var(--muted)}
+.lab i{width:9px;height:9px;border-radius:2px}
+.lab.on{border-color:var(--text);color:var(--text);background:var(--s3)}
+.field select{appearance:auto}
+@media(max-width:640px){
+  .chk-t{font-size:12.5px}
+  .chk-t td:first-child{width:auto}
+  .chk-t th{font-size:10px;padding:6px 2px}
+  .cel{width:22px;height:22px}
+  .table-wrap{overflow-x:auto}
+}
+
 /* ---------- panel de detalle ---------- */
 .drawer{position:fixed;inset:0;z-index:80}
 .dw-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;transition:opacity .25s}

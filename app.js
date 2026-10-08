@@ -59,6 +59,7 @@
     if (min < 60 * 24) return 'hace ' + Math.round(min / 60) + ' h';
     const dd = Math.round(min / 1440); return dd === 1 ? 'ayer' : 'hace ' + dd + ' días';
   }
+  const plazo = h => h < 1 ? Math.max(1, Math.round(h * 60)) + ' min' : h < 48 ? Math.round(h) + ' h' : Math.round(h / 24) + ' días';
   const ahoraTxt = () => { const d = DEMO ? NOW : new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + hm(d); };
 
   /* ---------------- marcas ---------------- */
@@ -96,6 +97,7 @@
   function inputPide(c) { // ¿hay que volver a preguntar por este input?
     if (!c.estado) return 'nuevo';
     if (c.estado.estado === 'archivado') return null;
+    if (c.estado.estado === 'recordar') return new Date(c.estado.detalle) <= new Date() ? 'pospuesto' : null; // "recordame después"
     const f = c.estado.fecha ? new Date(c.estado.fecha.replace(' ', 'T')) : NOW;
     return (NOW - f) / 864e5 >= (S.data.ajustes.inputDias || 3) ? 'recordar' : null;
   }
@@ -130,7 +132,12 @@
     });
     inputs().forEach(c => {
       const p = inputPide(c); if (!p) return;
-      out.push({ k: 'inp:' + c.id, tipo: 'input', marca: c.m[0], t: (p === 'nuevo' ? 'Input nuevo: ' : '¿Seguís necesitando? ') + c.n, obj: c, meta: [p === 'nuevo' ? 'cargado ' + hace(c.act) : 'lo tocaste ' + hace(c.estado.fecha)], u: p === 'nuevo' ? 2 : 1 });
+      out.push({ k: 'inp:' + c.id, tipo: 'input', marca: c.m[0], t: (p === 'nuevo' ? 'Input nuevo: ' : p === 'pospuesto' ? 'Te pediste acordarte: ' : '¿Seguís necesitando? ') + c.n, obj: c, meta: [p === 'nuevo' ? 'cargado ' + hace(c.act) : p === 'pospuesto' ? 'lo pospusiste' : 'lo tocaste ' + hace(c.estado.fecha)], u: p === 'pospuesto' ? 3 : p === 'nuevo' ? 2 : 1 });
+    });
+    // reportes que faltan cargar en la web de reportes (se van solos cuando los cargan)
+    (D.reportes || []).forEach(r => {
+      const v = new Date(r.vence), h = (v - new Date()) / 36e5;
+      out.push({ k: r.k, tipo: 'reporte', marca: r.marca, t: r.label, obj: r, url: D.linkReportes, meta: [h < 0 ? '<span class="pill bad">vencido hace ' + plazo(-h) + '</span>' : h < 24 ? '<span class="pill warn">vence en ' + plazo(h) + '</span>' : 'vence ' + cuando(v) + ' ' + hm(v)], u: h < 0 ? 4 : h < 24 ? 3 : 2 });
     });
     return out.filter(x => pasa(x.marcas && x.marcas.length ? x.marcas : (x.marca ? [x.marca] : [S.marca]))).sort((a, b) => (hecho(a.obj) - hecho(b.obj)) || (b.u - a.u));
   }
@@ -190,7 +197,8 @@
     const t = agrupado(), tot = t.length, ok = t.filter(x => hecho(x.obj)).length;
     const hoyD = NOW, nombre = D.yo.nombre;
     const nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length;
-    const tabs = [['hoy', 'Hoy', tot - ok], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
+    const nRep = (D.reportes || []).filter(r => pasa(r.marca)).length;
+    const tabs = [['hoy', 'Hoy', tot - ok], ['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
     app.innerHTML =
       '<section class="hero"><div><div class="kick">— ' + DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()] + '</div>' +
       '<h1>Hola, ' + esc(nombre) + ' <em>· ' + (hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches') + '</em></h1>' +
@@ -198,7 +206,7 @@
       '<div class="meter"><div class="l">Hecho hoy</div><div class="n">' + ok + '<small>/' + tot + '</small></div><div class="bar"><i style="width:' + (tot ? Math.round(ok / tot * 100) : 0) + '%"></i></div></div></section>' +
       '<div class="ctrl"><div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? 'Todas las marcas' : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>' +
       '<nav class="tabs">' + tabs.map(x => '<button class="tab' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + (x[2] ? '<span class="badge' + (x[3] ? ' hot' : '') + '">' + x[2] + '</span>' : '') + '</button>').join('') + '</nav></div>' +
-      '<div class="view" id="view">' + ({ hoy: vHoy, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas }[S.tab] || vHoy)(t) + '</div>';
+      '<div class="view" id="view">' + ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas }[S.tab] || vHoy)(t) + '</div>';
     bind(app);
     renderTop();
   }
@@ -230,12 +238,13 @@
     if (x.tipo === 'grupo') return filaGrupo(x);
     const done = hecho(x.obj);
     let accion = '';
-    if (x.tipo === 'reunion') accion = '<button class="btn y" data-agendar="' + esc(x.k) + '">' + I.cal + 'Agendar</button>';
+    if (x.tipo === 'reporte') accion = '<a class="btn y" href="' + esc(x.url) + '" target="_blank" rel="noopener">Cargar ↗</a>';
+    else if (x.tipo === 'reunion') accion = '<button class="btn y" data-agendar="' + esc(x.k) + '">' + I.cal + 'Agendar</button>';
     else if (x.tipo === 'input') accion = '<button class="btn" data-ver-input="' + esc(x.obj.id) + '">Revisar</button>';
     else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
     else if (x.enlace) accion = '<a class="go" href="' + esc(x.enlace) + '" target="_blank" rel="noopener" title="Abrir">' + I.out + '</a>';
-    const chk = (x.tipo === 'reunion' || x.tipo === 'input')
-      ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : I.inbox) + '</span>'
+    const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte')
+      ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
     return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" data-card-det="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
   }
@@ -402,7 +411,7 @@
       (c.d ? '<p class="dw-p" style="white-space:pre-line">' + esc(c.d) + '</p>' : '') +
       (c.att && c.att.length ? '<div class="att" style="padding:0;margin:10px 0">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
       (['input', 'brainstorming', 'efem', 'corr'].includes(c.cat) || c.tipo === 'project' ? '<div class="ia' + (lec.auto ? ' auto' : '') + '" style="margin:14px 0 0"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + lec.acciones.map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol></div>' : '') +
-      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a>' + btnClaude(c.id) + '</div>');
+      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a><button class="btn" data-mover="' + esc(c.id) + '">Mover</button>' + (c.cat === 'input' || c.tipo === 'project' || c.cat === 'efem' || c.cat === 'brainstorming' ? '<button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button>' : '') + btnClaude(c.id) + '</div>');
   }
 
   /* ---------------- "Idea rápida": sugerencia automática y gratis según lo que dice la tarjeta (sin IA) ---------------- */
@@ -458,19 +467,22 @@
     const p = inputPide(c), m = marca(c.m[0]);
     const lec = c.ia || ideaRapida(c);
     const ia = '<div class="ia' + (lec.auto ? ' auto' : '') + '"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + (lec.acciones || []).map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol>' + ((lec.pedir || []).length ? '<div class="pd"><b>Pedile al cliente o al project:</b> ' + lec.pedir.map(esc).join(' · ') + '</div>' : '') + (lec.auto ? '<div class="pd" style="margin-top:8px">Para una idea a medida, tocá <b>Preguntale a Claude</b>.</div>' : '') + '</div>';
-    const st = c.estado ? '<span class="state">' + ({ procesado: 'Lo procesaste', project: 'Hablaste con el project', hecho: 'Hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha) + '</span>' : '<span class="state">Sin tocar · cargado ' + hace(c.act) + '</span>';
+    const st = c.estado ? '<span class="state">' + (c.estado.estado === 'recordar' ? 'Pospuesto hasta el ' + corto(new Date(c.estado.detalle)) + ' ' + hm(new Date(c.estado.detalle)) : ({ procesado: 'Lo procesaste', project: 'Hablaste con el project', hecho: 'Hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha)) + (/tarjeta creada: (\S+)/.test(c.estado.detalle || '') ? ' · <a href="' + esc(/tarjeta creada: (\S+)/.exec(c.estado.detalle)[1]) + '" target="_blank" rel="noopener" style="color:var(--y)">ver tarjeta ↗</a>' : '') + '</span>' : '<span class="state">Sin tocar · cargado ' + hace(c.act) + '</span>';
     return '<article class="cardx" id="in-' + esc(c.id) + '"><div class="hd"><div><div class="mt" style="font-size:12.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">' + tagM(c.m[0]) + '<span>' + esc(c.lista) + '</span>' + (c.due ? '<span>para ' + cuando(new Date(c.due)) + '</span>' : '') + (c.ia ? '<span class="pill ' + (c.ia.prioridad === 'alta' ? 'bad' : c.ia.prioridad === 'media' ? 'warn' : '') + '">prioridad ' + esc(c.ia.prioridad) + '</span>' : '') + '</div><h4>' + esc(c.n) + '</h4></div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a></div>' +
       (c.d ? '<div class="ds">' + esc(c.d) + '</div>' : '') +
       (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + ia +
-      (p ? '<div class="nudge">' + (p === 'nuevo' ? '<b>Input nuevo.</b> ' : '<b>Hace unos días que no lo tocás.</b> ') + '¿Necesitás este input? ¿Lo procesaste? ¿Hablaste con el project?</div>' : '') +
-      '<div class="ft"><button class="btn' + (p ? ' y' : '') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Lo procesé</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
+      (p ? '<div class="nudge"><div class="nq"><b>' + (p === 'nuevo' ? 'Input nuevo.' : p === 'pospuesto' ? 'Te pediste acordarte de esto.' : 'Hace unos días que no lo tocás.') + '</b> ¿Ya lo procesaste?</div>' +
+        '<div class="nb"><button class="btn y" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Sí, ya está</button><button class="btn" data-todavia="' + esc(c.id) + '">Todavía no</button></div>' +
+        (S.todavia === c.id ? '<div class="nb no"><span>Dejalo listo ahora o te lo recuerdo:</span><button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear la tarjeta</button><button class="btn" data-recordar="2h" data-id="' + esc(c.id) + '">⏰ En 2 h</button><button class="btn" data-recordar="manana" data-id="' + esc(c.id) + '">Mañana 9 h</button><button class="btn" data-recordar="lunes" data-id="' + esc(c.id) + '">El lunes</button></div>' : '') + '</div>' : '') +
+      '<div class="ft"><button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
   }
   function vInputs() {
     const pri = c => ({ alta: 3, media: 2, baja: 1 })[c.ia && c.ia.prioridad] || 2;
     const L = inputs().filter(c => pasa(c.m)).sort((a, b) => (!!inputPide(b) - !!inputPide(a)) || (pri(b) - pri(a)) || (new Date(b.act) - new Date(a.act)));
-    const pend = L.filter(c => inputPide(c)), resto = L.filter(c => !inputPide(c));
+    const pend = L.filter(c => inputPide(c)), posp = L.filter(c => !inputPide(c) && c.estado && c.estado.estado === 'recordar'), resto = L.filter(c => !inputPide(c) && !(c.estado && c.estado.estado === 'recordar'));
     const brains = S.data.cards.filter(c => c.cat === 'brainstorming' && pasa(c.m));
-    return '<div class="sec"><div class="sec-h"><h2>Para revisar<small>' + pend.length + '</small></h2><span class="act">Te vuelvo a preguntar cada ' + S.data.ajustes.inputDias + ' días</span></div>' + (pend.length ? pend.map(cardInput).join('') : '<div class="empty">No hay inputs nuevos. Cuando el project cargue uno en Trello aparece acá con la lectura de la IA.</div>') + '</div>' +
+    return '<div class="sec"><div class="sec-h"><h2>Para revisar<small>' + pend.length + '</small></h2><button class="btn" data-crear-nueva>＋ Nueva tarjeta</button></div>' + (pend.length ? pend.map(cardInput).join('') : '<div class="empty">No hay inputs nuevos. Cuando el project cargue uno en Trello aparece acá con la lectura de la IA.</div>') + '</div>' +
+      (posp.length ? '<div class="sec"><div class="sec-h"><h2>Pospuestos<small>' + posp.length + '</small></h2><span class="act">Vuelven solos a "Para revisar" cuando llega la hora</span></div><div class="list">' + posp.sort((a, b) => a.estado.detalle.localeCompare(b.estado.detalle)).map(c => '<div class="row"><span class="ico">⏰</span><div><div class="tt"><button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button></div><div class="mt">' + tagM(c.m[0]) + '<span>vuelve ' + cuando(new Date(c.estado.detalle)) + ' ' + hm(new Date(c.estado.detalle)) + '</span></div></div><div><button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button></div></div>').join('') + '</div></div>' : '') +
       (resto.length ? '<div class="sec"><div class="sec-h"><h2>Ya revisados<small>' + resto.length + '</small></h2></div>' + resto.map(cardInput).join('') + '</div>' : '') +
       (brains.length ? '<div class="sec"><div class="sec-h"><h2>Brainstorming y campañas<small>' + brains.length + '</small></h2><a class="act" href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></div>' + brains.map(c => { const x = Object.assign({}, c); return cardInput(x).replace(/<div class="nudge">[\s\S]*?<\/div>/, '').replace(/<div class="ft">[\s\S]*<\/div><\/article>$/, '<div class="ft">' + btnClaude(c.id) + '<span class="sp"></span><span class="state">' + esc(c.lista) + '</span></div></article>'); }).join('') + '</div>' : '');
   }
@@ -489,6 +501,46 @@
     return '<div class="cols"><div><div class="sec"><div class="sec-h"><h2>Por organizar<small>' + pend.length + '</small></h2><span class="act">Te lo recuerdo hasta que le pongas fecha y hora</span></div>' + (pend.length ? '<div class="list">' + pend.map(row).join('') + '</div>' : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
       '<div class="sec"><div class="sec-h"><h2>Agendadas<small>' + ok.length + '</small></h2></div>' + (ok.length ? '<div class="list">' + ok.map(row).join('') + '</div>' : '<div class="empty">Ninguna todavía.</div>') + '</div></div>' +
       '<aside class="side"><div class="box"><h3>Cómo funciona</h3><div class="sug"><i class="y"></i><div>Cada reunión tiene su ventana: la de <b>Ads</b> es la última semana del mes, la <b>mensual con el cliente</b> y la de <b>entrega de reportes</b>, los primeros 10 días.</div></div><div class="sug"><i></i><div>Cuando le ponés fecha y hora, el project la ve en su panel y se crea el evento en el calendario de Ideamia.</div></div><div class="sug"><i></i><div>Las reglas se cambian en la pestaña <b>Reuniones</b> del Sheet.</div></div></div></aside></div>';
+  }
+
+  /* ---------------- vista SEMANA: checklist de la semana ---------------- */
+  function vSemana() {
+    const D = S.data, si = D.semanaInfo, er = D.estRut || (D.estRut = {});
+    if (!si) return '<div class="empty">Tocá ↻ Actualizar para ver el checklist de la semana.</div>';
+    const hoyY = D.hoy || '';
+    const marcasV = D.marcas.filter(m => pasa(m.slug));
+    const ok = k => !!(er[k] && er[k].estado === 'hecho');
+    let total = 0, hechos = 0;
+    const celda = (k, futuro) => { if (!futuro) { total++; if (ok(k)) hechos++; } return '<button class="cel' + (ok(k) ? ' on' : '') + (futuro ? ' fut' : '') + '" ' + (futuro ? 'disabled' : 'data-celda="' + esc(k) + '"') + '>' + (ok(k) ? '✓' : '') + '</button>'; };
+    const mesActual = NOW.getMonth() + 1;
+    const aplicaMes = c => { const mm = /^meses:([\d,]+)\//.exec(c); return !mm || mm[1].split(',').map(Number).indexOf(mesActual) >= 0; };
+    const diarias = (D.rutinasDef || []).filter(r => r.cuando === 'diaria');
+    const semanales = (D.rutinasDef || []).filter(r => /^semana:/.test(r.cuando));
+    const mensuales = (D.rutinasDef || []).filter(r => /^(mes|meses):/.test(r.cuando) && aplicaMes(r.cuando));
+    const DN = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+    const tablaDias = diarias.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + si.dias.map((d, i) => '<th' + (d === hoyY ? ' class="hoy"' : '') + '>' + DN[i] + ' ' + Number(d.slice(8)) + '</th>').join('') + '</tr></thead><tbody>' +
+      diarias.map(r => (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => '<tr><td>' + esc(r.tarea) + (s !== '-' ? ' ' + tagM(s) : '') + '</td>' + si.dias.map(d => '<td>' + celda('rut:' + r.id + ':' + s + ':' + d, d > hoyY) + '</td>').join('') + '</tr>').join('')).join('') + '</tbody></table></div>' : '';
+    const tablaMarcas = (defs, per) => defs.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + marcasV.map(m => '<th><i class="dotm" style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</th>').join('') + '</tr></thead><tbody>' +
+      defs.map(r => '<tr><td>' + esc(r.tarea) + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
+        (r.marcas.length ? marcasV.map(m => '<td>' + (r.marcas.indexOf(m.slug) >= 0 ? celda('rut:' + r.id + ':' + m.slug + ':' + per, false) : '<span class="na">·</span>') + '</td>').join('')
+          : '<td colspan="' + marcasV.length + '" class="gen">' + celda('rut:' + r.id + ':-:' + per, false) + ' <span>general</span></td>') + '</tr>').join('') + '</tbody></table></div>' : '';
+    const reps = (D.reportes || []).filter(r => pasa(r.marca));
+    const cuerpo =
+      '<div class="sec"><div class="sec-h"><h2>Reportes<small>' + reps.length + ' por cargar</small></h2><a class="act" href="' + esc(D.linkReportes || D.links.reportes) + '" target="_blank" rel="noopener">Abrir la web de reportes ↗</a></div>' +
+      (reps.length ? '<div class="list">' + reps.map(r => { const v = new Date(r.vence), h = (v - new Date()) / 36e5; return '<div class="row"><span class="ico">' + I.flag + '</span><div><div class="tt">' + esc(r.label) + '</div><div class="mt">' + tagM(r.marca) + '<span>' + (h < 0 ? '<span class="pill bad">vencido hace ' + plazo(-h) + '</span>' : h < 24 ? '<span class="pill warn">vence en ' + plazo(h) + '</span>' : 'vence ' + cuando(v) + ' ' + hm(v)) + '</span></div></div><div><a class="btn y" href="' + esc(D.linkReportes) + '" target="_blank" rel="noopener">Cargar ↗</a></div></div>'; }).join('') + '</div>' : '<div class="empty">Todos los reportes al día ✓. Cuando cargás uno en la web de reportes, desaparece de acá solo.</div>') + '</div>' +
+      (tablaDias ? '<div class="sec"><div class="sec-h"><h2>Todos los días</h2><span class="act">Podés tildar días anteriores si te olvidaste</span></div>' + tablaDias + '</div>' : '') +
+      (semanales.length ? '<div class="sec"><div class="sec-h"><h2>Una vez por semana</h2></div>' + tablaMarcas(semanales, si.semana) + '</div>' : '') +
+      (mensuales.length ? '<div class="sec"><div class="sec-h"><h2>Este mes</h2></div>' + tablaMarcas(mensuales, si.mes) + '</div>' : '');
+    const pct = total ? Math.round(hechos / total * 100) : 0;
+    return '<div class="semana-h"><div><div class="kick">— Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
+  }
+  async function marcarCelda(k) {
+    const D = S.data, er = D.estRut || (D.estRut = {}), antes = er[k] || null, ya = !!(antes && antes.estado === 'hecho');
+    if (ya) delete er[k]; else er[k] = { estado: 'hecho', fecha: ahoraTxt() };
+    const r = D.rutinas.find(x => x.clave === k); if (r) r.estado = ya ? null : er[k];
+    render();
+    try { await post({ action: 'marcar', tipo: 'rutina', clave: k, marca: k.split(':')[2] === '-' ? '' : k.split(':')[2], estado: ya ? 'deshacer' : 'hecho', periodo: k.split(':').pop() }); }
+    catch (e) { if (antes) er[k] = antes; else delete er[k]; if (r) r.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
   }
 
   /* ---------------- vista AGENDA ---------------- */
@@ -577,6 +629,12 @@
     root.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.copiar); if (c) copiar(promptTarjeta(c)); });
     root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
+    root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = b.dataset.todavia; render(); const el = document.getElementById('in-' + b.dataset.todavia); if (el) el.scrollIntoView({ block: 'nearest' }); });
+    root.querySelectorAll('[data-recordar]').forEach(b => b.onclick = () => recordar(b.dataset.id, b.dataset.recordar));
+    root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
+    root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
+    root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
+    root.querySelectorAll('[data-celda]').forEach(b => b.onclick = () => marcarCelda(b.dataset.celda));
     root.querySelectorAll('[data-fecha]').forEach(b => b.onclick = () => { const f = proximasFechas(120).find(x => fkey(x) === b.dataset.fecha); if (f) detalleFecha(f); });
     root.querySelectorAll('[data-card-det]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.cardDet); if (c) detalleCard(c); });
     root.querySelectorAll('[data-dia]').forEach(b => b.onclick = () => detalleDia(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + Number(b.dataset.dia))));
@@ -632,6 +690,93 @@
       c.estado = { estado: 'archivado', fecha: ahoraTxt() };
       render(); toast('Archivada en Trello: ' + esc(c.n));
     });
+  }
+
+  /* ---------------- "Recordame después" ---------------- */
+  async function recordar(id, cuandoTxt) {
+    const c = S.data.cards.find(x => x.id === id); if (!c) return;
+    const d = new Date();
+    if (cuandoTxt === '2h') d.setHours(d.getHours() + 2);
+    else if (cuandoTxt === 'manana') { d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); }
+    else { d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); } // el próximo lunes
+    const antes = c.estado || null;
+    c.estado = { estado: 'recordar', detalle: d.toISOString(), fecha: ahoraTxt() };
+    S.todavia = null; render();
+    try {
+      await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado: 'recordar', detalle: d.toISOString() });
+      toast('Te lo recuerdo ' + cuando(d) + ' a las ' + hm(d) + '.', async () => { c.estado = antes; render(); try { await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado: 'deshacer' }); } catch (e) {} });
+    } catch (e) { c.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
+  }
+
+  /* ---------------- crear y mover tarjetas de Trello ---------------- */
+  const COLOR_TRELLO = { green: '#4bce97', yellow: '#e2b203', orange: '#fea362', red: '#f87168', purple: '#9f8fef', blue: '#579dff', sky: '#6cc3e0', lime: '#94c748', pink: '#e774bb', black: '#8590a2' };
+  function tablerosDe(slug) {
+    const m = marca(slug); const ts = (m ? m.tableros : []).slice();
+    if (S.data.projectTablero) ts.push(S.data.projectTablero);
+    const orden = { scl: 0, cm: 1, diseno: 2, produccion: 3, guiones: 4, project: 5 };
+    return ts.filter(t => t.listas && t.listas.length).sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9));
+  }
+  const NOM_T = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones', project: 'Project' };
+  function opcionesListas(t, sel) { return t.listas.map(l => '<option value="' + esc(l.id) + '"' + (l.id === sel ? ' selected' : '') + '>' + esc(l.n) + '</option>').join(''); }
+
+  function crearTarjeta(inputId, slugForzado) {
+    const c = inputId ? S.data.cards.find(x => x.id === inputId) : null;
+    const slug = slugForzado || (c && c.m[0]) || (S.marca !== 'todas' ? S.marca : S.data.marcas[0].slug);
+    const ts = tablerosDe(slug);
+    if (!ts.length) { toast('Todavía no tengo las listas de los tableros. Tocá ↻ Actualizar y probá de nuevo.'); return; }
+    let t = ts.find(x => x.tipo === 'scl') || ts[0];
+    const listaDef = tb => (tb.listas.find(l => /calendario editorial/i.test(l.n)) || tb.listas.find(l => /calendario/i.test(l.n) && l.cat !== 'efem') || tb.listas.find(l => l.cat === 'trabajo') || tb.listas[0]).id;
+    const desc = c ? (c.d ? c.d + '\n\n' : '') + 'Input: ' + c.url : '';
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const m = modal('<h3>Crear tarjeta en Trello</h3><p>' + (c ? 'A partir del input <b>' + esc(c.n) + '</b>.' : 'Nueva tarjeta.') + ' Si la mandás a otra lista al crearla, arrancan las automatizaciones (por ejemplo, Aprobado → Diseño).</p>' +
+      '<div class="two"><label class="field"><span>Marca</span><select id="cM">' + S.data.marcas.map(x => '<option value="' + esc(x.slug) + '"' + (x.slug === slug ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></label>' +
+      '<label class="field"><span>Tablero</span><select id="cT"></select></label></div>' +
+      '<label class="field"><span>Lista donde se crea</span><select id="cL"></select></label>' +
+      '<label class="field"><span>Título</span><input id="cN" value="' + esc(c ? c.n : '') + '" placeholder="Ej: Carrusel receta Halloween"></label>' +
+      '<label class="field"><span>Descripción</span><textarea id="cD" rows="4">' + esc(desc) + '</textarea></label>' +
+      '<div class="two"><label class="field"><span>Fecha de salida</span><input type="date" id="cF" value="' + iso(new Date(Date.now() + 3 * 864e5)) + '"></label><label class="field"><span>Hora</span><input type="time" id="cH" value="10:00"></label></div>' +
+      '<div class="field"><span>Etiquetas</span><div class="labs" id="cE"></div></div>' +
+      '<label class="field"><span>Después de crearla, mandarla a</span><select id="cA"></select></label><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Crear tarjeta</button></div>', async mm => {
+      const nombre = $('#cN', mm).value.trim(); if (!nombre) throw new Error('Poné un título.');
+      const f = $('#cF', mm).value, h = $('#cH', mm).value || '10:00';
+      const labels = Array.from(mm.querySelectorAll('.lab.on')).map(x => x.dataset.l);
+      const moverA = $('#cA', mm).value;
+      const r = await post({ action: 'crearTarjeta', listId: $('#cL', mm).value, nombre, desc: $('#cD', mm).value, due: f ? new Date(f + 'T' + h + ':00').toISOString() : '', labels, moverA, marca: $('#cM', mm).value, inputId: c ? c.id : '' });
+      if (c) c.estado = { estado: 'procesado', fecha: ahoraTxt(), detalle: 'tarjeta creada: ' + (r.url || '') };
+      S.todavia = null; render();
+      toast('Tarjeta creada' + (moverA ? ' y enviada' : '') + '. ' + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:underline">Abrirla en Trello</a>' : ''));
+    });
+    m.querySelector('.mb').classList.add('ancho');
+    const pintar = () => {
+      $('#cT', m).innerHTML = ts.map(x => '<option value="' + esc(x.id) + '"' + (x.id === t.id ? ' selected' : '') + '>' + esc(NOM_T[x.tipo] || x.tipo) + ' · ' + esc(x.nombre) + '</option>').join('');
+      $('#cL', m).innerHTML = opcionesListas(t, listaDef(t));
+      const ap = t.listas.find(l => /aprobad/i.test(l.n));
+      $('#cA', m).innerHTML = '<option value="">No moverla (queda en la lista de arriba)</option>' + t.listas.map(l => '<option value="' + esc(l.id) + '">' + esc(l.n) + (ap && l.id === ap.id ? ' (dispara Diseño si tiene la etiqueta)' : '') + '</option>').join('');
+      $('#cE', m).innerHTML = (t.etiquetas || []).length ? t.etiquetas.map(e => '<button type="button" class="lab" data-l="' + esc(e.id) + '"><i style="background:' + (COLOR_TRELLO[(e.c || '').split('_')[0]] || '#666') + '"></i>' + esc(e.n || e.c || 'sin nombre') + '</button>').join('') : '<span style="color:var(--dim);font-size:13px">Este tablero no tiene etiquetas.</span>';
+      m.querySelectorAll('.lab').forEach(b => b.onclick = () => b.classList.toggle('on'));
+    };
+    pintar();
+    $('#cT', m).onchange = () => { t = ts.find(x => x.id === $('#cT', m).value); pintar(); };
+    $('#cM', m).onchange = () => { const nts = tablerosDe($('#cM', m).value); if (!nts.length) return; ts.length = 0; nts.forEach(x => ts.push(x)); t = ts.find(x => x.tipo === 'scl') || ts[0]; pintar(); };
+  }
+
+  function moverTarjeta(id) {
+    const c = S.data.cards.find(x => x.id === id); if (!c) return;
+    const ts = tablerosDe(c.m[0]);
+    if (!ts.length) { toast('Todavía no tengo las listas de los tableros. Tocá ↻ Actualizar y probá de nuevo.'); return; }
+    let t = ts.find(x => x.nombre === c.tablero) || ts[0];
+    const m = modal('<h3>Mover "' + esc(c.n) + '"</h3><p>Ahora está en ' + esc(c.tablero) + ' · ' + esc(c.lista) + '. Moverla de lista dispara las automatizaciones de Trello.</p>' +
+      '<label class="field"><span>Tablero</span><select id="mT"></select></label><label class="field"><span>Lista</span><select id="mL"></select></label><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Mover</button></div>', async mm => {
+      const lid = $('#mL', mm).value, l = t.listas.find(x => x.id === lid);
+      await post({ action: 'moverTarjeta', cardId: c.id, listId: lid, boardId: t.nombre !== c.tablero ? t.id : '', marca: c.m[0], nombre: c.n, destino: t.nombre + ' · ' + (l ? l.n : '') });
+      c.tablero = t.nombre; c.lista = l ? l.n : c.lista; c.cat = l ? l.cat : c.cat;
+      cerrarPanel(); render(); toast('Movida a ' + esc(t.nombre) + ' · ' + esc(c.lista) + '.');
+    });
+    const pintar = () => { $('#mT', m).innerHTML = ts.map(x => '<option value="' + esc(x.id) + '"' + (x.id === t.id ? ' selected' : '') + '>' + esc(NOM_T[x.tipo] || x.tipo) + ' · ' + esc(x.nombre) + '</option>').join(''); $('#mL', m).innerHTML = opcionesListas(t, (t.listas.find(l => l.n === c.lista) || {}).id); };
+    pintar();
+    $('#mT', m).onchange = () => { t = ts.find(x => x.id === $('#mT', m).value); pintar(); };
   }
 
   function agendar(k) {
