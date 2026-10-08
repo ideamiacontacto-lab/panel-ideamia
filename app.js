@@ -13,7 +13,7 @@
   };
   const NOW = DEMO ? new Date(2026, 9, 7, 12, 30) : new Date();
   const S = {
-    data: null, proj: null, tab: LS.get('tab', 'hoy'), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
+    data: null, proj: null, abiertos: {}, reloj: null, tab: LS.get('tab', 'hoy'), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
     persona: qs.get('p') || LS.get('persona', null), key: LS.get('key', ''), pkey: LS.get('pkey', ''), sync: false
   };
 
@@ -240,13 +240,13 @@
     let accion = '';
     if (x.tipo === 'reporte') accion = '<a class="btn y" href="' + esc(x.url) + '" target="_blank" rel="noopener">Cargar ↗</a>';
     else if (x.tipo === 'reunion') accion = '<button class="btn y" data-agendar="' + esc(x.k) + '">' + I.cal + 'Agendar</button>';
-    else if (x.tipo === 'input') accion = '<button class="btn" data-ver-input="' + esc(x.obj.id) + '">Revisar</button>';
+    else if (x.tipo === 'input') accion = '<button class="btn" data-det-input="' + esc(x.obj.id) + '">Revisar</button>';
     else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
     else if (x.enlace) accion = '<a class="go" href="' + esc(x.enlace) + '" target="_blank" rel="noopener" title="Abrir">' + I.out + '</a>';
     const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte')
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
-    return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" data-card-det="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
   }
   function vHoy(t) {
     const pend = t.filter(x => !hecho(x.obj)), done = t.filter(x => hecho(x.obj));
@@ -476,15 +476,38 @@
         (S.todavia === c.id ? '<div class="nb no"><span>Dejalo listo ahora o te lo recuerdo:</span><button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear la tarjeta</button><button class="btn" data-recordar="2h" data-id="' + esc(c.id) + '">⏰ En 2 h</button><button class="btn" data-recordar="manana" data-id="' + esc(c.id) + '">Mañana 9 h</button><button class="btn" data-recordar="lunes" data-id="' + esc(c.id) + '">El lunes</button></div>' : '') + '</div>' : '') +
       '<div class="ft"><button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
   }
+  /* Inputs en formato compacto: una línea cada uno, 3 acciones rápidas y el detalle completo al tocar el título. */
+  function filaInput(c) {
+    const p = inputPide(c), m = marca(c.m[0]) || { nombre: '' };
+    const pri = c.ia && c.ia.prioridad === 'alta' ? '<span class="pill bad">urgente</span>' : '';
+    const etiqueta = p === 'nuevo' ? '<span class="pill y">nuevo</span>' : p === 'pospuesto' ? '<span class="pill warn">te pediste acordarte</span>' : p === 'recordar' ? '<span class="pill">¿lo seguís necesitando?</span>' : '';
+    const est = c.estado && !p ? (c.estado.estado === 'recordar' ? 'vuelve ' + cuando(new Date(c.estado.detalle)) + ' ' + hm(new Date(c.estado.detalle)) : ({ procesado: 'procesado', project: 'hablado con el project', hecho: 'hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha)) : 'llegó ' + hace(c.act);
+    const acciones = S.reloj === c.id
+      ? '<div class="ia-acts"><span class="k">Recordame:</span><button class="btn" data-recordar="2h" data-id="' + esc(c.id) + '">en 2 h</button><button class="btn" data-recordar="manana" data-id="' + esc(c.id) + '">mañana 9 h</button><button class="btn" data-recordar="lunes" data-id="' + esc(c.id) + '">el lunes</button><button class="btn ghost" data-reloj="">✕</button></div>'
+      : '<div class="ia-acts">' + (p ? '<button class="btn y" data-inp="procesado" data-id="' + esc(c.id) + '" title="Ya lo procesé">✓ Listo</button><button class="btn" data-reloj="' + esc(c.id) + '" title="Recordámelo más tarde">⏰</button>' : '') +
+        '<button class="btn" data-crear="' + esc(c.id) + '" title="Crear la tarjeta en Trello">＋ Tarjeta</button></div>';
+    return '<div class="irow' + (p ? '' : ' visto') + '" id="in-' + esc(c.id) + '"><i class="ibar" style="background:' + color(c.m[0]) + '"></i>' +
+      '<div class="ibody"><button class="lnk it" data-det-input="' + esc(c.id) + '">' + esc(c.n) + '</button>' +
+      '<div class="mt"><span class="tag">' + esc(m.nombre) + '</span>' + etiqueta + pri + '<span>' + est + '</span>' + (c.att && c.att.length ? '<span>📎 ' + c.att.length + '</span>' : '') + (c.d ? '<span class="desc">' + esc(c.d.slice(0, 90)) + (c.d.length > 90 ? '…' : '') + '</span>' : '') + '</div></div>' + acciones + '</div>';
+  }
+  function detalleInput(c) {
+    panelLateral(esc(c.n), cardInput(c).replace('<article class="cardx"', '<article class="cardx en-panel"'));
+    const p = $('#drawer');
+    // al resolverlo desde el panel lateral, se cierra solo
+    p.addEventListener('click', e => { if (e.target.closest('[data-inp],[data-recordar],[data-archivar],[data-crear],[data-mover]')) setTimeout(cerrarPanel, 30); });
+  }
   function vInputs() {
     const pri = c => ({ alta: 3, media: 2, baja: 1 })[c.ia && c.ia.prioridad] || 2;
     const L = inputs().filter(c => pasa(c.m)).sort((a, b) => (!!inputPide(b) - !!inputPide(a)) || (pri(b) - pri(a)) || (new Date(b.act) - new Date(a.act)));
     const pend = L.filter(c => inputPide(c)), posp = L.filter(c => !inputPide(c) && c.estado && c.estado.estado === 'recordar'), resto = L.filter(c => !inputPide(c) && !(c.estado && c.estado.estado === 'recordar'));
     const brains = S.data.cards.filter(c => c.cat === 'brainstorming' && pasa(c.m));
-    return '<div class="sec"><div class="sec-h"><h2>Para revisar<small>' + pend.length + '</small></h2><button class="btn" data-crear-nueva>＋ Nueva tarjeta</button></div>' + (pend.length ? pend.map(cardInput).join('') : '<div class="empty">No hay inputs nuevos. Cuando el project cargue uno en Trello aparece acá con la lectura de la IA.</div>') + '</div>' +
-      (posp.length ? '<div class="sec"><div class="sec-h"><h2>Pospuestos<small>' + posp.length + '</small></h2><span class="act">Vuelven solos a "Para revisar" cuando llega la hora</span></div><div class="list">' + posp.sort((a, b) => a.estado.detalle.localeCompare(b.estado.detalle)).map(c => '<div class="row"><span class="ico">⏰</span><div><div class="tt"><button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button></div><div class="mt">' + tagM(c.m[0]) + '<span>vuelve ' + cuando(new Date(c.estado.detalle)) + ' ' + hm(new Date(c.estado.detalle)) + '</span></div></div><div><button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button></div></div>').join('') + '</div></div>' : '') +
-      (resto.length ? '<div class="sec"><div class="sec-h"><h2>Ya revisados<small>' + resto.length + '</small></h2></div>' + resto.map(cardInput).join('') + '</div>' : '') +
-      (brains.length ? '<div class="sec"><div class="sec-h"><h2>Brainstorming y campañas<small>' + brains.length + '</small></h2><a class="act" href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></div>' + brains.map(c => { const x = Object.assign({}, c); return cardInput(x).replace(/<div class="nudge">[\s\S]*?<\/div>/, '').replace(/<div class="ft">[\s\S]*<\/div><\/article>$/, '<div class="ft">' + btnClaude(c.id) + '<span class="sp"></span><span class="state">' + esc(c.lista) + '</span></div></article>'); }).join('') + '</div>' : '');
+    const nNuevos = pend.filter(c => inputPide(c) === 'nuevo').length;
+    const plegable = (id, titulo, n, cuerpo) => '<div class="sec"><button class="pliegue' + (S.abiertos[id] ? ' on' : '') + '" data-pliegue="' + id + '"><span>' + titulo + '<small>' + n + '</small></span><i>' + (S.abiertos[id] ? '−' : '+') + '</i></button>' + (S.abiertos[id] ? '<div class="ilist">' + cuerpo + '</div>' : '') + '</div>';
+    return '<div class="iresumen"><div><b>' + pend.length + '</b><span>para revisar' + (nNuevos ? ' · ' + nNuevos + (nNuevos === 1 ? ' nuevo' : ' nuevos') : '') + '</span></div><div><b>' + posp.length + '</b><span>pospuestos</span></div><div><b>' + resto.length + '</b><span>ya revisados</span></div><button class="btn" data-crear-nueva>＋ Nueva tarjeta</button></div>' +
+      '<div class="sec">' + (pend.length ? '<div class="ilist">' + pend.map(filaInput).join('') + '</div><p class="ayuda">Tocá el título para ver todo el input, la idea y más opciones (mover, hablar con el project, archivar, Claude).</p>' : '<div class="empty">Nada para revisar. Cuando el project cargue un input en Trello aparece acá.</div>') + '</div>' +
+      (posp.length ? plegable('posp', 'Pospuestos', posp.length, posp.sort((a, b) => a.estado.detalle.localeCompare(b.estado.detalle)).map(filaInput).join('')) : '') +
+      (resto.length ? plegable('rev', 'Ya revisados', resto.length, resto.map(filaInput).join('')) : '') +
+      (brains.length ? plegable('brain', 'Brainstorming y campañas', brains.length, brains.map(c => '<div class="irow visto"><i class="ibar" style="background:' + color(c.m[0]) + '"></i><div class="ibody"><button class="lnk it" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button><div class="mt"><span class="tag">' + esc((marca(c.m[0]) || {}).nombre || '') + '</span><span>' + esc(c.lista) + '</span></div></div><div class="ia-acts">' + btnClaude(c.id).split('</button>')[0] + '</button></div></div>').join('') + '<p class="ayuda"><a href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></p>') : '');
   }
 
   /* ---------------- vista REUNIONES ---------------- */
@@ -629,7 +652,10 @@
     root.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.copiar); if (c) copiar(promptTarjeta(c)); });
     root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
-    root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = b.dataset.todavia; render(); const el = document.getElementById('in-' + b.dataset.todavia); if (el) el.scrollIntoView({ block: 'nearest' }); });
+    root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = b.dataset.todavia; render(); if ($('#drawer')) { const c = S.data.cards.find(x => x.id === S.todavia); if (c) detalleInput(c); } });
+    root.querySelectorAll('[data-reloj]').forEach(b => b.onclick = () => { S.reloj = b.dataset.reloj || null; render(); });
+    root.querySelectorAll('[data-pliegue]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.pliegue] = !S.abiertos[b.dataset.pliegue]; render(); });
+    root.querySelectorAll('[data-det-input]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.detInput); if (c) detalleInput(c); });
     root.querySelectorAll('[data-recordar]').forEach(b => b.onclick = () => recordar(b.dataset.id, b.dataset.recordar));
     root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
@@ -701,7 +727,7 @@
     else { d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); } // el próximo lunes
     const antes = c.estado || null;
     c.estado = { estado: 'recordar', detalle: d.toISOString(), fecha: ahoraTxt() };
-    S.todavia = null; render();
+    S.todavia = null; S.reloj = null; render();
     try {
       await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado: 'recordar', detalle: d.toISOString() });
       toast('Te lo recuerdo ' + cuando(d) + ' a las ' + hm(d) + '.', async () => { c.estado = antes; render(); try { await post({ action: 'marcar', tipo: 'input', clave: 'inp:' + id, marca: c.m[0], estado: 'deshacer' }); } catch (e) {} });
