@@ -26,6 +26,7 @@ function onOpen() {
     .addItem('Cambiar clave del equipo', 'cambiarClaveEquipo')
     .addSeparator()
     .addItem('Cargar el token del bot de Discord', 'cargarClaveDiscord')
+    .addItem('Cargar la clave del puente de Discord', 'cargarClavePuente')
     .addToUi();
 }
 
@@ -33,14 +34,19 @@ function onOpen() {
    Un bot del estudio lee los últimos 50 mensajes de cada canal (y de los hilos activos) en cada actualización.
    Toma las menciones de los últimos 7 días: @persona y @everyone/@here. No puede leer mensajes directos. */
 function cargarClaveDiscord() { cambiarClave_('DISCORD_TOKEN', 'Discord · token del bot (Developer Portal → Bot → Reset Token)'); }
+function cargarClavePuente() { cambiarClave_('DISCORD_PUENTE_CLAVE', 'Discord · clave del puente (la misma que pusiste como CLAVE en Cloudflare)'); }
 function leerDiscord_(cfg, cat) {
+  // Discord bloquea a los servidores de Google: si hay puente (Worker de Cloudflare, ver discord-puente/worker.js) se pide por ahí,
+  // y el token del bot vive en el Worker; el panel solo manda la clave del puente.
+  const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clavePuente = P.getProperty('DISCORD_PUENTE_CLAVE');
   const token = P.getProperty('DISCORD_TOKEN'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
-  if (!token || !guild) return null;
+  if (!guild || (puente ? !clavePuente : !token)) return null;
   if (!/^\d{15,22}$/.test(guild)) throw new Error('DISCORD_SERVIDOR tiene que ser el ID del servidor (solo números), no el token');
-  const API = 'https://discord.com/api/v10', H = { Authorization: 'Bot ' + token };
+  const API = (puente || 'https://discord.com') + '/api/v10', H = puente ? { 'x-clave': clavePuente } : { Authorization: 'Bot ' + token };
+  const codigo = r => { try { return (JSON.parse(r.getContentText() || '{}') || {}).code || '-'; } catch (e) { return String(r.getContentText()).slice(0, 40); } };
   const get = ruta => {
     const r = UrlFetchApp.fetch(API + ruta, { headers: H, muteHttpExceptions: true });
-    if (r.getResponseCode() !== 200) throw new Error('Discord respondió ' + r.getResponseCode() + (ruta.indexOf('/channels') > 0 ? ' al leer los canales' : '') + ' (código ' + ((JSON.parse(r.getContentText() || '{}') || {}).code || '-') + ')');
+    if (r.getResponseCode() !== 200) throw new Error((puente ? 'El puente' : 'Discord') + ' respondió ' + r.getResponseCode() + (ruta.indexOf('/channels') > 0 ? ' al leer los canales' : '') + ' (' + codigo(r) + ')');
     return JSON.parse(r.getContentText());
   };
   const canales = get('/guilds/' + guild + '/channels').filter(c => c.type === 0 || c.type === 5);
@@ -493,6 +499,7 @@ function asegurarRutinas_() {
   // fila de Config para la contraseña de brainstormings (la completa el project en el Sheet)
   const cf = SpreadsheetApp.getActive().getSheetByName('Config');
   if (cf && rows_('Config').map(r => r[0]).indexOf('CLAVE_BRAINSTORMING') < 0) cf.appendRow(['CLAVE_BRAINSTORMING', '', 'Contraseña del equipo para la web de brainstormings: el panel se la muestra a quien entró con la clave del equipo']);
+  if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_PUENTE') < 0) cf.appendRow(['DISCORD_PUENTE', '', 'Dirección del Worker de Cloudflare que hace de puente con Discord (ej. https://panel-discord.tu-usuario.workers.dev)']);
   if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_SERVIDOR') < 0) cf.appendRow(['DISCORD_SERVIDOR', '', 'ID del servidor de Discord del equipo (Discord con modo desarrollador → clic derecho en el servidor → Copiar ID del servidor)']);
   // columna F de Equipo: usuario de Discord de cada uno (para sus menciones)
   const eqs = SpreadsheetApp.getActive().getSheetByName('Equipo');
