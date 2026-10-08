@@ -211,8 +211,10 @@
     const nRep = (D.reportes || []).filter(r => pasa(r.marca)).length;
     const fecha = DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()];
     const saludo = hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
-    // marcas: un solo selector en vez de una fila larga de botones
-    const selMarca = '<label class="selm"><span class="dot" style="background:' + (S.marca === 'todas' ? 'var(--y)' : color(S.marca)) + '"></span><select id="selm" aria-label="Marca">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<option value="' + s + '"' + (S.marca === s ? ' selected' : '') + '>' + (s === 'todas' ? 'Todas las marcas' : esc(marca(s).nombre)) + '</option>').join('') + '</select></label>';
+    // marcas: un botón que abre una lista con el color de cada marca (igual en la compu y en el celular)
+    const nomMarca = S.marca === 'todas' ? 'Todas las marcas' : esc((marca(S.marca) || {}).nombre || S.marca);
+    const selMarca = '<div class="mpop" id="mpop"><button class="mpop-b" data-mpop aria-haspopup="listbox"><span class="dot" style="background:' + (S.marca === 'todas' ? 'var(--y)' : color(S.marca)) + '"></span><span class="mpop-n">' + nomMarca + '</span><i>▾</i></button>' +
+      '<div class="mpop-l hidden" role="listbox">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="mpop-i' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '" role="option"><span class="dot" style="background:' + (s === 'todas' ? 'var(--y)' : color(s)) + '"></span>' + (s === 'todas' ? 'Todas las marcas' : esc(marca(s).nombre)) + (S.marca === s ? '<em>✓</em>' : '') + '</button>').join('') + '</div></div>';
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa();
     if (ivo && ['revision', 'guiones', 'discord'].indexOf(S.tab) < 0) S.tab = 'revision';
@@ -220,17 +222,17 @@
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
     const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas }[S.tab] || vHoy)(t);
-    // la misma navegación en la compu y en el celular: 5 lugares (Ivo: 3)
-    const nMas = guionAtencion() + dcSinVer().length;
+    // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
+    const nMas = guionAtencion() + nReu;
     const nav = ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
-      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid, nMas, nMas > 0]];
-    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord', 'mas'].indexOf(S.tab) >= 0;
+      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]];
+    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
     const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
     const portada = S.tab === (ivo ? 'revision' : 'hoy');
     const head = portada
       ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
-      : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
+      : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
     app.innerHTML = S.movil
@@ -339,7 +341,7 @@
     const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || x.tipo === 'guion')
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : x.tipo === 'guion' ? I.pen : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
-    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div class="acc">' + (!done && x.k && !esRevisa() ? '<button class="star' + (esPrio(x.k) ? ' on' : '') + '" data-star="' + esc(x.k) + '" title="Prioridad de hoy">' + (esPrio(x.k) ? '★' : '☆') + '</button>' : '') + accion + '</div></div>';
   }
   function vHoy(t) {
     const pend = t.filter(x => !hecho(x.obj)), done = t.filter(x => hecho(x.obj));
@@ -404,7 +406,18 @@
     const k = diaKey(NOW), dias = LS.get('racha', []);
     if (dias.indexOf(k) < 0) { dias.push(k); LS.set('racha', dias.slice(-200)); }
     // queda en la pestaña Registro del Sheet: el project ve quién arranca el día con el panel
-    if (!DEMO) post({ action: 'marcar', tipo: 'plan', clave: 'plan:' + k, marca: '', estado: 'hecho', periodo: k, detalle: 'eligió ' + (S.prioSel || []).length + ' prioridades' }).catch(() => {});
+    if (!DEMO) post({ action: 'marcar', tipo: 'plan', clave: 'plan:' + k, marca: '', estado: 'hecho', periodo: k, detalle: 'marcó sus prioridades del día' }).catch(() => {});
+  }
+  // estrella de una tarea: entra o sale de las prioridades de hoy (tope 5; la primera del día suma racha)
+  const esPrio = k => { const p = LS.get('plan', {}); return p.dia === hoyId() && (p.ids || []).indexOf(k) >= 0; };
+  function togglePrio(k) {
+    const plan = LS.get('plan', {}), hoyPlan = plan.dia === hoyId(), ids = hoyPlan ? (plan.ids || []).slice() : [];
+    const i = ids.indexOf(k), primera = !ids.length;
+    if (i >= 0) ids.splice(i, 1);
+    else { if (ids.length >= 5) { toast('Con 3 prioridades alcanza: sacá una antes de sumar otra.'); return; } ids.push(k); }
+    LS.set('plan', { dia: hoyId(), ids, skip: !!(hoyPlan && plan.skip) });
+    if (primera && ids.length) { sumarRacha(); confeti(); const n = racha(); toast(n > 1 ? '🔥 ' + n + ' días seguidos marcando prioridades. ¡Seguí así!' : '⭐ Primera prioridad del día. Mañana suma racha.'); }
+    render();
   }
   // hora del día para la línea de tiempo (solo lo que pasa hoy y tiene horario)
   const horaDe = x => { const o = x.obj || {}; let d = null;
@@ -414,23 +427,20 @@
     return d && diasA(d) === 0 ? d : null; };
   const diaDe = x => { const o = x.obj || {}; const d = x.tipo === 'card' ? o.due : x.tipo === 'reporte' ? o.vence : x.tipo === 'evento' ? o.s : x.tipo === 'guion' ? o.entrega : null; return d ? diasA(new Date(d)) : 0; };
   function miDia(t, pend, done) {
-    const plan = LS.get('plan', {}), prioIds = plan.dia === hoyId() ? plan.ids : null, porK = {};
+    // prioridades del día: opcionales. Se marcan con la estrella de cada tarea; la primera del día suma racha.
+    const plan = LS.get('plan', {}), hoyPlan = plan.dia === hoyId(), prioIds = hoyPlan ? (plan.ids || []) : [], porK = {};
     t.forEach(x => porK[x.k] = x);
     let arranque = '', cuerpo = '';
-    if (!prioIds && pend.length) {
-      const sug = pend.slice().sort((a, b) => b.u - a.u).slice(0, S.movil ? 6 : 8);
-      if (!S.prioSel) S.prioSel = sug.slice(0, 3).map(x => x.k);
-      const n = S.prioSel.length;
-      arranque = '<div class="arranque"><div class="arr-h"><span class="kick">— Arrancá el día' + (racha() ? ' · 🔥 racha de ' + racha() + (racha() === 1 ? ' día' : ' días') + ', no la cortes' : '') + '</span><h3>¿Cuáles son tus 3 prioridades de hoy?</h3><p>Te marqué las más urgentes. Tocá para cambiarlas.' + (pend.length > 15 ? ' <b>Tenés ' + pend.length + ' cosas: es mucho para un día, elegí bien.</b>' : '') + '</p></div>' +
-        '<div class="arr-l">' + sug.map(x => { const i = S.prioSel.indexOf(x.k); return '<button class="arr-i' + (i >= 0 ? ' on' : '') + '" data-prio="' + esc(x.k) + '"><i style="background:' + color(x.marca) + '"></i><span>' + esc(x.t) + '</span><em>' + (i >= 0 ? i + 1 : '') + '</em></button>'; }).join('') + '</div>' +
-        '<div class="arr-a">' + (n > 3 ? '<span class="arr-w">Elegiste ' + n + ': con 3 alcanza</span>' : '') + '<button class="btn ghost" data-prio-skip>Ahora no</button><button class="btn y" data-prio-ok' + (n ? '' : ' disabled') + '>Listo, a trabajar →</button></div></div>';
+    if (!prioIds.length && !(hoyPlan && plan.skip) && pend.length) {
+      arranque = '<div class="arr-mini"><span class="arr-ic">☆</span><div><b>¿Querés marcar tus prioridades de hoy?</b><small>Es opcional. Tocá la estrella de las tareas que querés hacer primero (con 3 alcanza) y quedan arriba de todo.' + (racha() ? ' 🔥 Llevás ' + racha() + (racha() === 1 ? ' día' : ' días') + ' seguidos.' : '') + '</small></div><button class="btn ghost" data-prio-skip>Hoy no</button></div>';
     }
-    const prio = (prioIds || []).map(k => porK[k]).filter(Boolean), enPrio = {};
+    const prio = prioIds.map(k => porK[k]).filter(Boolean), enPrio = {};
     prio.forEach(x => enPrio[x.k] = 1);
     if (prio.length) {
       const ok = prio.filter(x => hecho(x.obj)).length;
-      cuerpo += '<div class="sec prios"><div class="sec-h"><h2>Tus prioridades<small>' + ok + ' de ' + prio.length + '</small></h2><button class="act lnk" data-prio-reset>cambiar</button></div><div class="list">' + prio.map(fila).join('') + '</div></div>';
+      cuerpo += '<div class="sec prios"><div class="sec-h"><h2>Tus prioridades<small>' + ok + ' de ' + prio.length + '</small></h2><button class="act lnk" data-prio-reset>quitar todas</button></div><div class="list">' + prio.map(fila).join('') + '</div></div>';
     }
+
     const resto = pend.filter(x => !enPrio[x.k]);
     const conHora = resto.map(x => ({ x, h: horaDe(x) })).filter(o => o.h).sort((a, b) => a.h - b.h);
     const sinHora = resto.filter(x => !horaDe(x));
@@ -645,16 +655,22 @@
     const c = S.data.cards.find(x => x.id === id); if (!c) return;
     panelLateral(esc(c.n), '<div class="pz-cargando">Trayendo la tarjeta de Trello…</div>');
     let v = null;
-    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ id: 'a1', card: 'p1', n: 'placa-1.png', u: '#', ver: true, subido: true }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
+    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ id: 'a1', card: 'p1', n: 'placa-1.png', u: '#', ver: true, subido: true, src: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#FFF200"/><text x="50%" y="45%" font-size="90" text-anchor="middle" font-family="Impact" fill="#0A0A0A">PROMO</text><text x="50%" y="58%" font-size="60" text-anchor="middle" font-family="Arial" fill="#0A0A0A">10% OFF</text></svg>') }, { n: 'reel-promo.mp4', u: '#', video: true, subido: true, src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
     catch (e) { const b = $('#drawer .dw-b'); if (b) b.innerHTML = '<div class="empty">No pude traer la tarjeta: ' + esc(e.message) + '</div>'; return; }
     const p = v.pieza || {}, o = v.original || {};
     const adj = (p.att || []).concat(o.att || []);
     const coms = (p.com || []).concat(o.com || []).sort((a, b) => b.f.localeCompare(a.f)).slice(0, 6);
     const html =
       '<div class="mt" style="margin-bottom:12px">' + tagM(c.m[0]) + '<span class="pill">' + esc(c.tablero || '') + '</span>' + (c.salida ? '<span>sale ' + cuando(new Date(c.salida)) + '</span>' : '') + '</div>' +
-      (adj.length ? '<div class="dw-l">Lo que cargaron</div><div class="pz-adj">' + adj.map((a, i) => a.ver
-        ? '<div class="pz-prev' + (i === 0 ? ' grande' : '') + '" data-att="' + esc(a.id) + '" data-card="' + esc(a.card) + '"><div class="pz-ph">Cargando vista previa…</div><div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span><a href="' + esc(a.u) + '" target="_blank" rel="noopener">abrir ↗</a></div></div>'
-        : '<a href="' + esc(a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + (a.video ? '🎬' : I.clip) + '<span>' + esc(a.n) + '</span><em>' + (a.subido ? 'abrir en Trello' : 'abrir link') + ' ↗</em></a>').join('') + '</div>' : '<div class="empty" style="padding:12px 0">La tarjeta no tiene archivos adjuntos.</div>') +
+      (adj.length ? '<div class="dw-l">Lo que cargaron</div><div class="pz-adj">' + adj.map((a, i) => {
+        const pie = '<div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span><a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener">abrir ↗</a></div>';
+        // con el puente de Cloudflare el archivo llega directo (sin login en Trello): video que se reproduce acá, imagen que se agranda al tocar
+        if (a.src && a.video) return '<div class="pz-prev grande vid"><video controls playsinline preload="metadata" src="' + esc(a.src) + '"></video>' + pie + '</div>';
+        if (a.src && (a.ver || /^image\//.test(a.mime))) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + ' directa"><img src="' + esc(a.src) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'sin\')">' + pie + '</div>';
+        // sin puente: la imagen la trae el servidor del panel; lo demás queda como link
+        if (a.ver) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + '" data-att="' + esc(a.id) + '" data-card="' + esc(a.card) + '"><div class="pz-ph">Cargando vista previa…</div>' + pie + '</div>';
+        return '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + (a.video ? '🎬' : I.clip) + '<span>' + esc(a.n) + '</span><em>' + (a.src ? 'ver' : a.subido ? 'abrir en Trello' : 'abrir link') + ' ↗</em></a>';
+      }).join('') + '</div>' : '<div class="empty" style="padding:12px 0">La tarjeta no tiene archivos adjuntos.</div>') +
       (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + esc(o.d) + '</div>' : '') +
       (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
       '<div id="pzcoms">' + (coms.length ? '<div class="dw-l">Comentarios</div>' + coms.map(x => '<div class="pz-com"><b>' + esc(x.q) + '</b> <small>' + hace(x.f) + '</small><div>' + esc(x.t) + '</div></div>').join('') : '') + '</div>' +
@@ -690,7 +706,9 @@
       $('#pzcomb').disabled = false;
     };
     // vistas previas: el servidor baja cada archivo de Trello y lo devuelve como imagen; tocándola se ve en grande
-    b.querySelectorAll('.pz-prev').forEach(async el => {
+    const zoom = src => { const z = document.createElement('div'); z.className = 'pz-zoom'; z.innerHTML = '<img src="' + src + '" alt="">'; z.onclick = () => z.remove(); document.body.appendChild(z); };
+    b.querySelectorAll('.pz-prev.directa img').forEach(img => img.onclick = () => zoom(img.src));
+    b.querySelectorAll('.pz-prev:not(.directa):not(.vid)').forEach(async el => {
       const ph = el.querySelector('.pz-ph');
       try {
         const r = DEMO ? { ok: true, data: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#FFF200"/><text x="50%" y="45%" font-size="90" text-anchor="middle" font-family="Impact" fill="#0A0A0A">PROMO</text><text x="50%" y="58%" font-size="60" text-anchor="middle" font-family="Arial" fill="#0A0A0A">10% OFF</text></svg>') } : await post({ action: 'adjunto', cardId: el.dataset.card, attId: el.dataset.att });
@@ -1023,14 +1041,15 @@
     const pend = G.filter(g => g.gest === 'pendiente' && g.entrega).sort((a, b) => new Date(a.entrega) - new Date(b.entrega));
     const rev = G.filter(g => g.gest === 'revisar'), corr = G.filter(g => g.gest === 'correccion'), apr = G.filter(g => g.gest === 'aprobado');
     const fila = (g, extra) => '<div class="row"><span class="ico">' + I.pen + '</span><div><div class="tt"><a class="lnk" href="' + esc(g.ourl || g.url) + '" target="_blank" rel="noopener">' + esc(g.n) + '</a></div><div class="mt">' + tagM(g.m[0]) + extra + (g.salida ? '<span>' + (diasA(new Date(g.salida)) < 0 ? 'salió ' : 'sale ') + dm(new Date(g.salida)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(g.url) + '" target="_blank" rel="noopener" title="Abrir en el tablero de guiones">' + I.out + '</a></div></div>';
-    const sec = (t, sub, L, f, vacio) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + L.length + '</small></h2>' + (sub ? '<span class="act">' + sub + '</span>' : '') + '</div>' + (L.length ? '<div class="list">' + L.map(f).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
-    return '<div class="gcomo"><b>Cómo va:</b> presentan la idea en la reunión del lunes → la aprueban en SCL <u>con fecha de inicio</u> (= entrega del guion, el lunes siguiente) → Fede la recibe en su tablero → la entrega → la ven en la reunión. Próxima reunión: <b>' + cuando(lun) + '</b>.</div>' +
-      (sinFecha.length ? sec('Sin fecha de entrega', 'Ponele fecha de inicio a la tarjeta en SCL', sinFecha, g => fila(g, '<span class="pill bad">falta fecha de inicio</span>'), '') : '') +
-      sec('Fede tiene que entregar', 'La fecha de inicio de la tarjeta es la entrega', pend, g => { const n = diasA(new Date(g.entrega)); return fila(g, '<span' + (n < 0 ? ' class="pill bad">atrasado · era el ' + dm(new Date(g.entrega)) : (n <= 1 ? ' class="pill warn">entrega ' : '>entrega ') + cuando(new Date(g.entrega))) + '</span>'); }, 'Nada pendiente de entrega.') +
-      sec('Listos para ver en la reunión', 'Lunes ' + dm(lun), rev, g => fila(g, '<span class="pill y">entregado · a revisar</span>'), 'Nada para revisar todavía.') +
-      (corr.length ? sec('En corrección', 'Fede los está ajustando', corr, g => fila(g, '<span>en corrección</span>'), '') : '') +
-      (yaSalio.length ? sec('Ya salió · ordenar en Trello', 'Se publicó pero la tarjeta sigue en el tablero de guiones: pasala a Aprobado o archivala', yaSalio, g => fila(g, '<span class="pill ok">ya se publicó</span><span>sigue en ' + esc(g.lista) + '</span>'), '') : '') +
-      (apr.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.gapr ? ' on' : '') + '" data-pliegue="gapr"><span>Aprobados esta semana<small>' + apr.length + '</small></span><i>' + (S.abiertos.gapr ? '−' : '+') + '</i></button>' + (S.abiertos.gapr ? '<div class="list">' + apr.map(g => fila(g, '<span class="pill ok">aprobado</span>')).join('') + '</div>' : '') + '</div>' : '');
+    // cada card dice en qué está el guion y qué hay que hacer: "👉 Vos" = te toca a vos · "⏳" = esperás a Fede
+    const sec = (t, quien, que, L, f, vacio, def) => L.length || vacio ? tarjeta('gu:' + t, t, L.length, quien === 'vos' && L.length ? 'te toca' : '', def != null ? def : L.length > 0, () => '<p class="que' + (quien === 'vos' ? ' vos' : '') + '">' + (quien === 'vos' ? '👉 <b>Vos:</b> ' : '⏳ ') + que + '</p>' + (L.length ? L.map(f).join('') : '<div class="empty">' + vacio + '</div>'), I.pen) : '';
+    return '<div class="gpasos"><span><b>1</b>Presentan la idea<small>reunión del lunes</small></span><i>→</i><span><b>2</b>La aprueban en SCL<small>con fecha de inicio</small></span><i>→</i><span><b>3</b>Fede escribe<small>7 días</small></span><i>→</i><span><b>4</b>La ven juntos<small>' + cuando(lun) + '</small></span></div>' +
+      sec('Sin fecha de entrega', 'vos', 'abrí la tarjeta en SCL y ponele <b>fecha de inicio</b> (el lunes que viene). Sin eso Fede no sabe cuándo tiene que entregar.', sinFecha, g => fila(g, '<span class="pill bad">sin fecha · ponésela vos</span>'), '') +
+      sec('Fede tiene que entregar', 'fede', 'no hacés nada por ahora. Si figura <b>atrasado</b>, recordáselo por Discord.', pend, g => { const n = diasA(new Date(g.entrega)); return fila(g, n < 0 ? '<span class="pill bad">Fede atrasado · era el ' + dm(new Date(g.entrega)) + '</span>' : '<span' + (n <= 1 ? ' class="pill warn"' : '') + '>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>'); }, 'Fede no tiene guiones pendientes.', pend.some(g => diasA(new Date(g.entrega)) < 0)) +
+      sec('Listos para ver en la reunión', 'vos', 'leelos antes del <b>' + cuando(lun) + '</b> y anotá qué cambiarías. En la reunión se aprueban o van a corrección.', rev, g => fila(g, '<span class="pill y">listo · leelo antes del lunes</span>'), 'Todavía no hay guiones entregados para esta semana.') +
+      sec('En corrección', 'fede', 'Fede los está ajustando con lo que le marcaron. Cuando los vuelva a entregar aparecen en "Listos para ver".', corr, g => fila(g, '<span>Fede corrigiendo</span>'), '') +
+      sec('Ya salió · ordenar en Trello', 'vos', 'se publicó pero la tarjeta sigue en el tablero de guiones: pasala a <b>Aprobado</b> o archivala, así Fede no la ve como pendiente.', yaSalio, g => fila(g, '<span class="pill ok">ya salió</span><span>sigue en ' + esc(g.lista) + '</span>'), '') +
+      sec('Aprobados esta semana', 'fede', 'listos para grabar: ya pasaron a Producción.', apr, g => fila(g, '<span class="pill ok">aprobado</span>'), '', false);
   }
 
   /* ---------------- vista MÁS (celular): lo que en la compu va al costado ---------------- */
@@ -1038,7 +1057,7 @@
     const nVen = vencidas().length, nF = proximasFechas(30).length;
     const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
     return '<div class="mas-g">' +
-      t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' menciones nuevas' : 'tus menciones') + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, nVen ? nVen + ' vencidas' : 'Vencidas', 'últimos 15 días') +
+      (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, nVen ? nVen + ' vencidas' : 'Vencidas', 'últimos 15 días') +
       t('data-fechas', I.star, nF + ' fechas', 'próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-claude-plan', I.msg, 'Plan del día', 'con Claude') +
       '</div>' + costado(true);
@@ -1084,24 +1103,27 @@
 
   /* ---------------- vista MARCAS ---------------- */
   function vMarcas() {
-    const D = S.data;
-    return '<div class="brands">' + D.marcas.filter(m => pasa(m.slug)).map(m => {
-      const cv = (D.cobertura || {})[m.slug] || {};
-      const cs = D.cards.filter(c => c.m[0] === m.slug);
-      const nInp = cs.filter(c => c.cat === 'input' && (!c.tipo || c.tipo === 'scl') && inputPide(c)).length, nCorr = cs.filter(c => c.cat === 'corr').length;
-      const efs = cs.filter(c => c.cat === 'efem' && diasA(new Date(c.due)) >= 0).sort((a, b) => new Date(a.due) - new Date(b.due));
-      const nVen = cs.filter(c => ['trabajo', 'urgente', 'espera'].includes(c.cat)).length;
-      let cov = '<div class="cov"><div class="l"><span>Calendario cargado</span><b>sin fechas</b></div><div class="bar"><i class="bad" style="width:4%"></i></div></div>';
+    const D = S.data, nom = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones' };
+    const L = D.marcas.filter(m => pasa(m.slug));
+    // una card cerrada por marca: en el título va la barra del calendario cargado; adentro, tableros, contadores y fechas
+    return '<p class="ayuda" style="margin:0 0 12px">Tocá una marca para ver sus tableros, hasta dónde está cargado el calendario y las fechas que le sirven.</p><div class="mlist">' + L.map(m => {
+      const cv = (D.cobertura || {})[m.slug] || {}, cs = D.cards.filter(c => c.m[0] === m.slug);
+      const nInp = cs.filter(c => c.cat === 'input' && (!c.tipo || c.tipo === 'scl') && inputPide(c)).length, nCorr = cs.filter(c => c.cat === 'corr').length, nVen = cs.filter(c => ['trabajo', 'urgente', 'espera'].includes(c.cat)).length;
+      let pct = 4, cl = 'bad', txt = 'Sin fechas cargadas en el calendario editorial.', falta = 99;
       if (cv.hasta) {
         const total = Math.max(1, Math.round((ymdD(cv.objetivo) - sod(NOW)) / 864e5)), lleno = Math.round((ymdD(cv.hasta) - sod(NOW)) / 864e5);
-        const pct = Math.max(3, Math.min(100, Math.round(lleno / total * 100))), falta = total - lleno;
-        cov = '<div class="cov"><div class="l"><span>Calendario hasta el <b>' + dm(ymdD(cv.hasta)) + '</b></span><span>' + (cv.entrega ? 'entrega ' + dm(ymdD(cv.entrega)) + ' → hasta ' : 'objetivo ') + dm(ymdD(cv.objetivo)) + '</span></div><div class="bar"><i class="' + (falta > 7 ? 'bad' : falta > 0 ? 'warn' : '') + '" style="width:' + pct + '%"></i><u></u></div></div>';
+        pct = Math.max(3, Math.min(100, Math.round(lleno / total * 100))); falta = total - lleno; cl = falta > 7 ? 'bad' : falta > 0 ? 'warn' : 'ok';
+        txt = 'Calendario cargado hasta el <b>' + dm(ymdD(cv.hasta)) + '</b>' + (cv.entrega ? ' · en la entrega del ' + dm(ymdD(cv.entrega)) + ' tiene que llegar al <b>' + dm(ymdD(cv.objetivo)) + '</b>' : ' · objetivo <b>' + dm(ymdD(cv.objetivo)) + '</b>') + (falta > 0 ? ' · <span class="rojo">faltan ' + falta + ' días</span>' : ' · ✓ cubierto');
       }
-      const nom = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones' };
-      return '<div class="brand"><h4><i style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</h4>' + cov +
-        '<div class="stats"><div><b>' + nInp + '</b><small>inputs</small></div><div><b>' + nCorr + '</b><small>correcciones</small></div><div><b>' + nVen + '</b><small>por vencer</small></div><div><b>' + efs.length + '</b><small>efemérides</small></div></div>' +
-        '<div class="boards">' + m.tableros.map(b => '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + (nom[b.tipo] || b.tipo) + ' ↗</a>').join('') + '</div>' +
-        (() => { const fm = proximasFechas(60).filter(f => f.marcas.indexOf(m.slug) >= 0).slice(0, 5); return fm.length ? '<div class="dw-l" style="margin-top:16px">Fechas que le sirven · 60 días</div>' + fm.map(f => '<button class="fecha mini" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'sugerida' ? 'sugerida por rubro' : f.enCalendario ? 'en el calendario' : 'en Trello · falta en el calendario') + '</small></span></button>').join('') : ''; })() + '</div>';
+      const k = 'mk:' + m.slug, abierta = S.abiertos[k] != null ? S.abiertos[k] : L.length === 1;
+      const fm = proximasFechas(60).filter(f => f.marcas.indexOf(m.slug) >= 0).slice(0, 4);
+      return '<div class="mcar mk' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + k + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:' + color(m.slug) + '"></span><b>' + esc(m.nombre) + '</b>' +
+        '<span class="mk-bar ' + cl + '"><i style="width:' + pct + '%"></i></span><small>' + (cv.hasta ? 'hasta ' + dm(ymdD(cv.hasta)) : 'sin calendario') + '</small>' + (nInp + nCorr ? '<em>' + (nInp ? nInp + ' input' + (nInp > 1 ? 's' : '') : '') + (nInp && nCorr ? ' · ' : '') + (nCorr ? nCorr + ' correc.' : '') + '</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
+        (abierta ? '<div class="mk-b"><p class="mk-cov">' + txt + '</p>' +
+          '<div class="stats"><div><b>' + nInp + '</b><small>inputs</small></div><div><b>' + nCorr + '</b><small>correcciones</small></div><div><b>' + nVen + '</b><small>por vencer</small></div></div>' +
+          '<div class="boards">' + m.tableros.map(b => '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + (nom[b.tipo] || b.tipo) + ' ↗</a>').join('') + '</div>' +
+          (fm.length ? '<div class="dw-l" style="margin-top:14px">Fechas que le sirven · 60 días</div>' + fm.map(f => '<button class="fecha mini" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'sugerida' ? 'sugerida por rubro' : f.enCalendario ? 'en el calendario' : 'en Trello · falta en el calendario') + '</small></span></button>').join('') : '') +
+          '</div>' : '') + '</div>';
     }).join('') + '</div>';
   }
 
@@ -1130,7 +1152,10 @@
   function bind(root) {
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
-    const sm = $('#selm', root); if (sm) sm.onchange = () => { S.marca = sm.value; render(); };
+    // lista de marcas: se abre con el botón y se cierra al elegir o al tocar afuera
+    const mp = $('[data-mpop]', root); if (mp) mp.onclick = e => { e.stopPropagation(); const l = $('.mpop-l', root); l.classList.toggle('hidden'); if (!l.classList.contains('hidden')) document.addEventListener('click', function f() { l.classList.add('hidden'); document.removeEventListener('click', f); }, { once: true }); };
+    // estrella: marcar o sacar una prioridad del día (la primera del día suma racha)
+    root.querySelectorAll('[data-star]').forEach(b => b.onclick = e => { e.stopPropagation(); togglePrio(b.dataset.star); });
     root.querySelectorAll('[data-check]').forEach(b => b.onclick = () => marcar(b.dataset.check));
     root.querySelectorAll('[data-agendar]').forEach(b => b.onclick = () => agendar(b.dataset.agendar));
     root.querySelectorAll('[data-ver-input]').forEach(b => b.onclick = () => { S.tab = 'inputs'; LS.set('tab', 'inputs'); render(); const el = document.getElementById('in-' + b.dataset.verInput); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
@@ -1172,10 +1197,8 @@
     root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
     // "Arrancá el día": elegir prioridades
-    root.querySelectorAll('[data-prio]').forEach(b => b.onclick = () => { const k = b.dataset.prio, i = S.prioSel.indexOf(k); if (i >= 0) S.prioSel.splice(i, 1); else S.prioSel.push(k); render(); });
-    root.querySelectorAll('[data-prio-ok]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: S.prioSel.slice(0, 5) }); sumarRacha(); confeti(); render(); const n = racha(); toast(n > 1 ? '🔥 ' + n + ' días seguidos arrancando el día. ¡Seguí así!' : '🔥 Arrancaste el día. Mañana suma racha.'); });
-    root.querySelectorAll('[data-prio-skip]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [] }); render(); });
-    root.querySelectorAll('[data-prio-reset]').forEach(b => b.onclick = () => { LS.set('plan', {}); S.prioSel = null; render(); });
+    root.querySelectorAll('[data-prio-skip]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [], skip: true }); render(); });
+    root.querySelectorAll('[data-prio-reset]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [], skip: true }); render(); });
     root.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { S.segSem = b.dataset.seg; render(); });
     root.querySelectorAll('[data-diasem]').forEach(b => b.onclick = () => { S.diaSem = Number(b.dataset.diasem); render(); });
     root.querySelectorAll('[data-celda]').forEach(b => b.onclick = () => marcarCelda(b.dataset.celda));

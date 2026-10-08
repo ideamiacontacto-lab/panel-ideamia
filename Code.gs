@@ -1052,7 +1052,7 @@ function doPost(e) {
         const ver = id => { if (!id) return null; try {
           const c = trello_('/cards/' + id, { fields: 'name,desc,due,shortUrl', attachments: 'true', attachment_fields: 'id,name,url,mimeType,isUpload,bytes,previews', actions: 'commentCard', actions_limit: 6, action_fields: 'data,date', action_memberCreator_fields: 'fullName' });
           return { id: c.id, n: c.name, d: String(c.desc || '').slice(0, 2500), due: c.due, url: c.shortUrl,
-            att: (c.attachments || []).slice(0, 12).map(a => ({ id: a.id, card: c.id, n: a.name, u: a.url, mime: a.mimeType || '', subido: !!a.isUpload,
+            att: (c.attachments || []).slice(0, 12).map(a => ({ id: a.id, card: c.id, n: a.name, u: a.url, mime: a.mimeType || '', subido: !!a.isUpload, src: linkAdjunto_(c.id, a),
               ver: !!a.isUpload && (/^image\//.test(a.mimeType || '') || /\.(png|jpe?g|gif|webp)$/i.test(a.name || '') || (a.previews || []).length > 0),
               video: /^video\//.test(a.mimeType || '') || /\.(mp4|mov|webm)$/i.test(a.name || '') })),
             com: (c.actions || []).map(a => ({ t: (a.data || {}).text || '', f: a.date, q: (a.memberCreator || {}).fullName || '' })) };
@@ -1105,4 +1105,25 @@ function doPost(e) {
 function quitarDeSnapshot_(cardId) {
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
   if (snap.cards) { snap.cards = snap.cards.filter(c => c.id !== cardId); guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap); }
+  // también de los paneles ya armados de cada persona: si no, la tarjeta vuelve a aparecer hasta la próxima actualización
+  try {
+    const bases = leerJson_('BASES_FILE_ID', 'panel-ideamia-bases.json'); let cambio = false;
+    Object.keys(bases).forEach(k => {
+      const b = bases[k]; if (!b || !b.cards) return;
+      const n = b.cards.length; b.cards = b.cards.filter(c => c.id !== cardId);
+      if (b.cards.length !== n) { cambio = true; cachePut_('base:' + k, b); }
+    });
+    if (cambio) guardarJson_('BASES_FILE_ID', 'panel-ideamia-bases.json', bases);
+  } catch (e) {}
+}
+
+/* Link firmado para ver un adjunto de Trello (imagen o video) a través del puente de Cloudflare, sin estar logueado en Trello.
+   El puente verifica la firma con la misma CLAVE y baja el archivo con las claves de Trello que tiene guardadas. Vence a las 6 horas. */
+function linkAdjunto_(cardId, a) {
+  const cfg = config_(), puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE');
+  if (!puente || !clave || !a.isUpload) return null;
+  const exp = Math.floor(Date.now() / 1000) + 6 * 3600;
+  const sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(cardId + '|' + a.id + '|' + exp, clave)).replace(/=+$/, '');
+  const nombre = String(a.url || '').split('/').pop() || encodeURIComponent(a.name || 'archivo');
+  return puente + '/trello/att/' + cardId + '/' + a.id + '/' + exp + '/' + sig + '?n=' + nombre;
 }
