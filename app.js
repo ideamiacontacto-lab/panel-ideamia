@@ -103,7 +103,8 @@
     const f = c.estado.fecha ? new Date(c.estado.fecha.replace(' ', 'T')) : NOW;
     return (NOW - f) / 864e5 >= (S.data.ajustes.inputDias || 3) ? 'recordar' : null;
   }
-  const inputs = () => S.data.cards.filter(c => c.cat === 'input' && !(c.estado && c.estado.estado === 'archivado'));
+  // solo los inputs de los tableros SCL (los del Project son viejos)
+  const inputs = () => S.data.cards.filter(c => c.cat === 'input' && (!c.tipo || c.tipo === 'scl') && !(c.estado && c.estado.estado === 'archivado'));
   const reuPend = () => S.data.reuniones.filter(r => !hecho(r));
 
   /* ---------------- tareas de hoy ---------------- */
@@ -724,7 +725,7 @@
     return '<div class="brands">' + D.marcas.filter(m => pasa(m.slug)).map(m => {
       const cv = (D.cobertura || {})[m.slug] || {};
       const cs = D.cards.filter(c => c.m[0] === m.slug);
-      const nInp = cs.filter(c => c.cat === 'input' && inputPide(c)).length, nCorr = cs.filter(c => c.cat === 'corr').length;
+      const nInp = cs.filter(c => c.cat === 'input' && (!c.tipo || c.tipo === 'scl') && inputPide(c)).length, nCorr = cs.filter(c => c.cat === 'corr').length;
       const efs = cs.filter(c => c.cat === 'efem' && diasA(new Date(c.due)) >= 0).sort((a, b) => new Date(a.due) - new Date(b.due));
       const nVen = cs.filter(c => ['trabajo', 'urgente', 'espera'].includes(c.cat)).length;
       let cov = '<div class="cov"><div class="l"><span>Calendario cargado</span><b>sin fechas</b></div><div class="bar"><i class="bad" style="width:4%"></i></div></div>';

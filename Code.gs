@@ -575,6 +575,8 @@ function panel_(personaClave, ctx) {
   const enVentana = (c, dias) => c.due && !c.dc && new Date(c.due) >= hace15 && new Date(c.due) <= new Date(hoy.getTime() + dias * 864e5);
   const limiteEfem = new Date(hoy.getTime() + ajustes.efemDias * 864e5), ayer = new Date(hoy.getTime() - 864e5);
   const cards = todas.filter(c => {
+    // los inputs salen solo de los tableros SCL (en el Project y en los otros tableros quedan pedidos viejos)
+    if (c.cat === 'input' && c.tipo !== 'scl') return false;
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
