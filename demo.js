@@ -19,6 +19,12 @@ window.PANEL_DEMO = (function () {
   marcas.forEach(m => m.tableros.forEach((t, i) => { t.id = m.slug + "-" + t.tipo; t.listas = (LISTAS[t.tipo] || LISTAS.scl).map((n, j) => ({ id: t.id + "-l" + j, n, cat: /aprobad|publicad|programado/i.test(n) ? "hecho" : /input/i.test(n) ? "input" : /correcc/i.test(n) ? "corr" : "trabajo" })); t.etiquetas = ETQ.map((e, j) => ({ id: t.id + "-e" + j, n: e.n, c: e.c })); }));
   const c = (o) => Object.assign({ d: "", lab: [], att: [], dc: false, url: "https://trello.com", act: "2026-10-07T12:00:00Z" }, o);
   const cards = [
+    // guiones (tableros GUIONES de cada marca: enlaces a la tarjeta de SCL)
+    c({ id: "g1", n: "HALLOWEEN · la Muerte hace las compras", cat: "guion", gest: "pendiente", lista: "Ideas Recibidas (BRIEF SMM)", tipo: "guiones", tablero: "GUIONES ISCO", m: ["isco"], entrega: null, salida: "2026-10-31T20:00:00Z", ourl: "https://trello.com/c/MXfGNNQB" }),
+    c({ id: "g2", n: "Reel detrás de escena del local", cat: "guion", gest: "pendiente", lista: "Ideas Recibidas (BRIEF SMM)", tipo: "guiones", tablero: "GUIONES GV", m: ["gabriel-varisco"], entrega: "2026-10-06T12:00:00Z", salida: "2026-10-20T20:00:00Z" }),
+    c({ id: "g3", n: "Combo doble explicado en 15 segundos", cat: "guion", gest: "pendiente", lista: "Ideas Recibidas (BRIEF SMM)", tipo: "guiones", tablero: "GUIONES VICE", m: ["vice-burger"], entrega: "2026-10-13T12:00:00Z", salida: "2026-10-24T20:00:00Z" }),
+    c({ id: "g4", n: "Tritato: 3 errores al hacer tortas", cat: "guion", gest: "revisar", lista: "Guiones listos para revisión", tipo: "guiones", tablero: "GUIONES TRITATO", m: ["tritato"], entrega: "2026-10-06T12:00:00Z", salida: "2026-10-18T20:00:00Z" }),
+    c({ id: "g5", n: "Receta cookies con premezcla", cat: "guion", gest: "correccion", lista: "Correcciones", tipo: "guiones", tablero: "GUIONES ISCO", m: ["isco"], entrega: "2026-09-29T12:00:00Z", salida: "2026-10-15T20:00:00Z" }),
     c({ id: "i1", n: "Recetario de Halloween", d: "Recetas tenebrosas para la semana de Halloween: cupcakes calabaza, galletas araña, brownies cementerio.", cat: "input", lista: "INPUTS / PEDIDOS DEL CLIENTE", tipo: "scl", tablero: "SCL ISCO", m: ["isco"], act: "2026-10-07T13:10:00Z", att: [{ n: "Recetario Halloween.pdf", u: "#" }],
       ia: { titular: "Te cargaron un recetario de Halloween: yo bajaría una receta a carrusel y movería recetas tenebrosas por historias toda la semana.", prioridad: "alta",
         acciones: [{ que: "Carrusel paso a paso con la receta más vistosa (cupcakes calabaza) y los productos de Isco etiquetados.", formato: "carrusel" }, { que: "Tanda de historias 'receta tenebrosa del día' del 27 al 31 con sticker de pregunta.", formato: "historias" }, { que: "Reel corto armando las galletas araña, 15 s, con audio en tendencia.", formato: "reel" }, { que: "Difundir el recetario completo en el canal social el 29.", formato: "canal social" }],
@@ -100,6 +106,11 @@ window.PANEL_DEMO = (function () {
     yo: { clave: "orne", nombre: "Orne", rol: "SM" },
     equipo: [{ clave: "orne", nombre: "Orne", rol: "SM" }, { clave: "rama", nombre: "Rama", rol: "SM" }, { clave: "ale", nombre: "Ale", rol: "CM" }, { clave: "project", nombre: "Joaquín", rol: "Project" }],
     marcas, project: T("30dl2puJ"), cards, rutinas, reuniones, eventos,
+    discord: { generado: "2026-10-07T15:00:00Z", conUsuario: true, menciones: [
+      { id: "d1", canal: "isco", autor: "Joaquín", texto: "@Orne ¿me pasás cómo quedó el carrusel de la promo del miércoles? Lo quiere ver el cliente hoy", fecha: "2026-10-07T14:20:00Z", url: "https://discord.com/channels/1/2/3", todos: false },
+      { id: "d2", canal: "guiones", autor: "Fede", texto: "@Orne subí el guion de Tritato a revisión, lo vemos el lunes", fecha: "2026-10-07T11:05:00Z", url: "https://discord.com/channels/1/2/4", todos: false },
+      { id: "d3", canal: "general", autor: "Ivo", texto: "@everyone mañana arrancamos 9:30 por la reunión con Quality", fecha: "2026-10-06T21:40:00Z", url: "https://discord.com/channels/1/2/5", todos: true }
+    ] },
     cobertura: { "isco": { hasta: "2026-10-30", objetivo: "2026-11-07" }, "gabriel-varisco": { hasta: "2026-11-08", objetivo: "2026-11-07" }, "skilfulblack": { hasta: "2026-10-24", objetivo: "2026-11-07" }, "tritato": { hasta: "2026-11-02", objetivo: "2026-11-07" }, "vice-burger": { hasta: "2026-11-07", objetivo: "2026-11-07" } },
     links: { reportes: "https://ideamiacontacto-lab.github.io/reportes-ideamia/", brainstorming: "https://ideamiacontacto-lab.github.io/brainstormings-ideamia/", notion: "https://app.notion.com/p/3d1bab9b1a168166b3cfe5a8818a9265", drive: "" },
     ajustes: { inputDias: 3, porVencer: 3, efemDias: 45 },

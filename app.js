@@ -30,6 +30,7 @@
     flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
     archive: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V19h14V8.5M10 12.5h4"/></svg>',
     msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+    pen: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>',
     grid: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>'
   };
 
@@ -137,6 +138,13 @@
       const p = inputPide(c); if (!p) return;
       out.push({ k: 'inp:' + c.id, tipo: 'input', marca: c.m[0], t: (p === 'nuevo' ? 'Input nuevo: ' : p === 'pospuesto' ? 'Te pediste acordarte: ' : '¿Seguís necesitando? ') + c.n, obj: c, meta: [p === 'nuevo' ? 'cargado ' + hace(c.act) : p === 'pospuesto' ? 'lo pospusiste' : 'lo tocaste ' + hace(c.estado.fecha)], u: p === 'pospuesto' ? 3 : p === 'nuevo' ? 2 : 1 });
     });
+    // guiones que piden algo: sin fecha de entrega, Fede atrasado o por entregar ya, listos para ver en la reunión
+    guiones().forEach(g => {
+      const e = g.entrega ? new Date(g.entrega) : null, n = e ? diasA(e) : 99, base = { k: 'gui:' + g.id, tipo: 'guion', marca: g.m[0], obj: g, url: g.ourl || g.url };
+      if (g.gest === 'pendiente' && !e) out.push(Object.assign(base, { t: 'Guion sin fecha de entrega: ' + g.n, meta: ['<span class="pill bad">ponele fecha de inicio en SCL</span>', 'Fede no sabe cuándo entregarlo'], u: 3 }));
+      else if (g.gest === 'pendiente' && n <= 1) out.push(Object.assign(base, { t: 'Guion de Fede: ' + g.n, meta: [n < 0 ? '<span class="pill bad">atrasado · era el ' + dm(e) + '</span>' : '<span class="pill warn">lo entrega ' + cuando(e) + '</span>', 'Guiones · pendiente de entrega'], u: n < 0 ? 4 : 2 }));
+      else if (g.gest === 'revisar') out.push(Object.assign(base, { t: 'Guion listo para revisar: ' + g.n, meta: ['verlo en la reunión del ' + dm(proxLunes()), 'Guiones · listos para revisión'], u: 2 }));
+    });
     // reportes que faltan cargar en la web de reportes (se van solos cuando los cargan)
     (D.reportes || []).forEach(r => {
       const v = new Date(r.vence), h = (v - new Date()) / 36e5;
@@ -205,20 +213,20 @@
     const saludo = hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const chips = '<div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? (S.movil ? 'Todas' : 'Todas las marcas') : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>';
     if (!S.movil && S.tab === 'mas') S.tab = 'hoy';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, mas: vMas }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, mas: vMas }[S.tab] || vHoy)(t);
     if (S.movil) {
       // celular: estilo app. Portada corta solo en Hoy, título chico en el resto y pestañas fijas abajo.
       const nav = [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid]];
-      const enMas = ['agenda', 'recursos', 'marcas', 'mas'].indexOf(S.tab) >= 0;
-      const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', mas: 'Más' };
+      const enMas = ['agenda', 'recursos', 'marcas', 'guiones', 'discord', 'mas'].indexOf(S.tab) >= 0;
+      const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', mas: 'Más' };
       app.innerHTML = (S.tab === 'hoy'
         ? cinta() + '<section class="mhead"><div><div class="kick">— ' + fecha + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + saludo + (tot - ok ? ' · te quedan <b>' + (tot - ok) + '</b>' : ' · <b>todo listo</b>') + '</p></div>' + anillo(ok, tot) + '</section>'
-        : '<div class="mtit">' + (['agenda', 'recursos', 'marcas'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>') +
+        : '<div class="mtit">' + (['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>') +
         (S.tab === 'mas' ? '' : '<div class="ctrl">' + chips + '</div>') +
         '<div class="view" id="view">' + vista + '</div>' +
         '<nav class="bnav">' + nav.map(x => '<button class="' + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? 'on' : '') + '" data-tab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>';
     } else {
-      const tabs = [['hoy', 'Hoy', tot - ok], ['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
+      const tabs = [['hoy', 'Hoy', tot - ok], ['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']];
       app.innerHTML = cinta() +
         '<section class="hero"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div>' +
         '<h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1>' +
@@ -300,11 +308,12 @@
     let accion = '';
     if (x.tipo === 'reporte') accion = '<a class="btn y" href="' + esc(x.url) + '" target="_blank" rel="noopener">Cargar ↗</a>';
     else if (x.tipo === 'reunion') accion = '<button class="btn y" data-agendar="' + esc(x.k) + '">' + I.cal + 'Agendar</button>';
+    else if (x.tipo === 'guion') accion = '<a class="btn" href="' + esc(x.url) + '" target="_blank" rel="noopener">Abrir ↗</a>';
     else if (x.tipo === 'input') accion = '<button class="btn" data-det-input="' + esc(x.obj.id) + '">Revisar</button>';
     else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
     else if (x.enlace) accion = botonEnlace(x.enlace, [x.marca]);
-    const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte')
-      ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : I.inbox) + '</span>'
+    const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || x.tipo === 'guion')
+      ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : x.tipo === 'guion' ? I.pen : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
     return '<div class="row' + (done ? ' done' : '') + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + accion + '</div></div>';
   }
@@ -329,11 +338,11 @@
     const festejo = t.length && !pend.length ? '<div class="festejo"><b>¡Día<br>completo!</b><span>Terminaste todo lo de hoy. ' + (S.movil ? 'En <b>Más</b> tenés' : 'Al costado tenés') + ' fechas y sugerencias para adelantar.</span></div>' : '';
     // en el celular cada sección muestra 5 y el resto se abre con "Ver todas"
     const corta = (id, L) => !S.movil || S.abiertos[id] || L.length <= 6 ? L.map(fila).join('') : L.slice(0, 5).map(fila).join('') + '<button class="vermas" data-pliegue="' + id + '">Ver ' + (L.length - 5) + ' más</button>';
-    if (S.movil) return festejo + atajos() + rapidos + '<div class="tira">' + tira + '</div>' +
+    if (S.movil) return festejo + atajos() + bloqueDiscord() + rapidos + '<div class="tira">' + tira + '</div>' +
       (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + corta('urg', urg) + '</div></div>' : '') +
       (resto.length || !urg.length ? '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + corta('resto', resto) + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' : '') +
       (done.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>' : '');
-    return festejo + atajos() + rapidos + '<div class="tira">' + tira + '</div>' +
+    return festejo + atajos() + bloqueDiscord() + rapidos + '<div class="tira">' + tira + '</div>' +
       '<div class="cols"><div>' +
       (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + urg.map(fila).join('') + '</div></div>' : '') +
       '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + resto.map(fila).join('') + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' +
@@ -452,8 +461,36 @@
     D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '', tipo: 'reunion' }); } });
     return items;
   }
+  // Discord: menciones de los últimos 7 días. Lo ya abierto se recuerda en este navegador.
+  const dcVistos = () => LS.get('dcvistos', {});
+  const menciones = () => ((S.data.discord || {}).menciones || []);
+  const dcSinVer = () => { const v = dcVistos(); return menciones().filter(m => !v[m.id]); };
+  const dcVer = ids => { const v = dcVistos(); ids.forEach(id => v[id] = 1); const vivos = {}; menciones().forEach(m => { if (v[m.id]) vivos[m.id] = 1; }); LS.set('dcvistos', vivos); };
+  function filaDiscord(m) {
+    const nuevo = !dcVistos()[m.id];
+    return '<a class="dcm' + (nuevo ? ' nuevo' : '') + '" href="' + esc(m.url) + '" target="_blank" rel="noopener" data-dc="' + esc(m.id) + '"><span class="dca">' + esc((m.autor || '?').slice(0, 1).toUpperCase()) + '</span><span class="dcb"><span class="dch"><b>' + esc(m.autor) + '</b> en <b>#' + esc(m.canal) + '</b>' + (m.todos ? ' <span class="pill">@everyone</span>' : '') + '<em>' + hace(m.fecha) + '</em></span><span class="dct">' + esc(m.texto || '') + '</span></span><i>↗</i></a>';
+  }
+  // en Hoy: solo lo nuevo (máximo 3) y un link a todo
+  function bloqueDiscord() {
+    const N = S.data.discord ? dcSinVer() : [];
+    if (!N.length) return '';
+    return '<div class="dcbox"><div class="dcbox-h"><span>' + I.msg + ' Discord · <b>' + N.length + (N.length === 1 ? ' mención nueva' : ' menciones nuevas') + '</b></span><button class="lnk" data-tab="discord">Ver todas →</button></div>' + N.slice(0, 3).map(filaDiscord).join('') + '</div>';
+  }
+  function vDiscord() {
+    const D = S.data.discord;
+    if (!D) return '<div class="empty">Discord todavía no está conectado. Cuando el project cargue el bot, acá aparecen las veces que te mencionan, con un link directo a cada mensaje.</div>';
+    if (!D.conUsuario) return '<div class="empty">Falta tu usuario de Discord en la pestaña Equipo del Sheet (columna "usuario de Discord"). Pedíselo al project.</div>';
+    const L = menciones(), nuevos = dcSinVer();
+    return '<div class="sec"><div class="sec-h"><h2>Te mencionaron<small>' + nuevos.length + ' sin ver</small></h2>' + (nuevos.length ? '<button class="act lnk" data-dc-todo>Marcar todo como visto</button>' : '') + '</div>' +
+      (L.length ? '<div class="dclist">' + L.map(filaDiscord).join('') + '</div>' : '<div class="empty">Nadie te mencionó en los últimos 7 días.</div>') +
+      '<p class="ayuda">Se actualiza cada 15 minutos. Tocá un mensaje y se abre Discord justo ahí. Los mensajes directos no aparecen.</p></div>';
+  }
+  // guiones (tableros GUIONES de cada marca, los maneja Fede)
+  const guiones = () => (S.data.cards || []).filter(c => c.cat === 'guion' && pasa(c.m));
+  const proxLunes = () => { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate()); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d; };
+  const guionAtencion = () => guiones().filter(g => (g.gest === 'pendiente' && (!g.entrega || diasA(new Date(g.entrega)) <= 1)) || g.gest === 'revisar').length;
   // reels, carruseles y piezas del calendario que salen en los próximos días (para chequear que estén ok)
-  const porSalir = () => S.data.cards.filter(c => c.due && !c.dc && (!c.tipo || c.tipo === 'scl') && pasa(c.m) && ['input', 'recursos', 'fichas', 'efem', 'brainstorming'].indexOf(c.cat) < 0 && diasA(new Date(c.due)) >= 0 && diasA(new Date(c.due)) <= S.data.ajustes.porVencer).sort((a, b) => new Date(a.due) - new Date(b.due));
+  const porSalir = () => S.data.cards.filter(c => c.due && !c.dc && (!c.tipo || c.tipo === 'scl') && pasa(c.m) && ['input', 'recursos', 'fichas', 'efem', 'brainstorming', 'guion'].indexOf(c.cat) < 0 && diasA(new Date(c.due)) >= 0 && diasA(new Date(c.due)) <= S.data.ajustes.porVencer).sort((a, b) => new Date(a.due) - new Date(b.due));
   const formato = c => { const t = (c.n + ' ' + (c.lab || []).join(' ')).toLowerCase(); return /reel|video/.test(t) ? 'Reel' : /carrus|carousel/.test(t) ? 'Carrusel' : /histori|story/.test(t) ? 'Historia' : 'Pieza'; };
   const vencidas = () => S.data.cards.filter(c => c.due && !c.dc && diasA(new Date(c.due)) < 0 && pasa(c.m) && (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project'));
   const fkey = f => norm(f.n) + '|' + f.d.toDateString() + '|' + f.tipo;
@@ -685,12 +722,28 @@
     catch (e) { if (antes) er[k] = antes; else delete er[k]; if (r) r.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
   }
 
+  /* ---------------- vista GUIONES: qué tiene que entregar Fede, qué ver en la reunión del lunes ---------------- */
+  function vGuiones() {
+    const G = guiones(), lun = proxLunes();
+    const sinFecha = G.filter(g => g.gest === 'pendiente' && !g.entrega);
+    const pend = G.filter(g => g.gest === 'pendiente' && g.entrega).sort((a, b) => new Date(a.entrega) - new Date(b.entrega));
+    const rev = G.filter(g => g.gest === 'revisar'), corr = G.filter(g => g.gest === 'correccion'), apr = G.filter(g => g.gest === 'aprobado');
+    const fila = (g, extra) => '<div class="row"><span class="ico">' + I.pen + '</span><div><div class="tt"><a class="lnk" href="' + esc(g.ourl || g.url) + '" target="_blank" rel="noopener">' + esc(g.n) + '</a></div><div class="mt">' + tagM(g.m[0]) + extra + (g.salida ? '<span>sale ' + dm(new Date(g.salida)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(g.url) + '" target="_blank" rel="noopener" title="Abrir en el tablero de guiones">' + I.out + '</a></div></div>';
+    const sec = (t, sub, L, f, vacio) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + L.length + '</small></h2>' + (sub ? '<span class="act">' + sub + '</span>' : '') + '</div>' + (L.length ? '<div class="list">' + L.map(f).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
+    return '<div class="gcomo"><b>Cómo va:</b> presentan la idea en la reunión del lunes → la aprueban en SCL <u>con fecha de inicio</u> (= entrega del guion, el lunes siguiente) → Fede la recibe en su tablero → la entrega → la ven en la reunión. Próxima reunión: <b>' + cuando(lun) + '</b>.</div>' +
+      (sinFecha.length ? sec('Sin fecha de entrega', 'Ponele fecha de inicio a la tarjeta en SCL', sinFecha, g => fila(g, '<span class="pill bad">falta fecha de inicio</span>'), '') : '') +
+      sec('Fede tiene que entregar', 'La fecha de inicio de la tarjeta es la entrega', pend, g => { const n = diasA(new Date(g.entrega)); return fila(g, '<span' + (n < 0 ? ' class="pill bad">atrasado · era el ' + dm(new Date(g.entrega)) : (n <= 1 ? ' class="pill warn">entrega ' : '>entrega ') + cuando(new Date(g.entrega))) + '</span>'); }, 'Nada pendiente de entrega.') +
+      sec('Listos para ver en la reunión', 'Lunes ' + dm(lun), rev, g => fila(g, '<span class="pill y">entregado · a revisar</span>'), 'Nada para revisar todavía.') +
+      (corr.length ? sec('En corrección', 'Fede los está ajustando', corr, g => fila(g, '<span>en corrección</span>'), '') : '') +
+      (apr.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.gapr ? ' on' : '') + '" data-pliegue="gapr"><span>Aprobados esta semana<small>' + apr.length + '</small></span><i>' + (S.abiertos.gapr ? '−' : '+') + '</i></button>' + (S.abiertos.gapr ? '<div class="list">' + apr.map(g => fila(g, '<span class="pill ok">aprobado</span>')).join('') + '</div>' : '') + '</div>' : '');
+  }
+
   /* ---------------- vista MÁS (celular): lo que en la compu va al costado ---------------- */
   function vMas() {
     const nVen = vencidas().length, nF = proximasFechas(30).length;
     const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
     return '<div class="mas-g">' +
-      t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, nVen ? nVen + ' vencidas' : 'Vencidas', 'últimos 15 días') +
+      t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' menciones nuevas' : 'tus menciones') + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, nVen ? nVen + ' vencidas' : 'Vencidas', 'últimos 15 días') +
       t('data-fechas', I.star, nF + ' fechas', 'próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-claude-plan', I.msg, 'Plan del día', 'con Claude') +
       '</div>' + costado(true);
@@ -804,6 +857,8 @@
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
     root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
+    root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
+    root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
     root.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { S.segSem = b.dataset.seg; render(); });
     root.querySelectorAll('[data-diasem]').forEach(b => b.onclick = () => { S.diaSem = Number(b.dataset.diasem); render(); });
     root.querySelectorAll('[data-celda]').forEach(b => b.onclick = () => marcarCelda(b.dataset.celda));

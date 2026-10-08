@@ -690,3 +690,28 @@ body{background:
 .rrow .att a:hover{color:var(--text)}
 .rrow .att svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;fill:none}
 @media(max-width:700px){.rchips{display:none}}
+/* guiones */
+.gcomo{font-size:13.5px;color:var(--muted);border:1px dashed var(--line2);border-radius:12px;padding:12px 14px;margin-bottom:20px;line-height:1.5}
+.gcomo b{color:var(--text)}
+.gcomo u{text-decoration-color:var(--y);text-underline-offset:3px;color:var(--y)}
+
+/* discord */
+.dcbox{border:1px solid rgba(88,101,242,.5);background:linear-gradient(160deg,rgba(88,101,242,.14),var(--s1));border-radius:12px;padding:4px 12px 6px;margin-bottom:12px}
+.dcbox-h{display:flex;justify-content:space-between;align-items:center;padding:8px 0 4px;font-size:13px;color:var(--muted)}
+.dcbox-h span{display:inline-flex;align-items:center;gap:7px}
+.dcbox-h svg{width:15px;height:15px;stroke:#8B95FF;stroke-width:1.8;fill:none}
+.dcbox-h b{color:var(--text)}
+.dcbox-h .lnk{font-size:12.5px;color:#8B95FF;font-weight:600}
+.dclist{border-top:1px solid var(--line)}
+.dcm{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line);transition:background .2s}
+.dcbox .dcm:last-child{border-bottom:0}
+.dcm:hover{background:rgba(255,255,255,.025)}
+.dca{width:32px;height:32px;border-radius:50%;background:#5865F2;color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
+.dcb{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dch{font-size:12.5px;color:var(--muted)}
+.dch b{color:var(--text);font-weight:600}
+.dch em{font-style:normal;color:var(--dim);margin-left:6px}
+.dct{font-size:14px;line-height:1.35;color:#d9d9d9;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dcm i{font-style:normal;color:var(--dim)}
+.dcm.nuevo .dca{box-shadow:0 0 0 2px var(--bg),0 0 0 4px #8B95FF}
+.dcm:not(.nuevo) .dct{color:var(--muted)}

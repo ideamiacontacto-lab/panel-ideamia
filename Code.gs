@@ -24,7 +24,56 @@ function onOpen() {
     .addSeparator()
     .addItem('Cambiar clave del project', 'cambiarClaveProject')
     .addItem('Cambiar clave del equipo', 'cambiarClaveEquipo')
+    .addSeparator()
+    .addItem('Cargar el token del bot de Discord', 'cargarClaveDiscord')
     .addToUi();
+}
+
+/* ---------------- Discord: menciones de cada persona en los canales del servidor ----------------
+   Un bot del estudio lee los últimos 50 mensajes de cada canal (y de los hilos activos) en cada actualización.
+   Toma las menciones de los últimos 7 días: @persona y @everyone/@here. No puede leer mensajes directos. */
+function cargarClaveDiscord() { cambiarClave_('DISCORD_TOKEN', 'Discord · token del bot (Developer Portal → Bot → Reset Token)'); }
+function leerDiscord_(cfg, cat) {
+  const token = P.getProperty('DISCORD_TOKEN'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  if (!token || !guild) return null;
+  const API = 'https://discord.com/api/v10', H = { Authorization: 'Bot ' + token };
+  const get = ruta => {
+    const r = UrlFetchApp.fetch(API + ruta, { headers: H, muteHttpExceptions: true });
+    if (r.getResponseCode() !== 200) throw new Error('Discord respondió ' + r.getResponseCode() + ' en ' + ruta.split('?')[0] + ': ' + r.getContentText().slice(0, 120));
+    return JSON.parse(r.getContentText());
+  };
+  const canales = get('/guilds/' + guild + '/channels').filter(c => c.type === 0 || c.type === 5);
+  let hilos = []; try { hilos = (get('/guilds/' + guild + '/threads/active').threads || []); } catch (e) {}
+  const todos = canales.concat(hilos), nombres = {};
+  todos.forEach(c => nombres[c.id] = c.name);
+  const gente = cat.equipo.filter(p => p.discord.length), out = {};
+  gente.forEach(p => out[p.clave] = []);
+  const limite = Date.now() - 7 * 864e5;
+  const esDe = (p, u) => !!u && (p.discord.indexOf(u.id) >= 0 || p.discord.indexOf(norm_(u.username)) >= 0 || (u.global_name && p.discord.indexOf(norm_(u.global_name)) >= 0));
+  for (let i = 0; i < todos.length; i += 10) {
+    const lote = todos.slice(i, i + 10);
+    const rs = UrlFetchApp.fetchAll(lote.map(c => ({ url: API + '/channels/' + c.id + '/messages?limit=50', headers: H, muteHttpExceptions: true })));
+    rs.forEach((r, j) => {
+      if (r.getResponseCode() !== 200) return; // canal sin permiso para el bot
+      const ch = lote[j];
+      JSON.parse(r.getContentText()).forEach(m => {
+        if (new Date(m.timestamp).getTime() < limite) return;
+        const ments = m.mentions || [];
+        const texto = String(m.content || '')
+          .replace(/<@!?(\d+)>/g, (x, id) => '@' + ((ments.find(u => u.id === id) || {}).global_name || (ments.find(u => u.id === id) || {}).username || 'alguien'))
+          .replace(/<#(\d+)>/g, (x, id) => '#' + (nombres[id] || 'canal')).replace(/<@&\d+>/g, '@rol').replace(/<a?:(\w+):\d+>/g, ':$1:');
+        gente.forEach(p => {
+          if (esDe(p, m.author)) return; // lo que escribió uno mismo no cuenta
+          const directa = ments.some(u => esDe(p, u));
+          if (!directa && !m.mention_everyone) return;
+          out[p.clave].push({ id: m.id, canal: nombres[ch.id] || '', autor: m.author.global_name || m.author.username, texto: texto.slice(0, 240) || (m.attachments && m.attachments.length ? '(adjunto)' : ''), fecha: m.timestamp, url: 'https://discord.com/channels/' + guild + '/' + ch.id + '/' + m.id, todos: !directa });
+        });
+      });
+    });
+    if (i + 10 < todos.length) Utilities.sleep(1100);
+  }
+  Object.keys(out).forEach(k => { out[k].sort((a, b) => b.fecha.localeCompare(a.fecha)); out[k] = out[k].slice(0, 40); });
+  return { generado: new Date().toISOString(), canales: todos.length, porPersona: out };
 }
 
 function cambiarClave_(prop, titulo) {
@@ -155,7 +204,7 @@ const si_ = s => /^(si|sí|s|x|true|1)$/i.test(String(s).trim());
 function catalogo_() {
   // Mails de cada uno (para saber a quién invitaron a cada evento del calendario del equipo). Columna E de Equipo; si está vacía, estos.
   const MAILS = { orne: 'ornebrasca@gmail.com', rama: 'ramiro.ideamia@gmail.com' };
-  const equipo = rows_('Equipo').map(r => ({ nombre: r[0], clave: norm_(r[1]), rol: String(r[2]).trim(), alias: lista_(r[3]).concat([norm_(r[0])]), email: String(r[4] || MAILS[norm_(r[1])] || '').trim().toLowerCase() }));
+  const equipo = rows_('Equipo').map(r => ({ nombre: r[0], clave: norm_(r[1]), rol: String(r[2]).trim(), alias: lista_(r[3]).concat([norm_(r[0])]), email: String(r[4] || MAILS[norm_(r[1])] || '').trim().toLowerCase(), discord: lista_(r[5]).map(x => x.replace(/^@/, '')) }));
   const marcas = rows_('Marcas').map(r => ({
     nombre: r[0], slug: norm_(r[0]).replace(/[^a-z0-9]+/g, '-'), alias: lista_(r[1]).concat([norm_(r[0])]),
     sm: norm_(r[2]), cm: norm_(r[3]), canal: si_(r[4]), contexto: r[5] || ''
@@ -288,7 +337,16 @@ function leerTrello_(cat) {
     (res[i * 2 + 1] || []).forEach(c => {
       const l = listas[c.idList]; if (!l) return;
       const catL = catLista_(l.name);
-      if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre };
+      if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre, ini: c.start, due: c.due, url: c.shortUrl, lab: (c.labels || []).map(x => x.name).filter(Boolean) };
+      // Tableros de guiones (los maneja Fede): cada tarjeta es un enlace a la idea aprobada en SCL.
+      // Ideas recibidas = Fede tiene que entregar · listos para revisión = verlo en la reunión · Correcciones · Aprobado.
+      if (b.tipo === 'guiones') {
+        const n = norm_(l.name);
+        const gest = /aprobad|terminad|publicad/.test(n) ? 'aprobado' : /correc/.test(n) ? 'correccion' : /revisi|listo/.test(n) ? 'revisar' : 'pendiente';
+        if (gest === 'aprobado' && new Date(c.dateLastActivity).getTime() < haceUnaSemana) return;
+        cards.push({ id: c.id, n: c.name, d: '', due: c.due, dc: !!c.dueComplete, ini: c.start, lista: l.name, cat: 'guion', gest: gest, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity, lab: [], att: [], m: [b.marca] });
+        return;
+      }
       // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
       if (catL === 'hecho' && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input';
@@ -304,6 +362,13 @@ function leerTrello_(cat) {
   });
   // Las tarjetas del Project suelen ser enlaces a una tarjeta de otro tablero (el título es la URL): se toma marca y título de la original.
   const vivas = {}; cards.forEach(c => vivas[c.id] = 1);
+  // Guiones: título, fecha de entrega (= fecha de inicio de la tarjeta de SCL) y fecha de salida, de la tarjeta original.
+  cards.forEach(c => {
+    if (c.cat !== 'guion') return;
+    const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), orig = m && indice[m[1]];
+    if (!orig) return;
+    c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = orig.lab || [];
+  });
   cards.forEach(c => {
     if (c.tipo !== 'project') return;
     const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n);
@@ -412,7 +477,8 @@ const RUTINAS_NUEVAS = [
   ['promo-quality', 'Mover los productos con descuento de la promo del día', 'dias:mie,vie', 'quality tienda', 'SM', 'Mostrá el precio final con el descuento. Ej.: si comprás $80.000, el dulce de leche de $50.000 con 10% off te queda en $45.000.', ''],
   ['produccion-bauti', 'Organizar la producción de Bauti de la semana que viene', 'semana:mie', 'isco, quality tienda, gabriel varisco, vice burger', 'SM', 'Hablá con el dueño: ¿hay descargas?, ¿quieren mover algo puntual la semana que viene?, ¿promos o productos para mostrar? Dejale a Bauti 3 o 4 temas o ideas generales en una tarjeta de Producción.', 'crear:produccion'],
   ['colaboraciones', 'Buscar colaboradores para campañas o hacer colaboraciones en redes', 'mes:1-31', 'sí', 'SM', 'Cuentas afines, emprendedores o influencers locales: una colaboración por mes por marca.', ''],
-  ['trimestral-check', '¿Este mes toca reporte trimestral? Organizalo con tiempo', 'mes:1-7', 'no', 'SM', 'Los trimestrales se entregan en enero, abril, julio y octubre.', 'LINK_REPORTES']
+  ['trimestral-check', '¿Este mes toca reporte trimestral? Organizalo con tiempo', 'mes:1-7', 'no', 'SM', 'Los trimestrales se entregan en enero, abril, julio y octubre.', 'LINK_REPORTES'],
+  ['reunion-guiones', 'Reunión de guiones: presentar ideas nuevas y ver los que entregó Fede', 'semana:lun', 'isco, quality tienda, quality mayorista, gabriel varisco, tritato, dyb, 1talquecocina, vice burger', 'SM', 'Cada idea que aprueben va a Aprobado en SCL CON fecha de inicio = entrega del guion (7 días después, el lunes siguiente). Sin esa fecha Fede no sabe cuándo entregar.', '']
 ];
 function asegurarRutinas_() {
   const sh = SpreadsheetApp.getActive().getSheetByName('Rutinas'); if (!sh) return;
@@ -424,6 +490,10 @@ function asegurarRutinas_() {
   // fila de Config para la contraseña de brainstormings (la completa el project en el Sheet)
   const cf = SpreadsheetApp.getActive().getSheetByName('Config');
   if (cf && rows_('Config').map(r => r[0]).indexOf('CLAVE_BRAINSTORMING') < 0) cf.appendRow(['CLAVE_BRAINSTORMING', '', 'Contraseña del equipo para la web de brainstormings: el panel se la muestra a quien entró con la clave del equipo']);
+  if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_SERVIDOR') < 0) cf.appendRow(['DISCORD_SERVIDOR', '', 'ID del servidor de Discord del equipo (Discord con modo desarrollador → clic derecho en el servidor → Copiar ID del servidor)']);
+  // columna F de Equipo: usuario de Discord de cada uno (para sus menciones)
+  const eqs = SpreadsheetApp.getActive().getSheetByName('Equipo');
+  if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
 
 function actualizar() {
@@ -437,6 +507,9 @@ function actualizar() {
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     // Lectura automática con la API de Claude: apagada salvo que Config → IA_AUTOMATICA diga "sí" (gasta créditos).
     if (si_(cfg.IA_AUTOMATICA)) recomendarTarjetas_(snap, cat, cfg);
+    // Discord: menciones de cada uno (solo si hay bot y servidor cargados)
+    try { const dc = leerDiscord_(cfg, cat); if (dc) { guardarJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json', dc); P.deleteProperty('DISCORD_ERROR'); } }
+    catch (e) { P.setProperty('DISCORD_ERROR', String(e.message).slice(0, 300)); }
     CacheService.getScriptCache().removeAll(['snap', 'estados']); // 'estados' se rearma desde la planilla (por si alguien la editó a mano)
     construirBases_();
     return { ok: true, tarjetas: snap.cards.length, generado: snap.generado };
@@ -520,7 +593,7 @@ function snapshot_() {
 function contexto_() {
   const cfg = config_(), cat = catalogo_(), hoy = hoyAR_();
   return {
-    cfg, cat, hoy, snap: snapshot_(), ia: leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'),
+    cfg, cat, hoy, snap: snapshot_(), ia: leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'), discord: leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'),
     eventos: eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5)),
     feriados: feriados_(hoy)
   };
@@ -577,6 +650,7 @@ function panel_(personaClave, ctx) {
   const cards = todas.filter(c => {
     // los inputs salen solo de los tableros SCL (en el Project y en los otros tableros quedan pedidos viejos)
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
+    if (c.cat === 'guion') return true;
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
@@ -659,6 +733,7 @@ function panel_(personaClave, ctx) {
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
+    discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: (ctx.discord.porPersona || {})[yo.clave] || [], conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE, claveBrain: cfg.CLAVE_BRAINSTORMING || '' },
     ajustes
   };
@@ -858,7 +933,8 @@ function doGet(e) {
       return json_({ ok: true, generado: snap.generado || null, tableros: (snap.tableros || []).map(b => b.tipo + ' ' + b.nombre + ' → ' + (b.marca || '-')), tarjetas: (snap.cards || []).length, lecturasIA: Object.keys(ia).length, porMarca: t,
         reportesPendientes: (() => { try { return tareasReportes_('project', 'Project').map(r => r.k + ' · vence ' + r.vence); } catch (e) { return 'error: ' + e.message; } })(),
         conListas: (snap.tableros || []).filter(b => b.listas && b.listas.length).length,
-        claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY') } }, q.cb);
+        claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY'), discord: !!P.getProperty('DISCORD_TOKEN') },
+        discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: P.getProperty('DISCORD_ERROR') || null }; })() }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'project') {
