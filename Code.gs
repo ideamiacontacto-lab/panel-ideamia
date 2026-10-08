@@ -986,6 +986,9 @@ function vistaCliente_(marca, dias) {
   marca = norm_(marca).replace(/[^a-z0-9]+/g, '-'); dias = Math.min(Math.max(Number(dias) || 15, 1), 31);
   const ck = 'cli:' + marca + ':' + dias, c0 = cacheGet_(ck);
   if (c0 && Date.now() - c0.t < 10 * 6e4) return c0.v;
+  // Solo las marcas habilitadas (Config CLIENTE_MARCAS, separadas por coma; por defecto vice-burger): el resto no se muestra afuera.
+  const habilitadas = String(config_().CLIENTE_MARCAS || 'vice-burger').split(',').map(x => norm_(x).replace(/[^a-z0-9]+/g, '-')).filter(Boolean);
+  if (habilitadas.indexOf(marca) < 0) return { error: 'marca', mensaje: 'Marca no habilitada' };
   const cat = catalogo_();
   if (!cat.marcas.some(m => m.slug === marca)) return { error: 'marca', mensaje: 'Marca desconocida' };
   const boards = trello_('/members/me/boards', { filter: 'open', fields: 'name' })
