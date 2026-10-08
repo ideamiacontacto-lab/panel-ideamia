@@ -588,7 +588,8 @@
   const dcVer = ids => { const v = dcVistos(); ids.forEach(id => v[id] = 1); const vivos = {}; menciones().forEach(m => { if (v[m.id]) vivos[m.id] = 1; }); LS.set('dcvistos', vivos); };
   function filaDiscord(m) {
     const nuevo = !dcVistos()[m.id];
-    return '<a class="dcm' + (nuevo ? ' nuevo' : '') + '" href="' + esc(m.url) + '" target="_blank" rel="noopener" data-dc="' + esc(m.id) + '"><span class="dca">' + esc((m.autor || '?').slice(0, 1).toUpperCase()) + '</span><span class="dcb"><span class="dch"><b>' + esc(m.autor) + '</b> en <b>#' + esc(m.canal) + '</b>' + (m.todos ? ' <span class="pill">@everyone</span>' : '') + '<em>' + hace(m.fecha) + '</em></span><span class="dct">' + esc(m.texto || '') + '</span></span><i>↗</i></a>';
+    return '<div class="dcm' + (nuevo ? ' nuevo' : '') + '"><span class="dca">' + esc((m.autor || '?').slice(0, 1).toUpperCase()) + '</span><a class="dcb" href="' + esc(m.url) + '" target="_blank" rel="noopener" data-dc="' + esc(m.id) + '"><span class="dch"><b>' + esc(m.autor) + '</b> en <b>#' + esc(m.canal) + '</b>' + (m.todos ? ' <span class="pill">@everyone</span>' : '') + '<em>' + hace(m.fecha) + '</em></span><span class="dct">' + esc(m.texto || '') + '</span></a>' +
+      (nuevo ? '<button class="dcok" data-dc-ok="' + esc(m.id) + '" title="Sacarlo de la lista">✓ Ya lo leí</button>' : '<a class="dcir" href="' + esc(m.url) + '" target="_blank" rel="noopener">↗</a>') + '</div>';
   }
   // en Hoy: solo lo nuevo (máximo 3) y un link a todo
   function bloqueDiscord() {
@@ -601,7 +602,10 @@
     if (!D) return '<div class="empty">Discord todavía no está conectado. Cuando el project cargue el bot, acá aparecen las veces que te mencionan, con un link directo a cada mensaje.</div>';
     if (!D.conUsuario) return '<div class="empty">Falta tu usuario de Discord en la pestaña Equipo del Sheet (columna "usuario de Discord"). Pedíselo al project.</div>';
     // respeta el filtro de marca de arriba (lo que no es de ninguna marca se ve solo con "Todas")
-    const L = menciones().filter(m => S.marca === 'todas' || m.marca === S.marca), v = dcVistos(), nuevos = L.filter(m => !v[m.id]);
+    const v = dcVistos(), verLeidas = !!S.abiertos.dcleidas;
+    const Lt = menciones().filter(m => S.marca === 'todas' || m.marca === S.marca), nuevos = Lt.filter(m => !v[m.id]), leidas = Lt.length - nuevos.length;
+    // lo que ya marcaste como leído sale de la lista (queda detrás de "ver leídas")
+    const L = verLeidas ? Lt : nuevos;
     const modo = LS.get('dcmodo', 'dia');
     // carpeta plegable (Hoy/Ayer o la marca) con cuántas hay y cuántas sin ver
     const carpeta = (id, nombre, lista, abiertaDef, punto) => {
@@ -626,7 +630,8 @@
     }
     return '<div class="sec"><div class="sec-h"><h2>Te mencionaron<small>' + nuevos.length + ' sin ver</small></h2>' + (nuevos.length ? '<button class="act lnk" data-dc-todo>Marcar todo como visto</button>' : '') + '</div>' +
       '<div class="seg dcseg"><button class="' + (modo === 'dia' ? 'on' : '') + '" data-dcmodo="dia">Por día</button><button class="' + (modo === 'marca' ? 'on' : '') + '" data-dcmodo="marca">Por marca</button></div>' +
-      (L.length ? cuerpo : '<div class="empty">' + (S.marca === 'todas' ? 'Nadie te mencionó en los últimos 7 días.' : 'No hay menciones de esta marca en los últimos 7 días.') + '</div>') +
+      (L.length ? cuerpo : '<div class="empty">' + (leidas ? 'Todo leído. ' : S.marca === 'todas' ? 'Nadie te mencionó en los últimos 7 días.' : 'No hay menciones de esta marca en los últimos 7 días.') + '</div>') +
+      (leidas ? '<p class="vercl"><button class="lnk" data-dc-leidas>' + (verLeidas ? 'Ocultar las leídas' : 'Ver las ' + leidas + ' leídas') + '</button></p>' : '') +
       '<p class="ayuda">Se actualiza cada 15 minutos. Tocá un mensaje y se abre Discord justo ahí. Los mensajes directos no aparecen.</p></div>';
   }
   // guiones (tableros GUIONES de cada marca, los maneja Fede)
@@ -1195,6 +1200,8 @@
     root.querySelectorAll('[data-dcmodo]').forEach(b => b.onclick = () => { LS.set('dcmodo', b.dataset.dcmodo); render(); });
     root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
+    root.querySelectorAll('[data-dc-ok]').forEach(b => b.onclick = () => { dcVer([b.dataset.dcOk]); render(); });
+    root.querySelectorAll('[data-dc-leidas]').forEach(b => b.onclick = () => { S.abiertos.dcleidas = !S.abiertos.dcleidas; render(); });
     // "Arrancá el día": elegir prioridades
     root.querySelectorAll('[data-prio-skip]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [], skip: true }); render(); });
     root.querySelectorAll('[data-prio-reset]').forEach(b => b.onclick = () => { LS.set('plan', { dia: hoyId(), ids: [], skip: true }); render(); });

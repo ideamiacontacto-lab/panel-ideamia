@@ -987,3 +987,25 @@ select{color-scheme:dark}
 .pz-prev.directa.sin img{display:none}
 .pz-prev.directa.sin:before{content:"Sin vista previa · tocá abrir";display:block;padding:18px;font-size:12px;color:var(--dim);text-align:center}
 @media(max-width:700px){.mpop-b{max-width:200px}.gpasos span{min-width:140px}.arr-mini{flex-wrap:wrap}.arr-mini .btn{margin-left:auto}}
+
+/* Más en escritorio: cuadrícula de accesos (antes solo tenía estilo en celular) */
+@media(min-width:701px){
+  .mas-g{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+  .mt-t{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(160deg,var(--s2),var(--s1));transition:all .2s var(--ease)}
+  .mt-t:hover{border-color:var(--line2);transform:translateY(-2px)}
+  .mt-t .ic{width:38px;height:38px;border-radius:12px;background:var(--y-soft);color:var(--y);display:grid;place-items:center;margin-bottom:10px}
+  .mt-t .ic svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.8;fill:none}
+  .mt-t b{font-family:var(--f-t);font-size:16px;font-weight:700}
+  .mt-t small{font-size:12px;color:var(--dim)}
+  .seg{display:inline-flex;gap:4px;padding:4px;background:var(--s1);border:1px solid var(--line);border-radius:999px;margin-bottom:14px}
+  .seg button{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:5px;transition:all .2s var(--ease)}
+  .seg button.on{background:var(--text);color:var(--bg)}
+  .seg em{font-style:normal;font-size:10px;min-width:16px;height:16px;border-radius:8px;background:var(--y);color:var(--y-ink);display:grid;place-items:center;padding:0 4px}
+}
+/* Discord: "Ya lo leí" por mención */
+.dcm{grid-template-columns:32px minmax(0,1fr) auto;align-items:center}
+.dcm .dcb{text-decoration:none;color:inherit}
+.dcok{font-size:12px;font-weight:600;color:#8B95FF;border:1px solid rgba(139,149,255,.35);border-radius:999px;padding:6px 10px;white-space:nowrap;transition:all .15s}
+.dcok:hover{background:#5865F2;color:#fff;border-color:#5865F2}
+.dcir{color:var(--dim);text-decoration:none;padding:6px}
+@media(max-width:700px){.dcok{font-size:11px;padding:5px 8px}}
