@@ -215,7 +215,7 @@
     if (!S.movil && S.tab === 'mas') S.tab = 'hoy';
     // Ivo: solo Revisión, Guiones, Discord y Agenda; entra directo a Revisión
     const ivo = esRevisa();
-    if (ivo && ['revision', 'guiones', 'discord', 'agenda'].indexOf(S.tab) < 0) S.tab = 'revision';
+    if (ivo && ['revision', 'guiones', 'discord'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? 'Tenés <b>' + Rv.revDis.length + ' diseños</b> y <b>' + Rv.revVid.length + ' videos</b> en revisión, y <b>' + Rv.gui.length + ' guiones</b> para la reunión del ' + dm(Rv.lun) + '.' + (Rv.atras.length ? ' <b class="rojo">Faltó entregar ' + Rv.atras.length + '.</b>' : '') : '';
@@ -223,7 +223,7 @@
     if (S.movil) {
       // celular: estilo app. Portada corta solo en Hoy, título chico en el resto y pestañas fijas abajo.
       const nav = ivo
-        ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true], ['agenda', 'Agenda', I.cal]]
+        ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
         : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid]];
       const enMas = ['agenda', 'recursos', 'marcas', 'guiones', 'discord', 'mas'].indexOf(S.tab) >= 0 && !nav.some(x => x[0] === S.tab && x[0] !== 'mas');
       const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
@@ -234,7 +234,7 @@
         '<div class="view" id="view">' + vista + '</div>' +
         '<nav class="bnav">' + nav.map(x => '<button class="' + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? 'on' : '') + '" data-tab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>';
     } else {
-      const tabs = ivo ? [['revision', 'Revisión', Rv.rev.length, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda']] : [['hoy', 'Hoy', tot - ok]].concat([['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']]);
+      const tabs = ivo ? [['revision', 'Revisión', Rv.rev.length, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true]] : [['hoy', 'Hoy', tot - ok]].concat([['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']]);
       app.innerHTML = (ivo ? '' : cinta()) +
         '<section class="hero"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div>' +
         '<h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1>' +
@@ -818,6 +818,23 @@
       sec('Diseños en revisión', 'Tableros de Diseño', R.revDis, c => fila(c, '<span>' + esc(c.tablero) + '</span>'), 'No hay diseños esperando revisión.') +
       sec('Videos en revisión', 'Tableros de Producción', R.revVid, c => fila(c, '<span>' + esc(c.tablero) + '</span>'), 'No hay videos esperando revisión.') +
       (() => {
+        // Seguimiento de las diseñadoras: lo que sale la semana que viene se entrega en dos lotes
+        // (martes: lun a mié · jueves: jue a sáb/dom). Entregado = ya está en revisión.
+        const lun = R.lun, finSem = new Date(lun.getTime() + 7 * 864e5);
+        const piezas = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.tipo === 'diseno' && (c.etapa === 'pendiente' || c.etapa === 'revision') && c.salida && new Date(c.salida) >= lun && new Date(c.salida) < finSem);
+        const lote = (temprano, nombre) => {
+          const L = piezas.filter(c => { const d = new Date(c.salida).getDay(); return temprano ? d >= 1 && d <= 3 : !(d >= 1 && d <= 3); });
+          const ent = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() - 7 + (temprano ? 1 : 3), 18, 0);
+          const faltan = L.filter(c => c.etapa === 'pendiente'), listas = L.length - faltan.length, paso = new Date() > ent;
+          const estado = !L.length ? '<span class="lt-e">sin piezas cargadas</span>' : !faltan.length ? '<span class="lt-e ok">✓ entregaron todo</span>' : paso ? '<span class="lt-e bad">faltó entregar ' + faltan.length + '</span>' : '<span class="lt-e">faltan ' + faltan.length + '</span>';
+          const porMarca = {}; faltan.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
+          return '<div class="lote' + (paso && faltan.length ? ' tarde' : '') + '"><div class="lt-h"><div><b>' + nombre + ' ' + dm(ent) + '</b><small>entregan lo que sale ' + (temprano ? 'lun a mié' : 'jue a sáb') + ' de la semana del ' + dm(lun) + '</small></div>' + estado + '</div>' +
+            (L.length ? '<div class="lt-bar"><i style="width:' + Math.round(listas / L.length * 100) + '%"></i></div><div class="lt-n">' + listas + ' de ' + L.length + ' en revisión</div>' : '') +
+            Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + ' · ' + (paso ? 'faltó entregar' : 'falta') + '</div><div class="list">' + porMarca[s].map(c => fila(c, '')).join('') + '</div>').join('') + '</div>';
+        };
+        return '<div class="sec"><div class="sec-h"><h2>Diseños de la semana que viene</h2><span class="act">¿Entregaron todo?</span></div><div class="lotes">' + lote(true, 'Martes') + lote(false, 'Jueves') + '</div></div>';
+      })() +
+      (() => {
         // próximas entregas por marca: diseñadoras martes (lun–mié de la semana siguiente) y jueves (jue–sáb); reel 48 h antes; historia 1 día antes
         const plazo = c => c.plazo < new Date() ? '<span class="pill bad">faltó entregar · era el ' + dm(c.plazo) + '</span>' : '<span' + (diasA(c.plazo) <= 1 ? ' class="pill warn"' : '') + '>entrega ' + cuando(c.plazo) + (c.formato === 'historia' ? ' (o el mismo día avisando)' : '') + '</span>';
         const porMarca = {}; R.prox.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
@@ -1186,11 +1203,12 @@
     const esProj = c => /project/i.test((equipo.find(x => x.clave === c) || {}).rol || '');
     app.innerHTML = '<div class="gate"><div class="kick">— Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1>' +
       '<div class="ppl2">' + equipo.map(p => '<button data-p="' + esc(p.clave) + '" class="' + (p.clave === elegido ? 'on' : '') + '"><span>' + esc(p.nombre) + '</span><small>' + esc(p.rol) + '</small></button>').join('') + '</div>' +
-      (DEMO ? '' : '<form id="gf" class="' + (elegido ? '' : 'hidden') + '"><label class="field"><span id="gl"></span><input type="password" id="gk" autocomplete="current-password"></label><button class="btn y" style="width:100%;justify-content:center;padding:12px">Entrar</button></form>') +
+      (DEMO ? '' : '<form id="gf" class="' + (elegido ? '' : 'hidden') + '"><label class="field"><span id="gl"></span><input type="password" id="gk" autocomplete="current-password"></label><label class="check vercl"><input type="checkbox" id="gver"> Mostrar contraseña</label><button class="btn y" style="width:100%;justify-content:center;padding:12px">Entrar</button></form>') +
       '<div class="err">' + esc(msg || '') + '</div></div>';
     $('#who').classList.add('hidden'); $('#sync').innerHTML = '';
     const pintarClave = () => {
       const l = $('#gl'), k = $('#gk'); if (!l) return;
+      const gv = $('#gver'); if (gv) gv.onchange = () => { k.type = gv.checked ? 'text' : 'password'; k.focus(); };
       const pj = esProj(elegido);
       l.textContent = pj ? 'Clave del project' : 'Clave del equipo';
       k.placeholder = pj ? 'La clave del project' : 'La que te pasó el project';

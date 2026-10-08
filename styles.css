@@ -724,7 +724,7 @@ body{background:
 .revbox i{margin-left:auto;font-style:normal;color:var(--y)}
 @media(max-width:700px){.revbox{flex-wrap:wrap;gap:4px 10px}.revbox b{font-size:22px}}
 .rapidos.tres{grid-template-columns:repeat(3,1fr)}
-.ivo .bnav{grid-template-columns:repeat(4,1fr)}
+.ivo .bnav{grid-template-columns:repeat(3,1fr)}
 
 .rojo{color:var(--bad)!important}
 
@@ -785,3 +785,19 @@ body{background:
 .dcdia-h i{margin-left:auto;font-style:normal;color:var(--dim);font-size:18px}
 .dcdia .dclist{border-top:1px solid var(--line);padding:0 14px}
 .dcdia .dcm:last-child{border-bottom:0}
+.vercl{margin:-6px 0 14px;font-size:13px}
+
+/* Ivo: lotes de entrega de diseño */
+.lotes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lote{border:1px solid var(--line2);border-radius:12px;padding:14px;background:var(--s1)}
+.lote.tarde{border-color:rgba(255,107,107,.5);background:linear-gradient(160deg,rgba(255,107,107,.07),var(--s1))}
+.lt-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.lt-h b{font-family:var(--f-d);font-weight:400;font-size:24px;display:block;line-height:1}
+.lt-h small{font-size:12px;color:var(--muted)}
+.lt-e{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--s3);color:var(--muted);white-space:nowrap}
+.lt-e.ok{background:rgba(92,227,138,.15);color:var(--ok)}
+.lt-e.bad{background:rgba(255,107,107,.15);color:var(--bad)}
+.lt-bar{height:6px;border-radius:3px;background:var(--line);margin:12px 0 4px;overflow:hidden}
+.lt-bar i{display:block;height:100%;background:var(--ok);border-radius:3px}
+.lt-n{font-size:12px;color:var(--dim)}
+@media(max-width:700px){.lotes{grid-template-columns:1fr}}
