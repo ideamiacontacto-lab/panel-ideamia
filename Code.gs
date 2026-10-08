@@ -999,8 +999,18 @@ function vistaCliente_(marca, dias) {
     rutas.push('/boards/' + b.id + '/lists?filter=open&fields=name');
     rutas.push('/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,labels&attachments=true&attachment_fields=id,name,url,mimeType,isUpload');
   });
+  const sclIds = boards.filter(b => b.tipo === 'scl').map(b => b.id);
+  sclIds.forEach(id => rutas.push('/boards/' + id + '/actions?filter=commentCard&limit=500&fields=data,date'));
   const res = trelloVarios_(rutas), porLink = {}, scl = [];
   const hoy = ymd_(new Date()), hasta = ymd_(new Date(Date.now() + dias * 864e5));
+  // Conversación visible para el cliente: lo que mandó desde la página (💬 Cliente …) y lo que el equipo le responde empezando con "Para el cliente:".
+  const coments = {};
+  res.slice(boards.length * 2).forEach(acts => (acts || []).forEach(a => {
+    const d = a.data || {}, t = String(d.text || ''), id = d.card && d.card.id; if (!id) return;
+    const cli = /^💬 Cliente(?: \(([^)]*)\))?: ([\s\S]*)$/.exec(t), resp = /^para el cliente\s*:\s*([\s\S]*)$/i.exec(t);
+    if (cli) (coments[id] = coments[id] || []).push({ de: 'cliente', q: cli[1] || 'Cliente', t: cli[2].slice(0, 1500), f: a.date });
+    else if (resp) (coments[id] = coments[id] || []).push({ de: 'equipo', q: 'Ideamia', t: resp[1].slice(0, 1500), f: a.date });
+  }));
   boards.forEach((b, i) => {
     const listas = {}; (res[i * 2] || []).forEach(l => listas[l.id] = l.name);
     (res[i * 2 + 1] || []).forEach(c => {
@@ -1039,11 +1049,31 @@ function vistaCliente_(marca, dias) {
     rel.filter(r => r.tipo !== 'guiones' && !/pendiente|pedido/.test(r.lista)).forEach(r => r.att.forEach(a => archivos.push(Object.assign(adj(r.id, a), { de: r.tipo }))));
     return { n: c.name, salida: c.due, formato: formato, etiquetas: lab.filter(x => !/^\(i\)$|^diseno$|^guiones?$/i.test(norm_(x))),
       estado: publicado ? 'publicado' : programado ? 'programado' : partes.every(p => p.estado === 'listo') ? 'listo' : 'proceso',
-      copy: copy.slice(0, 4000), partes: partes, archivos: archivos.slice(0, 12), url: c.shortUrl };
+      copy: copy.slice(0, 4000), partes: partes, archivos: archivos.slice(0, 12), url: c.shortUrl, id: c.id,
+      comentarios: (coments[c.id] || []).sort((p, q) => p.f < q.f ? -1 : 1).slice(-20) };
   }).sort((a, b) => new Date(a.salida) - new Date(b.salida));
   const out = { ok: true, marca: marca, generado: new Date().toISOString(), dias: dias, items: items };
   cachePut_(ck, { t: Date.now(), v: out });
   return out;
+}
+
+/* Comentario del cliente desde la página de links: queda como comentario en la tarjeta de SCL ("💬 Cliente (nombre): …")
+   y en la pestaña Registro. Solo se aceptan tarjetas que la página está mostrando, de marcas habilitadas, con un tope por hora. */
+function comentarCliente_(b) {
+  const marca = norm_(b.marca).replace(/[^a-z0-9]+/g, '-');
+  const texto = String(b.texto || '').trim().slice(0, 1500), nombre = String(b.nombre || '').replace(/[()]/g, '').trim().slice(0, 40) || 'Cliente';
+  if (!texto) return { error: 'datos', mensaje: 'Escribí el comentario' };
+  const vista = vistaCliente_(marca, 31);
+  if (vista.error) return vista;
+  const it = (vista.items || []).filter(x => x.id === b.cardId)[0];
+  if (!it) return { error: 'tarjeta', mensaje: 'Esa publicación ya no está en el calendario' };
+  const c = CacheService.getScriptCache(), tk = 'cli-tope:' + marca, n = Number(c.get(tk) || 0);
+  if (n >= 30) return { error: 'tope', mensaje: 'Recibimos muchos comentarios seguidos. Probá de nuevo en un rato.' };
+  c.put(tk, String(n + 1), 3600);
+  trello_('/cards/' + it.id + '/actions/comments', { text: '💬 Cliente (' + nombre + '): ' + texto }, 'post');
+  try { registrar_('cliente', 'comentario', 'card:' + it.id, marca, 'comentó', (it.n + ' · ' + nombre + ': ' + texto).slice(0, 300), ''); } catch (e) {}
+  ['cli:' + marca + ':15', 'cli:' + marca + ':31'].forEach(k => c.remove(k)); // que la página lo muestre enseguida
+  return { ok: true };
 }
 
 function json_(o, cb) {
@@ -1084,6 +1114,7 @@ function doPost(e) {
   let b = {};
   try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
   try {
+    if (b.action === 'comentarCliente') return json_(comentarCliente_(b)); // página de links del cliente: no lleva clave
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
