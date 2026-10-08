@@ -14,7 +14,9 @@
   const NOW = DEMO ? new Date(2026, 9, 7, 12, 30) : new Date();
   const S = {
     data: null, proj: null, abiertos: {}, reloj: null, tab: LS.get('tab', 'hoy'), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
-    persona: qs.get('p') || LS.get('persona', null), key: LS.get('key', ''), pkey: LS.get('pkey', ''), sync: false,
+    // la persona y la clave del equipo se comparten con Reportes y Brainstormings (mismo origen → mismo localStorage)
+    persona: qs.get('p') || LS.get('persona', null) || (localStorage.getItem('ideamia:persona') !== 'project' ? localStorage.getItem('ideamia:persona') : null) || null,
+    key: LS.get('key', '') || localStorage.getItem('ideamia:clave') || '', pkey: LS.get('pkey', ''), sync: false,
     movil: window.matchMedia('(max-width:700px)').matches, segSem: null, diaSem: null
   };
 
@@ -298,16 +300,11 @@
     if (D || S.proj) {
       const yo = D ? D.yo : { nombre: 'Project', rol: 'Project' };
       w.innerHTML = '<b>' + esc(yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · cambiar</span>'; w.classList.remove('hidden');
-      w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; history.replaceState(null, '', location.pathname); gate(); };
+      w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
     }
     const gen = (D && D.generado) || null;
-    // Reportes y Brainstormings: siempre a mano arriba, sin ocupar lugar (brainstorming copia la contraseña al abrir)
-    const L = (D && D.links) || {}, nRep = D ? (D.reportes || []).length : 0;
-    const accesos = D && !S.proj ? '<a class="tico' + (nRep ? ' hot' : '') + '" href="' + esc(D.linkReportes || L.reportes || '#') + '" target="_blank" rel="noopener" title="Reportes' + (nRep ? ' · ' + nRep + ' por cargar' : '') + '">' + I.flag + '<span>Reportes</span>' + (nRep ? '<em>' + nRep + '</em>' : '') + '</a>' +
-      (L.brainstorming ? '<a class="tico" id="tbrain" href="' + esc(L.brainstorming) + '" target="_blank" rel="noopener" title="Brainstormings' + (L.claveBrain ? ' · al abrir se copia la contraseña' : '') + '">' + I.star + '<span>Brainstorm</span></a>' : '') : '';
-    $('#sync').innerHTML = accesos + (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
+    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
     $('#rf').onclick = actualizar;
-    const tb = $('#tbrain'); if (tb && L.claveBrain) tb.onclick = () => { copiar(L.claveBrain, 'Contraseña de brainstormings copiada: pegala con Ctrl+V.'); };
   }
 
   /* ---------------- vista HOY ---------------- */
@@ -1421,8 +1418,10 @@
       S.persona = elegido; LS.set('persona', S.persona);
       if (!DEMO) {
         const v = $('#gk').value.trim(); if (!v) { $('.err').textContent = 'Escribí la clave.'; return; }
-        if (esProj(elegido)) { S.pkey = v; LS.set('pkey', v); } else { S.key = v; LS.set('key', v); }
+        if (esProj(elegido)) { S.pkey = v; LS.set('pkey', v); } else { S.key = v; LS.set('key', v); try { localStorage.setItem('ideamia:clave', v); } catch (e) {} }
       }
+      // para que Reportes y Brainstormings ya sepan quién es
+      try { const p = equipo.find(x => x.clave === elegido); localStorage.setItem('ideamia:persona', elegido); if (p) localStorage.setItem('ideamia:nombre', p.nombre); } catch (e) {}
       inicio();
     };
     app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
