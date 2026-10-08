@@ -347,6 +347,16 @@ function leerTrello_(cat) {
       if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre, ini: c.start, due: c.due, dc: !!c.dueComplete, url: c.shortUrl, lab: (c.labels || []).map(x => x.name).filter(Boolean) };
       // Tableros de guiones (los maneja Fede): cada tarjeta es un enlace a la idea aprobada en SCL.
       // Ideas recibidas = Fede tiene que entregar · listos para revisión = verlo en la reunión · Correcciones · Aprobado.
+      // Tableros de Diseño y Producción (para la vista de revisión de Ivo): piezas pendientes de entrega y en revisión.
+      if (b.tipo === 'diseno' || b.tipo === 'produccion') {
+        const n = norm_(l.name);
+        const etapa = /revisi/.test(n) ? 'revision' : /correc/.test(n) ? 'correccion' : /espera/.test(n) ? 'espera' : /pendiente|pedido/.test(n) ? 'pendiente' : '';
+        if (etapa) {
+          const fmt = /histori/.test(n) ? 'historia' : /reel|video/.test(n) ? 'reel' : b.tipo === 'produccion' ? 'video' : 'diseno';
+          cards.push({ id: c.id, n: c.name, d: '', due: c.due, dc: !!c.dueComplete, ini: c.start, lista: l.name, cat: 'pieza', etapa: etapa, formato: fmt, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity, lab: [], att: [], m: [b.marca] });
+          return;
+        }
+      }
       if (b.tipo === 'guiones') {
         const n = norm_(l.name);
         const gest = /aprobad|terminad|publicad/.test(n) ? 'aprobado' : /correc/.test(n) ? 'correccion' : /revisi|listo/.test(n) ? 'revisar' : 'pendiente';
@@ -371,12 +381,13 @@ function leerTrello_(cat) {
   const vivas = {}; cards.forEach(c => vivas[c.id] = 1);
   // Guiones: título, fecha de entrega (= fecha de inicio de la tarjeta de SCL) y fecha de salida, de la tarjeta original.
   cards.forEach(c => {
-    if (c.cat !== 'guion') return;
+    if (c.cat !== 'guion' && c.cat !== 'pieza') return;
     const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), orig = m && indice[m[1]];
     if (!orig) return;
     c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = orig.lab || [];
     // a veces se publica directo sin pasar la tarjeta de guiones: si la original ya salió, se marca para ordenar
     c.salio = /publicad|programad|anterior|terminad/.test(norm_(orig.lista)) || orig.dc || (!!orig.due && new Date(orig.due).getTime() < Date.now());
+    if (c.cat === 'pieza') { const t = norm_(c.n + ' ' + c.lab.join(' ')); if (c.formato === 'video') c.formato = /histori/.test(t) ? 'historia' : 'reel'; else if (c.formato === 'diseno' && /carrus/.test(t)) c.formato = 'carrusel'; }
   });
   cards.forEach(c => {
     if (c.tipo !== 'project') return;
@@ -503,6 +514,8 @@ function asegurarRutinas_() {
   if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_SERVIDOR') < 0) cf.appendRow(['DISCORD_SERVIDOR', '', 'ID del servidor de Discord del equipo (Discord con modo desarrollador → clic derecho en el servidor → Copiar ID del servidor)']);
   // columna F de Equipo: usuario de Discord de cada uno (para sus menciones)
   const eqs = SpreadsheetApp.getActive().getSheetByName('Equipo');
+  // Ivo: dirección creativa, con su propia vista de revisión
+  if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('ivo') < 0) eqs.appendRow(['Ivo', 'ivo', 'Dirección', 'ivo']);
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
 
@@ -625,7 +638,9 @@ function panel_(personaClave, ctx) {
   const yo = cat.equipo.filter(p => p.clave === norm_(personaClave))[0];
   if (!yo) return { error: 'No encuentro a "' + personaClave + '" en la pestaña Equipo', equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })) };
   const esCM = /cm/i.test(yo.rol), esProject = /project/i.test(yo.rol);
-  const misMarcas = cat.marcas.filter(m => esProject || m.sm === yo.clave || m.cm === yo.clave);
+  // Ivo (rol "Dirección" o "Creativo"): ve todas las marcas y la vista de revisión (diseños, videos y guiones de la semana)
+  const esRevisa = esProject || /direcc|creativ/i.test(yo.rol);
+  const misMarcas = cat.marcas.filter(m => esRevisa || m.sm === yo.clave || m.cm === yo.clave);
   const slugs = misMarcas.map(m => m.slug);
   const hoy = ctx.hoy;
   const snap = ctx.snap;
@@ -661,6 +676,8 @@ function panel_(personaClave, ctx) {
     // los inputs salen solo de los tableros SCL (en el Project y en los otros tableros quedan pedidos viejos)
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
     if (c.cat === 'guion') return true;
+    if (c.cat === 'pieza') return esRevisa && !c.salio;
+    if (esRevisa && c.tipo === 'scl' && /^en revisi/.test(norm_(c.lista))) return true; // lo que está en revisión en SCL
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
@@ -687,7 +704,8 @@ function panel_(personaClave, ctx) {
     const l = lista_(r.porMarca);
     return misMarcas.filter(m => l.some(a => m.alias.indexOf(a) >= 0 || m.slug === a.replace(/[^a-z0-9]+/g, '-')));
   };
-  const misRutinas = cat.rutinas.filter(r => (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')) && ['rep-mensual', 'rep-trim'].indexOf(r.id) < 0)
+  const soloRevisa = esRevisa && !esProject; // Ivo no tiene rutinas ni reuniones de social media
+  const misRutinas = cat.rutinas.filter(r => !soloRevisa && (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')) && ['rep-mensual', 'rep-trim'].indexOf(r.id) < 0)
     .filter(r => { const ms = marcasDeRutina(r); return ms === null || ms.length > 0; }); // si es de marcas que no son mías, no la veo
   // Para el checklist semanal: qué rutinas hay, para qué marcas y qué días/períodos tiene esta semana.
   const lunes = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - ((hoy.getDay() + 6) % 7));
@@ -710,7 +728,7 @@ function panel_(personaClave, ctx) {
 
   // reuniones a organizar este mes
   const reuniones = [];
-  cat.reuniones.filter(r => esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')).forEach(r => {
+  cat.reuniones.filter(r => !soloRevisa && (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm'))).forEach(r => {
     const ev = evaluarCuando_(r.cuando, hoy, r.avisar); if (!ev) return;
     (r.porMarca ? misMarcas : [null]).forEach(m => {
       const clave = 'reu:' + r.id + ':' + (m ? m.slug : yo.clave) + ':' + ev.periodo;
@@ -722,7 +740,7 @@ function panel_(personaClave, ctx) {
   // Calendario personal: cada uno ve lo suyo.
   const equipoKw = lista_(cfg.CAL_EQUIPO == null ? 'reporte,entrega quincenal,reels,guion,guiones,revision,reunion ideamia,brainstorming' : cfg.CAL_EQUIPO);
   const evs = ctx.eventos.map(e => Object.assign({}, e)).filter(e => {
-    if (esProject) return true;
+    if (esRevisa) return true;
     if (e.personas.indexOf(yo.clave) >= 0) return true;                         // me nombra o me invitaron
     if (e.marcas.some(s => slugs.indexOf(s) >= 0)) return true;                  // es de una de mis marcas
     if (e.personas.length || e.otros || e.marcas.length) return false;          // es de otra persona o de otra marca

@@ -24,6 +24,13 @@ window.PANEL_DEMO = (function () {
     c({ id: "g2", n: "Reel detrás de escena del local", cat: "guion", gest: "pendiente", lista: "Ideas Recibidas (BRIEF SMM)", tipo: "guiones", tablero: "GUIONES GV", m: ["gabriel-varisco"], entrega: "2026-10-06T12:00:00Z", salida: "2026-10-20T20:00:00Z" }),
     c({ id: "g3", n: "Combo doble explicado en 15 segundos", cat: "guion", gest: "pendiente", lista: "Ideas Recibidas (BRIEF SMM)", tipo: "guiones", tablero: "GUIONES VICE", m: ["vice-burger"], entrega: "2026-10-13T12:00:00Z", salida: "2026-10-24T20:00:00Z" }),
     c({ id: "g4", n: "Tritato: 3 errores al hacer tortas", cat: "guion", gest: "revisar", lista: "Guiones listos para revisión", tipo: "guiones", tablero: "GUIONES TRITATO", m: ["tritato"], entrega: "2026-10-06T12:00:00Z", salida: "2026-10-18T20:00:00Z" }),
+    // piezas de Diseño y Producción (vista de revisión de Ivo)
+    c({ id: "p1", url: "https://trello.com/c/demo-p1", n: "Carrusel promo miércoles Isco", cat: "pieza", etapa: "revision", formato: "carrusel", lista: "En revision", tipo: "diseno", tablero: "Diseño ISCO", m: ["isco"], salida: "2026-10-14T20:00:00Z" }),
+    c({ id: "p2", url: "https://trello.com/c/demo-p2", n: "Reel combo doble", cat: "pieza", etapa: "revision", formato: "reel", lista: "En revision", tipo: "produccion", tablero: "Produccion Vice", m: ["vice-burger"], salida: "2026-10-10T20:00:00Z" }),
+    c({ id: "p3", url: "https://trello.com/c/demo-p3", n: "Post Día de la Madre GV", cat: "pieza", etapa: "pendiente", formato: "diseno", lista: "Pendiente de diseño", tipo: "diseno", tablero: "Diseño GV", m: ["gabriel-varisco"], salida: "2026-10-13T20:00:00Z" }),
+    c({ id: "p4", url: "https://trello.com/c/demo-p4", n: "Placas promo viernes Tritato", cat: "pieza", etapa: "pendiente", formato: "diseno", lista: "Pendiente de diseño", tipo: "diseno", tablero: "Diseño Tritato", m: ["tritato"], salida: "2026-10-16T20:00:00Z" }),
+    c({ id: "p5", url: "https://trello.com/c/demo-p5", n: "Reel receta cookies", cat: "pieza", etapa: "pendiente", formato: "reel", lista: "Reels pendientes", tipo: "produccion", tablero: "Produccion ISCO", m: ["isco"], salida: "2026-10-08T20:00:00Z" }),
+    c({ id: "p6", url: "https://trello.com/c/demo-p6", n: "Historia horarios feriado", cat: "pieza", etapa: "pendiente", formato: "historia", lista: "Historias pendientes", tipo: "produccion", tablero: "Produccion ISCO", m: ["isco"], salida: "2026-10-09T13:00:00Z" }),
     c({ id: "g6", n: "Reel Día del Padre Isco", cat: "guion", gest: "pendiente", salio: true, lista: "Ideas Recibidas (BRIEF SMM)", tipo: "guiones", tablero: "GUIONES ISCO", m: ["isco"], entrega: null, salida: "2026-10-03T20:00:00Z" }),
     c({ id: "g5", n: "Receta cookies con premezcla", cat: "guion", gest: "correccion", lista: "Correcciones", tipo: "guiones", tablero: "GUIONES ISCO", m: ["isco"], entrega: "2026-09-29T12:00:00Z", salida: "2026-10-15T20:00:00Z" }),
     c({ id: "i1", n: "Recetario de Halloween", d: "Recetas tenebrosas para la semana de Halloween: cupcakes calabaza, galletas araña, brownies cementerio.", cat: "input", lista: "INPUTS / PEDIDOS DEL CLIENTE", tipo: "scl", tablero: "SCL ISCO", m: ["isco"], act: "2026-10-07T13:10:00Z", att: [{ n: "Recetario Halloween.pdf", u: "#" }],
@@ -55,7 +62,7 @@ window.PANEL_DEMO = (function () {
     c({ id: "r4", n: "Logos y menú", cat: "recursos", lista: "Recursos Corporativos", tipo: "scl", tablero: "SCL Tritato", m: ["tritato"], att: [{ n: "Menú vigente.pdf", u: "#" }] }),
     c({ id: "f1", n: "Ficha · Crema chantilly 1L", cat: "fichas", lista: "Fichas tecnicas", tipo: "scl", tablero: "SCL ISCO", m: ["isco"], att: [{ n: "Ficha técnica.pdf", u: "#" }] }),
     c({ id: "f2", n: "Ficha · Premezcla sin TACC", cat: "fichas", lista: "Fichas tecnicas", tipo: "scl", tablero: "SCL ISCO", m: ["isco"], att: [{ n: "Ficha técnica.pdf", u: "#" }] }),
-    c({ id: "p1", n: "ISCO · Pedido de flyer para mostrador", cat: "trabajo", lista: "Pedidos del cliente", tipo: "project", tablero: "Project", m: ["isco"], due: "2026-10-09T15:00:00Z" })
+    c({ id: "p1", url: "https://trello.com/c/demo-p1", n: "ISCO · Pedido de flyer para mostrador", cat: "trabajo", lista: "Pedidos del cliente", tipo: "project", tablero: "Project", m: ["isco"], due: "2026-10-09T15:00:00Z" })
   ];
   const r = (id, tarea, marca, etiqueta, extra) => Object.assign({ clave: "rut:" + id + ":" + (marca || "-") + ":demo", id, tarea, marca: marca || "", etiqueta, vencida: false, estado: null, ayuda: "", enlace: "" }, extra || {});
   const rutinas = [
@@ -104,8 +111,8 @@ window.PANEL_DEMO = (function () {
   ];
   return {
     ok: true, demo: true, generado: "2026-10-07T15:00:00Z", hoy: "2026-10-07",
-    yo: { clave: "orne", nombre: "Orne", rol: "SM" },
-    equipo: [{ clave: "orne", nombre: "Orne", rol: "SM" }, { clave: "rama", nombre: "Rama", rol: "SM" }, { clave: "ale", nombre: "Ale", rol: "CM" }, { clave: "project", nombre: "Joaquín", rol: "Project" }],
+    yo: new URLSearchParams(location.search).get("p") === "ivo" ? { clave: "ivo", nombre: "Ivo", rol: "Dirección" } : { clave: "orne", nombre: "Orne", rol: "SM" },
+    equipo: [{ clave: "orne", nombre: "Orne", rol: "SM" }, { clave: "ivo", nombre: "Ivo", rol: "Dirección" }, { clave: "rama", nombre: "Rama", rol: "SM" }, { clave: "ale", nombre: "Ale", rol: "CM" }, { clave: "project", nombre: "Joaquín", rol: "Project" }],
     marcas, project: T("30dl2puJ"), cards, rutinas, reuniones, eventos,
     discord: { generado: "2026-10-07T15:00:00Z", conUsuario: true, menciones: [
       { id: "d1", canal: "isco", autor: "Joaquín", texto: "@Orne ¿me pasás cómo quedó el carrusel de la promo del miércoles? Lo quiere ver el cliente hoy", fecha: "2026-10-07T14:20:00Z", url: "https://discord.com/channels/1/2/3", todos: false },

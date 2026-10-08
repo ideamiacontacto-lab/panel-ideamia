@@ -715,3 +715,11 @@ body{background:
 .dcm i{font-style:normal;color:var(--dim)}
 .dcm.nuevo .dca{box-shadow:0 0 0 2px var(--bg),0 0 0 4px #8B95FF}
 .dcm:not(.nuevo) .dct{color:var(--muted)}
+/* revisión (Ivo) */
+.revbox{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 16px;margin-bottom:12px;border-radius:12px;border:1px solid rgba(255,242,0,.45);background:linear-gradient(160deg,rgba(255,242,0,.10),var(--s1));transition:transform .2s var(--ease)}
+.revbox:hover{transform:translateY(-2px)}
+.revbox b{font-family:var(--f-d);font-weight:400;font-size:26px;line-height:1;color:var(--y);flex:none}
+.revbox span{font-size:13.5px;color:var(--text)}
+.revbox em{font-style:normal;color:var(--bad);font-weight:600}
+.revbox i{margin-left:auto;font-style:normal;color:var(--y)}
+@media(max-width:700px){.revbox{flex-wrap:wrap;gap:4px 10px}.revbox b{font-size:22px}}
