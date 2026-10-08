@@ -859,3 +859,21 @@ body{background:
 @media(max-width:700px){.avisos{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:4px 16px 12px;width:auto}.avisos::-webkit-scrollbar{display:none}.av{flex:none}.mhead .kick{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 
 .racha{color:var(--warn);font-weight:600;white-space:nowrap}
+
+/* Ivo: recuadros como pestañas + carpetas por marca */
+.revtabs .rp{cursor:pointer;text-align:left}
+.revtabs .rp.sel{outline:2px solid var(--text);outline-offset:-2px;background:var(--s3)}
+.revtabs .rp:not(.sel){opacity:.75}
+.revc{margin-top:4px}
+.mcar{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;background:var(--s1)}
+.mcar.on{border-color:var(--line2)}
+.mcar-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;text-align:left}
+.mcar-h .dotm{width:10px;height:10px;border-radius:50%;flex:none}
+.mcar-h b{font-family:var(--f-t);font-weight:700;font-size:14.5px}
+.mcar-h small{color:var(--dim);font-size:12px}
+.mcar-h em{font-style:normal;font-size:11px;font-weight:700;background:rgba(255,107,107,.15);color:var(--bad);border-radius:999px;padding:2px 8px}
+.mcar-h i{margin-left:auto;font-style:normal;color:var(--dim);font-size:18px}
+.mcar .list{border-top:1px solid var(--line);padding:0 14px}
+.mcar .row:last-child{border-bottom:0}
+.lote .mcar{margin-top:10px;background:var(--bg)}
+@media(max-width:700px){.revtabs .rp b{font-size:26px}.revtabs .rp span{font-size:11px}}

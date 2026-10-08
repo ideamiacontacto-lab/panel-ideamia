@@ -218,7 +218,7 @@
     if (ivo && ['revision', 'guiones', 'discord'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
-    const resumenIvo = ivo ? '<b>' + Rv.revDis.length + '</b> diseños y <b>' + Rv.revVid.length + '</b> videos en revisión · <b>' + Rv.gui.length + '</b> guiones para el ' + dm(Rv.lun) + (Rv.atras.length ? ' · <b class="rojo">faltó entregar ' + Rv.atras.length + '</b>' : '') : '';
+    const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
     const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: 5 lugares (Ivo: 3)
     const nMas = guionAtencion() + dcSinVer().length;
@@ -229,7 +229,7 @@
     const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
     const portada = S.tab === (ivo ? 'revision' : 'hoy');
     const head = portada
-      ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
       : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
@@ -871,40 +871,48 @@
   function vRevision() {
     const R = datosRevision();
     const FMT = { reel: 'Reel', historia: 'Historia', video: 'Video', carrusel: 'Carrusel', diseno: 'Diseño', guion: 'Guion' };
-    const fila = (c, extra) => '<div class="row"><span class="ico">' + (esVideo(c) ? I.flag : I.pen) + '</span><div><div class="tt"><a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a></div><div class="mt">' + tagM(c.m[0]) + '<span class="pill">' + (FMT[c.formato] || (esVideo(c) ? 'Video' : 'Diseño')) + '</span>' + extra + (c.salida || c.due ? '<span>sale ' + cuando(new Date(c.salida || c.due)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en ' + esc(c.tablero || 'Trello') + '">' + I.out + '</a></div></div>';
-    const sec = (t, sub, L, f, vacio) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + L.length + '</small></h2>' + (sub ? '<span class="act">' + sub + '</span>' : '') + '</div>' + (L.length ? '<div class="list">' + L.map(f).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
-    return '<div class="rapidos">' +
-      '<div class="rp' + (R.revDis.length ? ' y' : '') + '"><b>' + R.revDis.length + '</b><span>diseños<br><small>en revisión</small></span></div>' +
-      '<div class="rp' + (R.revVid.length ? ' y' : '') + '"><b>' + R.revVid.length + '</b><span>videos<br><small>en revisión</small></span></div>' +
-      '<div class="rp' + (R.atras.length ? ' bad' : '') + '"><b>' + R.atras.length + '</b><span>faltó<br><small>entregar</small></span></div>' +
-      '<div class="rp"><b>' + R.gui.length + '</b><span>guiones<br><small>reunión del ' + dm(R.lun) + '</small></span></div></div>' +
-      sec('Diseños en revisión', 'Tableros de Diseño', R.revDis, c => fila(c, '<span>' + esc(c.tablero) + '</span>'), 'No hay diseños esperando revisión.') +
-      sec('Videos en revisión', 'Tableros de Producción', R.revVid, c => fila(c, '<span>' + esc(c.tablero) + '</span>'), 'No hay videos esperando revisión.') +
-      (() => {
-        // Seguimiento de las diseñadoras: lo que sale la semana que viene se entrega en dos lotes
-        // (martes: lun a mié · jueves: jue a sáb/dom). Entregado = ya está en revisión.
-        const lun = R.lun, finSem = new Date(lun.getTime() + 7 * 864e5);
-        const piezas = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.tipo === 'diseno' && (c.etapa === 'pendiente' || c.etapa === 'revision') && c.salida && new Date(c.salida) >= lun && new Date(c.salida) < finSem);
-        const lote = (temprano, nombre) => {
-          const L = piezas.filter(c => { const d = new Date(c.salida).getDay(); return temprano ? d >= 1 && d <= 3 : !(d >= 1 && d <= 3); });
-          const ent = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() - 7 + (temprano ? 1 : 3), 18, 0);
-          const faltan = L.filter(c => c.etapa === 'pendiente'), listas = L.length - faltan.length, paso = new Date() > ent;
-          const estado = !L.length ? '<span class="lt-e">sin piezas cargadas</span>' : !faltan.length ? '<span class="lt-e ok">✓ entregaron todo</span>' : paso ? '<span class="lt-e bad">faltó entregar ' + faltan.length + '</span>' : '<span class="lt-e">faltan ' + faltan.length + '</span>';
-          const porMarca = {}; faltan.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
-          return '<div class="lote' + (paso && faltan.length ? ' tarde' : '') + '"><div class="lt-h"><div><b>' + nombre + ' ' + dm(ent) + '</b><small>entregan lo que sale ' + (temprano ? 'lun a mié' : 'jue a sáb') + ' de la semana del ' + dm(lun) + '</small></div>' + estado + '</div>' +
-            (L.length ? '<div class="lt-bar"><i style="width:' + Math.round(listas / L.length * 100) + '%"></i></div><div class="lt-n">' + listas + ' de ' + L.length + ' en revisión</div>' : '') +
-            Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + ' · ' + (paso ? 'faltó entregar' : 'falta') + '</div><div class="list">' + porMarca[s].map(c => fila(c, datoPieza(c, plazoEntrega(c)))).join('') + '</div>').join('') + '</div>';
-        };
-        return '<div class="sec"><div class="sec-h"><h2>Diseños de la semana que viene</h2><span class="act">¿Entregaron todo?</span></div><div class="lotes">' + lote(true, 'Martes') + lote(false, 'Jueves') + '</div></div>';
-      })() +
-      (() => {
-        // próximas entregas por marca: diseñadoras martes (lun–mié de la semana siguiente) y jueves (jue–sáb); reel 48 h antes; historia 1 día antes
-        const plazo = c => c.plazo < new Date() ? '<span class="pill bad">faltó entregar · era el ' + dm(c.plazo) + '</span>' : '<span' + (diasA(c.plazo) <= 1 ? ' class="pill warn"' : '') + '>entrega ' + cuando(c.plazo) + (c.formato === 'historia' ? ' (o el mismo día avisando)' : '') + '</span>';
-        const porMarca = {}; R.prox.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
-        return '<div class="sec"><div class="sec-h"><h2>Próximas entregas<small>' + R.prox.length + '</small></h2><span class="act">Diseño: martes (lun a mié) y jueves (jue a sáb) · Reel 48 h antes · Historia 1 día antes</span></div>' +
-          (R.prox.length ? Object.keys(porMarca).map(s => '<div class="dw-l">' + esc((marca(s) || {}).nombre || s) + '</div><div class="list">' + porMarca[s].map(c => fila(c, plazo(c) + datoPieza(c, c.plazo))).join('') + '</div>').join('') : '<div class="empty">Nada pendiente de entrega para los próximos días.</div>') + '</div>';
-      })() +
-      sec('Guiones para la reunión', 'Lunes ' + dm(R.lun), R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), 'No hay guiones para ver esta semana.');
+    const fila = (c, extra) => '<div class="row"><span class="ico">' + (esVideo(c) ? I.flag : I.pen) + '</span><div><div class="tt"><a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a></div><div class="mt"><span class="pill">' + (FMT[c.formato] || (esVideo(c) ? 'Video' : 'Diseño')) + '</span>' + extra + (c.salida || c.due ? '<span>sale ' + cuando(new Date(c.salida || c.due)) + '</span>' : '') + '</div></div><div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en ' + esc(c.tablero || 'Trello') + '">' + I.out + '</a></div></div>';
+    // carpetas por marca: se abren solas si tienen algo urgente/atrasado; si hay una sola marca, abierta
+    const porMarca = (id, L, filaFn, urgente) => {
+      const g = {}; L.forEach(c => (g[c.m[0]] = g[c.m[0]] || []).push(c));
+      const ks = Object.keys(g).sort((a, b) => (urgente ? g[b].filter(urgente).length - g[a].filter(urgente).length : 0) || g[b].length - g[a].length);
+      return ks.map(s => {
+        const k = id + ':' + s, nU = urgente ? g[s].filter(urgente).length : 0;
+        const abierta = S.abiertos[k] != null ? S.abiertos[k] : (ks.length === 1 || nU > 0);
+        return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><small>' + g[s].length + '</small>' + (nU ? '<em>' + nU + ' atrasad' + (nU === 1 ? 'a' : 'as') + '</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
+          (abierta ? '<div class="list">' + g[s].map(filaFn).join('') + '</div>' : '') + '</div>';
+      }).join('');
+    };
+    const vacio = t => '<div class="empty">' + t + '</div>';
+    // los contadores son las pestañas: se ve una sección a la vez
+    const segs = [['dis', 'diseños', 'en revisión', R.revDis.length, 'y'], ['vid', 'videos', 'en revisión', R.revVid.length, 'y'], ['ent', 'entregas', R.atras.length ? 'faltó entregar' : 'próximas', R.atras.length || R.prox.length, R.atras.length ? 'bad' : ''], ['gui', 'guiones', 'lunes ' + dm(R.lun), R.gui.length, '']];
+    let seg = LS.get('revseg', null);
+    if (!segs.some(s => s[0] === seg)) seg = R.atras.length ? 'ent' : R.revDis.length ? 'dis' : R.revVid.length ? 'vid' : 'ent';
+    const tabs = '<div class="rapidos revtabs">' + segs.map(s => '<button class="rp' + (s[3] ? ' ' + s[4] : '') + (seg === s[0] ? ' sel' : '') + '" data-revseg="' + s[0] + '"><b>' + s[3] + '</b><span>' + s[1] + '<br><small>' + s[2] + '</small></span></button>').join('') + '</div>';
+    let cuerpo = '';
+    if (seg === 'dis') cuerpo = R.revDis.length ? porMarca('rd', R.revDis, c => fila(c, '')) : vacio('No hay diseños esperando revisión.');
+    else if (seg === 'vid') cuerpo = R.revVid.length ? porMarca('rv', R.revVid, c => fila(c, '')) : vacio('No hay videos esperando revisión.');
+    else if (seg === 'gui') cuerpo = R.gui.length ? porMarca('rg', R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), g => g.gest === 'pendiente' && diasA(new Date(g.entrega)) < 0) : vacio('No hay guiones para ver esta semana.');
+    else {
+      // Entregas: los dos lotes de las diseñadoras (martes: lun a mié · jueves: jue a sáb) y después reels e historias
+      const lun = R.lun, finSem = new Date(lun.getTime() + 7 * 864e5);
+      const piezas = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.tipo === 'diseno' && (c.etapa === 'pendiente' || c.etapa === 'revision') && c.salida && new Date(c.salida) >= lun && new Date(c.salida) < finSem);
+      const lote = (temprano, nombre) => {
+        const L = piezas.filter(c => { const d = new Date(c.salida).getDay(); return temprano ? d >= 1 && d <= 3 : !(d >= 1 && d <= 3); });
+        const ent = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() - 7 + (temprano ? 1 : 3), 18, 0);
+        const faltan = L.filter(c => c.etapa === 'pendiente'), listas = L.length - faltan.length, paso = new Date() > ent;
+        const estado = !L.length ? '<span class="lt-e">sin piezas</span>' : !faltan.length ? '<span class="lt-e ok">✓ todo entregado</span>' : paso ? '<span class="lt-e bad">faltó ' + faltan.length + '</span>' : '<span class="lt-e">faltan ' + faltan.length + '</span>';
+        return '<div class="lote' + (paso && faltan.length ? ' tarde' : '') + '"><div class="lt-h"><div><b>' + nombre + ' ' + dm(ent) + '</b><small>lo que sale ' + (temprano ? 'lun a mié' : 'jue a sáb') + ' (semana del ' + dm(lun) + ')</small></div>' + estado + '</div>' +
+          (L.length ? '<div class="lt-bar"><i style="width:' + Math.round(listas / L.length * 100) + '%"></i></div><div class="lt-n">' + listas + ' de ' + L.length + ' en revisión</div>' : '') +
+          (faltan.length ? porMarca('lt' + (temprano ? 1 : 2), faltan, c => fila(c, datoPieza(c, plazoEntrega(c))), () => paso) : '') + '</div>';
+      };
+      const videos = R.prox.filter(c => c.tipo === 'produccion');
+      const plazo = c => c.plazo < new Date() ? '<span class="pill bad">faltó · era el ' + dm(c.plazo) + '</span>' : '<span' + (diasA(c.plazo) <= 1 ? ' class="pill warn"' : '') + '>entrega ' + cuando(c.plazo) + '</span>';
+      cuerpo = '<div class="sec"><div class="sec-h"><h2>Diseño · semana que viene</h2></div><div class="lotes">' + lote(true, 'Martes') + lote(false, 'Jueves') + '</div></div>' +
+        '<div class="sec"><div class="sec-h"><h2>Videos<small>' + videos.length + '</small></h2><span class="act">reel 48 h antes · historia 1 día antes</span></div>' +
+        (videos.length ? porMarca('pv', videos, c => fila(c, plazo(c) + datoPieza(c, c.plazo)), c => c.plazo < new Date()) : vacio('Los filmmakers están al día.')) + '</div>';
+    }
+    return tabs + '<div class="revc">' + cuerpo + '</div>';
   }
   // en Hoy (para Ivo): resumen de lo que tiene para revisar
   function bloqueRevision() {
@@ -1054,6 +1062,8 @@
     root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
     root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
+    root.querySelectorAll('[data-revseg]').forEach(b => b.onclick = () => { LS.set('revseg', b.dataset.revseg); render(); });
+    root.querySelectorAll('[data-mcar]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.mcar] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dcmodo]').forEach(b => b.onclick = () => { LS.set('dcmodo', b.dataset.dcmodo); render(); });
     root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
