@@ -188,14 +188,20 @@ function setup() {
   const def = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
   if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(def);
   ScriptApp.getProjectTriggers().filter(t => ['actualizar', 'actualizarProgramado'].indexOf(t.getHandlerFunction()) >= 0).forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('actualizarProgramado').timeBased().everyMinutes(15).create();
-  try { SpreadsheetApp.getUi().alert('Pestañas listas. Trello se actualiza solo cada 15 minutos de 8 a 21 h, y una vez por hora de noche.'); } catch (e) {}
+  instalarDisparador_();
+  try { SpreadsheetApp.getUi().alert('Pestañas listas. Trello se actualiza solo cada 10 minutos de 8 a 21 h, y una vez por hora de noche.'); } catch (e) {}
 }
 
-/* Disparador automático: cada 15 min en horario de trabajo; de noche solo una vez por hora (para quedar dentro de la cuota gratis de Google). */
+/* Disparador automático: cada 10 min en horario de trabajo; de noche solo una vez por hora. Más seguido no entra en la cuota gratis de Google
+   (90 min de disparadores por día: cada lectura de Trello tarda ~1 min). Para lo urgente está el botón ↻ de la web, que lee Trello al momento. */
+function instalarDisparador_() {
+  ScriptApp.getProjectTriggers().filter(t => ['actualizar', 'actualizarProgramado'].indexOf(t.getHandlerFunction()) >= 0).forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('actualizarProgramado').timeBased().everyMinutes(10).create();
+}
+function reinstalarDisparador() { instalarDisparador_(); }
 function actualizarProgramado() {
   const h = Number(Utilities.formatDate(new Date(), TZ, 'H')), m = Number(Utilities.formatDate(new Date(), TZ, 'm'));
-  if ((h < 8 || h >= 21) && m >= 15) return;
+  if ((h < 8 || h >= 21) && m >= 10) return;
   actualizar();
 }
 
@@ -546,10 +552,13 @@ function asegurarRutinas_() {
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
 
-function actualizar() {
+function actualizar(desdeWeb) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return { ok: false, error: 'Ya se está actualizando' };
+  // si justo está corriendo el disparador, el botón de la web espera a que termine en vez de fallar
+  if (!lock.tryLock(desdeWeb ? 110000 : 5000)) return { ok: false, error: 'Ya se está actualizando' };
   try {
+    // recién actualizado (por el disparador o por otra persona): no se vuelve a leer todo
+    if (desdeWeb) { try { const g = new Date(leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json').generado || 0).getTime(); if (Date.now() - g < 60000) return { ok: true, reciente: true, generado: new Date(g).toISOString() }; } catch (e) {} }
     try { asegurarRutinas_(); } catch (e) {}
     const cat = catalogo_(), cfg = config_();
     const snap = leerTrello_(cat);
@@ -1222,7 +1231,7 @@ function doPost(e) {
         quitarDeSnapshot_(b.cardId);
         return json_({ ok: true });
       case 'actualizar':
-        return json_(actualizar());
+        return json_(actualizar(true));
       case 'crearTarjeta': { // crea la tarjeta en Trello (y opcionalmente la manda a otra lista, que es lo que dispara las automatizaciones)
         if (!b.listId || !b.nombre) return json_({ error: 'datos', mensaje: 'Falta el nombre o la lista' });
         const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 1500), pos: 'top' };
