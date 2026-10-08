@@ -188,14 +188,20 @@ function setup() {
   const def = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
   if (def && def.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(def);
   ScriptApp.getProjectTriggers().filter(t => ['actualizar', 'actualizarProgramado'].indexOf(t.getHandlerFunction()) >= 0).forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('actualizarProgramado').timeBased().everyMinutes(15).create();
-  try { SpreadsheetApp.getUi().alert('Pestañas listas. Trello se actualiza solo cada 15 minutos de 8 a 21 h, y una vez por hora de noche.'); } catch (e) {}
+  instalarDisparador_();
+  try { SpreadsheetApp.getUi().alert('Pestañas listas. Trello se actualiza solo cada 10 minutos de 8 a 21 h, y una vez por hora de noche.'); } catch (e) {}
 }
 
-/* Disparador automático: cada 15 min en horario de trabajo; de noche solo una vez por hora (para quedar dentro de la cuota gratis de Google). */
+/* Disparador automático: cada 10 min en horario de trabajo; de noche solo una vez por hora. Más seguido no entra en la cuota gratis de Google
+   (90 min de disparadores por día: cada lectura de Trello tarda ~1 min). Para lo urgente está el botón ↻ de la web, que lee Trello al momento. */
+function instalarDisparador_() {
+  ScriptApp.getProjectTriggers().filter(t => ['actualizar', 'actualizarProgramado'].indexOf(t.getHandlerFunction()) >= 0).forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('actualizarProgramado').timeBased().everyMinutes(10).create();
+}
+function reinstalarDisparador() { instalarDisparador_(); }
 function actualizarProgramado() {
   const h = Number(Utilities.formatDate(new Date(), TZ, 'H')), m = Number(Utilities.formatDate(new Date(), TZ, 'm'));
-  if ((h < 8 || h >= 21) && m >= 15) return;
+  if ((h < 8 || h >= 21) && m >= 10) return;
   actualizar();
 }
 
@@ -408,7 +414,8 @@ function leerTrello_(cat) {
     if (!orig) return;
     c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = (c.lab || []).concat((orig.lab || []).filter(x => (c.lab || []).indexOf(x) < 0));
     // a veces se publica directo sin pasar la tarjeta de guiones: si la original ya salió, se marca para ordenar
-    c.salio = /publicad|programad|anterior|terminad/.test(norm_(orig.lista)) || orig.dc || (!!orig.due && new Date(orig.due).getTime() < Date.now());
+    // "ya salió" solo si la tarjeta de SCL está en una lista de publicado o la marcaron completa: que haya pasado la fecha no alcanza (si sigue en revisión, está atrasada y hay que verla igual)
+    c.salio = /publicad|programad|anterior|terminad/.test(norm_(orig.lista)) || orig.dc;
     if (c.cat === 'pieza') {
       const hp = hist[c.id] || {}, ho = hist[orig.id] || {};
       c.hist = { cargada: hp.creada || null, fecha: ho.fecha || null, para: ho.para || null, antes: ho.antes || null, movida: hp.movida || null, a: hp.a || null };
@@ -545,10 +552,13 @@ function asegurarRutinas_() {
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
 
-function actualizar() {
+function actualizar(desdeWeb) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return { ok: false, error: 'Ya se está actualizando' };
+  // si justo está corriendo el disparador, el botón de la web espera a que termine en vez de fallar
+  if (!lock.tryLock(desdeWeb ? 110000 : 5000)) return { ok: false, error: 'Ya se está actualizando' };
   try {
+    // recién actualizado (por el disparador o por otra persona): no se vuelve a leer todo
+    if (desdeWeb) { try { const g = new Date(leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json').generado || 0).getTime(); if (Date.now() - g < 60000) return { ok: true, reciente: true, generado: new Date(g).toISOString() }; } catch (e) {} }
     try { asegurarRutinas_(); } catch (e) {}
     const cat = catalogo_(), cfg = config_();
     const snap = leerTrello_(cat);
@@ -1117,7 +1127,7 @@ function burgersMes_(marca) {
     const m = /^burger del mes · (\S+) (\d{4})$/i.exec(norm_(c.name)); if (!m) return;
     const mi = MESES_.indexOf(m[1]); if (mi < 0) return;
     const campo = k => { const r = new RegExp('^' + k + ':\\s*(.*)$', 'im').exec(c.desc || ''); return r ? r[1].trim() : ''; };
-    meses[m[2] + '-' + String(mi + 1).padStart(2, '0')] = { nombre: campo('Nombre'), ingredientes: campo('Ingredientes'), notas: campo('Notas'), fecha: c.due ? ymd_(new Date(c.due)) : '', url: c.shortUrl };
+    meses[m[2] + '-' + String(mi + 1).padStart(2, '0')] = { hay: /^no$/i.test(campo('Hay')) ? 'no' : 'si', nombre: campo('Nombre'), ingredientes: campo('Ingredientes'), notas: campo('Notas'), fecha: c.due ? ymd_(new Date(c.due)) : '', url: c.shortUrl };
   });
   const out = { ok: true, meses: meses };
   cachePut_(ck, { t: Date.now(), v: out });
@@ -1130,7 +1140,8 @@ function guardarBurgerMes_(b) {
   const mm = /^(\d{4})-(\d{2})$/.exec(String(b.mes || '')); if (!mm) return { error: 'datos', mensaje: 'Mes inválido' };
   const nombre = String(b.nombre || '').trim().slice(0, 80), ingredientes = String(b.ingredientes || '').replace(/\s*\n\s*/g, ', ').trim().slice(0, 400), notas = String(b.notas || '').replace(/\s*\n\s*/g, ' ').trim().slice(0, 400);
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || '')) ? b.fecha : '';
-  if (!nombre && !fecha) return { error: 'datos', mensaje: 'Poné al menos el nombre o la fecha' };
+  const hay = b.hay === 'no' ? 'no' : 'si'; // el cliente puede marcar que ese mes no hay burger del mes
+  if (hay === 'si' && !nombre && !fecha) return { error: 'datos', mensaje: 'Poné al menos el nombre o la fecha' };
   if (fecha && fecha.slice(0, 7) !== b.mes) return { error: 'datos', mensaje: 'La fecha tiene que ser de ese mes' };
   const c = CacheService.getScriptCache(), tk = 'bm-tope:' + marca, n = Number(c.get(tk) || 0);
   if (n >= 40) return { error: 'tope', mensaje: 'Muchos cambios seguidos. Probá de nuevo en un rato.' };
@@ -1139,13 +1150,14 @@ function guardarBurgerMes_(b) {
   const listas = trello_('/boards/' + tab.id + '/lists', { filter: 'open', fields: 'name' });
   const lista = listas.filter(l => /brainstorm|campan/.test(norm_(l.name)))[0] || listas[0];
   const titulo = 'Burger del mes · ' + MESES_[+mm[2] - 1].charAt(0).toUpperCase() + MESES_[+mm[2] - 1].slice(1) + ' ' + mm[1];
-  const desc = 'Nombre: ' + nombre + '\nIngredientes: ' + ingredientes + '\nNotas: ' + notas + '\n\n(Cargado por el cliente desde la página de la marca.)';
-  const due = fecha ? new Date(fecha + 'T20:00:00-03:00').toISOString() : '';
+  const desc = hay === 'no' ? 'Hay: no\n\nEste mes no hay burger del mes. (Cargado por el cliente desde la página de la marca.)'
+    : 'Hay: si\nNombre: ' + nombre + '\nIngredientes: ' + ingredientes + '\nNotas: ' + notas + '\n\n(Cargado por el cliente desde la página de la marca.)';
+  const due = hay === 'si' && fecha ?new Date(fecha + 'T20:00:00-03:00').toISOString() : '';
   const existe = trello_('/boards/' + tab.id + '/cards', { filter: 'open', fields: 'name' }).filter(x => norm_(x.name) === norm_(titulo))[0];
   let card;
   if (existe) card = trello_('/cards/' + existe.id, { desc: desc, due: due }, 'put');
   else card = trello_('/cards', { idList: lista.id, name: titulo, desc: desc, due: due, pos: 'top' }, 'post');
-  try { registrar_('cliente', 'burger-del-mes', 'card:' + card.id, marca, existe ? 'editó' : 'cargó', (titulo + ' · ' + nombre + (fecha ? ' · ' + fecha : '')).slice(0, 300), ''); } catch (e) {}
+  try { registrar_('cliente', 'burger-del-mes', 'card:' + card.id, marca, existe ? 'editó' : 'cargó', (titulo + ' · ' + (hay === 'no' ? 'no hay' : nombre + (fecha ? ' · ' + fecha : ''))).slice(0, 300), ''); } catch (e) {}
   ['bm:' + marca].forEach(k => c.remove(k));
   return { ok: true, url: card.shortUrl };
 }
@@ -1219,7 +1231,7 @@ function doPost(e) {
         quitarDeSnapshot_(b.cardId);
         return json_({ ok: true });
       case 'actualizar':
-        return json_(actualizar());
+        return json_(actualizar(true));
       case 'crearTarjeta': { // crea la tarjeta en Trello (y opcionalmente la manda a otra lista, que es lo que dispara las automatizaciones)
         if (!b.listId || !b.nombre) return json_({ error: 'datos', mensaje: 'Falta el nombre o la lista' });
         const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 1500), pos: 'top' };
