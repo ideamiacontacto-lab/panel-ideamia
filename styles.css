@@ -723,3 +723,5 @@ body{background:
 .revbox em{font-style:normal;color:var(--bad);font-weight:600}
 .revbox i{margin-left:auto;font-style:normal;color:var(--y)}
 @media(max-width:700px){.revbox{flex-wrap:wrap;gap:4px 10px}.revbox b{font-size:22px}}
+.rapidos.tres{grid-template-columns:repeat(3,1fr)}
+.ivo .bnav{grid-template-columns:repeat(4,1fr)}
