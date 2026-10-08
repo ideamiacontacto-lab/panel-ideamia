@@ -213,28 +213,32 @@
     const saludo = hoyD.getHours() < 13 ? 'buen día' : hoyD.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const chips = '<div class="chips">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="chip' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '">' + (s === 'todas' ? (S.movil ? 'Todas' : 'Todas las marcas') : '<span class="dot" style="background:' + color(s) + '"></span>' + esc(marca(s).nombre)) + '</button>').join('') + '</div>';
     if (!S.movil && S.tab === 'mas') S.tab = 'hoy';
+    // Ivo: solo Revisión, Guiones, Discord y Agenda; entra directo a Revisión
+    const ivo = esRevisa();
+    if (ivo && ['revision', 'guiones', 'discord', 'agenda'].indexOf(S.tab) < 0) S.tab = 'revision';
+    const Rv = ivo ? datosRevision() : null;
+    const resumenIvo = ivo ? 'Tenés <b>' + Rv.revDis.length + ' diseños</b> y <b>' + Rv.revVid.length + ' videos</b> en revisión, y <b>' + Rv.gui.length + ' guiones</b> para la reunión del ' + dm(Rv.lun) + '.' : '';
     const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas }[S.tab] || vHoy)(t);
     if (S.movil) {
       // celular: estilo app. Portada corta solo en Hoy, título chico en el resto y pestañas fijas abajo.
-      const nRev = esRevisa() ? (() => { const R = datosRevision(); return R.rev.length; })() : 0;
-      const nav = esRevisa()
-        ? [['hoy', 'Hoy', I.check, tot - ok], ['revision', 'Revisión', I.pen, nRev, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['mas', 'Más', I.grid]]
+      const nav = ivo
+        ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true], ['agenda', 'Agenda', I.cal]]
         : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, true], ['mas', 'Más', I.grid]];
       const enMas = ['agenda', 'recursos', 'marcas', 'guiones', 'discord', 'mas'].indexOf(S.tab) >= 0 && !nav.some(x => x[0] === S.tab && x[0] !== 'mas');
       const TIT = { semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
-      app.innerHTML = (S.tab === 'hoy'
-        ? cinta() + '<section class="mhead"><div><div class="kick">— ' + fecha + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + saludo + (tot - ok ? ' · te quedan <b>' + (tot - ok) + '</b>' : ' · <b>todo listo</b>') + '</p></div>' + anillo(ok, tot) + '</section>'
-        : '<div class="mtit">' + (['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>') +
+      app.innerHTML = (S.tab === (ivo ? 'revision' : 'hoy')
+        ? (ivo ? '' : cinta()) + '<section class="mhead"><div><div class="kick">— ' + fecha + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : saludo + (tot - ok ? ' · te quedan <b>' + (tot - ok) + '</b>' : ' · <b>todo listo</b>')) + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>'
+        : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'discord'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>') +
         (S.tab === 'mas' ? '' : '<div class="ctrl">' + chips + '</div>') +
         '<div class="view" id="view">' + vista + '</div>' +
         '<nav class="bnav">' + nav.map(x => '<button class="' + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? 'on' : '') + '" data-tab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>';
     } else {
-      const tabs = [['hoy', 'Hoy', tot - ok]].concat(esRevisa() ? [['revision', 'Revisión', (() => { const R = datosRevision(); return R.rev.length; })(), true]] : []).concat([['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']]);
-      app.innerHTML = cinta() +
+      const tabs = ivo ? [['revision', 'Revisión', Rv.rev.length, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda']] : [['hoy', 'Hoy', tot - ok]].concat([['semana', 'Semana', nRep, nRep > 0], ['inputs', 'Inputs', nInp, true], ['reuniones', 'Reuniones', nReu, true], ['guiones', 'Guiones', guionAtencion(), guionAtencion() > 0], ['discord', 'Discord', dcSinVer().length, true], ['agenda', 'Agenda'], ['recursos', 'Recursos'], ['marcas', 'Marcas']]);
+      app.innerHTML = (ivo ? '' : cinta()) +
         '<section class="hero"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div>' +
         '<h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1>' +
-        '<p>' + (tot - ok ? 'Tenés <b>' + (tot - ok) + (tot - ok === 1 ? ' cosa' : ' cosas') + '</b> para hoy' + (nInp ? ', <b>' + nInp + ' input' + (nInp > 1 ? 's' : '') + '</b> para revisar' : '') + (nReu ? ' y <b>' + nReu + (nReu > 1 ? ' reuniones' : ' reunión') + '</b> por organizar.' : '.') : 'Terminaste lo de hoy. Mirá las sugerencias para adelantar.') + '</p></div>' +
-        PIEZAS + anillo(ok, tot) + '</section>' +
+        '<p>' + (ivo ? resumenIvo : tot - ok ? 'Tenés <b>' + (tot - ok) + (tot - ok === 1 ? ' cosa' : ' cosas') + '</b> para hoy' + (nInp ? ', <b>' + nInp + ' input' + (nInp > 1 ? 's' : '') + '</b> para revisar' : '') + (nReu ? ' y <b>' + nReu + (nReu > 1 ? ' reuniones' : ' reunión') + '</b> por organizar.' : '.') : 'Terminaste lo de hoy. Mirá las sugerencias para adelantar.') + '</p></div>' +
+        PIEZAS + (ivo ? '' : anillo(ok, tot)) + '</section>' +
         '<div class="ctrl">' + chips +
         '<nav class="tabs">' + tabs.map(x => '<button class="tab' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + (x[2] ? '<span class="badge' + (x[3] ? ' hot' : '') + '">' + x[2] + '</span>' : '') + '</button>').join('') + '</nav></div>' +
         '<div class="view" id="view">' + vista + '</div>';
