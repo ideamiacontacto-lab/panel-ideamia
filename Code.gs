@@ -652,8 +652,12 @@ function panel_(personaClave, ctx) {
   const ajustes = { inputDias: Number(cfg.INPUT_RECORDATORIO_DIAS || 3), porVencer: Number(cfg.POR_VENCER_DIAS || 3), efemDias: Number(cfg.EFEMERIDES_DIAS || 45) };
   const todas = (snap.cards || []).filter(c => c.m.some(s => slugs.indexOf(s) >= 0) && (esProject || !esCM || c.tipo === 'cm' || c.tipo === 'project'));
 
-  // Cobertura del calendario: fecha más lejana con contenido cargado (SCL + CM) contra el objetivo "un mes adelante".
-  const objetivo = new Date(hoy.getFullYear(), hoy.getMonth() + 1, hoy.getDate());
+  // Cobertura del calendario: fecha más lejana con contenido cargado (SCL + CM) contra el objetivo:
+  // en cada entrega de calendario (evento "Entrega … calendario" del calendario del equipo) tiene que quedar cubierto un mes después de esa entrega.
+  const hoy0 = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const proxEntrega = (ctx.eventos || []).filter(e => /entrega/.test(norm_(e.t)) && /calendario/.test(norm_(e.t)) && new Date(e.s) >= hoy0).sort((a, b) => new Date(a.s) - new Date(b.s))[0];
+  const baseEntrega = proxEntrega ? new Date(proxEntrega.s) : hoy0;
+  const objetivo = new Date(baseEntrega.getFullYear(), baseEntrega.getMonth() + 1, baseEntrega.getDate());
   const cobertura = {};
   misMarcas.forEach(m => {
     let max = null;
@@ -662,7 +666,7 @@ function panel_(personaClave, ctx) {
       if (['trabajo', 'hecho', 'corr', 'urgente', 'espera'].indexOf(c.cat) < 0) return;
       const d = new Date(c.due); if (!max || d > max) max = d;
     });
-    cobertura[m.slug] = { hasta: max ? ymd_(max) : null, objetivo: ymd_(objetivo) };
+    cobertura[m.slug] = { hasta: max ? ymd_(max) : null, objetivo: ymd_(objetivo), entrega: proxEntrega ? ymd_(baseEntrega) : null };
   });
 
   // Efemérides: ¿ya aparece algo con ese nombre en el calendario editorial?

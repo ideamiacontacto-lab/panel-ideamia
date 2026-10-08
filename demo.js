@@ -119,7 +119,7 @@ window.PANEL_DEMO = (function () {
       { id: "d2", canal: "guiones", autor: "Fede", texto: "@Orne subí el guion de Tritato a revisión, lo vemos el lunes", fecha: "2026-10-07T11:05:00Z", url: "https://discord.com/channels/1/2/4", todos: false },
       { id: "d3", canal: "general", autor: "Ivo", texto: "@everyone mañana arrancamos 9:30 por la reunión con Quality", fecha: "2026-10-06T21:40:00Z", url: "https://discord.com/channels/1/2/5", todos: true }
     ] },
-    cobertura: { "isco": { hasta: "2026-10-30", objetivo: "2026-11-07" }, "gabriel-varisco": { hasta: "2026-11-08", objetivo: "2026-11-07" }, "skilfulblack": { hasta: "2026-10-24", objetivo: "2026-11-07" }, "tritato": { hasta: "2026-11-02", objetivo: "2026-11-07" }, "vice-burger": { hasta: "2026-11-07", objetivo: "2026-11-07" } },
+    cobertura: { "isco": { hasta: "2026-10-30", objetivo: "2026-11-16", entrega: "2026-10-16" }, "gabriel-varisco": { hasta: "2026-11-08", objetivo: "2026-11-07" }, "skilfulblack": { hasta: "2026-10-24", objetivo: "2026-11-07" }, "tritato": { hasta: "2026-11-02", objetivo: "2026-11-07" }, "vice-burger": { hasta: "2026-11-07", objetivo: "2026-11-07" } },
     links: { reportes: "https://ideamiacontacto-lab.github.io/reportes-ideamia/", brainstorming: "https://ideamiacontacto-lab.github.io/brainstormings-ideamia/", notion: "https://app.notion.com/p/3d1bab9b1a168166b3cfe5a8818a9265", drive: "" },
     ajustes: { inputDias: 3, porVencer: 3, efemDias: 45 },
     feriados: [{ n: 'Día del Respeto a la Diversidad Cultural', d: '2026-10-12' }, { n: 'Día de la Soberanía Nacional', d: '2026-11-23' }],

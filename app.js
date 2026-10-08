@@ -532,7 +532,18 @@
     if (!D.conUsuario) return '<div class="empty">Falta tu usuario de Discord en la pestaña Equipo del Sheet (columna "usuario de Discord"). Pedíselo al project.</div>';
     const L = menciones(), nuevos = dcSinVer();
     return '<div class="sec"><div class="sec-h"><h2>Te mencionaron<small>' + nuevos.length + ' sin ver</small></h2>' + (nuevos.length ? '<button class="act lnk" data-dc-todo>Marcar todo como visto</button>' : '') + '</div>' +
-      (L.length ? '<div class="dclist">' + L.map(filaDiscord).join('') + '</div>' : '<div class="empty">Nadie te mencionó en los últimos 7 días.</div>') +
+      (L.length ? (() => {
+        // carpetas por día: Hoy y Ayer abiertas por defecto, el resto plegado
+        const v = dcVistos(), dias = {};
+        L.forEach(m => { const n = diasA(new Date(m.fecha)); (dias[n] = dias[n] || []).push(m); });
+        return Object.keys(dias).map(Number).sort((a, b) => b - a).map(n => {
+          const lista = dias[n], nuevos = lista.filter(m => !v[m.id]).length, id = 'dc' + n;
+          const abierta = S.abiertos[id] != null ? S.abiertos[id] : n >= -1;
+          const nombre = n === 0 ? 'Hoy' : n === -1 ? 'Ayer' : (() => { const d = new Date(lista[0].fecha); return DIAS_L[d.getDay()] + ' ' + d.getDate(); })();
+          return '<div class="dcdia' + (abierta ? ' on' : '') + '"><button class="dcdia-h" data-dcdia="' + id + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dcf">' + (abierta ? '📂' : '📁') + '</span><b>' + nombre + '</b><small>' + lista.length + (lista.length === 1 ? ' mención' : ' menciones') + '</small>' + (nuevos ? '<em>' + nuevos + ' nuevas</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
+            (abierta ? '<div class="dclist">' + lista.map(filaDiscord).join('') + '</div>' : '') + '</div>';
+        }).join('');
+      })() : '<div class="empty">Nadie te mencionó en los últimos 7 días.</div>') +
       '<p class="ayuda">Se actualiza cada 15 minutos. Tocá un mensaje y se abre Discord justo ahí. Los mensajes directos no aparecen.</p></div>';
   }
   // guiones (tableros GUIONES de cada marca, los maneja Fede)
@@ -904,7 +915,7 @@
       if (cv.hasta) {
         const total = Math.max(1, Math.round((ymdD(cv.objetivo) - sod(NOW)) / 864e5)), lleno = Math.round((ymdD(cv.hasta) - sod(NOW)) / 864e5);
         const pct = Math.max(3, Math.min(100, Math.round(lleno / total * 100))), falta = total - lleno;
-        cov = '<div class="cov"><div class="l"><span>Calendario hasta el <b>' + dm(ymdD(cv.hasta)) + '</b></span><span>objetivo ' + dm(ymdD(cv.objetivo)) + '</span></div><div class="bar"><i class="' + (falta > 7 ? 'bad' : falta > 0 ? 'warn' : '') + '" style="width:' + pct + '%"></i><u></u></div></div>';
+        cov = '<div class="cov"><div class="l"><span>Calendario hasta el <b>' + dm(ymdD(cv.hasta)) + '</b></span><span>' + (cv.entrega ? 'entrega ' + dm(ymdD(cv.entrega)) + ' → hasta ' : 'objetivo ') + dm(ymdD(cv.objetivo)) + '</span></div><div class="bar"><i class="' + (falta > 7 ? 'bad' : falta > 0 ? 'warn' : '') + '" style="width:' + pct + '%"></i><u></u></div></div>';
       }
       const nom = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones' };
       return '<div class="brand"><h4><i style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</h4>' + cov +
@@ -962,6 +973,7 @@
     root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
     root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
+    root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
     // "Arrancá el día": elegir prioridades
     root.querySelectorAll('[data-prio]').forEach(b => b.onclick = () => { const k = b.dataset.prio, i = S.prioSel.indexOf(k); if (i >= 0) S.prioSel.splice(i, 1); else S.prioSel.push(k); render(); });
