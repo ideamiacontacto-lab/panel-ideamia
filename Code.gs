@@ -49,21 +49,23 @@ function leerDiscord_(cfg, cat) {
     if (r.getResponseCode() !== 200) throw new Error((puente ? 'El puente' : 'Discord') + ' respondió ' + r.getResponseCode() + (ruta.indexOf('/channels') > 0 ? ' al leer los canales' : '') + ' (' + codigo(r) + ')');
     return JSON.parse(r.getContentText());
   };
-  const canales = get('/guilds/' + guild + '/channels').filter(c => c.type === 0 || c.type === 5);
+  const canales = get('/guilds/' + guild + '/channels').filter(c => c.type === 0 || c.type === 5 || c.type === 2);
   let hilos = []; try { hilos = (get('/guilds/' + guild + '/threads/active').threads || []); } catch (e) {}
   const todos = canales.concat(hilos), nombres = {};
   todos.forEach(c => nombres[c.id] = c.name);
   const gente = cat.equipo.filter(p => p.discord.length), out = {};
   gente.forEach(p => out[p.clave] = []);
-  const limite = Date.now() - 7 * 864e5;
+  const limite = Date.now() - 7 * 864e5, st = { codigos: {}, mensajes: 0, recientes: 0, menciones: 0, vacios: 0 };
   const esDe = (p, u) => !!u && (p.discord.indexOf(u.id) >= 0 || p.discord.indexOf(norm_(u.username)) >= 0 || (u.global_name && p.discord.indexOf(norm_(u.global_name)) >= 0));
   for (let i = 0; i < todos.length; i += 10) {
     const lote = todos.slice(i, i + 10);
     const rs = UrlFetchApp.fetchAll(lote.map(c => ({ url: API + '/channels/' + c.id + '/messages?limit=50', headers: H, muteHttpExceptions: true })));
     rs.forEach((r, j) => {
+      st.codigos[r.getResponseCode()] = (st.codigos[r.getResponseCode()] || 0) + 1;
       if (r.getResponseCode() !== 200) return; // canal sin permiso para el bot
       const ch = lote[j];
       JSON.parse(r.getContentText()).forEach(m => {
+        st.mensajes++; if (new Date(m.timestamp).getTime() >= limite) { st.recientes++; st.menciones += (m.mentions || []).length; if (!m.content && !(m.attachments || []).length && !(m.embeds || []).length) st.vacios++; }
         if (new Date(m.timestamp).getTime() < limite) return;
         const ments = m.mentions || [];
         const texto = String(m.content || '')
@@ -80,7 +82,7 @@ function leerDiscord_(cfg, cat) {
     if (i + 10 < todos.length) Utilities.sleep(1100);
   }
   Object.keys(out).forEach(k => { out[k].sort((a, b) => b.fecha.localeCompare(a.fecha)); out[k] = out[k].slice(0, 40); });
-  return { generado: new Date().toISOString(), canales: todos.length, porPersona: out };
+  return { generado: new Date().toISOString(), canales: todos.length, stats: st, porPersona: out };
 }
 
 function cambiarClave_(prop, titulo) {
@@ -963,7 +965,7 @@ function doGet(e) {
         reportesPendientes: (() => { try { return tareasReportes_('project', 'Project').map(r => r.k + ' · vence ' + r.vence); } catch (e) { return 'error: ' + e.message; } })(),
         conListas: (snap.tableros || []).filter(b => b.listas && b.listas.length).length,
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY'), discord: !!P.getProperty('DISCORD_TOKEN') },
-        discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
+        discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, stats: d.stats || null, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'project') {
