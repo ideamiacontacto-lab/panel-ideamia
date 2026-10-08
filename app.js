@@ -900,7 +900,10 @@
     }
   }
 
-  // Si la pestaña queda abierta, se refresca sola cada 15 minutos.
-  setInterval(() => { if (!DEMO && S.data && document.visibilityState === 'visible') cargar(true).then(render).catch(() => {}); }, 15 * 60 * 1000);
+  // Se mantiene al día sola: cada 5 minutos si la pestaña está abierta, y al volver a la pestaña si pasaron más de 2 minutos.
+  let ultimaCarga = Date.now();
+  const refrescar = () => { if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(() => { S.sync = false; renderTop(); }); };
+  setInterval(() => { if (document.visibilityState === 'visible') refrescar(); }, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
   inicio();
 })();

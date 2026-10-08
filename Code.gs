@@ -54,7 +54,7 @@ function cargarClaves() {
 /* ---------------- pestañas y valores por defecto ---------------- */
 const TABS = {
   Config: [['clave', 'valor', 'para qué'],
-    ['CALENDAR_ID', 'ideamia.contacto@gmail.com', 'Calendario de donde salen entregas y reuniones'],
+    ['CALENDAR_ID', 'estudioideamia@gmail.com', 'Calendario del equipo: de acá salen entregas y reuniones, y acá se crean las que agendan'],
     ['INPUT_RECORDATORIO_DIAS', '3', 'Cada cuántos días vuelve a preguntar por un input ya procesado'],
     ['POR_VENCER_DIAS', '3', 'Días hacia adelante para "tarjetas próximas a vencer"'],
     ['EFEMERIDES_DIAS', '45', 'Días hacia adelante para mostrar efemérides'],
@@ -153,7 +153,9 @@ const lista_ = s => String(s || '').split(',').map(x => norm_(x)).filter(Boolean
 const si_ = s => /^(si|sí|s|x|true|1)$/i.test(String(s).trim());
 
 function catalogo_() {
-  const equipo = rows_('Equipo').map(r => ({ nombre: r[0], clave: norm_(r[1]), rol: String(r[2]).trim(), alias: lista_(r[3]).concat([norm_(r[0])]) }));
+  // Mails de cada uno (para saber a quién invitaron a cada evento del calendario del equipo). Columna E de Equipo; si está vacía, estos.
+  const MAILS = { orne: 'ornebrasca@gmail.com', rama: 'ramiro.ideamia@gmail.com' };
+  const equipo = rows_('Equipo').map(r => ({ nombre: r[0], clave: norm_(r[1]), rol: String(r[2]).trim(), alias: lista_(r[3]).concat([norm_(r[0])]), email: String(r[4] || MAILS[norm_(r[1])] || '').trim().toLowerCase() }));
   const marcas = rows_('Marcas').map(r => ({
     nombre: r[0], slug: norm_(r[0]).replace(/[^a-z0-9]+/g, '-'), alias: lista_(r[1]).concat([norm_(r[0])]),
     sm: norm_(r[2]), cm: norm_(r[3]), canal: si_(r[4]), contexto: r[5] || ''
@@ -410,7 +412,7 @@ function actualizar() {
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     // Lectura automática con la API de Claude: apagada salvo que Config → IA_AUTOMATICA diga "sí" (gasta créditos).
     if (si_(cfg.IA_AUTOMATICA)) recomendarTarjetas_(snap, cat, cfg);
-    CacheService.getScriptCache().remove('snap');
+    CacheService.getScriptCache().removeAll(['snap', 'estados']); // 'estados' se rearma desde la planilla (por si alguien la editó a mano)
     construirBases_();
     return { ok: true, tarjetas: snap.cards.length, generado: snap.generado };
   } finally { lock.releaseLock(); }
@@ -428,7 +430,7 @@ function resumen() {
 
 /* ---------------- calendario ---------------- */
 function eventos_(cfg, cat, desde, hasta) {
-  const cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'ideamia.contacto@gmail.com');
+  const cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'estudioideamia@gmail.com');
   if (!cal) return [];
   const excluir = lista_(cfg.CAL_EXCLUIR);
   const otros = lista_(cfg.CAL_OTROS_NOMBRES == null ? 'zaira,fede,lu,bauti,luisi,juan' : cfg.CAL_OTROS_NOMBRES);
@@ -439,7 +441,10 @@ function eventos_(cfg, cat, desde, hasta) {
   }).map(e => {
     const titulo = e.getTitle();
     const w = palabras_(titulo);
-    const personas = cat.equipo.filter(p => p.alias.some(a => w.indexOf(' ' + a + ' ') >= 0)).map(p => p.clave);
+    let invitados = [];
+    try { invitados = e.getGuestList().map(g => String(g.getEmail()).toLowerCase()); } catch (x) {}
+    // a quién le toca: lo nombran en el título o está invitado
+    const personas = cat.equipo.filter(p => p.alias.some(a => w.indexOf(' ' + a + ' ') >= 0) || (p.email && invitados.indexOf(p.email) >= 0)).map(p => p.clave);
     return {
       otros: otros.some(a => w.indexOf(' ' + a + ' ') >= 0),
       id: e.getId() + '@' + ymd_(e.getStartTime()), t: titulo, s: e.getStartTime().toISOString(), f: e.getEndTime().toISOString(),
@@ -451,16 +456,28 @@ function eventos_(cfg, cat, desde, hasta) {
 /* ---------------- registro (lo que van tildando) ---------------- */
 function registrar_(persona, tipo, clave, marca, estado, detalle, periodo) {
   const sh = SpreadsheetApp.getActive().getSheetByName('Registro');
-  sh.appendRow([Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm'), persona, tipo, clave, marca || '', estado, detalle || '', periodo || '']);
+  const fila = [Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm'), persona, tipo, clave, marca || '', estado, detalle || '', periodo || ''];
+  sh.appendRow(fila);
+  // se actualiza también la copia en memoria, así abrir el panel no relee toda la planilla
+  const lock = LockService.getUserLock(); // distinto del de la actualización de Trello, para no esperarla
+  try {
+    lock.waitLock(5000);
+    const est = cacheGet_('estados');
+    if (est) { aplicarFila_(est, fila); cachePut_('estados', est); }
+  } catch (e) { CacheService.getScriptCache().remove('estados'); } finally { try { lock.releaseLock(); } catch (e) {} }
+}
+function aplicarFila_(out, r) {
+  const k = r[3]; if (!k) return;
+  if (r[5] === 'deshacer') { delete out[k]; return; }
+  out[k] = { fecha: r[0], persona: r[1], tipo: r[2], marca: r[4], estado: r[5], detalle: r[6], periodo: r[7] };
 }
 /* Último estado por clave (el último renglón gana; "deshacer" lo borra). */
 function estados_() {
+  const hit = cacheGet_('estados');
+  if (hit) return hit;
   const out = {};
-  rows_('Registro').forEach(r => {
-    const k = r[3]; if (!k) return;
-    if (r[5] === 'deshacer') { delete out[k]; return; }
-    out[k] = { fecha: r[0], persona: r[1], tipo: r[2], marca: r[4], estado: r[5], detalle: r[6], periodo: r[7] };
-  });
+  rows_('Registro').forEach(r => aplicarFila_(out, r));
+  cachePut_('estados', out);
   return out;
 }
 
@@ -585,9 +602,9 @@ function panel_(personaClave, ctx) {
   const equipoKw = lista_(cfg.CAL_EQUIPO == null ? 'reporte,entrega quincenal,reels,guion,guiones,revision,reunion ideamia,brainstorming' : cfg.CAL_EQUIPO);
   const evs = ctx.eventos.map(e => Object.assign({}, e)).filter(e => {
     if (esProject) return true;
-    if (e.personas.length) return e.personas.indexOf(yo.clave) >= 0;            // nombra a alguien → solo a esa persona
-    if (e.otros) return false;                                                  // nombra a otro colaborador
-    if (e.marcas.length) return e.marcas.some(s => slugs.indexOf(s) >= 0);      // nombra una marca → solo a quien la tiene
+    if (e.personas.indexOf(yo.clave) >= 0) return true;                         // me nombra o me invitaron
+    if (e.marcas.some(s => slugs.indexOf(s) >= 0)) return true;                  // es de una de mis marcas
+    if (e.personas.length || e.otros || e.marcas.length) return false;          // es de otra persona o de otra marca
     const w = ' ' + norm_(e.t).replace(/[^a-z0-9ñ]+/g, ' ') + ' ';
     if (w.indexOf(' cm ') >= 0) return esCM;                                    // "Reporte Semanal CM" → Ale
     if (w.indexOf(' scl ') >= 0) return !esCM;                                  // "Reporte Semanal SCL" → social media
@@ -825,9 +842,10 @@ function doPost(e) {
       case 'agendar': { // reunión con fecha y hora; opcionalmente crea el evento en el calendario de Ideamia
         let detalle = b.fecha + ' ' + (b.hora || '') + (b.nota ? ' · ' + b.nota : '');
         if (b.crearEvento) {
-          const cfg = config_(), cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'ideamia.contacto@gmail.com');
+          const cfg = config_(), cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'estudioideamia@gmail.com');
           const ini = new Date(b.fecha + 'T' + (b.hora || '10:00') + ':00-03:00');
-          const ev = cal.createEvent(b.titulo, ini, new Date(ini.getTime() + (Number(b.duracion) || 45) * 6e4), { description: 'Agendada desde el Panel Ideamia por ' + quien + (b.nota ? '\n' + b.nota : '') });
+          const yoMail = (catalogo_().equipo.filter(p => p.clave === norm_(quien))[0] || {}).email;
+          const ev = cal.createEvent(b.titulo, ini, new Date(ini.getTime() + (Number(b.duracion) || 45) * 6e4), Object.assign({ description: 'Agendada desde el Panel Ideamia por ' + quien + (b.nota ? '\n' + b.nota : '') }, yoMail ? { guests: yoMail, sendInvites: true } : {}));
           detalle += ' · evento creado';
           registrar_(quien, 'reunion', b.clave, b.marca, 'agendada', detalle, b.periodo);
           return json_({ ok: true, evento: ev.getId() });
