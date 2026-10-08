@@ -328,16 +328,24 @@
     const festejo = t.length && !pend.length ? '<div class="festejo"><b>¡Día<br>completo!</b><span>Terminaste todo lo de hoy. ' + (S.movil ? 'En <b>Más</b> tenés' : 'Al costado tenés') + ' fechas y sugerencias para adelantar.</span></div>' : '';
     // en el celular cada sección muestra 5 y el resto se abre con "Ver todas"
     const corta = (id, L) => !S.movil || S.abiertos[id] || L.length <= 6 ? L.map(fila).join('') : L.slice(0, 5).map(fila).join('') + '<button class="vermas" data-pliegue="' + id + '">Ver ' + (L.length - 5) + ' más</button>';
-    if (S.movil) return festejo + rapidos + '<div class="tira">' + tira + '</div>' +
+    if (S.movil) return festejo + atajos() + rapidos + '<div class="tira">' + tira + '</div>' +
       (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + corta('urg', urg) + '</div></div>' : '') +
       (resto.length || !urg.length ? '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + corta('resto', resto) + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' : '') +
       (done.length ? '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>' : '');
-    return festejo + rapidos + '<div class="tira">' + tira + '</div>' +
+    return festejo + atajos() + rapidos + '<div class="tira">' + tira + '</div>' +
       '<div class="cols"><div>' +
       (urg.length ? '<div class="sec"><div class="sec-h"><h2>Primero esto<small>' + urg.length + '</small></h2></div><div class="list">' + urg.map(fila).join('') + '</div></div>' : '') +
       '<div class="sec"><div class="sec-h"><h2>' + (urg.length ? 'Después' : 'Para hoy') + '<small>' + resto.length + '</small></h2></div>' + (resto.length ? '<div class="list">' + resto.map(fila).join('') + '</div>' : '<div class="empty">Nada más por hoy.</div>') + '</div>' +
       (done.length ? '<div class="sec"><div class="sec-h"><h2>Hecho<small>' + done.length + '</small></h2></div><div class="list">' + done.map(fila).join('') + '</div></div>' : '') +
       '</div><aside class="side">' + costado() + '</aside></div>';
+  }
+  // atajos grandes a las otras dos webs del estudio
+  function atajos() {
+    const D = S.data, L = D.links || {}, nRep = (D.reportes || []).filter(r => pasa(r.marca)).length;
+    const a = (url, ico, t, sub, cl) => url ? '<a class="atajo' + (cl || '') + '" href="' + esc(url) + '" target="_blank" rel="noopener"><span class="ic">' + ico + '</span><span><b>' + t + '</b><small>' + sub + '</small></span><i>↗</i></a>' : '';
+    return '<div class="atajos">' +
+      a(D.linkReportes || L.reportes, I.flag, '¿Reportes?', nRep ? nRep + ' por cargar' : 'todo al día ✓', nRep ? ' hot' : '') +
+      a(L.brainstorming, I.star, 'Brainstormings', 'ideas y votación') + '</div>';
   }
   function costado(chico) {
     const fs = proximasFechas(30), L = S.data.links;

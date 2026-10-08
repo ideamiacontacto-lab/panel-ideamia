@@ -647,3 +647,22 @@ body{background:
   .mt-t .ic{grid-row:span 2;margin:0}
   .mt-t b{font-size:14px;line-height:1.15}
 }
+/* atajos a reportes y brainstormings */
+.atajos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.atajo{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line2);border-radius:12px;background:linear-gradient(160deg,var(--s2),var(--s1));transition:all .2s var(--ease)}
+.atajo:hover{transform:translateY(-2px);border-color:var(--y);box-shadow:0 10px 26px rgba(255,242,0,.12)}
+.atajo .ic{width:38px;height:38px;flex:none;border-radius:10px;background:var(--y-soft);color:var(--y);display:grid;place-items:center}
+.atajo .ic svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.8;fill:none}
+.atajo b{display:block;font-family:var(--f-d);font-weight:400;font-size:26px;line-height:1;letter-spacing:.02em}
+.atajo small{font-size:12px;color:var(--muted)}
+.atajo i{margin-left:auto;font-style:normal;color:var(--dim);font-size:18px}
+.atajo.hot{border-color:rgba(255,242,0,.45)}
+.atajo.hot small{color:var(--y)}
+@media(max-width:700px){
+  .atajos{gap:6px;margin-bottom:8px}
+  .atajo{padding:10px;gap:9px}
+  .atajo .ic{width:32px;height:32px}
+  .atajo b{font-size:20px}
+  .atajo small{font-size:11px}
+  .atajo i{display:none}
+}
