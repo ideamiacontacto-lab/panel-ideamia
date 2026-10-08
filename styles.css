@@ -935,3 +935,8 @@ body{background:
 .pz-adj{grid-template-columns:repeat(2,minmax(0,1fr))}
 .dw-b{overflow-x:hidden}
 .pz-prev,.pz-arch{min-width:0}
+
+/* desplegable de marcas: opciones legibles (el navegador las abre con fondo blanco) */
+.selm select option{background:#161616;color:#F5F5F5}
+.selm select option:checked{background:#FFF200;color:#0A0A0A}
+select{color-scheme:dark}
