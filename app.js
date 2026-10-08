@@ -305,7 +305,7 @@
       w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
     }
     const gen = (D && D.generado) || null;
-    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Traer lo último de Trello">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
+    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Leer Trello ahora (tarda ~1 minuto)">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
     $('#rf').onclick = actualizar;
   }
 
@@ -1395,10 +1395,10 @@
     if (S.sync) return;
     S.sync = true; renderTop();
     try {
-      if (!DEMO) await post({ action: 'actualizar' });
+      const r = DEMO ? {} : await post({ action: 'actualizar' });
       await cargar(true);
-      toast('Actualizado con lo último de Trello.');
-    } catch (e) { toast('No se pudo actualizar: ' + esc(e.message)); }
+      toast(r.reciente ? 'Trello ya estaba al día (leído hace menos de un minuto).' : 'Actualizado con lo último de Trello.');
+    } catch (e) { toast(/actualizando/.test(e.message) ? 'Se está actualizando en este momento. Esperá un minuto y volvé a tocar ↻.' : 'No se pudo actualizar: ' + esc(e.message)); }
     S.sync = false; renderTop();
   }
 
