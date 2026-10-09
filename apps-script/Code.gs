@@ -291,11 +291,23 @@ function evaluarCuando_(cuando, hoy, anticipacion) {
 function trello_(path, params, method) {
   const k = P.getProperty('TRELLO_KEY'), tk = P.getProperty('TRELLO_TOKEN');
   if (!k || !tk) throw new Error('Faltan las claves de Trello (menú Panel Ideamia → Cargar claves)');
-  const q = Object.assign({ key: k, token: tk }, params || {});
+  method = method || 'get';
+  // al leer, todo va en la URL; al escribir, los datos van en el cuerpo: Google corta las URLs de más de 2 KB y un comentario largo con tildes no entraba
+  const q = method === 'get' ? Object.assign({ key: k, token: tk }, params || {}) : { key: k, token: tk };
   const url = 'https://api.trello.com/1' + path + '?' + Object.keys(q).map(x => x + '=' + encodeURIComponent(q[x])).join('&');
-  const r = UrlFetchApp.fetch(url, { method: method || 'get', muteHttpExceptions: true });
+  const op = { method: method, muteHttpExceptions: true };
+  if (method !== 'get' && params && Object.keys(params).length) { const f = {}; Object.keys(params).forEach(x => { if (params[x] != null) f[x] = String(params[x]); }); op.payload = f; } // como formulario: Trello lo lee igual que en la URL
+  const r = UrlFetchApp.fetch(url, op);
   if (r.getResponseCode() >= 300) throw new Error('Trello ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
   return JSON.parse(r.getContentText());
+}
+/* Listas a donde va una pieza al revisarla. Cada tablero las llama distinto:
+   Diseño → "Aprobado" / "Rediseñar"; Producción → "Material Listo para Entregar" / "Correccion". */
+const LISTA_REVISION = { aprobar: [/aprobad/, /listo para entregar/, /material listo/, /^listo/], corregir: [/correc/, /redise/, /rehacer/, /cambios/] };
+function listaRevision_(listas, accion) {
+  const pats = LISTA_REVISION[accion] || [];
+  for (let i = 0; i < pats.length; i++) { const l = (listas || []).filter(x => pats[i].test(norm_(x.name || x.n || '')))[0]; if (l) return l; }
+  return null;
 }
 /* Trello permite ~100 pedidos cada 10 s por token: se leen en tandas de 25 con una pausa entre tandas. */
 function trelloVarios_(rutas) {
@@ -363,7 +375,7 @@ function leerTrello_(cat) {
       // Tableros de Diseño y Producción (para la vista de revisión de Ivo): piezas pendientes de entrega y en revisión.
       if (b.tipo === 'diseno' || b.tipo === 'produccion') {
         const n = norm_(l.name);
-        const etapa = /revisi/.test(n) ? 'revision' : /correc/.test(n) ? 'correccion' : /espera/.test(n) ? 'espera' : /pendiente|pedido/.test(n) ? 'pendiente' : '';
+        const etapa = /revisi/.test(n) ? 'revision' : /correc|redise/.test(n) ? 'correccion' : /espera/.test(n) ? 'espera' : /pendiente|pedido/.test(n) ? 'pendiente' : '';
         if (etapa) {
           const fmt = /histori/.test(n) ? 'historia' : /reel|video/.test(n) ? 'reel' : b.tipo === 'produccion' ? 'video' : 'diseno';
           cards.push({ id: c.id, n: c.name, d: '', due: c.due, dc: !!c.dueComplete, ini: c.start, lista: l.name, cat: 'pieza', etapa: etapa, formato: fmt, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity, lab: (c.labels || []).map(x => x.name).filter(Boolean), att: [], m: [b.marca] });
@@ -955,6 +967,8 @@ function aplicarEstados_(b, est) {
   return b;
 }
 
+/* "ivo" → "Ivo": para firmar en Trello con el nombre de la pestaña Equipo */
+function nombreDe_(clave) { const p = equipo_().filter(x => x.clave === norm_(clave))[0]; return p ? p.nombre : String(clave || 'el panel'); }
 function equipo_() {
   let eq = cacheGet_('equipo');
   if (!eq) { eq = catalogo_().equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })); cachePut_('equipo', eq); }
@@ -1182,6 +1196,8 @@ function doGet(e) {
       return json_({ ok: true, generado: snap.generado || null, tableros: (snap.tableros || []).map(b => b.tipo + ' ' + b.nombre + ' → ' + (b.marca || '-')), tarjetas: (snap.cards || []).length, lecturasIA: Object.keys(ia).length, porMarca: t,
         reportesPendientes: (() => { try { return tareasReportes_('project', 'Project').map(r => r.k + ' · vence ' + r.vence); } catch (e) { return 'error: ' + e.message; } })(),
         conListas: (snap.tableros || []).filter(b => b.listas && b.listas.length).length,
+        // a qué lista va una pieza al aprobarla o mandarla a corregir, por tablero (si dice FALTA, ese botón no anda en ese tablero)
+        revision: (snap.tableros || []).filter(b => b.tipo === 'diseno' || b.tipo === 'produccion').map(b => { const ok = listaRevision_(b.listas, 'aprobar'), co = listaRevision_(b.listas, 'corregir'); return b.nombre + ' · aprobar → ' + (ok ? ok.n : 'FALTA') + ' · corregir → ' + (co ? co.n : 'FALTA'); }),
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY'), discord: !!P.getProperty('DISCORD_TOKEN') },
         discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, stats: d.stats || null, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
     }
@@ -1271,19 +1287,21 @@ function doPost(e) {
       }
       case 'comentarTarjeta': { // comentario suelto en la tarjeta (sin moverla)
         if (!String(b.texto || '').trim()) return json_({ error: 'datos', mensaje: 'Escribí el comentario' });
-        trello_('/cards/' + b.cardId + '/actions/comments', { text: ('💬 ' + quien + ': ' + String(b.texto)).slice(0, 3000) }, 'post');
+        trello_('/cards/' + b.cardId + '/actions/comments', { text: ('💬 ' + nombreDe_(quien) + ': ' + String(b.texto).trim()).slice(0, 16000) }, 'post');
         registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, 'comentó', String(b.nombre || '').slice(0, 80) + ' · ' + String(b.texto).slice(0, 150), '');
         return json_({ ok: true });
       }
       case 'revisarPieza': { // Ivo aprueba o manda a corregir: se mueve dentro del tablero de Diseño/Producción (y el comentario queda en la tarjeta)
-        const listas = trello_('/boards/' + b.boardId + '/lists', { fields: 'name' });
-        const re = b.accion === 'aprobar' ? /aprobad/ : /correc/;
-        const dest = (listas || []).filter(l => re.test(norm_(l.name)))[0];
-        if (!dest) return json_({ error: 'lista', mensaje: 'No encuentro la lista "' + (b.accion === 'aprobar' ? 'Aprobado' : 'Correcciones') + '" en ese tablero de Trello' });
-        const texto = (b.accion === 'aprobar' ? '✅ Aprobado por ' : '✏️ Para corregir (' ) + (b.accion === 'aprobar' ? quien : quien + '): ') + (b.accion === 'aprobar' ? (b.comentario ? ' — ' + b.comentario : '') : String(b.comentario || ''));
-        if (b.comentario || b.accion === 'aprobar') trello_('/cards/' + b.cardId + '/actions/comments', { text: texto.slice(0, 3000) }, 'post');
-        trello_('/cards/' + b.cardId, { idList: dest.id }, 'put');
-        registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, b.accion === 'aprobar' ? 'aprobado' : 'a corregir', String(b.nombre || '').slice(0, 100) + (b.comentario ? ' · ' + String(b.comentario).slice(0, 150) : ''), '');
+        // el tablero se toma de la tarjeta misma (no de lo que mande la web)
+        const card = trello_('/cards/' + b.cardId, { fields: 'idBoard,idList,name' });
+        const listas = trello_('/boards/' + card.idBoard + '/lists', { fields: 'name' });
+        const dest = listaRevision_(listas, b.accion === 'aprobar' ? 'aprobar' : 'corregir');
+        const firma = nombreDe_(quien), coment = String(b.comentario || '').trim();
+        // primero el comentario: aunque después falle el movimiento, lo que escribió Ivo queda en Trello
+        if (coment || b.accion === 'aprobar') trello_('/cards/' + b.cardId + '/actions/comments', { text: ((b.accion === 'aprobar' ? '✅ Aprobado por ' + firma + (coment ? ': ' : '') : '✏️ Para corregir (' + firma + '): ') + coment).slice(0, 16000) }, 'post');
+        if (!dest) return json_({ error: 'lista', mensaje: 'Dejé el comentario en la tarjeta, pero no encontré la lista ' + (b.accion === 'aprobar' ? 'de aprobados' : 'de correcciones') + ' en ese tablero. Listas que tiene: ' + listas.map(l => l.name).join(', ') });
+        if (dest.id !== card.idList) trello_('/cards/' + b.cardId, { idList: dest.id }, 'put');
+        registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, b.accion === 'aprobar' ? 'aprobado' : 'a corregir', String(b.nombre || '').slice(0, 100) + (coment ? ' · ' + coment.slice(0, 150) : ''), '');
         quitarDeSnapshot_(b.cardId);
         return json_({ ok: true, lista: dest.name });
       }
