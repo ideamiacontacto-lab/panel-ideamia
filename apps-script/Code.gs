@@ -1120,9 +1120,14 @@ function comentarCliente_(b) {
   const marca = norm_(b.marca).replace(/[^a-z0-9]+/g, '-');
   const texto = String(b.texto || '').trim().slice(0, 1500), nombre = String(b.nombre || '').replace(/[()]/g, '').trim().slice(0, 40) || 'Cliente';
   if (!texto) return { error: 'datos', mensaje: 'Escribí el comentario' };
-  const vista = vistaCliente_(marca, 31);
-  if (vista.error) return vista;
-  const it = (vista.items || []).filter(x => x.id === b.cardId)[0];
+  // primero la vista que ya está en caché (la misma que vio la página): rearmarla lee todos los tableros y tarda más de 10 s
+  const enCache = d => { const x = cacheGet_('cli:' + marca + ':' + d); return x && Date.now() - x.t < 60 * 6e4 ? (x.v.items || []).filter(i => i.id === b.cardId)[0] : null; };
+  let it = enCache(15) || enCache(31);
+  if (!it) {
+    const vista = vistaCliente_(marca, 31);
+    if (vista.error) return vista;
+    it = (vista.items || []).filter(x => x.id === b.cardId)[0];
+  }
   if (!it) return { error: 'tarjeta', mensaje: 'Esa publicación ya no está en el calendario' };
   const c = CacheService.getScriptCache(), tk = 'cli-tope:' + marca, n = Number(c.get(tk) || 0);
   if (n >= 30) return { error: 'tope', mensaje: 'Recibimos muchos comentarios seguidos. Probá de nuevo en un rato.' };
@@ -1131,7 +1136,8 @@ function comentarCliente_(b) {
   // clave para poder editarlo o borrarlo después desde el mismo celular (acá se guarda solo su huella)
   const tok = Utilities.getUuid(); P.setProperty('cc:' + act.id, hash_(tok));
   try { registrar_('cliente', 'comentario', 'card:' + it.id, marca, 'comentó', (it.n + ' · ' + nombre + ': ' + texto).slice(0, 300), ''); } catch (e) {}
-  ['cli:' + marca + ':15', 'cli:' + marca + ':31'].forEach(k => c.remove(k)); // que la página lo muestre enseguida
+  // que la página lo muestre enseguida: se suma a la vista en caché en vez de borrarla (rearmarla tarda)
+  tocarComentsCache_(marca, b.cardId, l => l.push({ de: 'cliente', q: nombre, t: texto, f: new Date().toISOString(), id: act.id }));
   return { ok: true, id: act.id, tok: tok };
 }
 /* Editar o borrar un comentario propio: solo con la clave que recibió el celular al mandarlo. */
@@ -1148,8 +1154,19 @@ function cambiarComentarioCliente_(b) {
     trello_('/actions/' + id, { text: '💬 Cliente (' + nombre + '): ' + texto }, 'put');
   }
   try { registrar_('cliente', 'comentario', 'accion:' + id, marca, b.borrar ? 'borró' : 'editó', String(b.texto || '').slice(0, 300), ''); } catch (e) {}
-  const c = CacheService.getScriptCache(); ['cli:' + marca + ':15', 'cli:' + marca + ':31'].forEach(k => c.remove(k));
+  tocarComentsCache_(marca, null, l => {
+    const i = l.findIndex(m => m.id === id); if (i < 0) return;
+    if (b.borrar) l.splice(i, 1); else { l[i].t = String(b.texto || '').trim().slice(0, 1500); l[i].ed = true; }
+  });
   return { ok: true };
+}
+/* Cambia los comentarios de una tarjeta dentro de las vistas del cliente en caché (15 y 31 días), sin rearmarlas. */
+function tocarComentsCache_(marca, cardId, fn) {
+  ['cli:' + marca + ':15', 'cli:' + marca + ':31'].forEach(k => {
+    const x = cacheGet_(k); if (!x || !x.v || !x.v.items) return;
+    x.v.items.forEach(it => { if (!cardId || it.id === cardId) fn(it.comentarios = it.comentarios || []); });
+    cachePut_(k, x);
+  });
 }
 
 /* Burger del mes, cargada por el cliente desde la página (pestaña Anual). Cada mes es una tarjeta del tablero SCL de la marca,
