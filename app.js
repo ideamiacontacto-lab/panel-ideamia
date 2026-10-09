@@ -87,7 +87,8 @@
     if (DEMO) { await new Promise(r => setTimeout(r, 350)); return { ok: true, demo: true }; }
     const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ k: S.key || S.pkey, persona: S.data ? S.data.yo.clave : S.persona }, body)) });
     const j = await r.json();
-    if (j.error) throw new Error(j.mensaje || j.error);
+    // los pasos que sí se hicieron viajan con el error (ej.: el comentario quedó pero la tarjeta no se movió)
+    if (j.error) throw Object.assign(new Error(j.mensaje || j.error), { pasos: j.pasos || [] });
     return j;
   }
 
@@ -96,7 +97,8 @@
     const t = $('#toast');
     t.innerHTML = '<span>' + msg + '</span>' + (deshacer ? '<button>Deshacer</button>' : '');
     if (deshacer) $('button', t).onclick = () => { t.classList.remove('on'); deshacer(); };
-    t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 4200);
+    // los mensajes largos (pasos de una acción) quedan más tiempo
+    t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), msg.length > 90 ? 8000 : 4200);
   }
 
   /* ---------------- estado de cada cosa ---------------- */
@@ -240,8 +242,8 @@
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
     app.innerHTML = S.movil
-      ? head + (S.tab === 'mas' ? '' : ctrl) + '<div class="view" id="view">' + vista + '</div><nav class="bnav">' + nav.map(botonNav).join('') + '</nav>'
-      : ctrl + head + '<div class="view" id="view">' + vista + '</div>';
+      ? head + (S.tab === 'mas' ? '' : ctrl) + '<div class="view" id="view">' + bannerEstado() + vista + '</div><nav class="bnav">' + nav.map(botonNav).join('') + '</nav>'
+      : ctrl + head + '<div class="view" id="view">' + bannerEstado() + vista + '</div>';
     document.body.classList.toggle('movil', S.movil);
     document.body.classList.toggle('ivo', esRevisa());
     bind(app);
@@ -297,6 +299,33 @@
     }
   }
 
+  /* ---------------- estado de los datos: avisa si lo que se ve puede estar viejo o incompleto ---------------- */
+  function minutosDesde(iso) { return iso ? Math.round((Date.now() - new Date(iso).getTime()) / 60000) : null; }
+  function datosViejos() {
+    const gen = S.data && ((S.data.estadoDatos || {}).generado || S.data.generado), min = minutosDesde(gen), h = new Date().getHours();
+    // de día Trello se lee cada 10 min; de noche, una vez por hora
+    return min != null && min > (h >= 8 && h < 21 ? 25 : 75) ? min : 0;
+  }
+  function bannerEstado() {
+    if (!S.data || (DEMO && !qs.get('probarEstado'))) return '';
+    if (DEMO) S.data.estadoDatos = { generado: new Date(Date.now() - 48 * 60000).toISOString(), incompletos: ['Diseño ISCO (Trello 429)'] }; // solo para ver el recuadro en el demo
+    const E = S.data.estadoDatos || {}, L = [], gen = E.generado || S.data.generado;
+    const cuanto = m => m < 60 ? m + ' min' : m < 1440 ? Math.round(m / 60) + ' h' : Math.round(m / 1440) + ' días';
+    let grave = false;
+    if (S.falloCarga) { grave = true; L.push('<b>Sin conexión con el panel</b> (' + esc(S.falloCarga.msg) + '). Estás viendo lo último guardado en este dispositivo' + (gen ? ', con Trello de hace ' + cuanto(minutosDesde(gen)) : '') + '. Puede faltar lo más nuevo.'); }
+    if (E.falla && (!gen || new Date(E.falla.cuando) > new Date(gen))) { grave = true; L.push('<b>La última lectura de Trello falló</b> (' + hace(E.falla.cuando) + '): ' + esc(E.falla.mensaje) + '. Lo que ves es de hace ' + cuanto(minutosDesde(gen)) + '.'); }
+    else if (datosViejos()) L.push('<b>Trello se leyó hace ' + cuanto(datosViejos()) + '.</b> Puede que no se vean todas las tarjetas actuales.');
+    if ((E.incompletos || []).length) L.push('<b>No se pudieron leer ' + E.incompletos.length + (E.incompletos.length === 1 ? ' tablero' : ' tableros') + ':</b> ' + E.incompletos.map(esc).join(', ') + '. Sus tarjetas son de la lectura anterior.');
+    if (!L.length) return '';
+    return '<div class="estado-av' + (grave ? ' bad' : '') + '"><span class="ei">!</span><div>' + L.join('<br>') + '</div>' + (S.falloCarga ? '<button class="btn ghost" data-reconectar>Reintentar</button>' : '<button class="btn ghost" data-rf>Leer Trello ahora</button>') + '</div>';
+  }
+  function reconectar() {
+    if (S.sync) return;
+    S.sync = true; render();
+    cargar(true).then(() => { S.sync = false; render(); toast('✓ Conectado de nuevo: estás viendo los datos actuales.'); })
+      .catch(e => { S.sync = false; S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); toast('Sigue sin conexión: ' + esc(e.message || '')); });
+  }
+
   function renderTop() {
     const D = S.data, w = $('#who');
     if (D || S.proj) {
@@ -304,8 +333,8 @@
       w.innerHTML = '<b>' + esc(yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · cambiar</span>'; w.classList.remove('hidden');
       w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
     }
-    const gen = (D && D.generado) || null;
-    $('#sync').innerHTML = (gen ? '<span class="txt">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Leer Trello ahora (tarda ~1 minuto)">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
+    const gen = (D && ((D.estadoDatos || {}).generado || D.generado)) || null;
+    $('#sync').innerHTML = (gen ? '<span class="txt' + (datosViejos() || S.falloCarga ? ' viejo' : '') + '">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Leer Trello ahora (tarda ~1 minuto)">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
     $('#rf').onclick = actualizar;
   }
 
@@ -683,16 +712,29 @@
       '<div class="err" id="pzerr"></div><a class="ayuda" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div>';
     const b = $('#drawer .dw-b'); if (!b) return;
     b.innerHTML = html;
+    // resultado de cada acción, paso por paso: lo que se hizo (✓) y lo que no (✗), para que nunca quede la duda
+    const resultado = (pasos, mal) => (pasos || []).map(p => '✓ ' + esc(p)).join('<br>') + (mal ? ((pasos || []).length ? '<br>' : '') + '✗ ' + esc(mal) : '');
+    const agregarComentario = txt => {
+      const cont = $('#pzcoms'); if (!cont) return;
+      if (!cont.querySelector('.dw-l')) cont.innerHTML = '<div class="dw-l">Comentarios</div>';
+      cont.querySelector('.dw-l').insertAdjacentHTML('afterend', '<div class="pz-com nuevo"><b>Vos</b> <small>recién · ya está en Trello</small><div>' + esc(txt) + '</div></div>');
+    };
+    const botones = on => { ['#pzok', '#pzcor', '#pzcomb'].forEach(s => { const x = $(s); if (x) x.disabled = !on; }); if (on) { $('#pzok').textContent = '✓ Aprobar'; $('#pzcor').textContent = '✏️ A corregir'; $('#pzcomb').textContent = '💬 Comentar'; } };
     const enviar = async accion => {
       const txt = $('#pzcom').value.trim();
       if (accion === 'corregir' && !txt) { $('#pzerr').textContent = 'Escribí qué hay que corregir.'; $('#pzcom').focus(); return; }
-      $('#pzok').disabled = $('#pzcor').disabled = $('#pzcomb').disabled = true; $('#pzerr').textContent = ''; (accion === 'aprobar' ? $('#pzok') : $('#pzcor')).textContent = 'Enviando…';
+      botones(false); $('#pzerr').innerHTML = ''; (accion === 'aprobar' ? $('#pzok') : $('#pzcor')).textContent = 'Enviando…';
       try {
-        const r = await post({ action: 'revisarPieza', accion, cardId: c.id, boardId: (S.data.marcas.find(m => m.slug === c.m[0]) || { tableros: [] }).tableros.filter(t => t.nombre === c.tablero).map(t => t.id)[0] || '', comentario: txt, marca: c.m[0], nombre: c.n });
+        const r = await post({ action: 'revisarPieza', accion, cardId: c.id, comentario: txt, marca: c.m[0], nombre: c.n, tablero: c.tablero });
         S.data.cards = S.data.cards.filter(x => x.id !== c.id);
         cerrarPanel(); if (accion === 'aprobar') confeti();
-        render(); toast(accion === 'aprobar' ? '✓ Aprobado: ' + esc(c.n.slice(0, 40)) + (r.lista ? ' → ' + esc(r.lista) : '') : '✏️ Mandado a corregir con tu comentario');
-      } catch (e) { $('#pzerr').textContent = 'No se pudo: ' + e.message; $('#pzok').disabled = $('#pzcor').disabled = $('#pzcomb').disabled = false; $('#pzok').textContent = '✓ Aprobar'; $('#pzcor').textContent = '✏️ A corregir'; if (/comentario/.test(e.message)) $('#pzcom').value = ''; }
+        render(); toast(resultado(r.pasos && r.pasos.length ? r.pasos : [accion === 'aprobar' ? 'Aprobado' : 'Mandado a corregir']));
+      } catch (e) {
+        botones(true);
+        // si el comentario ya quedó en Trello, se saca del cuadro para no mandarlo dos veces
+        if (e.pasos && e.pasos.length) { if (txt) agregarComentario(txt); $('#pzcom').value = ''; }
+        $('#pzerr').innerHTML = resultado(e.pasos, e.message);
+      }
     };
     $('#pzok').onclick = () => enviar('aprobar');
     $('#pzcor').onclick = () => enviar('corregir');
@@ -700,14 +742,13 @@
     $('#pzcomb').onclick = async () => {
       const txt = $('#pzcom').value.trim();
       if (!txt) { $('#pzerr').textContent = 'Escribí el comentario.'; $('#pzcom').focus(); return; }
-      $('#pzcomb').disabled = true; $('#pzerr').textContent = '';
+      botones(false); $('#pzcomb').textContent = 'Enviando…'; $('#pzerr').innerHTML = '';
       try {
-        await post({ action: 'comentarTarjeta', cardId: c.id, texto: txt, marca: c.m[0], nombre: c.n });
-        const cont = $('#pzcoms');
-        if (cont) { if (!cont.querySelector('.dw-l')) cont.innerHTML = '<div class="dw-l">Comentarios</div>'; cont.querySelector('.dw-l').insertAdjacentHTML('afterend', '<div class="pz-com nuevo"><b>Vos</b> <small>recién</small><div>' + esc(txt) + '</div></div>'); }
-        $('#pzcom').value = ''; toast('💬 Comentario enviado a la tarjeta');
-      } catch (e) { $('#pzerr').textContent = 'No se pudo: ' + e.message; }
-      $('#pzcomb').disabled = false;
+        const r = await post({ action: 'comentarTarjeta', cardId: c.id, texto: txt, marca: c.m[0], nombre: c.n, tablero: c.tablero });
+        agregarComentario(txt); $('#pzcom').value = '';
+        toast(resultado(r.pasos && r.pasos.length ? r.pasos : ['Comentario enviado']));
+      } catch (e) { $('#pzerr').innerHTML = resultado(e.pasos, 'No se puso el comentario: ' + e.message); }
+      botones(true);
     };
     // vistas previas: el servidor baja cada archivo de Trello y lo devuelve como imagen; tocándola se ve en grande
     const zoom = src => { const z = document.createElement('div'); z.className = 'pz-zoom'; z.innerHTML = '<img src="' + src + '" alt="">'; z.onclick = () => z.remove(); document.body.appendChild(z); };
@@ -1200,6 +1241,8 @@
     root.querySelectorAll('[data-dcmodo]').forEach(b => b.onclick = () => { LS.set('dcmodo', b.dataset.dcmodo); render(); });
     root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
+    root.querySelectorAll('[data-rf]').forEach(b => b.onclick = actualizar);
+    root.querySelectorAll('[data-reconectar]').forEach(b => b.onclick = reconectar);
     root.querySelectorAll('[data-dc-ok]').forEach(b => b.onclick = () => { dcVer([b.dataset.dcOk]); render(); });
     root.querySelectorAll('[data-dc-leidas]').forEach(b => b.onclick = () => { S.abiertos.dcleidas = !S.abiertos.dcleidas; render(); });
     // "Arrancá el día": elegir prioridades
@@ -1396,9 +1439,13 @@
     S.sync = true; renderTop();
     try {
       const r = DEMO ? {} : await post({ action: 'actualizar' });
-      await cargar(true);
-      toast(r.reciente ? 'Trello ya estaba al día (leído hace menos de un minuto).' : 'Actualizado con lo último de Trello.');
-    } catch (e) { toast(/actualizando/.test(e.message) ? 'Se está actualizando en este momento. Esperá un minuto y volvé a tocar ↻.' : 'No se pudo actualizar: ' + esc(e.message)); }
+      await cargar(true); render(); // sin esto se traían los datos nuevos pero la pantalla seguía mostrando los viejos
+      const inc = r.incompletos || [];
+      toast((r.reciente ? '✓ Trello ya estaba al día (leído hace menos de un minuto).' : '✓ Actualizado con lo último de Trello.') + (inc.length ? '<br>✗ No respondieron: ' + inc.map(esc).join(', ') + '. Sus tarjetas quedan de la lectura anterior.' : ''));
+    } catch (e) {
+      toast(/actualizando/.test(e.message) ? 'Se está actualizando en este momento. Esperá un minuto y volvé a tocar ↻.' : '✗ ' + esc(e.message));
+      try { await cargar(true); } catch (x) {} render(); // así el recuadro de arriba muestra el estado real
+    }
     S.sync = false; renderTop();
   }
 
@@ -1455,6 +1502,7 @@
     if (j.error) throw new Error(j.mensaje || j.error);
     if (!silencioso) S.marca = 'todas';
     S.data = j;
+    S.falloCarga = null;
     try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(j)); } catch (e) {}
   }
   // Lo último que se cargó en este navegador: se muestra al instante mientras llega lo nuevo.
@@ -1488,7 +1536,7 @@
     } catch (e) {
       S.sync = false;
       if (e.gate) { if (ck === '__project') { LS.set('pkey', ''); S.pkey = ''; } else { LS.set('key', ''); S.key = ''; } try { localStorage.removeItem('pi:cache:' + ck); } catch (x) {} S.data = null; S.proj = null; return gate(e.message); }
-      if (previo) { renderTop(); toast('No pude traer lo último: ' + esc(e.message || 'sin conexión') + '. Te muestro lo de la última vez.'); return; }
+      if (previo) { S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); return; }
       $('#app').innerHTML = '<div class="loading"><b>Ups</b>' + esc(e.message || 'No pude conectar con el Apps Script') + '<br><br><button class="btn" id="re">Reintentar</button> <button class="btn ghost" id="ch">Cambiar de persona</button></div>';
       $('#re').onclick = inicio; $('#ch').onclick = () => { S.persona = null; LS.set('persona', null); gate(); };
     }
@@ -1496,7 +1544,7 @@
 
   // Se mantiene al día sola: cada 5 minutos si la pestaña está abierta, y al volver a la pestaña si pasaron más de 2 minutos.
   let ultimaCarga = Date.now();
-  const refrescar = () => { if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(() => { S.sync = false; renderTop(); }); };
+  const refrescar = () => { if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(e => { S.sync = false; S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); }); };
   setInterval(() => { if (document.visibilityState === 'visible') refrescar(); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
   window.matchMedia('(max-width:700px)').addEventListener('change', e => { S.movil = e.matches; if (S.data) render(); });
