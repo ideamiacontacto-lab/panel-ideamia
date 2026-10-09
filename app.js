@@ -686,13 +686,13 @@
     const enviar = async accion => {
       const txt = $('#pzcom').value.trim();
       if (accion === 'corregir' && !txt) { $('#pzerr').textContent = 'Escribí qué hay que corregir.'; $('#pzcom').focus(); return; }
-      $('#pzok').disabled = $('#pzcor').disabled = true; $('#pzerr').textContent = '';
+      $('#pzok').disabled = $('#pzcor').disabled = $('#pzcomb').disabled = true; $('#pzerr').textContent = ''; (accion === 'aprobar' ? $('#pzok') : $('#pzcor')).textContent = 'Enviando…';
       try {
         const r = await post({ action: 'revisarPieza', accion, cardId: c.id, boardId: (S.data.marcas.find(m => m.slug === c.m[0]) || { tableros: [] }).tableros.filter(t => t.nombre === c.tablero).map(t => t.id)[0] || '', comentario: txt, marca: c.m[0], nombre: c.n });
         S.data.cards = S.data.cards.filter(x => x.id !== c.id);
         cerrarPanel(); if (accion === 'aprobar') confeti();
         render(); toast(accion === 'aprobar' ? '✓ Aprobado: ' + esc(c.n.slice(0, 40)) + (r.lista ? ' → ' + esc(r.lista) : '') : '✏️ Mandado a corregir con tu comentario');
-      } catch (e) { $('#pzerr').textContent = 'No se pudo: ' + e.message; $('#pzok').disabled = $('#pzcor').disabled = false; }
+      } catch (e) { $('#pzerr').textContent = 'No se pudo: ' + e.message; $('#pzok').disabled = $('#pzcor').disabled = $('#pzcomb').disabled = false; $('#pzok').textContent = '✓ Aprobar'; $('#pzcor').textContent = '✏️ A corregir'; if (/comentario/.test(e.message)) $('#pzcom').value = ''; }
     };
     $('#pzok').onclick = () => enviar('aprobar');
     $('#pzcor').onclick = () => enviar('corregir');
