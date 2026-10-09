@@ -610,9 +610,10 @@
     D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '', tipo: 'reunion' }); } });
     return items;
   }
-  // Discord: menciones de los últimos 7 días. Lo ya abierto se recuerda en este navegador.
+  // Discord: menciones de los últimos 3 días, contados desde ahora (cada una sale sola al cumplir 72 h, aunque la página quede abierta). Lo ya abierto se recuerda en este navegador.
+  const DC_HORAS = 72;
   const dcVistos = () => LS.get('dcvistos', {});
-  const menciones = () => ((S.data.discord || {}).menciones || []);
+  const menciones = () => { const desde = (DEMO ? NOW.getTime() : Date.now()) - DC_HORAS * 3600e3; return ((S.data.discord || {}).menciones || []).filter(m => new Date(m.fecha).getTime() > desde); };
   const dcSinVer = () => { const v = dcVistos(); return menciones().filter(m => !v[m.id]); };
   const dcVer = ids => { const v = dcVistos(); ids.forEach(id => v[id] = 1); const vivos = {}; menciones().forEach(m => { if (v[m.id]) vivos[m.id] = 1; }); LS.set('dcvistos', vivos); };
   function filaDiscord(m) {
@@ -659,9 +660,9 @@
     }
     return '<div class="sec"><div class="sec-h"><h2>Te mencionaron<small>' + nuevos.length + ' sin ver</small></h2>' + (nuevos.length ? '<button class="act lnk" data-dc-todo>Marcar todo como visto</button>' : '') + '</div>' +
       '<div class="seg dcseg"><button class="' + (modo === 'dia' ? 'on' : '') + '" data-dcmodo="dia">Por día</button><button class="' + (modo === 'marca' ? 'on' : '') + '" data-dcmodo="marca">Por marca</button></div>' +
-      (L.length ? cuerpo : '<div class="empty">' + (leidas ? 'Todo leído. ' : S.marca === 'todas' ? 'Nadie te mencionó en los últimos 7 días.' : 'No hay menciones de esta marca en los últimos 7 días.') + '</div>') +
+      (L.length ? cuerpo : '<div class="empty">' + (leidas ? 'Todo leído. ' : S.marca === 'todas' ? 'Nadie te mencionó en los últimos 3 días.' : 'No hay menciones de esta marca en los últimos 3 días.') + '</div>') +
       (leidas ? '<p class="vercl"><button class="lnk" data-dc-leidas>' + (verLeidas ? 'Ocultar las leídas' : 'Ver las ' + leidas + ' leídas') + '</button></p>' : '') +
-      '<p class="ayuda">Se actualiza cada 15 minutos. Tocá un mensaje y se abre Discord justo ahí. Los mensajes directos no aparecen.</p></div>';
+      '<p class="ayuda">Se ven las menciones de los últimos 3 días y se actualiza cada 10 minutos. Tocá un mensaje y se abre Discord justo ahí. Los mensajes directos no aparecen.</p></div>';
   }
   // guiones (tableros GUIONES de cada marca, los maneja Fede)
   const guiones = () => (S.data.cards || []).filter(c => c.cat === 'guion' && pasa(c.m));
