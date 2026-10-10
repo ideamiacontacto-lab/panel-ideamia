@@ -25,6 +25,10 @@
 
   /* ---------------- iconos ---------------- */
   const I = {
+    reel: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg>',
+    story: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 2.4"/><circle cx="12" cy="12" r="4"/></svg>',
+    doc: '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5"/></svg>',
+    pin: '<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.400-6.5 11-6.500 11z"/><circle cx="12" cy="10" r="2.300"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     out: '<svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>',
     clip: '<svg viewBox="0 0 24 24"><path d="M20 11.5l-8.2 8.2a5 5 0 01-7.1-7.1l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8"/></svg>',
@@ -236,7 +240,7 @@
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
-    const nav = film ? [['film', 'Reels', I.flag, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.check, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.pen, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.cal, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]];
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
@@ -1149,8 +1153,8 @@
     const nVen = vencidas().length, nF = proximasFechas(30).length;
     const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
     return '<div class="mas-g">' +
-      (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, nVen ? nVen + ' vencidas' : 'Vencidas', 'últimos 15 días') +
-      t('data-fechas', I.star, nF + ' fechas', 'próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') +
+      (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + (nVen === 1 ? ' tarjeta pasada de fecha' : ' tarjetas pasadas de fecha') : 'nada vencido') +
+      t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-claude-plan', I.msg, 'Plan del día', 'con Claude') +
       '</div>' + costado(true);
   }
@@ -1408,7 +1412,7 @@
       const fui = dias.filter(d => d.on && d.f <= hoyId_), voy = dias.filter(d => d.on && d.f > hoyId_);
       const txt = (fui.length ? 'Fuiste ' + fui.map(d => d.nom).join(' y ') : '') + (fui.length && voy.length ? ' · ' : '') + (voy.length ? 'Vas ' + voy.map(d => d.nom).join(' y ') : '') || (fuiViejo ? 'Fuiste' : v.ideal ? 'Ideal ' + v.ideal : 'Todavía sin día');
       return '<div class="fl-v' + (fui.length || fuiViejo ? ' ok' : '') + '"><div class="fl-vn">' + tagM(v.marca) + '<small>' + esc(txt) + '</small></div>' +
-        '<div class="fl-vd">' + dias.map(d => '<button class="fl-d' + (d.on ? (d.f <= hoyId_ ? ' on' : ' plan') : '') + (d.f === hoyId_ ? ' hoy' : '') + '" data-film-est="' + esc(d.k) + '" data-estado="' + (d.on ? 'deshacer' : 'hecho') + '" data-detalle="semanal" data-fmarca="' + esc(v.marca) + '" title="' + d.nom + '">' + d.l + '</button>').join('') + '</div></div>';
+        '<div class="fl-vd">' + dias.map(d => '<button class="fl-d' + (d.on ? (d.f <= hoyId_ ? ' on' : ' plan') : '') + (d.f === hoyId_ ? ' hoy' : '') + '" data-film-est="' + esc(d.k) + '" data-estado="' + (d.on ? 'deshacer' : 'hecho') + '" data-detalle="semanal" data-fmarca="' + esc(v.marca) + '" title="' + d.nom + ' ' + (+d.f.slice(8)) + '" aria-pressed="' + (d.on ? 'true' : 'false') + '">' + d.l + '<small>' + (+d.f.slice(8)) + '</small></button>').join('') + '</div></div>';
     };
     const vis = (cu, n) => { const L = F.visitas.filter(v => v.cuando === cu && pasa([v.marca])); return L.length ? '<div class="fl-vg"><h3>' + (n ? 'La semana que viene' : 'Esta semana') + '</h3>' + L.map(v => visita(v, n)).join('') + '</div>' : ''; };
     // registro: carpetas por mes y, adentro, por semana

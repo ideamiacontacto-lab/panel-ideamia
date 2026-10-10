@@ -1155,3 +1155,18 @@ select{color-scheme:dark}
   .hoy-sts .mio-st:nth-last-child(2):nth-child(3n+1),.hoy-sts .mio-st:last-child:nth-child(3n+2){flex-basis:calc(50% - 4px)}
   .mhead .kick{font-size:10px;letter-spacing:.1em}
 }
+
+/* ---- repaso de usabilidad (Nielsen): foco visible, zonas de toque, estados vacíos con identidad, días con número ---- */
+:focus-visible{outline:2px solid var(--y);outline-offset:2px;border-radius:6px}
+.fl-d{width:38px;height:44px;border-radius:12px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1}
+.fl-d small{font-size:10px;font-weight:600;opacity:.6}
+.fl-d.on small{opacity:.75}
+.fl-q{padding:10px 6px;margin:-10px -6px}
+.mio-st.ok b{color:var(--ok,#5fd38d)}
+.empty{position:relative;border:1px dashed var(--line2);border-radius:14px;padding:18px 18px 18px 58px;min-height:58px;display:flex;align-items:center;color:var(--muted);background:linear-gradient(135deg,rgba(255,242,0,.035),transparent 60%)}
+.empty:before{content:"";position:absolute;left:16px;top:50%;width:28px;height:28px;transform:translateY(-50%) rotate(-10deg);background:var(--y);opacity:.85;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20 20H42C40 12 44 6 50 6C56 6 60 12 58 20H80V42C88 40 94 44 94 50C94 56 88 60 80 58V80H58C60 88 56 94 50 94C44 94 40 88 42 80H20V58C12 60 6 56 6 50C6 44 12 40 20 42Z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20 20H42C40 12 44 6 50 6C56 6 60 12 58 20H80V42C88 40 94 44 94 50C94 56 88 60 80 58V80H58C60 88 56 94 50 94C44 94 40 88 42 80H20V58C12 60 6 56 6 50C6 44 12 40 20 42Z'/%3E%3C/svg%3E") center/contain no-repeat}
+@media (hover:hover){.empty:hover:before{transform:translateY(-50%) rotate(8deg) scale(1.08);transition:transform .35s cubic-bezier(.2,.9,.3,1.4)}}
+@media (max-width:760px){.fl-d{width:auto;height:46px}}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
