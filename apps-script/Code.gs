@@ -1349,6 +1349,23 @@ function recordatoriosFilm_() {
   });
 }
 
+/* PRUEBAS REALES del circuito de revisión, pedidas por Joaquín. Usan el mismo camino que los botones del panel (doPost),
+   sobre la tarjeta "PRUEBA PANEL DISEÑO (borrar)" que tiene que estar en "En revision" de un tablero de Diseño.
+   Mueven esa tarjeta y dejan un comentario en ella; no tocan ninguna otra. */
+function pruebaPanel_(accion, comentario) {
+  const t0 = Date.now(), viva = revisionViva_(), c = viva.cards.filter(x => /PRUEBA PANEL/.test(x.n))[0];
+  console.log('Lectura en vivo: ' + viva.cards.length + ' piezas en ' + (Date.now() - t0) + ' ms · sin respuesta: ' + (viva.fallas.join(', ') || 'ninguno') + ' · la de prueba ' + (c ? 'SÍ aparece (' + c.tablero + ' · ' + c.formato + ' · ' + c.lista + ')' : 'NO aparece'));
+  if (!c) return;
+  const r = doPost({ postData: { contents: JSON.stringify({ action: 'revisarPieza', k: P.getProperty('TEAM_KEY'), persona: 'ivo', cardId: c.id, accion: accion, comentario: comentario, marca: c.m[0], nombre: c.n, tablero: c.tablero }) } });
+  console.log('Respuesta del panel al ' + accion + ': ' + r.getContent());
+  const ahora = trello_('/cards/' + c.id, { fields: 'name,closed', list: 'true', list_fields: 'name', actions: 'commentCard', actions_limit: '3' });
+  console.log('En Trello ahora: lista "' + ahora.list.name + '" · últimos comentarios: ' + (ahora.actions || []).map(a => '«' + a.data.text + '»').join(' | '));
+  const despues = revisionViva_().cards.some(x => x.id === c.id);
+  console.log('¿Sigue apareciendo en la revisión en vivo? ' + (despues ? 'SÍ (mal)' : 'no (correcto: ya no está en revisión)'));
+}
+function pruebaCorregir() { pruebaPanel_('corregir', 'PRUEBA: cambiar el color del fondo y agrandar el logo. Comentario largo con tildes y eñes para verificar que llega entero: diseño, corrección, año, ¿se ve bien?'); }
+function pruebaAprobar() { pruebaPanel_('aprobar', 'PRUEBA: aprobado desde el panel'); }
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
