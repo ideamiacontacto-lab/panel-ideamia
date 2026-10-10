@@ -579,6 +579,11 @@ function asegurarRutinas_() {
     ['DISCORD_ID_ALE', '1503387898643484714', 'ID de Discord de Ale: privado con cada pieza que entra a sus tableros de CM (qué es, cuándo sale, si es programable).']
   ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
   if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_ID_BAUTI') < 0) cf.appendRow(['DISCORD_ID_BAUTI', '1390450103059349526', 'ID de Discord de Bauti: para el recordatorio por privado cuando no va a la reunión de guiones. Vacío = no se le escribe.']);
+  // resumen de guiones en el canal del departamento
+  [['GUIONES_CANAL', '', 'ID del canal de Discord donde sale el resumen de la reunión de guiones (clic derecho en el canal → Copiar ID del canal). Vacío = no se publica.'],
+    ['GUIONES_RESUMEN_DIAS', 'lunes,viernes', 'Días en que sale a la mañana el resumen de guiones (qué hay para ver, qué debe entregar Fede y quién presenta ideas).'],
+    ['DISCORD_ID_FEDE', '466080124303835147', 'ID de Discord de Fede (guiones): se lo arroba en el resumen de guiones.']
+  ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
   if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('bauti') < 0) eqs.appendRow(['Bauti', 'bauti', 'Filmmaker', 'bauti, bautista']);
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
@@ -1578,16 +1583,99 @@ function probarPrivados() {
   });
 }
 
+/* ---------------- resumen de guiones para el canal del departamento (Discord) ----------------
+   Los días de reunión de guiones (Config GUIONES_RESUMEN_DIAS, por defecto lunes y viernes) deja escrito a la mañana un resumen
+   por marca: qué guiones hay para ver hoy, cuáles debe entregar Fede, cuáles siguen en corrección y qué social media presenta ideas.
+   Igual que los avisos de diseño: se guarda en un JSON de Drive y un escenario de Make lo publica en el canal (Config GUIONES_CANAL).
+   Cada persona va arrobada: Fede en lo que debe entregar, el social media en su marca, el filmmaker arriba. */
+const GU_FEDE = '466080124303835147';
+function guionesResumenArmar_(snap, cat, cfg, ahora) {
+  const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  const dm = iso => Utilities.formatDate(new Date(iso), TZ, 'dd/MM');
+  const diaDe = iso => Math.round((new Date(Utilities.formatDate(new Date(iso), TZ, "yyyy-MM-dd'T'00:00:00")).getTime() - hoy.getTime()) / 864e5);
+  const arroba = clave => { const id = clave === 'fede' ? (idDiscord_(cfg, 'fede') || GU_FEDE) : idDiscord_(cfg, clave); return id ? '<@' + id + '>' : ''; };
+  const titulo = c => /^https?:\/\//.test(String(c.n)) ? 'Guion sin título (no encuentro la idea original)' : String(c.n).slice(0, 90);
+  const marcas = {}; (snap.tableros || []).filter(b => b.tipo === 'guiones' && b.marca).forEach(b => marcas[b.marca] = { ver: [], fede: [], corr: [] });
+  (snap.cards || []).forEach(c => {
+    if (c.cat !== 'guion' || c.salio || !marcas[c.m[0]]) return;
+    const g = marcas[c.m[0]], sale = c.salida ? ' · sale el ' + dm(c.salida) : '', link = ' · ' + c.url;
+    if (c.gest === 'revisar') g.ver.push('• **' + titulo(c) + '**' + sale + link);
+    else if (c.gest === 'correccion') g.corr.push('• **' + titulo(c) + '**' + sale + link);
+    else if (c.gest === 'pendiente') {
+      const d = c.entrega ? diaDe(c.entrega) : null;
+      if (d !== null && d > 7) return; // lo que se entrega más adelante no hace ruido hoy
+      g.fede.push({ d: d === null ? 99 : d, t: '• **' + titulo(c) + '** · ' + (d === null ? 'sin fecha de entrega' : d < 0 ? 'debía entregarse el ' + dm(c.entrega) : d === 0 ? 'se entrega hoy' : 'se entrega el ' + dm(c.entrega)) + sale + link });
+    }
+  });
+  let nVer = 0, nFede = 0, nCorr = 0; const lineas = [], personas = {};
+  Object.keys(marcas).sort().forEach(slug => {
+    const g = marcas[slug], m = cat.marcas.filter(x => x.slug === slug)[0] || {}, sm = arroba(m.sm);
+    nVer += g.ver.length; nFede += g.fede.length; nCorr += g.corr.length; if (sm) personas[sm] = 1;
+    lineas.push('', '**' + nombreMarca_(cat, slug).toUpperCase() + '**' + (sm ? ' · ' + sm + ' presenta las ideas nuevas' : ' · se presentan las ideas nuevas'));
+    if (g.ver.length) { lineas.push('Para ver hoy (' + g.ver.length + '):'); g.ver.forEach(x => lineas.push(x)); }
+    if (g.corr.length) { lineas.push(arroba('fede') + ' en corrección (' + g.corr.length + '):'); g.corr.forEach(x => lineas.push(x)); }
+    if (g.fede.length) { lineas.push(arroba('fede') + ' por entregar (' + g.fede.length + '):'); g.fede.sort((a, b) => a.d - b.d).forEach(x => lineas.push(x.t)); }
+    if (!g.ver.length && !g.corr.length && !g.fede.length) lineas.push('Sin guiones pendientes.');
+  });
+  const film = cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).map(p => arroba(p.clave)).filter(Boolean);
+  const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const cabeza = '📋 **Reunión de guiones · ' + dias[hoy.getDay()] + ' ' + Utilities.formatDate(hoy, TZ, 'dd/MM') + ' · ' + String(cfg.GUIONES_HORA || '16:00') + ' h**\n' +
+    (nVer ? 'Hoy tenemos que ver **' + nVer + (nVer === 1 ? ' guion' : ' guiones') + '**' : 'Hoy no hay guiones entregados para ver') +
+    (nCorr ? ', hay ' + nCorr + ' en corrección' : '') + (nFede ? ' y ' + nFede + ' por entregar' : '') + '. Además cada social media presenta sus ideas nuevas.\n' +
+    [arroba('fede')].concat(Object.keys(personas), film).filter(Boolean).join(' ');
+  return { textos: trozos_(cabeza, lineas), ver: nVer, fede: nFede, corr: nCorr };
+}
+function guionesDiaDeResumen_(cfg, ahora) {
+  const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  return lista_(cfg.GUIONES_RESUMEN_DIAS == null || cfg.GUIONES_RESUMEN_DIAS === '' ? 'lunes,viernes' : cfg.GUIONES_RESUMEN_DIAS).some(x => dias[ahora.getDay()].indexOf(norm_(x).slice(0, 3)) === 0);
+}
+/* Lo corre el disparador de cada mañana (8:45). Los días que no hay reunión deja el archivo sin mensajes. */
+function guionesResumen() {
+  const ahora = hoyAR_(), cfg = config_(), snap = snapshot_(), canal = String(cfg.GUIONES_CANAL || '').trim();
+  const viejo = !snap.generado || (Date.now() - new Date(snap.generado).getTime()) > 3 * 36e5; // con la foto de Trello vieja, mejor no avisar
+  let mensajes = [];
+  if (guionesDiaDeResumen_(cfg, ahora) && !viejo && /^\d{15,22}$/.test(canal)) mensajes = guionesResumenArmar_(snap, catalogo_(), cfg, ahora).textos.map(t => ({ canal: canal, texto: t.slice(0, 1950) }));
+  const f = archivo_('GUIONES_FILE_ID', 'panel-ideamia-resumen-guiones.json');
+  f.setContent(JSON.stringify({ fecha: ymd_(new Date()), generado: new Date().toISOString(), fotoTrello: snap.generado || null, mensajes: mensajes }));
+  return { archivo: f.getId(), mensajes: mensajes.length, viejo: viejo, canal: canal };
+}
+/* Correr una vez desde el editor: deja el archivo visible para quien tenga el link (así lo lee Make) y programa el armado diario. */
+function instalarResumenGuiones() {
+  try { asegurarRutinas_(); } catch (e) {}
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'guionesResumen').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('guionesResumen').timeBased().everyDays(1).atHour(8).nearMinute(45).create();
+  const r = guionesResumen();
+  DriveApp.getFileById(r.archivo).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  console.log('ARCHIVO_GUIONES=' + r.archivo + ' mensajes=' + r.mensajes + ' viejo=' + r.viejo + ' canal=' + (r.canal || 'FALTA GUIONES_CANAL en Config'));
+  return r;
+}
+/* PRUEBA sin efectos: muestra el resumen que saldría un lunes y los canales de Discord que nombran "guion" (para elegir GUIONES_CANAL). */
+function probarResumenGuiones() {
+  try { asegurarRutinas_(); } catch (e) {}
+  const cfg = config_(), cat = catalogo_(), snap = snapshot_(), hoy = hoyAR_();
+  const lunes = new Date(hoy); lunes.setDate(lunes.getDate() + ((1 - lunes.getDay() + 7) % 7));
+  const r = guionesResumenArmar_(snap, cat, cfg, lunes);
+  console.log('Canal configurado: ' + (cfg.GUIONES_CANAL || 'NINGUNO') + ' · días: ' + (cfg.GUIONES_RESUMEN_DIAS || 'lunes,viernes') + ' · hoy toca: ' + guionesDiaDeResumen_(cfg, hoy));
+  console.log('RESUMEN de un lunes (' + ymd_(lunes) + '): ' + r.textos.length + ' mensaje(s) · ver ' + r.ver + ' · corrección ' + r.corr + ' · por entregar ' + r.fede);
+  r.textos.forEach(t => console.log('(' + t.length + ' caracteres)\n' + t));
+  try {
+    const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+    const ch = JSON.parse(UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/channels', { headers: { 'x-clave': clave }, muteHttpExceptions: true }).getContentText()), nom = {};
+    ch.forEach(c => nom[c.id] = c.name);
+    console.log('CANALES con "guion":\n' + ch.filter(c => c.type !== 4 && /guion/i.test(c.name + ' ' + (nom[c.parent_id] || ''))).map(c => c.id + ' · ' + (nom[c.parent_id] || 'sin categoría') + ' / ' + c.name).join('\n'));
+  } catch (e) { console.log('No pude leer los canales: ' + e.message); }
+}
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
    No pide clave: solo devuelve tarjetas con fecha de publicación de esa marca (título, copy, adjuntos y estado), nunca comentarios
    ni otras marcas. Se guarda 10 minutos en caché para no pegarle a Trello en cada visita. */
 function entregaDiseno_(salida) {
-  // Las diseñadoras entregan en tandas: martes (lo que sale lun–mié de la semana siguiente) y jueves (lo que sale jue–dom).
+  // Las diseñadoras entregan en tandas: lunes (lo que sale lun–mié de la semana siguiente) y jueves (lo que sale jue–dom).
   const d = new Date(Utilities.formatDate(new Date(salida), TZ, "yyyy-MM-dd'T'12:00:00"));
   const dia = d.getDay() || 7, lunes = new Date(d.getTime() - (dia - 1) * 864e5);
-  return new Date(lunes.getTime() - 7 * 864e5 + (dia <= 3 ? 1 : 3) * 864e5);
+  return new Date(lunes.getTime() - 7 * 864e5 + (dia <= 3 ? 0 : 3) * 864e5);
 }
 function vistaCliente_(marca, dias) {
   marca = norm_(marca).replace(/[^a-z0-9]+/g, '-'); dias = Math.min(Math.max(Number(dias) || 15, 1), 31);
