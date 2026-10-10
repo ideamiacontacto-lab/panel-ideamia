@@ -189,3 +189,27 @@ window.PANEL_DEMO_PROJECT.mio = {
     { id: "m10", n: "Cerrado: enviar facturas", d: "", due: "2026-10-01T18:00:00-03:00", dc: true, lista: "Listo", k: "listo", act: "2026-10-01T15:00:00-03:00", url: "#", lab: [] }
   ]
 };
+
+// Filmmaker de ejemplo (Bauti): ?demo=1&p=bauti
+(function () {
+  var D = window.PANEL_DEMO; if (!D) return;
+  D.equipo.push({ clave: "bauti", nombre: "Bauti", rol: "Filmmaker" });
+  var pz = function (id, n, formato, etapa, lista, marca, tablero, salida) { return { id: id, url: "https://trello.com/c/demo-" + id, n: n, d: "", cat: "pieza", etapa: etapa, formato: formato, lista: lista, tipo: "produccion", tablero: tablero, m: [marca], salida: salida, lab: [], att: [], act: "2026-10-06T12:00:00Z" }; };
+  D.cards.push(
+    pz("f1", "Reel receta cookies", "reel", "pendiente", "Reels pendientes", "isco", "Produccion ISCO", "2026-10-08T20:00:00Z"),
+    pz("f2", "Reel día de la madre", "reel", "pendiente", "Reels pendientes", "gabriel-varisco", "Produccion GV", "2026-10-11T20:00:00Z"),
+    pz("f3", "Historia jueves", "historia", "pendiente", "Historias pendientes", "isco", "Produccion ISCO", "2026-10-09T20:00:00Z"),
+    pz("f4", "Reel abasto", "reel", "correccion", "Correccion", "isco", "Produccion ISCO", "2026-10-10T20:00:00Z"),
+    pz("f5", "Reel box desayuno", "reel", "pendiente", "Reels pendientes", "gabriel-varisco", "Produccion GV", "2026-10-16T20:00:00Z"),
+    pz("f6", "Historia sábado", "historia", "pendiente", "Historias pendientes", "vice-burger", "Produccion Vice", "2026-10-17T20:00:00Z"),
+    pz("f7", "Reel long cake", "reel", "revision", "En Revision", "gabriel-varisco", "Produccion GV", "2026-10-12T20:00:00Z")
+  );
+  var v = function (marca, sem, cuando, ideal) { return { clave: "film:bauti:vis:" + marca + ":" + sem, marca: marca, ideal: ideal || "", periodo: sem, cuando: cuando }; };
+  D.film = {
+    reels: ["isco", "gabriel-varisco"], historias: ["vice-burger"],
+    visitas: [v("gabriel-varisco", "2026-W41", "esta semana", "lunes o viernes"), v("isco", "2026-W41", "esta semana"), v("vice-burger", "2026-W41", "esta semana"),
+      v("gabriel-varisco", "2026-W42", "la semana que viene", "lunes o viernes"), v("isco", "2026-W42", "la semana que viene"), v("vice-burger", "2026-W42", "la semana que viene")],
+    reuniones: [{ clave: "film:bauti:reu:2026-10-05", fecha: "2026-10-05", hora: "16:00" }, { clave: "film:bauti:reu:2026-10-09", fecha: "2026-10-09", hora: "16:00" }, { clave: "film:bauti:reu:2026-10-12", fecha: "2026-10-12", hora: "16:00" }, { clave: "film:bauti:reu:2026-10-16", fecha: "2026-10-16", hora: "16:00" }],
+    est: { "film:bauti:reu:2026-10-05": { estado: "novoy", detalle: "", fecha: "2026-10-05 10:00" }, "film:bauti:vis:isco:2026-W41": { estado: "plan", detalle: "jue", fecha: "2026-10-06 10:00" } }
+  };
+})();
