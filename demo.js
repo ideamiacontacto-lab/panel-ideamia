@@ -165,3 +165,27 @@ window.PANEL_DEMO_PROJECT = {
   ],
   marcas: [{ slug: "isco", nombre: "Isco" }, { slug: "gabriel-varisco", nombre: "Gabriel Varisco" }, { slug: "tritato", nombre: "Tritato" }, { slug: "vice-burger", nombre: "Vice Burger" }, { slug: "quality-tienda", nombre: "Quality Tienda" }, { slug: "dyb", nombre: "DyB" }]
 };
+
+// Tablero Project de ejemplo para "Mi día" (vista del project)
+window.PANEL_DEMO_PROJECT.mio = {
+  url: "https://trello.com/b/30dl2puJ/project", leido: "2026-10-07T12:28:00-03:00", dias: 3,
+  listas: [{ id: "l1", n: "Bandeja", k: "bandeja" }, { id: "l2", n: "Por hacer", k: "hacer" }, { id: "l3", n: "En proceso", k: "proceso" }, { id: "l4", n: "Enviado / en seguimiento", k: "seguimiento" }, { id: "l5", n: "Listo", k: "listo" }],
+  etiquetas: [
+    { id: "e1", n: "ISCO", c: "yellow", marca: true }, { id: "e2", n: "GV", c: "blue", marca: true }, { id: "e3", n: "TRITATO", c: "orange", marca: true },
+    { id: "e4", n: "VICE", c: "red", marca: true }, { id: "e5", n: "QUALITY", c: "green", marca: true }, { id: "e6", n: "DYB", c: "purple", marca: true },
+    { id: "e7", n: "UPPER", c: "sky", marca: true }, { id: "e8", n: "1TAL", c: "pink", marca: true },
+    { id: "e9", n: "Urgente", c: "red_dark", marca: false }, { id: "e10", n: "Extra", c: "black", marca: false }, { id: "e11", n: "Ver en minuta", c: "lime", marca: false }
+  ],
+  cards: [
+    { id: "m1", n: "Pedir fotos nuevas del local", d: "", due: null, dc: false, lista: "Bandeja", k: "bandeja", act: "2026-10-07T10:00:00-03:00", url: "#", lab: ["TRITATO"] },
+    { id: "m2", n: "Cliente pide sumar promo de transferencia", d: "", due: "2026-10-08T18:00:00-03:00", dc: false, lista: "Bandeja", k: "bandeja", act: "2026-10-07T09:10:00-03:00", url: "#", lab: ["QUALITY", "Urgente"] },
+    { id: "m3", n: "Revisar propuesta de campaña del Día de la Madre", d: "", due: "2026-10-07T18:00:00-03:00", dc: false, lista: "En proceso", k: "proceso", act: "2026-10-06T16:00:00-03:00", url: "#", lab: ["ISCO"] },
+    { id: "m4", n: "Mandar reporte mensual de septiembre", d: "", due: "2026-10-05T18:00:00-03:00", dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-02T11:00:00-03:00", url: "#", lab: ["DYB"] },
+    { id: "m5", n: "Armar brief de la producción de fotos", d: "", due: "2026-10-09T18:00:00-03:00", dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-06T11:00:00-03:00", url: "#", lab: ["VICE"] },
+    { id: "m6", n: "Presupuesto de pauta de noviembre", d: "", due: "2026-10-13T18:00:00-03:00", dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-05T11:00:00-03:00", url: "#", lab: ["GV"] },
+    { id: "m7", n: "Esperando aprobación del cliente: calendario de octubre", d: "", due: "2026-10-12T18:00:00-03:00", dc: false, lista: "Enviado / en seguimiento", k: "seguimiento", act: "2026-10-01T15:00:00-03:00", url: "#", lab: ["UPPER"] },
+    { id: "m8", n: "Le pasé las medidas del banner al cliente", d: "", due: null, dc: false, lista: "Enviado / en seguimiento", k: "seguimiento", act: "2026-10-03T15:00:00-03:00", url: "#", lab: ["QUALITY"] },
+    { id: "m9", n: "Definir fecha de la reunión mensual", d: "", due: null, dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-06T15:00:00-03:00", url: "#", lab: ["1TAL"] },
+    { id: "m10", n: "Cerrado: enviar facturas", d: "", due: "2026-10-01T18:00:00-03:00", dc: true, lista: "Listo", k: "listo", act: "2026-10-01T15:00:00-03:00", url: "#", lab: [] }
+  ]
+};

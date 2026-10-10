@@ -17,6 +17,7 @@
     // la persona y la clave del equipo se comparten con Reportes y Brainstormings (mismo origen → mismo localStorage)
     persona: qs.get('p') || LS.get('persona', null) || (localStorage.getItem('ideamia:persona') !== 'project' ? localStorage.getItem('ideamia:persona') : null) || null,
     key: LS.get('key', '') || localStorage.getItem('ideamia:clave') || '', pkey: LS.get('pkey', ''), sync: false,
+    projTab: LS.get('projtab', 'mio'), projMarca: '',
     movil: window.matchMedia('(max-width:700px)').matches, segSem: null, diaSem: null
   };
   // si ya había entrado antes de que existiera la sesión compartida, la clave se copia ahora
@@ -333,9 +334,9 @@
       w.innerHTML = '<b>' + esc(yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · cambiar</span>'; w.classList.remove('hidden');
       w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
     }
-    const gen = (D && ((D.estadoDatos || {}).generado || D.generado)) || null;
+    const gen = (D && ((D.estadoDatos || {}).generado || D.generado)) || (!D && S.proj && S.proj.mio && S.proj.mio.leido) || null;
     $('#sync').innerHTML = (gen ? '<span class="txt' + (datosViejos() || S.falloCarga ? ' viejo' : '') + '">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Leer Trello ahora (tarda ~1 minuto)">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
-    $('#rf').onclick = actualizar;
+    $('#rf').onclick = S.proj && !D ? () => refrescarMio() : actualizar;
   }
 
   /* ---------------- vista HOY ---------------- */
@@ -1174,7 +1175,93 @@
   }
 
   /* ---------------- vista PROJECT ---------------- */
+  /* ---------------- MI DÍA (project): su tablero Project de Trello ----------------
+     Complemento del tablero, no lo reemplaza: acá se ve qué procesar y se carga rápido; todo vive en Trello. */
+  const colorEt = c => COLOR_TRELLO[String(c || '').replace(/_(dark|light)$/, '')] || '#8590A2';
+  function datosMio() {
+    const M = S.proj.mio || {}, f = S.projMarca || '';
+    const vivas = (M.cards || []).filter(c => c.k !== 'listo' && (!f || c.lab.indexOf(f) >= 0));
+    const conFecha = vivas.filter(c => c.due && !c.dc), dd = c => diasA(new Date(c.due));
+    const porFecha = (a, b) => new Date(a.due) - new Date(b.due);
+    const diasQuieta = c => Math.floor(((DEMO ? NOW.getTime() : Date.now()) - new Date(c.act).getTime()) / 864e5);
+    return {
+      M, vivas, diasQuieta,
+      bandeja: vivas.filter(c => c.k === 'bandeja'),
+      hoy: conFecha.filter(c => dd(c) <= 0).sort(porFecha),
+      semana: conFecha.filter(c => dd(c) >= 1 && dd(c) <= 7).sort(porFecha),
+      seguimiento: vivas.filter(c => c.k === 'seguimiento' && diasQuieta(c) >= (M.dias || 3)).sort((a, b) => new Date(a.act) - new Date(b.act)),
+      sinFecha: vivas.filter(c => !c.due && c.k !== 'bandeja')
+    };
+  }
+  function vistaMio() {
+    const P = S.proj, M = P.mio;
+    if (!M) return '<div class="empty">Todavía no llegó tu tablero. Tocá ↻ arriba.</div>';
+    if (M.error) return '<div class="estado-av bad"><span class="ei">!</span><div><b>No pude leer tu tablero Project de Trello:</b> ' + esc(M.error) + '. La vista del equipo sigue funcionando.</div><button class="btn ghost" data-mio-rf>Reintentar</button></div>';
+    const D = datosMio(), marcas = (M.etiquetas || []).filter(e => e.marca);
+    const et = n => { const e = (M.etiquetas || []).find(x => x.n === n); return '<span class="mio-et' + (/^urgente$/i.test(n) ? ' urg' : '') + '"><i style="background:' + colorEt(e && e.c) + '"></i>' + esc(n) + '</span>'; };
+    const fila = (c, extra) => '<a class="mio-r" href="' + esc(c.url) + '" target="_blank" rel="noopener"><div class="mio-t"><b>' + esc(c.n) + '</b><div class="mio-m">' + c.lab.map(et).join('') + '<span class="mio-l">' + esc(c.lista) + '</span>' + (extra || '') + '</div></div><span class="mio-go">↗</span></a>';
+    const vence = c => { const n = diasA(new Date(c.due)); return '<span class="pill ' + (n < 0 ? 'bad' : n === 0 ? 'warn' : '') + '">' + (n < 0 ? '' : 'vence ') + cuando(new Date(c.due)) + '</span>'; };
+    const sec = (id, tit, sub, L, filaFn, vacio) => '<div class="sec mio-sec" id="mio-' + id + '"><div class="sec-h"><h2>' + tit + '<small>' + L.length + (sub ? ' · ' + sub : '') + '</small></h2></div>' + (L.length ? '<div class="mio-list">' + L.map(filaFn).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
+    const tile = (id, n, t, s, cl) => '<button class="mio-st' + (n ? ' ' + cl : '') + '" data-mio-ir="' + id + '"><b>' + n + '</b><span>' + t + '</span><small>' + s + '</small></button>';
+    const leido = minutosDesde(M.leido);
+    return '<div class="mio-top"><div class="chips mio-chips"><button class="chip' + (!S.projMarca ? ' on' : '') + '" data-mio-marca="">Todas</button>' + marcas.map(e => '<button class="chip' + (S.projMarca === e.n ? ' on' : '') + '" data-mio-marca="' + esc(e.n) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div>' +
+      '<button class="btn y mio-add" data-mio-nuevo>+ Pedido</button></div>' +
+      (!DEMO && leido != null && leido > 30 ? '<div class="estado-av"><span class="ei">!</span><div><b>Tu tablero se leyó hace ' + leido + ' min.</b> Puede haber cambios en Trello que no estás viendo.</div><button class="btn ghost" data-mio-rf>Leer ahora</button></div>' : '') +
+      '<div class="mio-sts">' + tile('bandeja', D.bandeja.length, 'Bandeja', 'para procesar', 'y') + tile('hoy', D.hoy.length, 'Hoy', 'vence o ya venció', 'bad') + tile('semana', D.semana.length, '7 días', 'lo que viene', '') + tile('seguimiento', D.seguimiento.length, 'Seguimiento', (M.dias || 3) + ' días o más quietas', 'warn') + tile('sinfecha', D.sinFecha.length, 'Sin fecha', 'falta asignar', 'warn') + '</div>' +
+      sec('bandeja', 'Bandeja', 'procesalas y pasalas a "Por hacer"', D.bandeja, c => fila(c, c.due ? vence(c) : ''), 'Bandeja vacía. Todo procesado.') +
+      sec('hoy', 'Para hoy', 'vencen hoy o ya vencieron', D.hoy, c => fila(c, vence(c)), 'Nada vence hoy.') +
+      sec('semana', 'Próximos 7 días', '', D.semana, c => fila(c, vence(c)), 'Nada vence en los próximos 7 días.') +
+      sec('seguimiento', 'Seguimiento', 'en "Enviado / en seguimiento" sin movimiento', D.seguimiento, c => fila(c, '<span class="pill warn">hace ' + D.diasQuieta(c) + ' días sin movimiento</span>'), 'Nada frenado hace ' + (M.dias || 3) + ' días o más.') +
+      sec('sinfecha', 'Sin fecha', 'ponéles fecha en Trello', D.sinFecha, c => fila(c), 'Todas tienen fecha.') +
+      '<p class="ayuda">Todo esto es tu tablero <a class="lnk" href="' + esc(M.url) + '" target="_blank" rel="noopener">Project de Trello ↗</a>: acá se ve y se carga, las tarjetas se mueven allá. Lo de "Listo" no aparece. "Sin movimiento" cuenta desde la última actividad de la tarjeta (moverla, comentarla o editarla).</p>';
+  }
+  async function refrescarMio(silencioso) {
+    if (DEMO || S.sync) return;
+    S.sync = true; renderTop();
+    try {
+      const j = await get({ action: 'mio', k: S.pkey || S.key });
+      if (j.error) throw new Error(j.mensaje || j.error);
+      S.proj.mio = j.mio; try { localStorage.setItem('pi:cache:__project', JSON.stringify(S.proj)); } catch (e) {}
+      if (!silencioso) toast('✓ Tablero Project leído recién.');
+    } catch (e) { toast('✗ No pude leer tu tablero: ' + esc(e.message || 'sin conexión') + '. Estás viendo lo anterior.'); }
+    S.sync = false; render();
+  }
+  // Carga rápida: marca, qué es, para cuándo, urgente. Entra siempre a Bandeja (lo decide el servidor).
+  function nuevoPedido() {
+    const M = S.proj.mio || {}, marcas = (M.etiquetas || []).filter(e => e.marca);
+    const iso = n => { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+    const m = modal('<h3>Nuevo pedido</h3><p>Entra a <b>Bandeja</b> de tu tablero Project. Después lo procesás desde Trello.</p>' +
+      '<label class="field"><span>Qué es</span><input id="npT" maxlength="300" placeholder="Ej.: Pasar fotos nuevas del local a diseño"></label>' +
+      '<div class="field"><span>Marca</span><div class="np-ms" id="npM"><button type="button" class="chip on" data-np-m="">Sin marca</button>' + marcas.map(e => '<button type="button" class="chip" data-np-m="' + esc(e.id) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div></div>' +
+      '<div class="field"><span>Para cuándo</span><div class="np-f"><input type="date" id="npF"><button type="button" class="chip" data-np-f="' + iso(0) + '">Hoy</button><button type="button" class="chip" data-np-f="' + iso(1) + '">Mañana</button><button type="button" class="chip" data-np-f="">Sin fecha</button></div></div>' +
+      '<label class="np-u"><input type="checkbox" id="npU"><span>Urgente</span></label>' +
+      '<label class="field"><span>Nota (opcional)</span><textarea id="npN" rows="2" maxlength="1500" placeholder="Detalle, link, quién lo pidió…"></textarea></label>' +
+      '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Cargar en Bandeja</button></div>', async mm => {
+      const texto = $('#npT', mm).value.trim(); if (!texto) { $('#npT', mm).focus(); throw new Error('Escribí qué es el pedido.'); }
+      const sel = $('#npM .chip.on', mm), labelId = sel ? sel.dataset.npM : '', f = $('#npF', mm).value, urgente = $('#npU', mm).checked, nota = $('#npN', mm).value.trim();
+      // la fecha se guarda a las 18:00 de Argentina (fin del día de trabajo)
+      const r = await post({ action: 'pedidoRapido', k: S.pkey || S.key, texto, labelId, urgente, nota, due: f ? f + 'T18:00:00-03:00' : '' });
+      const et = marcas.find(e => e.id === labelId);
+      const card = r.card || { id: 'demo-' + Date.now(), n: texto, d: nota, due: f ? f + 'T18:00:00-03:00' : null, dc: false, lista: 'Bandeja', k: 'bandeja', act: new Date().toISOString(), url: '#', lab: (et ? [et.n] : []).concat(urgente ? ['Urgente'] : []) };
+      if (S.proj.mio && S.proj.mio.cards) S.proj.mio.cards.unshift(card);
+      render();
+      toast((r.pasos || ['Tarjeta creada en "Bandeja" de Project']).map(p => '✓ ' + esc(p)).join('<br>') + (r.avisos || []).map(a => '<br>✗ ' + esc(a)).join(''));
+    });
+    m.querySelectorAll('[data-np-m]').forEach(b => b.onclick = () => { m.querySelectorAll('[data-np-m]').forEach(x => x.classList.toggle('on', x === b)); });
+    m.querySelectorAll('[data-np-f]').forEach(b => b.onclick = () => { $('#npF', m).value = b.dataset.npF; });
+    $('#npT', m).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ok]', m).click(); } });
+  }
+
+  // Vista del project: "Mi día" (su tablero Project) y "Equipo" (lo que tildó cada uno)
   function vistaProject() {
+    const tab = S.projTab || 'mio', M = S.proj.mio;
+    const D = M && !M.error ? datosMio() : null, n = D ? D.bandeja.length + D.hoy.length : 0;
+    const seg = '<div class="seg proj-seg"><button class="' + (tab === 'mio' ? 'on' : '') + '" data-projtab="mio">Mi día' + (n ? '<em>' + n + '</em>' : '') + '</button><button class="' + (tab === 'equipo' ? 'on' : '') + '" data-projtab="equipo">Equipo</button></div>';
+    if (tab === 'equipo') return vistaEquipo().replace('</section>', '</section>' + seg);
+    const resumen = !D ? 'Tu tablero Project de Trello, en un vistazo.' : n ? 'Tenés <b>' + D.bandeja.length + '</b> en Bandeja para procesar y <b>' + D.hoy.length + '</b> que ' + (D.hoy.length === 1 ? 'vence' : 'vencen') + ' hoy o ya ' + (D.hoy.length === 1 ? 'venció' : 'vencieron') + '.' : 'Bandeja vacía y nada vence hoy. Bien ahí.';
+    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Mi día <em>· Project</em></h1><p>' + resumen + '</p></div></section>' + seg + '<div class="view">' + vistaMio() + '</div>';
+  }
+  function vistaEquipo() {
     const P = S.proj, f = S.filtroReg;
     const nm = c => { const p = P.personas.find(x => x.clave === c); return p ? p.nombre : c; };
     const ms = s => { const m = P.marcas.find(x => x.slug === s); return m ? m.nombre : s; };
@@ -1242,6 +1329,11 @@
     root.querySelectorAll('[data-dcmodo]').forEach(b => b.onclick = () => { LS.set('dcmodo', b.dataset.dcmodo); render(); });
     root.querySelectorAll('[data-dcdia]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.dcdia] = b.dataset.abierta !== '1'; render(); });
     root.querySelectorAll('[data-dc-todo]').forEach(b => b.onclick = () => { dcVer(menciones().map(m => m.id)); render(); });
+    root.querySelectorAll('[data-projtab]').forEach(x => x.onclick = () => { S.projTab = x.dataset.projtab; LS.set('projtab', S.projTab); render(); window.scrollTo({ top: 0 }); });
+    root.querySelectorAll('[data-mio-marca]').forEach(x => x.onclick = () => { S.projMarca = x.dataset.mioMarca; render(); });
+    root.querySelectorAll('[data-mio-nuevo]').forEach(x => x.onclick = nuevoPedido);
+    root.querySelectorAll('[data-mio-rf]').forEach(x => x.onclick = () => refrescarMio());
+    root.querySelectorAll('[data-mio-ir]').forEach(x => x.onclick = () => { const el = document.getElementById('mio-' + x.dataset.mioIr); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     root.querySelectorAll('[data-rf]').forEach(b => b.onclick = actualizar);
     root.querySelectorAll('[data-reconectar]').forEach(b => b.onclick = reconectar);
     root.querySelectorAll('[data-dc-ok]').forEach(b => b.onclick = () => { dcVer([b.dataset.dcOk]); render(); });
@@ -1545,7 +1637,9 @@
 
   // Se mantiene al día sola: cada 5 minutos si la pestaña está abierta, y al volver a la pestaña si pasaron más de 2 minutos.
   let ultimaCarga = Date.now();
-  const refrescar = () => { if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(e => { S.sync = false; S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); }); };
+  // en la vista del project se relee solo su tablero (si no hay un formulario abierto)
+  const refrescarProj = () => { if (!DEMO && S.proj && !S.data && !S.sync && !$('.modal') && (S.projTab || 'mio') === 'mio') { ultimaCarga = Date.now(); refrescarMio(true); } };
+  const refrescar = () => { if (S.proj && !S.data) return refrescarProj(); if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(e => { S.sync = false; S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); }); };
   setInterval(() => { if (document.visibilityState === 'visible') refrescar(); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
   window.matchMedia('(max-width:700px)').addEventListener('change', e => { S.movil = e.matches; if (S.data) render(); });
