@@ -1366,6 +1366,41 @@ function pruebaPanel_(accion, comentario) {
 function pruebaCorregir() { pruebaPanel_('corregir', 'PRUEBA: cambiar el color del fondo y agrandar el logo. Comentario largo con tildes y eñes para verificar que llega entero: diseño, corrección, año, ¿se ve bien?'); }
 function pruebaAprobar() { pruebaPanel_('aprobar', 'PRUEBA: aprobado desde el panel'); }
 
+/* PRUEBA REAL del "Listo" del filmmaker: usa el mismo camino que el botón (doPost → entregarPieza) sobre la tarjeta
+   "PRUEBA PANEL…" que esté en un tablero de Producción. Solo mueve esa tarjeta. */
+function pruebaEntregar() {
+  revisionViva_(); // deja en caché la lista de tableros
+  const prod = JSON.parse(CacheService.getScriptCache().get('tabsRev') || '[]').filter(b => b.tipo === 'produccion');
+  const res = trelloVarios_(prod.map(b => '/boards/' + b.id + '/lists?filter=open&fields=name&cards=open&card_fields=name'));
+  let c = null;
+  prod.forEach((b, i) => (res[i] || []).forEach(l => (l.cards || []).forEach(k => { if (/PRUEBA PANEL/.test(k.name)) c = { id: k.id, n: k.name, lista: l.name, tablero: b.nombre, marca: b.marca }; })));
+  console.log('Tableros de Producción leídos: ' + prod.length + ' · tarjeta de prueba: ' + (c ? c.tablero + ' · lista "' + c.lista + '"' : 'NO la encuentro'));
+  if (!c) return;
+  const pedir = () => doPost({ postData: { contents: JSON.stringify({ action: 'entregarPieza', k: P.getProperty('TEAM_KEY'), persona: 'bauti', cardId: c.id, nota: 'PRUEBA: link al video y aclaración con tildes (edición, música)', marca: c.marca, nombre: c.n, tablero: c.tablero }) } }).getContent();
+  console.log('Respuesta del panel al "Listo": ' + pedir());
+  const ahora = trello_('/cards/' + c.id, { fields: 'name', list: 'true', list_fields: 'name', actions: 'commentCard', actions_limit: '2' });
+  console.log('En Trello ahora: lista "' + ahora.list.name + '" · comentarios: ' + (ahora.actions || []).map(a => '«' + a.data.text + '»').join(' | '));
+  console.log('Segundo "Listo" sobre la misma tarjeta (tiene que decir que ya estaba): ' + pedir());
+  console.log('¿Le aparece a quien revisa en la lectura en vivo? ' + (revisionViva_().cards.some(x => x.id === c.id) ? 'SÍ (correcto)' : 'NO (mal)'));
+}
+/* PRUEBA REAL del privado de Discord: se lo manda a JOAQUÍN (lo busca por nombre en el servidor), no al filmmaker. */
+function pruebaPrivado() {
+  const cfg = config_(), puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  const r = UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/members/search?query=joaquin&limit=10', { headers: { 'x-clave': clave }, muteHttpExceptions: true });
+  console.log('Búsqueda en el servidor de Discord: código ' + r.getResponseCode());
+  if (r.getResponseCode() >= 300) { console.log(r.getContentText().slice(0, 200)); return; }
+  const L = JSON.parse(r.getContentText()).map(m => m.user).filter(u => u && !u.bot);
+  console.log('Encontrados: ' + L.map(u => u.username).join(', '));
+  const yo = L.filter(u => /joaquinyarce/i.test(u.username))[0] || L[0];
+  if (!yo) { console.log('No encontré a Joaquín'); return; }
+  try {
+    discordPrivado_(yo.id, 'PRUEBA del Panel Ideamia. Así le va a llegar a Bauti el recordatorio cuando marque "No voy" en una reunión de guiones: una hora después, un privado para que pregunte qué ideas se presentaron. Podés borrar este mensaje.');
+    console.log('Privado enviado a ' + yo.username + ' sin errores.');
+  } catch (e) { console.log('FALLÓ el privado: ' + e.message); }
+  const b = String(cfg.DISCORD_ID_BAUTI || '').trim();
+  console.log('ID de Bauti en Config: ' + (/^\d{15,22}$/.test(b) ? 'cargado y con formato válido' : 'FALTA o está mal'));
+}
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
