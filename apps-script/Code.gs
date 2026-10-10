@@ -572,6 +572,7 @@ function asegurarRutinas_() {
   const eqs = SpreadsheetApp.getActive().getSheetByName('Equipo');
   // Ivo: dirección creativa, con su propia vista de revisión
   if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('ivo') < 0) eqs.appendRow(['Ivo', 'ivo', 'Dirección', 'ivo']);
+  if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('bauti') < 0) eqs.appendRow(['Bauti', 'bauti', 'Filmmaker', 'bauti, bautista']);
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
 
@@ -722,7 +723,9 @@ function panel_(personaClave, ctx) {
   const esCM = /cm/i.test(yo.rol), esProject = /project/i.test(yo.rol);
   // Ivo (rol "Dirección" o "Creativo"): ve todas las marcas y la vista de revisión (diseños, videos y guiones de la semana)
   const esRevisa = esProject || /direcc|creativ/i.test(yo.rol);
-  const misMarcas = cat.marcas.filter(m => esRevisa || m.sm === yo.clave || m.cm === yo.clave);
+  // Filmmaker: ve solo sus piezas de Producción, los guiones de sus marcas, sus visitas y las reuniones de guiones
+  const esFilm = /film|audiovis/i.test(yo.rol), film = esFilm ? filmConfig_(cfg, cat) : null;
+  const misMarcas = cat.marcas.filter(m => esFilm ? film.todas.indexOf(m.slug) >= 0 : (esRevisa || m.sm === yo.clave || m.cm === yo.clave));
   const slugs = misMarcas.map(m => m.slug);
   const hoy = ctx.hoy;
   const snap = ctx.snap;
@@ -759,6 +762,16 @@ function panel_(personaClave, ctx) {
   const enVentana = (c, dias) => c.due && !c.dc && new Date(c.due) >= hace15 && new Date(c.due) <= new Date(hoy.getTime() + dias * 864e5);
   const limiteEfem = new Date(hoy.getTime() + ajustes.efemDias * 864e5), ayer = new Date(hoy.getTime() - 864e5);
   const cards = todas.filter(c => {
+    if (esFilm) {
+      if (film.todas.indexOf(c.m[0]) < 0) return false;
+      if (c.cat === 'guion') return film.reels.indexOf(c.m[0]) >= 0 && !c.salio;
+      if (c.cat !== 'pieza' || c.tipo !== 'produccion') return false;
+      if (film.reels.indexOf(c.m[0]) < 0 && c.formato !== 'historia') return false; // marcas donde hace solo historias
+      if (c.salio && c.etapa === 'pendiente') return false;
+      // nada de más de 15 días para atrás ni de más de dos semanas para adelante: si no, la lista se vuelve eterna
+      const ref = c.salida || c.due;
+      return ref ? new Date(ref) >= hace15 && new Date(ref) <= new Date(hoy.getTime() + 16 * 864e5) : new Date(c.act) >= hace15;
+    }
     // los inputs salen solo de los tableros SCL (en el Project y en los otros tableros quedan pedidos viejos)
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
     if (c.cat === 'guion') return true;
@@ -793,7 +806,7 @@ function panel_(personaClave, ctx) {
     const l = lista_(r.porMarca);
     return misMarcas.filter(m => l.some(a => m.alias.indexOf(a) >= 0 || m.slug === a.replace(/[^a-z0-9]+/g, '-')));
   };
-  const soloRevisa = esRevisa && !esProject; // Ivo no tiene rutinas ni reuniones de social media
+  const soloRevisa = (esRevisa && !esProject) || esFilm; // ni quien revisa ni el filmmaker tienen rutinas o reuniones de social media
   const misRutinas = cat.rutinas.filter(r => !soloRevisa && (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')) && ['rep-mensual', 'rep-trim'].indexOf(r.id) < 0)
     .filter(r => { const ms = marcasDeRutina(r); return ms === null || ms.length > 0; }); // si es de marcas que no son mías, no la veo
   // Para el checklist semanal: qué rutinas hay, para qué marcas y qué días/períodos tiene esta semana.
@@ -849,6 +862,7 @@ function panel_(personaClave, ctx) {
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
+    film: esFilm ? filmSalida_(film, yo, hoy) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: ((ctx.discord.porPersona || {})[yo.clave] || []).filter(m => (!m.marca || misMarcas.some(x => x.slug === m.marca)) && new Date(m.fecha).getTime() > Date.now() - 3 * 864e5) /* solo sus marcas y los canales generales, de los últimos 3 días */, conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE, claveBrain: cfg.CLAVE_BRAINSTORMING || '' },
@@ -1000,6 +1014,8 @@ function aplicarEstados_(b, est) {
   (b.rutinas || []).forEach(r => r.estado = est[r.clave] || null);
   (b.reuniones || []).forEach(r => r.estado = est[r.clave] || null);
   (b.eventos || []).forEach(e => e.estado = est['cal:' + e.id] || undefined);
+  // filmmaker: lo que marcó de sus visitas y reuniones
+  if (b.film) { b.film.est = {}; const pre = 'film:' + b.yo.clave + ':'; Object.keys(est).forEach(k => { if (k.indexOf(pre) === 0) b.film.est[k] = est[k]; }); }
   return b;
 }
 
@@ -1190,6 +1206,79 @@ function probarRevisionViva() {
   const t0 = Date.now(), r = revisionViva_();
   console.log('Tableros leídos: ' + r.tableros + ' · sin respuesta: ' + (r.fallas.join(', ') || 'ninguno') + ' · piezas en revisión: ' + r.cards.length + ' · tardó ' + (Date.now() - t0) + ' ms');
   r.cards.forEach(c => console.log('   ' + c.tablero + ' · ' + c.formato + ' · ' + c.n.slice(0, 50) + (c.salida ? ' · sale ' + c.salida.slice(0, 10) : '') + (c.sinOrig ? ' · SIN ORIGINAL' : '')));
+}
+
+/* ---------------- filmmaker (Bauti) ----------------
+   Qué marcas filma y edita, en cuáles hace solo historias, y a cuáles va una vez por semana.
+   Se puede cambiar desde la pestaña Config del Sheet con FILM_REELS, FILM_HISTORIAS, FILM_VISITAS y FILM_REUNION_HORA
+   (nombres de marca separados por coma; en visitas, "marca=día ideal" separadas por punto y coma). */
+const FILM_DEF = { reels: 'isco, quality mayorista, quality, sfb, gabriel varisco', historias: 'vice', visitas: 'gabriel varisco=lunes o viernes; isco; quality; vice', hora: '16:00' };
+function filmConfig_(cfg, cat) {
+  const slug = n => marcasEn_(String(n || ''), cat.marcas)[0] || '';
+  const varios = txt => String(txt || '').split(',').map(slug).filter((s, i, a) => s && a.indexOf(s) === i);
+  const reels = varios(cfg.FILM_REELS || FILM_DEF.reels), historias = varios(cfg.FILM_HISTORIAS || FILM_DEF.historias);
+  const visitas = String(cfg.FILM_VISITAS || FILM_DEF.visitas).split(';').map(x => { const p = x.split('='); return { marca: slug(p[0]), ideal: String(p[1] || '').trim() }; }).filter(v => v.marca);
+  return { reels: reels, historias: historias, visitas: visitas, hora: String(cfg.FILM_REUNION_HORA || FILM_DEF.hora).trim(), todas: reels.concat(historias.filter(s => reels.indexOf(s) < 0)) };
+}
+/* Lo que ve el filmmaker además de sus tarjetas: visitas de esta semana y la que viene, y reuniones de guiones (lunes y viernes). */
+function filmSalida_(film, yo, hoy) {
+  const pre = 'film:' + yo.clave + ':', visitas = [], reuniones = [];
+  [[semana_(hoy), 'esta semana'], [semana_(new Date(hoy.getTime() + 7 * 864e5)), 'la semana que viene']].forEach(p =>
+    film.visitas.forEach(v => visitas.push({ clave: pre + 'vis:' + v.marca + ':' + p[0], marca: v.marca, ideal: v.ideal, periodo: p[0], cuando: p[1] })));
+  for (let i = -3; i <= 10; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + i);
+    if (d.getDay() === 1 || d.getDay() === 5) reuniones.push({ clave: pre + 'reu:' + ymd_(d), fecha: ymd_(d), hora: film.hora });
+  }
+  return { reels: film.reels, historias: film.historias, visitas: visitas, reuniones: reuniones, est: {} };
+}
+/* Una tarjeta cambió de lista desde el panel: se refleja en la lectura guardada y en los paneles ya armados (sin esperar la próxima lectura). */
+function moverEnSnapshot_(cardId, etapa, lista) {
+  try {
+    const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'); let toco = false;
+    (snap.cards || []).forEach(c => { if (c.id === cardId) { c.etapa = etapa; c.lista = lista; toco = true; } });
+    if (toco) guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
+    const bases = leerJson_('BASES_FILE_ID', 'panel-ideamia-bases.json'); let cambio = false;
+    Object.keys(bases).forEach(k => {
+      const b = bases[k]; if (!b || !b.cards) return; let t = false;
+      b.cards.forEach(c => { if (c.id === cardId) { c.etapa = etapa; c.lista = lista; t = true; } });
+      if (t) { cambio = true; cachePut_('base:' + k, b); }
+    });
+    if (cambio) guardarJson_('BASES_FILE_ID', 'panel-ideamia-bases.json', bases);
+    CacheService.getScriptCache().remove('snap');
+  } catch (e) {}
+}
+/* "Listo" del filmmaker: la tarjeta pasa a "En revisión" de su tablero de Producción (así le llega a quien revisa). */
+function entregarPieza_(b, quien) {
+  const card = trello_('/cards/' + b.cardId, { fields: 'idBoard,idList,name' });
+  const listas = trello_('/boards/' + card.idBoard + '/lists', { fields: 'name' });
+  const actual = listas.filter(l => l.id === card.idList)[0], dest = listas.filter(l => /revisi/.test(norm_(l.name)))[0];
+  if (actual && /revisi/.test(norm_(actual.name))) { moverEnSnapshot_(b.cardId, 'revision', actual.name); return { ok: true, ya: true, lista: actual.name, pasos: ['Ya estaba en "' + actual.name + '": no hizo falta moverla'] }; }
+  if (!dest) return { error: 'lista', mensaje: 'No encontré la lista "En revisión" en ese tablero, así que no moví nada. Listas que tiene: ' + listas.map(l => l.name).join(', ') };
+  const pasos = [], nota = String(b.nota || '').trim();
+  if (nota) {
+    try { trello_('/cards/' + b.cardId + '/actions/comments', { text: ('🎬 Entregado por ' + nombreDe_(quien) + ': ' + nota).slice(0, 16000) }, 'post'); pasos.push('Nota puesta en la tarjeta de Trello'); }
+    catch (e) { return { error: 'comentario', mensaje: 'No se pudo poner la nota en Trello y no se movió la tarjeta: ' + String(e.message).slice(0, 150) }; }
+  }
+  let movida = null;
+  try { movida = trello_('/cards/' + b.cardId, { idList: dest.id }, 'put'); } catch (e) { return { error: 'mover', pasos: pasos, mensaje: (pasos.length ? 'La nota SÍ quedó en Trello, pero ' : '') + 'no se pudo mover la tarjeta a "' + dest.name + '": ' + String(e.message).slice(0, 150) }; }
+  if (!movida || movida.idList !== dest.id) return { error: 'mover', pasos: pasos, mensaje: 'Trello no confirmó el cambio de lista. Revisala en Trello.' };
+  pasos.push('Tarjeta movida a "' + dest.name + '"' + (b.tablero ? ' de ' + b.tablero : ''));
+  registrar_(quien, 'entrega', 'card:' + b.cardId, b.marca, 'entregado', String(b.nombre || '').slice(0, 100) + (nota ? ' · ' + nota.slice(0, 150) : ''), '');
+  moverEnSnapshot_(b.cardId, 'revision', dest.name);
+  return { ok: true, lista: dest.name, pasos: pasos };
+}
+/* Prueba de solo lectura: qué marcas quedaron configuradas y qué vería el filmmaker hoy. */
+function probarFilm() {
+  const cat = catalogo_(), cfg = config_(), f = filmConfig_(cfg, cat);
+  console.log('Reels e historias: ' + f.reels.join(', ') + ' · solo historias: ' + f.historias.join(', '));
+  console.log('Visitas semanales: ' + f.visitas.map(v => v.marca + (v.ideal ? ' (' + v.ideal + ')' : '')).join(', ') + ' · reuniones lunes y viernes ' + f.hora);
+  const p = cat.equipo.filter(x => /film|audiovis/i.test(x.rol))[0];
+  if (!p) { console.log('No hay nadie con rol Filmmaker en la pestaña Equipo (se agrega solo en la próxima actualización).'); return; }
+  const pn = panel_(p.clave), n = {};
+  (pn.cards || []).forEach(c => { const k = c.cat + ' · ' + (c.etapa || c.gest || ''); n[k] = (n[k] || 0) + 1; });
+  console.log(p.nombre + ' ve: ' + (pn.cards || []).length + ' tarjetas → ' + Object.keys(n).map(k => k + ': ' + n[k]).join(' | '));
+  (pn.cards || []).filter(c => c.cat === 'pieza').slice(0, 25).forEach(c => console.log('   ' + c.tablero + ' · ' + c.formato + ' · ' + c.etapa + ' · ' + String(c.n).slice(0, 40) + (c.salida ? ' · sale ' + c.salida.slice(0, 10) : ' · sin fecha')));
+  console.log('Visitas: ' + pn.film.visitas.length + ' · reuniones: ' + pn.film.reuniones.map(r => r.fecha).join(', ') + ' · marcas: ' + pn.marcas.map(m => m.slug).join(', '));
 }
 
 /* ---------------- web app ---------------- */
@@ -1447,6 +1536,8 @@ function doPost(e) {
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
+      case 'entregarPieza': // el filmmaker marca "Listo": la tarjeta pasa a En revisión
+        return json_(entregarPieza_(b, quien));
       case 'marcar': // rutina / evento / input / corrección
         registrar_(quien, b.tipo, b.clave, b.marca, b.estado, b.detalle, b.periodo);
         return json_({ ok: true });
