@@ -1281,6 +1281,44 @@ function probarFilm() {
   console.log('Visitas: ' + pn.film.visitas.length + ' · reuniones: ' + pn.film.reuniones.map(r => r.fecha).join(', ') + ' · marcas: ' + pn.marcas.map(m => m.slug).join(', '));
 }
 
+/* AUDITORÍA de social media (solo lectura): marcas y tableros, y por cada persona compara los inputs y las correcciones
+   que hay AHORA en los tableros SCL de sus marcas contra lo que le muestra el panel. No cambia nada. */
+function auditarSocial() {
+  const cat = catalogo_();
+  console.log('MARCAS (' + cat.marcas.length + '): ' + cat.marcas.map(m => m.slug + ' [sm:' + (m.sm || '—') + ' cm:' + (m.cm || '—') + ']').join(' · '));
+  const boards = trello_('/members/me/boards', { filter: 'open', fields: 'name' }).map(b => ({ id: b.id, nombre: b.name, tipo: tipoTablero_(b.name), marca: marcasEn_(b.name.replace(/^\S+\s*/, ''), cat.marcas)[0] || '' }));
+  const sinMarca = boards.filter(b => b.tipo && !b.marca).map(b => b.nombre);
+  console.log('Tableros con tipo reconocido pero SIN marca (el panel no los lee): ' + (sinMarca.join(', ') || 'ninguno'));
+  const porMarca = {}; boards.filter(b => b.tipo && b.marca).forEach(b => (porMarca[b.marca] = porMarca[b.marca] || []).push(b.tipo));
+  cat.marcas.forEach(m => { const t = porMarca[m.slug] || []; const falta = ['scl', 'cm', 'diseno', 'produccion', 'guiones'].filter(x => t.indexOf(x) < 0); if (falta.length) console.log('   ' + m.slug + ' no tiene tablero de: ' + falta.join(', ') + (m.sm ? '' : ' · SIN social media asignado')); });
+  const scl = boards.filter(b => b.tipo === 'scl' && b.marca);
+  const res = trelloVarios_(scl.map(b => '/boards/' + b.id + '/lists?filter=open&fields=name&cards=open&card_fields=name,shortUrl,dateLastActivity,due'));
+  const vivo = { input: [], corr: [] };
+  scl.forEach((b, i) => (res[i] || []).forEach(l => { const k = catLista_(l.name); if (vivo[k]) (l.cards || []).forEach(c => vivo[k].push({ id: c.id, n: c.name, marca: b.marca, tablero: b.nombre, lista: l.name, act: c.dateLastActivity, due: c.due, url: c.shortUrl })); }));
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), enSnap = {};
+  (snap.cards || []).forEach(c => enSnap[c.id] = c);
+  console.log('Lectura de Trello del panel: ' + snap.generado + ' · inputs en Trello ahora: ' + vivo.input.length + ' · correcciones: ' + vivo.corr.length);
+  const sinDueno = {}; vivo.input.forEach(c => { const m = cat.marcas.filter(x => x.slug === c.marca)[0]; if (!m || !m.sm) sinDueno[c.marca] = (sinDueno[c.marca] || 0) + 1; });
+  if (Object.keys(sinDueno).length) console.log('INPUTS DE MARCAS SIN SOCIAL MEDIA ASIGNADO (nadie los ve): ' + Object.keys(sinDueno).map(k => k + ': ' + sinDueno[k]).join(', '));
+  cat.equipo.filter(p => /^sm$/i.test(p.rol)).forEach(p => {
+    const mias = cat.marcas.filter(m => m.sm === p.clave).map(m => m.slug), pn = panel_(p.clave), visto = {};
+    (pn.cards || []).forEach(c => visto[c.id] = c.cat);
+    console.log('— ' + p.nombre + ' · marcas: ' + (mias.join(', ') || 'NINGUNA'));
+    ['input', 'corr'].forEach(k => {
+      const L = vivo[k].filter(c => mias.indexOf(c.marca) >= 0), faltan = L.filter(c => !visto[c.id]);
+      console.log('   ' + (k === 'input' ? 'Inputs' : 'Correcciones') + ' en Trello: ' + L.length + ' · el panel muestra: ' + (L.length - faltan.length) + ' · FALTAN: ' + faltan.length);
+      const mot = {};
+      faltan.forEach(c => {
+        const s = enSnap[c.id];
+        const m = !s ? (new Date(c.act) > new Date(snap.generado) ? 'se movió después de la última lectura' : 'no está en la lectura guardada') : s.cat !== k ? 'en la lectura figura como "' + s.cat + '" (lista ' + s.lista + ')' :
+          k === 'corr' && s.due && new Date(s.due) < new Date(Date.now() - 15 * 864e5) ? 'corrección con fecha de hace más de 15 días (regla "reciente")' : 'filtrada por otra regla';
+        (mot[m] = mot[m] || []).push(c.tablero + ' · ' + c.n.slice(0, 45));
+      });
+      Object.keys(mot).forEach(m => console.log('      ' + m + ' (' + mot[m].length + '): ' + mot[m].slice(0, 5).join(' | ')));
+    });
+  });
+}
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
