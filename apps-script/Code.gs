@@ -572,6 +572,12 @@ function asegurarRutinas_() {
   const eqs = SpreadsheetApp.getActive().getSheetByName('Equipo');
   // Ivo: dirección creativa, con su propia vista de revisión
   if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('ivo') < 0) eqs.appendRow(['Ivo', 'ivo', 'Dirección', 'ivo']);
+  // privados de Discord: un interruptor general y el ID de cada persona (los mismos que usan las menciones de Make)
+  [['PRIVADOS_DISCORD', 'si', 'Avisos por privado de Discord (inputs, CM, entregas atrasadas). Poné no para apagarlos todos.'],
+    ['DISCORD_ID_ORNE', '752895683899686914', 'ID de Discord de Orne: privado cuando le cargan un input con Pedido del cliente o Urgente.'],
+    ['DISCORD_ID_RAMA', '292495762225364993', 'ID de Discord de Rama: privado cuando le cargan un input con Pedido del cliente o Urgente.'],
+    ['DISCORD_ID_ALE', '1503387898643484714', 'ID de Discord de Ale: privado con cada pieza que entra a sus tableros de CM (qué es, cuándo sale, si es programable).']
+  ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
   if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_ID_BAUTI') < 0) cf.appendRow(['DISCORD_ID_BAUTI', '1390450103059349526', 'ID de Discord de Bauti: para el recordatorio por privado cuando no va a la reunión de guiones. Vacío = no se le escribe.']);
   if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('bauti') < 0) eqs.appendRow(['Bauti', 'bauti', 'Filmmaker', 'bauti, bautista']);
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
@@ -1399,6 +1405,171 @@ function pruebaPrivado() {
   } catch (e) { console.log('FALLÓ el privado: ' + e.message); }
   const b = String(cfg.DISCORD_ID_BAUTI || '').trim();
   console.log('ID de Bauti en Config: ' + (/^\d{15,22}$/.test(b) ? 'cargado y con formato válido' : 'FALTA o está mal'));
+}
+
+/* ---------------- avisos por privado de Discord y filtro de CM ----------------
+   Los manda el bot por el puente de Cloudflare (ruta /dm): no pasan por Make, así que no gastan operaciones.
+   Se apagan todos juntos con PRIVADOS_DISCORD = no en la pestaña Config. Cada persona necesita DISCORD_ID_<CLAVE> en Config.
+   1) Filtro de CM: lo que entra a "Filtro" de un tablero CM se reparte mirando la tarjeta ORIGINAL del SCL (las que llegan al CM
+      son espejos sin etiquetas, por eso Butler no podía): con etiqueta (i) → "Contenido no programable"; sin (i) → "Listo para programar".
+      Al CM le llega un privado con cada pieza: qué es, cuándo sale y si es programable.
+   2) Inputs: cuando aparece un input con etiqueta "Pedido del cliente" o "Urgente", privado al social media de esa marca.
+   3) Una vez por día (después de las 9): a las diseñadoras lo que quedó pendiente (lo mismo que sale en el canal, de Avisos.gs)
+      y al filmmaker las piezas que ya tendría que haber entregado. */
+const fechaAR_ = iso => Utilities.formatDate(new Date(iso), TZ, 'dd/MM HH:mm');
+function idDiscord_(cfg, clave) { const v = String(cfg['DISCORD_ID_' + String(clave || '').toUpperCase()] || '').trim(); return /^\d{15,22}$/.test(v) ? v : ''; }
+function nombreMarca_(cat, slug) { const m = cat.marcas.filter(x => x.slug === slug)[0]; return m ? m.nombre : (slug || 'General'); }
+/* parte un texto largo en mensajes de hasta ~1800 caracteres cortando por línea */
+function trozos_(encabezado, lineas) {
+  const out = []; let t = encabezado;
+  lineas.forEach(l => { if ((t + '\n' + l).length > 1750) { out.push(t); t = '(sigue)\n' + l; } else t += '\n' + l; });
+  out.push(t); return out;
+}
+
+/* Butler manda todo lo que llega al CM a "Listo para programar" (no puede ver la etiqueta porque llega un espejo sin etiquetas).
+   Acá se revisa cada pieza nueva de "Filtro" y "Listo para programar": se lee la tarjeta ORIGINAL del SCL y, si tiene (i),
+   se pasa a "Contenido no programable". Lo que quedó trabado en "Filtro" sin (i) va a "Listo para programar".
+   Cada tarjeta se revisa una sola vez (propiedad CM_REVISADAS). Si esto falla, todo queda como lo dejó Butler. */
+function filtroCM_(snap, dry) {
+  const out = { movidas: [], avisar: [], problemas: [], revisadas: [], primera: false };
+  const prop = P.getProperty('CM_REVISADAS'), ya = {}; (prop || '').split(',').forEach(x => { if (x) ya[x] = 1; });
+  out.primera = prop == null;
+  const enFiltro = c => /^filtro$/.test(norm_(c.lista));
+  const cand = (snap.cards || []).filter(c => c.tipo === 'cm' && (enFiltro(c) || /listo para programar/.test(norm_(c.lista))));
+  cand.forEach(c => { if (ya[c.id] && !enFiltro(c)) out.revisadas.push(c.id); });
+  const pend = cand.filter(c => !ya[c.id] || enFiltro(c)).slice(0, 150);
+  if (!pend.length) return out;
+  const cortos = pend.map(c => (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n) || [])[1] || '');
+  const idx = cortos.map((s, i) => s ? i : -1).filter(i => i >= 0), orig = {};
+  if (idx.length) { const r = trelloVarios_(idx.map(i => '/cards/' + cortos[i] + '?fields=name,due,labels,shortUrl')); idx.forEach((i, k) => orig[i] = r[k]); }
+  pend.forEach((c, i) => {
+    const b = (snap.tableros || []).filter(t => t.nombre === c.tablero)[0]; if (!b) return;
+    const o = orig[i] || null;
+    // si no se puede leer la original, no se decide a ciegas: queda donde está y se reintenta en la próxima lectura
+    if (cortos[i] && !o) { out.problemas.push(c.tablero + ': no pude leer la tarjeta original de ' + c.url); return; }
+    const labs = o ? (o.labels || []).map(x => x.name || '') : (c.lab || []), esI = labs.some(x => /^\(i\)$/.test(String(x).trim()));
+    const quiere = esI ? /no programable/ : /listo para programar/, yaEsta = quiere.test(norm_(c.lista));
+    let lista = c.lista, movida = false;
+    if (!yaEsta) {
+      const dest = (b.listas || []).filter(l => quiere.test(norm_(l.n)))[0];
+      if (!dest) { out.problemas.push(c.tablero + ': no existe la lista "' + (esI ? 'Contenido no programable' : 'Listo para programar') + '"'); return; }
+      if (!dry) {
+        try { const m = trello_('/cards/' + c.id, { idList: dest.id, pos: 'top' }, 'put'); if (!m || m.idList !== dest.id) throw new Error('Trello no confirmó el movimiento'); }
+        catch (e) { out.problemas.push(c.tablero + ': no pude mover ' + c.url + ' (' + String(e.message).slice(0, 80) + ')'); return; }
+        c.lista = dest.n;
+      }
+      lista = dest.n; movida = true;
+    }
+    const item = { marca: c.m[0], tablero: c.tablero, titulo: o ? o.name : c.n, sale: (o && o.due) || c.due || null, programable: !esI, lista: lista, url: c.url, movida: movida,
+      tipo: labs.filter(x => /histori|reel|carrus|post|video|placa/i.test(x)).join(', ') };
+    if (movida) out.movidas.push(item);
+    // la primera vez no se avisa todo lo que ya estaba: solo lo que hubo que corregir de lugar
+    if (movida || !out.primera) out.avisar.push(item);
+    if (!esI || movida || dry) out.revisadas.push(c.id);
+  });
+  return out;
+}
+/* Inputs con etiqueta "Pedido del cliente" o "Urgente" que todavía no se avisaron. La primera vez solo toma nota de los que ya había. */
+function inputsParaAvisar_(snap, cat) {
+  const marcados = (snap.cards || []).filter(c => c.cat === 'input' && c.tipo === 'scl' && (c.lab || []).some(x => /pedido del cliente|urgente/.test(norm_(x))));
+  const prop = P.getProperty('INPUTS_AVISADOS'), ya = {}; (prop || '').split(',').forEach(x => { if (x) ya[x] = 1; });
+  return { marcados: marcados, primera: prop == null, nuevos: prop == null ? [] : marcados.filter(c => !ya[c.id]), ya: ya };
+}
+/* Lo que ya tendría que haber entregado el filmmaker: reels 48 h antes de salir, historias el día anterior. */
+function atrasadasFilm_(snap, film) {
+  const ahora = Date.now(), hace15 = ahora - 15 * 864e5;
+  return (snap.cards || []).filter(c => {
+    if (c.cat !== 'pieza' || c.tipo !== 'produccion' || c.salio || !c.salida || film.todas.indexOf(c.m[0]) < 0) return false;
+    if (c.etapa !== 'pendiente' && c.etapa !== 'correccion') return false;
+    if (film.reels.indexOf(c.m[0]) < 0 && c.formato !== 'historia') return false;
+    const s = new Date(c.salida).getTime(); if (s < hace15) return false;
+    return s - (c.formato === 'historia' ? 24 : 48) * 36e5 < ahora;
+  }).sort((a, b) => new Date(a.salida) - new Date(b.salida));
+}
+/* Arma todos los privados que corresponden ahora. Con dry = true no mueve tarjetas ni envía: solo devuelve qué haría. */
+function privadosArmar_(snap, cat, cfg, opciones) {
+  const o = opciones || {}, dry = !!o.dry, msgs = [], notas = [];
+  const para = (clave, id, textos) => (Array.isArray(textos) ? textos : [textos]).forEach(t => msgs.push({ para: clave, id: id, texto: t }));
+  // 1) filtro de CM + aviso a quien lleva el CM de cada marca
+  const f = filtroCM_(snap, dry);
+  f.problemas.forEach(p => notas.push('Filtro CM · ' + p));
+  const porCM = {}; f.avisar.forEach(m => { const mm = cat.marcas.filter(x => x.slug === m.marca)[0], k = (mm && mm.cm) || ''; (porCM[k] = porCM[k] || []).push(m); });
+  Object.keys(porCM).forEach(k => {
+    const id = idDiscord_(cfg, k), L = porCM[k];
+    const lineas = L.map(m => '• **' + nombreMarca_(cat, m.marca) + '** · ' + String(m.titulo).slice(0, 90) + (m.tipo ? ' · ' + m.tipo : '') + ' · ' + (m.sale ? 'sale ' + fechaAR_(m.sale) : 'sin fecha de salida') + ' · ' + (m.programable ? 'LISTO PARA PROGRAMAR' : 'NO PROGRAMABLE (i)' + (m.movida ? ', la pasé a "' + m.lista + '"' : '')) + ' · ' + m.url);
+    if (!k || !id) { notas.push('Filtro CM · ' + L.length + ' piezas repartidas, pero no hay CM con ID de Discord para avisar (' + (k || 'marca sin CM') + ')'); return; }
+    para(k, id, trozos_('Hola ' + nombreDe_(k) + '. ' + (L.length === 1 ? 'Te entró 1 pieza' : 'Te entraron ' + L.length + ' piezas') + ' a los tableros de CM:', lineas));
+  });
+  // 2) inputs marcados como pedido del cliente o urgente
+  const inp = inputsParaAvisar_(snap, cat), porSM = {};
+  inp.nuevos.forEach(c => { const mm = cat.marcas.filter(x => x.slug === c.m[0])[0], k = (mm && mm.sm) || ''; (porSM[k] = porSM[k] || []).push(c); });
+  const sinAvisar = {};
+  Object.keys(porSM).forEach(k => {
+    const id = idDiscord_(cfg, k), L = porSM[k];
+    if (!k || !id) { notas.push('Inputs · ' + L.length + ' sin avisar: ' + (k ? 'falta DISCORD_ID_' + k.toUpperCase() + ' en Config' : 'la marca no tiene social media')); return; }
+    const lineas = L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + String(c.n).slice(0, 90) + ' · ' + (c.lab || []).filter(x => /pedido del cliente|urgente/.test(norm_(x))).join(', ') + (c.due ? ' · vence ' + fechaAR_(c.due) : '') + ' · ' + c.url);
+    para(k, id, trozos_('Hola ' + nombreDe_(k) + '. Por favor mirá ' + (L.length === 1 ? 'este input que te cargaron' : 'estos ' + L.length + ' inputs que te cargaron') + ':', lineas).map((t, i, a) => i === a.length - 1 ? t + '\nCuando lo veas, marcalo en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
+    L.forEach(c => sinAvisar[c.id] = k);
+  });
+  // 3) diarios: diseñadoras (lo mismo que arma Avisos.gs para el canal) y filmmaker
+  if (o.diarios) {
+    if (typeof avisosDisenoArmar_ === 'function' && typeof AV_MARCAS !== 'undefined') {
+      const porQuien = {};
+      avisosDisenoArmar_(o.ahora || hoyAR_(), snap.cards).forEach(m => {
+        const k = Object.keys(AV_MARCAS).filter(x => AV_MARCAS[x].marca === m.marca)[0]; if (!k) return;
+        (porQuien[AV_MARCAS[k].quien] = porQuien[AV_MARCAS[k].quien] || []).push(String(m.texto).replace(/^<@\d+> · /, ''));
+      });
+      Object.keys(porQuien).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
+        trozos_('Hola. Te paso por privado lo que quedó pendiente de diseño (también está en el canal de cada marca):', porQuien[id].join('\n\n').split('\n'))));
+    } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
+    cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).forEach(p => {
+      const L = atrasadasFilm_(snap, filmConfig_(cfg, cat)), id = idDiscord_(cfg, p.clave);
+      if (!L.length) return;
+      if (!id) { notas.push('Filmmaker · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
+      const lineas = L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + (c.formato === 'historia' ? 'Historia' : 'Reel') + ' · ' + String(c.n).slice(0, 80) + (c.etapa === 'correccion' ? ' · A CORREGIR' : '') + ' · ' + (new Date(c.salida) < new Date() ? 'salía ' : 'sale ') + fechaAR_(c.salida) + ' · ' + c.url);
+      para(p.clave, id, trozos_('Hola ' + p.nombre + '. ' + (L.length === 1 ? 'Esta pieza ya tendría que estar entregada' : 'Estas ' + L.length + ' piezas ya tendrían que estar entregadas') + ' (reels: 48 h antes de salir; historias: el día anterior):', lineas)
+        .map((t, i, a) => i === a.length - 1 ? t + '\nCuando las tengas, marcá "Listo" en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
+    });
+  }
+  return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar };
+}
+/* Lo llama cada actualización. Mueve lo del filtro de CM y manda los privados; si un envío falla, queda anotado y se reintenta en la próxima. */
+function privadosEnviar_(snap, cat, cfg) {
+  const ahora = hoyAR_(), hoyId = ymd_(ahora), activos = !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim());
+  // diarios: de lunes a sábado, en la primera lectura entre las 9 y las 12 (si a esa hora el panel no corrió, ese día no salen: mejor que mandarlos tarde)
+  const diarios = activos && ahora.getDay() !== 0 && ahora.getHours() >= 9 && ahora.getHours() < 12 && P.getProperty('PRIVADOS_DIA') !== hoyId;
+  const r = privadosArmar_(snap, cat, cfg, { dry: false, diarios: diarios, ahora: ahora });
+  const fallaron = {}; let error = '';
+  if (activos) r.msgs.forEach(m => { try { discordPrivado_(m.id, m.texto); } catch (e) { fallaron[m.para] = 1; error = m.para + ': ' + String(e.message).replace(/[A-Za-z0-9_.-]{24,}/g, '…').slice(0, 160); } });
+  // inputs: se dan por avisados los que salieron bien (o si los privados están apagados, para no acumular); los que fallaron se reintentan
+  const avisados = r.inputs.marcados.filter(c => r.inputs.ya[c.id] || !activos || (r.inputsPorAvisar[c.id] && !fallaron[r.inputsPorAvisar[c.id]]) || r.inputs.primera).map(c => c.id);
+  P.setProperty('INPUTS_AVISADOS', avisados.join(',').slice(0, 8800));
+  P.setProperty('CM_REVISADAS', r.filtro.revisadas.join(',').slice(0, 8800));
+  if (diarios) P.setProperty('PRIVADOS_DIA', hoyId);
+  if (error) P.setProperty('DISCORD_DM_ERROR', new Date().toISOString() + ' · ' + error); else if (r.msgs.length) P.deleteProperty('DISCORD_DM_ERROR');
+  if (r.notas.length) P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ' + r.notas.join(' | ')).slice(0, 900)); else P.deleteProperty('PRIVADOS_NOTAS');
+  return r;
+}
+/* PRUEBA sin efectos: muestra qué movería el filtro de CM y qué privados saldrían (ahora, y los diarios de hoy, un martes y un viernes).
+   No mueve tarjetas, no manda nada y no anota nada. */
+function probarPrivados() {
+  try { asegurarRutinas_(); } catch (e) {} // solo para que existan las filas de Config con los ID
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), cfg = config_(), hoy = hoyAR_();
+  console.log('Foto de Trello: ' + snap.generado + ' · privados ' + (/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim()) ? 'APAGADOS' : 'encendidos'));
+  console.log('IDs de Discord cargados: ' + cat.equipo.map(p => p.clave + (idDiscord_(cfg, p.clave) ? ' ✓' : ' ✗')).join(' · '));
+  const dia = n => { const d = new Date(hoy); d.setDate(d.getDate() + ((n - d.getDay() + 7) % 7)); return d; };
+  const r = privadosArmar_(snap, cat, cfg, { dry: true, diarios: true, ahora: hoy });
+  console.log('FILTRO CM' + (r.filtro.primera ? ' (primera vez: revisa todo lo que ya hay)' : '') + ': movería ' + r.filtro.movidas.length + ' · avisaría al CM de ' + r.filtro.avisar.length + ' · problemas: ' + (r.filtro.problemas.join(' | ') || 'ninguno'));
+  r.filtro.movidas.forEach(m => console.log('   ' + m.tablero + ' → ' + m.lista + ' · ' + String(m.titulo).slice(0, 60) + (m.sale ? ' · sale ' + fechaAR_(m.sale) : '')));
+  console.log('INPUTS con Pedido del cliente o Urgente: ' + r.inputs.marcados.length + ' · ' + (r.inputs.primera ? 'es la PRIMERA vez: se toma nota de estos y se avisa solo de los que entren después' : 'nuevos sin avisar: ' + r.inputs.nuevos.length));
+  r.inputs.marcados.slice(0, 12).forEach(c => console.log('   ' + c.tablero + ' · ' + String(c.n).slice(0, 60) + ' · ' + (c.lab || []).join(', ')));
+  console.log('NOTAS: ' + (r.notas.join(' | ') || 'ninguna'));
+  console.log('PRIVADOS QUE SALDRÍAN HOY (' + r.msgs.length + '):');
+  r.msgs.forEach(m => console.log('→ ' + m.para + ' (' + m.texto.length + ' caracteres)\n' + m.texto));
+  [['martes', dia(2)], ['viernes', dia(5)]].forEach(p => {
+    const d = privadosArmar_({ cards: snap.cards.filter(c => c.tipo !== 'cm' && c.cat !== 'input'), tableros: snap.tableros }, cat, cfg, { dry: true, diarios: true, ahora: p[1] });
+    console.log('DIARIOS de un ' + p[0] + ' (' + ymd_(p[1]) + '): ' + d.msgs.map(m => m.para + ' ' + m.texto.length + ' car.').join(' · '));
+  });
 }
 
 /* ---------------- web app ---------------- */
