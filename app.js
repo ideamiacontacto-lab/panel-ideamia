@@ -1014,14 +1014,14 @@
   /* ---------------- vista REVISIÓN (Ivo): diseños y videos en revisión, entregas que faltan, guiones de la semana ---------------- */
   const esRevisa = () => /project|direcc|creativ/i.test((S.data.yo || {}).rol || '');
   const esVideo = c => c.formato ? ['reel', 'historia', 'video'].indexOf(c.formato) >= 0 : /reel|video|histori/i.test(c.n + ' ' + (c.lab || []).join(' '));
-  // Plazos de entrega: diseño → los martes entregan lo que sale lun/mar/mié de la semana siguiente y los jueves lo de jue/vie/sáb(/dom).
+  // Plazos de entrega: diseño → los lunes entregan lo que sale lun/mar/mié de la semana siguiente y los jueves lo de jue/vie/sáb(/dom).
   // Video → reel 48 h antes de publicar; historia 1 día antes (o el mismo día avisando).
   function plazoEntrega(p) {
     const s = p.salida ? new Date(p.salida) : null; if (!s) return null;
     if (p.formato === 'reel' || p.formato === 'video') return new Date(s.getTime() - 48 * 36e5);
     if (p.formato === 'historia') return new Date(s.getTime() - 24 * 36e5);
     const dow = s.getDay(), lunes = new Date(s.getFullYear(), s.getMonth(), s.getDate() - ((dow + 6) % 7) - 7);
-    return new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + (dow >= 1 && dow <= 3 ? 1 : 3), 18, 0);
+    return new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + (dow >= 1 && dow <= 3 ? 0 : 3), 18, 0);
   }
   // lo que dejan en revisión en los tableros de Diseño (diseños) y Producción (videos), las próximas entregas y los guiones de la semana
   function datosRevision() {
@@ -1094,12 +1094,12 @@
     else if (seg === 'vid') cuerpo = R.revVid.length ? porMarca('rv', R.revVid, c => fila(c, '')) : vacio('No hay videos esperando revisión.');
     else if (seg === 'gui') cuerpo = R.gui.length ? porMarca('rg', R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), g => g.gest === 'pendiente' && diasA(new Date(g.entrega)) < 0) : vacio('No hay guiones para ver esta semana.');
     else {
-      // Entregas: los dos lotes de las diseñadoras (martes: lun a mié · jueves: jue a sáb) y después reels e historias
+      // Entregas: los dos lotes de las diseñadoras (lunes: lun a mié · jueves: jue a sáb) y después reels e historias
       const lun = R.lun, finSem = new Date(lun.getTime() + 7 * 864e5);
       const piezas = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.tipo === 'diseno' && (c.etapa === 'pendiente' || c.etapa === 'revision') && c.salida && new Date(c.salida) >= lun && new Date(c.salida) < finSem);
       const lote = (temprano, nombre) => {
         const L = piezas.filter(c => { const d = new Date(c.salida).getDay(); return temprano ? d >= 1 && d <= 3 : !(d >= 1 && d <= 3); });
-        const ent = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() - 7 + (temprano ? 1 : 3), 18, 0);
+        const ent = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() - 7 + (temprano ? 0 : 3), 18, 0);
         const faltan = L.filter(c => c.etapa === 'pendiente'), listas = L.length - faltan.length, paso = new Date() > ent;
         const estado = !L.length ? '<span class="lt-e">sin piezas</span>' : !faltan.length ? '<span class="lt-e ok">✓ todo entregado</span>' : paso ? '<span class="lt-e bad">faltó ' + faltan.length + '</span>' : '<span class="lt-e">faltan ' + faltan.length + '</span>';
         return '<div class="lote' + (paso && faltan.length ? ' tarde' : '') + '"><div class="lt-h"><div><b>' + nombre + ' ' + dm(ent) + '</b><small>lo que sale ' + (temprano ? 'lun a mié' : 'jue a sáb') + ' (semana del ' + dm(lun) + ')</small></div>' + estado + '</div>' +
@@ -1108,7 +1108,7 @@
       };
       const videos = R.prox.filter(c => c.tipo === 'produccion');
       const plazo = c => c.plazo < new Date() ? '<span class="pill bad">faltó · era el ' + dm(c.plazo) + '</span>' : '<span' + (diasA(c.plazo) <= 1 ? ' class="pill warn"' : '') + '>entrega ' + cuando(c.plazo) + '</span>';
-      cuerpo = '<div class="sec"><div class="sec-h"><h2>Diseño · semana que viene</h2></div><div class="lotes">' + lote(true, 'Martes') + lote(false, 'Jueves') + '</div></div>' +
+      cuerpo = '<div class="sec"><div class="sec-h"><h2>Diseño · semana que viene</h2></div><div class="lotes">' + lote(true, 'Lunes') + lote(false, 'Jueves') + '</div></div>' +
         '<div class="sec"><div class="sec-h"><h2>Videos<small>' + videos.length + '</small></h2><span class="act">reel 48 h antes · historia 1 día antes</span></div>' +
         (videos.length ? porMarca('pv', videos, c => fila(c, plazo(c) + datoPieza(c, c.plazo)), c => c.plazo < new Date()) : vacio('Los filmmakers están al día.')) + '</div>';
     }
