@@ -1666,6 +1666,75 @@ function probarResumenGuiones() {
   } catch (e) { console.log('No pude leer los canales: ' + e.message); }
 }
 
+/* MUESTRAS: le manda a JOAQUÍN por privado un ejemplo de cada aviso, armado con los datos reales de hoy y con el mismo código
+   que arma los de verdad. No le escribe a nadie más, no mueve tarjetas y no anota nada como avisado.
+   (Las menciones dentro de un privado no le suenan a nadie: solo se ven.) */
+function pruebaMuestras() {
+  const cfg = config_(), cat = catalogo_(), snap = snapshot_(), hoy = hoyAR_();
+  const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  const r = UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/members/search?query=joaquin&limit=10', { headers: { 'x-clave': clave }, muteHttpExceptions: true });
+  const yo = (r.getResponseCode() < 300 ? JSON.parse(r.getContentText()).map(m => m.user).filter(u => u && !u.bot) : []).filter(u => /joaquinyarce/i.test(u.username))[0];
+  if (!yo) { console.log('No encontré a Joaquín en el servidor (código ' + r.getResponseCode() + ')'); return; }
+  const dia = n => { const d = new Date(hoy); d.setDate(d.getDate() + ((n - d.getDay() + 7) % 7)); return d; };
+  const corta = (t, n) => { const L = String(t).split('\n'); return L.length > n ? L.slice(0, n).join('\n') + '\n… (y ' + (L.length - n) + ' líneas más)' : t; };
+  const M = [], suma = (quien, cuando, texto) => M.push('**MUESTRA ' + (M.length + 1) + ' · ' + quien + '**\n*' + cuando + '*\n▔▔▔▔▔▔▔▔▔▔\n' + corta(texto, 14));
+  const panel = 'https://ideamiacontacto-lab.github.io/panel-ideamia/';
+  // 1 y 2) social media: input con etiqueta Urgente
+  const urg = inputsParaAvisar_(snap, cat).marcados;
+  ['orne', 'rama'].forEach(k => {
+    const L = urg.filter(c => ((cat.marcas.filter(x => x.slug === c.m[0])[0] || {}).sm) === k).slice(0, 2);
+    const lineas = L.length ? L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + String(c.n).slice(0, 90) + ' · ' + (c.lab || []).filter(x => /urgente/.test(norm_(x))).join(', ') + (c.due ? ' · vence ' + fechaAR_(c.due) : '') + ' · ' + c.url)
+      : ['• **(marca)** · (nombre del input) · Urgente · vence dd/mm · (link)'];
+    suma('privado a ' + nombreDe_(k), 'En el momento en que le cargan un input con etiqueta Urgente. Una sola vez por input.' + (L.length ? '' : ' Hoy no tiene ninguno: va con datos de ejemplo.'),
+      'Hola ' + nombreDe_(k) + '. Por favor mirá ' + (lineas.length === 1 ? 'este input que te cargaron' : 'estos ' + lineas.length + ' inputs que te cargaron') + ':\n' + lineas.join('\n') + '\nCuando lo veas, marcalo en el panel: ' + panel);
+  });
+  // 3 y 4) diseñadoras: lo que faltó de la entrega de ayer (martes y viernes)
+  const sinCM = { cards: snap.cards.filter(c => c.tipo !== 'cm' && c.cat !== 'input'), tableros: snap.tableros };
+  [['martes', dia(2)], ['viernes', dia(5)]].forEach(p => {
+    const d = privadosArmar_(sinCM, cat, cfg, { dry: true, diarios: true, ahora: p[1] }).msgs.filter(m => m.para === 'luisi' || m.para === 'zaira');
+    ['luisi', 'zaira'].forEach(k => {
+      if (M.some(x => x.indexOf('privado a ' + nombreDe_(k)) > 0)) return;
+      const m = d.filter(x => x.para === k)[0];
+      if (m) suma('privado a ' + nombreDe_(k), 'Martes y viernes a la mañana (el día después de cada entrega), solo si le faltó entregar algo. Datos de un ' + p[0] + '.', m.texto);
+    });
+  });
+  ['luisi', 'zaira'].forEach(k => { if (!M.some(x => x.indexOf('privado a ' + nombreDe_(k)) > 0)) suma('privado a ' + nombreDe_(k), 'Martes y viernes a la mañana, solo si le faltó entregar algo. Hoy no le falta nada: va con datos de ejemplo.',
+    'Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):\n**(MARCA)**\n• **(nombre del diseño)** · sale el dd/mm · (link)'); });
+  // 5 y 6) filmmaker: piezas atrasadas y recordatorio de la reunión a la que no fue
+  const atr = atrasadasFilm_(snap, filmConfig_(cfg, cat)).slice(0, 4);
+  const lf = atr.length ? atr.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + (c.formato === 'historia' ? 'Historia' : 'Reel') + ' · ' + String(c.n).slice(0, 80) + (c.etapa === 'correccion' ? ' · A CORREGIR' : '') + ' · ' + (new Date(c.salida) < new Date() ? 'salía ' : 'sale ') + fechaAR_(c.salida) + ' · ' + c.url)
+    : ['• **(marca)** · Reel · (nombre) · sale dd/mm hh:mm · (link)'];
+  suma('privado a Bauti', 'A la mañana, una sola vez por pieza, cuando ya tendría que estar entregada.' + (atr.length ? '' : ' Hoy no tiene atrasadas: va con datos de ejemplo.'),
+    'Hola Bauti. ' + (lf.length === 1 ? 'Esta pieza ya tendría que estar entregada' : 'Estas ' + lf.length + ' piezas ya tendrían que estar entregadas') + ' (reels: 48 h antes de salir; historias: el día anterior):\n' + lf.join('\n') + '\nCuando las tengas, marcá "Listo" en el panel: ' + panel);
+  suma('privado a Bauti', 'Una hora después de una reunión de guiones en la que marcó "No voy". Una sola vez por reunión.',
+    'Hola Bauti. No estuviste en la reunión de guiones y presentación de ideas del ' + Utilities.formatDate(dia(1), TZ, 'dd/MM') + '. Preguntá qué ideas se presentaron y de qué se tratan, así sabés qué vas a filmar. Cuando lo tengas, marcá "Ya pregunté" en el panel: ' + panel);
+  // 7) canal depto-guiones: resumen de la reunión
+  suma('canal depto-guiones', 'Lunes y viernes 9:05. Datos reales, como saldría este lunes.', guionesResumenArmar_(snap, cat, cfg, dia(1)).textos[0]);
+  // 8) canal de diseño de cada marca: avisos de la mañana
+  if (typeof avisosDisenoArmar_ === 'function') {
+    const av = avisosDisenoArmar_(dia(2), snap.cards)[0] || avisosDisenoArmar_(hoy, snap.cards)[0];
+    if (av) suma('canal de diseño de ' + av.marca, 'Lunes a sábado 9:05, solo si hay algo que avisar (urgentes, faltantes, extras, correcciones).', av.texto);
+  }
+  // 9 a 12) avisos de canal que manda Make en el momento, con una tarjeta real
+  const fmt = (iso, f) => iso ? Utilities.formatDate(new Date(iso), TZ, f) : 'sin fecha';
+  const cm = snap.cards.filter(c => c.tipo === 'cm' && /listo para programar/.test(norm_(c.lista)))[0], oc = c => { const s = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n) || [])[1]; let o = null; try { o = s && trello_('/cards/' + s, { fields: 'name,due,labels,shortUrl,desc' }); } catch (e) {} return o; };
+  const o1 = cm && oc(cm);
+  const datosCM = o1 ? '**Qué es:** ' + o1.name + '\n**Sale:** ' + fmt(o1.due, 'dd/MM HH:mm') + '\n**Etiquetas:** ' + ((o1.labels || []).map(x => x.name).filter(Boolean).join(', ') || 'sin etiquetas') + '\n' + o1.shortUrl : '**Qué es:** (título)\n**Sale:** dd/mm hh:mm\n**Etiquetas:** …\n(link)';
+  const mc = cm ? nombreMarca_(cat, cm.m[0]).toUpperCase() : 'MARCA';
+  suma('canal de CM de ' + mc + ' (arroba a Ale)', 'En el momento en que una pieza entra a "Listo para programar".', '<@' + (idDiscord_(cfg, 'ale') || '') + '> · ' + mc + ' · PARA PROGRAMAR\n' + datosCM);
+  suma('canal de CM de ' + mc + ' (arroba a Ale)', 'En el momento en que una pieza entra a "Contenido no programable".', '<@' + (idDiscord_(cfg, 'ale') || '') + '> · ' + mc + ' · NO PROGRAMABLE (lleva interacción, se publica a mano)\n' + datosCM);
+  const gu = snap.cards.filter(c => c.cat === 'guion' && !/^https?:/.test(c.n))[0], mg = gu ? nombreMarca_(cat, gu.m[0]).toUpperCase() : 'MARCA';
+  suma('canal de guiones de ' + mg + ' (arroba a Fede)', 'En el momento en que entra una idea a "Ideas Recibidas".',
+    '<@' + GU_FEDE + '> · ' + mg + ' · UNA NUEVA IDEA SE CARGÓ\n**Idea:** ' + (gu ? gu.n : '(nombre de la idea)') + '\n**Entregar el guion antes del:** ' + Utilities.formatDate(new Date(Date.now() + 7 * 864e5), TZ, 'dd/MM') + ' (7 días)\n**Sale:** ' + fmt(gu && gu.salida, 'dd/MM') + '\n' + (gu ? gu.ourl || gu.url : '(link)') + '\n\n(acá va la descripción de la idea)');
+  suma('canal de guiones de ' + mg + ' (arroba a todos)', 'En el momento en que Fede pasa un guion a "Guiones listos para revisión".',
+    '@everyone · ' + mg + ' · GUION LISTO PARA REVISAR\n**Guion:** ' + (gu ? gu.n : '(nombre)') + '\n**Sale:** ' + fmt(gu && gu.salida, 'dd/MM') + '\n**Tarjeta del guion:** ' + (gu ? gu.url : '(link)') + '\n**Idea original:** ' + (gu ? gu.ourl || gu.url : '(link)') + '\nFede ya lo dejó para ver. ¿Coordinamos la reunión para revisarlo?');
+  let ok = 0; const fallas = [];
+  try { discordPrivado_(yo.id, '**Panel Ideamia · muestras de los avisos**\nVan ' + M.length + ' mensajes: uno por cada aviso que recibe el equipo, con datos reales de hoy. Arriba de cada uno dice a quién le llega y cuándo. Nadie más recibe esto.'); } catch (e) { fallas.push('intro: ' + e.message); }
+  M.forEach((t, i) => { try { Utilities.sleep(700); discordPrivado_(yo.id, t); ok++; } catch (e) { fallas.push((i + 1) + ': ' + e.message); } });
+  console.log('Muestras enviadas a ' + yo.username + ': ' + ok + ' de ' + M.length + (fallas.length ? ' · FALLAS: ' + fallas.join(' | ') : ''));
+  M.forEach(t => console.log(t.split('\n').slice(0, 2).join(' · ') + ' (' + t.length + ' caracteres)'));
+}
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
