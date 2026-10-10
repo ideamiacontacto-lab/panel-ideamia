@@ -1025,7 +1025,81 @@ function vistaProject_() {
   });
   const reg = rows_('Registro').slice(-60).reverse().map(r => ({ fecha: r[0], persona: r[1], tipo: r[2], clave: r[3], marca: r[4], estado: r[5], detalle: r[6] }));
   const marcas = cacheGet_('marcasLista') || catalogo_().marcas.map(m => ({ slug: m.slug, nombre: m.nombre }));
-  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas };
+  // su propio tablero: si Trello falla, la vista del equipo se sigue viendo y "Mi día" muestra el motivo
+  let mio; try { mio = miTablero_(); } catch (e) { mio = { error: String(e.message || e).slice(0, 200) }; }
+  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas, mio };
+}
+
+/* ---------------- "Mi día" del project: su tablero Project de Trello, leído en vivo ----------------
+   El panel es una ventana y una forma rápida de cargar: todo vive en Trello y el tablero manda.
+   Listas: Bandeja > Por hacer > En proceso > Enviado / en seguimiento > Listo. */
+const NO_ES_MARCA = /^(urgente|extra|ver en minuta|ads|guion|guiones)$/;
+function etapaProject_(nombre) {
+  const n = norm_(nombre);
+  return /bandeja/.test(n) ? 'bandeja' : /por hacer/.test(n) ? 'hacer' : /proceso/.test(n) ? 'proceso' : /enviado|seguimiento/.test(n) ? 'seguimiento' : /listo|hecho|terminad/.test(n) ? 'listo' : 'otra';
+}
+function tableroProject_() {
+  const c = CacheService.getScriptCache(); let id = c.get('projId');
+  if (!id) {
+    const b = trello_('/members/me/boards', { filter: 'open', fields: 'name' }).filter(x => norm_(x.name) === 'project')[0];
+    if (!b) throw new Error('No encuentro el tablero "Project" en Trello');
+    id = b.id; c.put('projId', id, 21600);
+  }
+  return id;
+}
+function miTablero_() {
+  const id = tableroProject_();
+  const r = trelloVarios_([
+    '/boards/' + id + '/lists?filter=open&fields=name&cards=open&card_fields=name,desc,due,dueComplete,idList,shortUrl,dateLastActivity,labels',
+    '/boards/' + id + '/labels?fields=name,color&limit=100',
+    '/boards/' + id + '?fields=shortUrl'
+  ]);
+  if (!r[0]) throw new Error('Trello no devolvió el tablero Project (código ' + ((r.codigos || {})[0] || 'sin respuesta') + ')');
+  const cards = [];
+  r[0].forEach(l => (l.cards || []).forEach(c => cards.push({
+    id: c.id, n: c.name, d: String(c.desc || '').slice(0, 300), due: c.due || null, dc: !!c.dueComplete, lista: l.name, k: etapaProject_(l.name),
+    act: c.dateLastActivity, url: c.shortUrl, lab: (c.labels || []).map(x => x.name).filter(Boolean)
+  })));
+  return {
+    url: (r[2] || {}).shortUrl || '', leido: new Date().toISOString(),
+    listas: r[0].map(l => ({ id: l.id, n: l.name, k: etapaProject_(l.name) })),
+    etiquetas: (r[1] || []).filter(x => x.name).map(x => ({ id: x.id, n: x.name, c: x.color || '', marca: !NO_ES_MARCA.test(norm_(x.name)) })),
+    sinEtiquetas: !r[1], cards: cards, dias: Number(config_().SEGUIMIENTO_DIAS) || 3
+  };
+}
+/* Carga rápida: la tarjeta entra SIEMPRE a "Bandeja". La lista la busca el servidor en el tablero; la web no puede mandar otra. */
+function pedidoRapido_(b) {
+  const texto = String(b.texto || '').trim();
+  if (!texto) return { error: 'datos', mensaje: 'Escribí qué es el pedido' };
+  const t = miTablero_(), bandeja = t.listas.filter(l => l.k === 'bandeja')[0], pasos = [], avisos = [];
+  if (!bandeja) return { error: 'lista', mensaje: 'No encuentro la lista "Bandeja" en Project, así que no creé nada. Listas que tiene: ' + t.listas.map(l => l.n).join(', ') };
+  const ids = [], nombres = [];
+  if (b.labelId) {
+    const e = t.etiquetas.filter(x => x.id === b.labelId && x.marca)[0];
+    if (!e) return { error: 'etiqueta', mensaje: 'Esa etiqueta de marca ya no existe en el tablero Project. Recargá la página y probá de nuevo: no creé nada.' };
+    ids.push(e.id); nombres.push(e.n);
+  }
+  if (b.urgente) { const u = t.etiquetas.filter(x => norm_(x.n) === 'urgente')[0]; if (u) { ids.push(u.id); nombres.push(u.n); } else avisos.push('No existe la etiqueta "Urgente" en el tablero: la tarjeta se creó sin ella'); }
+  const q = { idList: bandeja.id, name: texto.slice(0, 300), desc: String(b.nota || '').slice(0, 1500), pos: 'top' };
+  if (b.due) q.due = b.due;
+  if (ids.length) q.idLabels = ids.join(',');
+  const card = trello_('/cards', q, 'post');
+  if (!card || !card.id) return { error: 'trello', mensaje: 'Trello no confirmó la tarjeta. Fijate en Bandeja antes de cargarla otra vez.' };
+  pasos.push('Tarjeta creada en "' + bandeja.n + '" de Project');
+  if (nombres.length) pasos.push('Etiquetas: ' + nombres.join(', '));
+  if (b.due) pasos.push('Fecha: ' + Utilities.formatDate(new Date(b.due), TZ, 'dd/MM'));
+  return { ok: true, pasos: pasos, avisos: avisos, card: { id: card.id, n: card.name, d: q.desc, due: card.due || null, dc: false, lista: bandeja.n, k: 'bandeja', act: card.dateLastActivity || new Date().toISOString(), url: card.shortUrl, lab: nombres } };
+}
+
+/* Para revisar desde el editor: lee el tablero Project y muestra qué encontró. No crea ni cambia nada. */
+function probarMiTablero() {
+  const t = miTablero_(), n = {};
+  t.cards.forEach(c => n[c.lista] = (n[c.lista] || 0) + 1);
+  console.log('Listas: ' + t.listas.map(l => l.n + ' [' + l.k + '] ' + (n[l.n] || 0)).join(' · '));
+  console.log('Etiquetas de marca: ' + t.etiquetas.filter(e => e.marca).map(e => e.n).join(', '));
+  console.log('Otras etiquetas: ' + t.etiquetas.filter(e => !e.marca).map(e => e.n).join(', '));
+  console.log('Bandeja encontrada: ' + (t.listas.some(l => l.k === 'bandeja') ? 'sí' : 'NO') + ' · Urgente encontrada: ' + (t.etiquetas.some(e => norm_(e.n) === 'urgente') ? 'sí' : 'NO') + ' · días de seguimiento: ' + t.dias);
+  console.log('Sin fecha (fuera de Bandeja y Listo): ' + t.cards.filter(c => !c.due && c.k !== 'bandeja' && c.k !== 'listo').length + ' · en seguimiento: ' + t.cards.filter(c => c.k === 'seguimiento').length);
 }
 
 /* ---------------- web app ---------------- */
@@ -1254,6 +1328,10 @@ function doGet(e) {
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'cliente') return json_(vistaCliente_(q.marca, q.dias), q.cb); // calendario provisorio de una marca (página de links del cliente)
     if (q.action === 'burgersMes') return json_(burgersMes_(q.marca), q.cb); // burger del mes cargada por el cliente (pestaña Anual)
+    if (q.action === 'mio') { // solo el tablero Project del project (para refrescar "Mi día" sin recargar todo)
+      if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
+      try { return json_({ ok: true, mio: miTablero_() }, q.cb); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer el tablero Project: ' + String(e.message || e).slice(0, 200) }, q.cb); }
+    }
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       return json_(vistaProject_(), q.cb);
@@ -1300,6 +1378,9 @@ function doPost(e) {
         return json_({ ok: true });
       case 'actualizar':
         try { return json_(actualizar(true)); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer Trello: ' + String(e.message || e).slice(0, 200) }); }
+      case 'pedidoRapido': // carga rápida del project: solo con su clave
+        if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
+        return json_(pedidoRapido_(b));
       case 'crearTarjeta': { // crea la tarjeta en Trello (y opcionalmente la manda a otra lista, que es lo que dispara las automatizaciones)
         if (!b.listId || !b.nombre) return json_({ error: 'datos', mensaje: 'Falta el nombre o la lista' });
         const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 1500), pos: 'top' };
