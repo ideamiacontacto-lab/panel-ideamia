@@ -580,7 +580,7 @@ function asegurarRutinas_() {
   ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
   if (cf && rows_('Config').map(r => r[0]).indexOf('DISCORD_ID_BAUTI') < 0) cf.appendRow(['DISCORD_ID_BAUTI', '1390450103059349526', 'ID de Discord de Bauti: para el recordatorio por privado cuando no va a la reunión de guiones. Vacío = no se le escribe.']);
   // resumen de guiones en el canal del departamento
-  [['GUIONES_CANAL', '', 'ID del canal de Discord donde sale el resumen de la reunión de guiones (clic derecho en el canal → Copiar ID del canal). Vacío = no se publica.'],
+  [['GUIONES_CANAL', '', 'ID del canal de Discord donde sale el resumen de la reunión de guiones (clic derecho en el canal → Copiar ID del canal). Vacío = depto-guiones.'],
     ['GUIONES_RESUMEN_DIAS', 'lunes,viernes', 'Días en que sale a la mañana el resumen de guiones (qué hay para ver, qué debe entregar Fede y quién presenta ideas).'],
     ['DISCORD_ID_FEDE', '466080124303835147', 'ID de Discord de Fede (guiones): se lo arroba en el resumen de guiones.']
   ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
@@ -1588,7 +1588,7 @@ function probarPrivados() {
    por marca: qué guiones hay para ver hoy, cuáles debe entregar Fede, cuáles siguen en corrección y qué social media presenta ideas.
    Igual que los avisos de diseño: se guarda en un JSON de Drive y un escenario de Make lo publica en el canal (Config GUIONES_CANAL).
    Cada persona va arrobada: Fede en lo que debe entregar, el social media en su marca, el filmmaker arriba. */
-const GU_FEDE = '466080124303835147';
+const GU_FEDE = '466080124303835147', GU_CANAL = '1522286878466900128'; // canal depto-guiones (Zona interna)
 function guionesResumenArmar_(snap, cat, cfg, ahora) {
   const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
   const dm = iso => Utilities.formatDate(new Date(iso), TZ, 'dd/MM');
@@ -1631,7 +1631,7 @@ function guionesDiaDeResumen_(cfg, ahora) {
 }
 /* Lo corre el disparador de cada mañana (8:45). Los días que no hay reunión deja el archivo sin mensajes. */
 function guionesResumen() {
-  const ahora = hoyAR_(), cfg = config_(), snap = snapshot_(), canal = String(cfg.GUIONES_CANAL || '').trim();
+  const ahora = hoyAR_(), cfg = config_(), snap = snapshot_(), canal = String(cfg.GUIONES_CANAL || GU_CANAL).trim();
   const viejo = !snap.generado || (Date.now() - new Date(snap.generado).getTime()) > 3 * 36e5; // con la foto de Trello vieja, mejor no avisar
   let mensajes = [];
   if (guionesDiaDeResumen_(cfg, ahora) && !viejo && /^\d{15,22}$/.test(canal)) mensajes = guionesResumenArmar_(snap, catalogo_(), cfg, ahora).textos.map(t => ({ canal: canal, texto: t.slice(0, 1950) }));
@@ -1655,7 +1655,7 @@ function probarResumenGuiones() {
   const cfg = config_(), cat = catalogo_(), snap = snapshot_(), hoy = hoyAR_();
   const lunes = new Date(hoy); lunes.setDate(lunes.getDate() + ((1 - lunes.getDay() + 7) % 7));
   const r = guionesResumenArmar_(snap, cat, cfg, lunes);
-  console.log('Canal configurado: ' + (cfg.GUIONES_CANAL || 'NINGUNO') + ' · días: ' + (cfg.GUIONES_RESUMEN_DIAS || 'lunes,viernes') + ' · hoy toca: ' + guionesDiaDeResumen_(cfg, hoy));
+  console.log('Canal configurado: ' + (cfg.GUIONES_CANAL || GU_CANAL + ' (depto-guiones, por defecto)') + ' · días: ' + (cfg.GUIONES_RESUMEN_DIAS || 'lunes,viernes') + ' · hoy toca: ' + guionesDiaDeResumen_(cfg, hoy));
   console.log('RESUMEN de un lunes (' + ymd_(lunes) + '): ' + r.textos.length + ' mensaje(s) · ver ' + r.ver + ' · corrección ' + r.corr + ' · por entregar ' + r.fede);
   r.textos.forEach(t => console.log('(' + t.length + ' caracteres)\n' + t));
   try {
