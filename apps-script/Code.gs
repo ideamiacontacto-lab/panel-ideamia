@@ -1998,8 +1998,17 @@ function json_(o, cb) {
 }
 function claveOk_(k, project) {
   const team = P.getProperty('TEAM_KEY'), proj = P.getProperty('PROJECT_KEY');
-  if (project) return !proj || k === proj;
-  return !team || k === team || (proj && k === proj);
+  const ok = project ? (!proj || k === proj) : (!team || k === team || !!(proj && k === proj));
+  // Clave equivocada: la respuesta se demora (más si vienen muchas seguidas) para que no se pueda adivinar probando miles,
+  // y queda anotado cuándo pasó (se ve en ?action=estado como "intentosFallidos").
+  if (!ok && k) {
+    try {
+      const c = CacheService.getScriptCache(), n = Number(c.get('clavesMalas') || 0) + 1; c.put('clavesMalas', String(n), 900);
+      if (n === 15) P.setProperty('ALERTA_CLAVES', new Date().toISOString() + ' · 15 claves equivocadas en 15 minutos');
+      Utilities.sleep(n > 15 ? 5000 : 1200);
+    } catch (e) {}
+  }
+  return ok;
 }
 
 function doGet(e) {
@@ -2014,7 +2023,7 @@ function doGet(e) {
         // a qué lista va una pieza al aprobarla o mandarla a corregir, por tablero (si dice FALTA, ese botón no anda en ese tablero)
         revision: (snap.tableros || []).filter(b => b.tipo === 'diseno' || b.tipo === 'produccion').map(b => { const ok = listaRevision_(b.listas, 'aprobar'), co = listaRevision_(b.listas, 'corregir'); return b.nombre + ' · aprobar → ' + (ok ? ok.n : 'FALTA') + ' · corregir → ' + (co ? co.n : 'FALTA'); }),
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY'), discord: !!P.getProperty('DISCORD_TOKEN') },
-        uso: (() => { try { return JSON.parse(P.getProperty('USO_DIA') || 'null'); } catch (e) { return null; } })(), lecturaUnida: P.getProperty('LECTURA_UNIDA') === 'si',
+        uso: (() => { try { return JSON.parse(P.getProperty('USO_DIA') || 'null'); } catch (e) { return null; } })(), lecturaUnida: P.getProperty('LECTURA_UNIDA') === 'si', intentosFallidos: P.getProperty('ALERTA_CLAVES') || null,
         discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, stats: d.stats || null, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), privado: P.getProperty('DISCORD_DM_ERROR') || null, error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
