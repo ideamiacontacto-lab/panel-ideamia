@@ -877,7 +877,7 @@ function panel_(personaClave, ctx) {
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
-    film: esFilm ? filmSalida_(film, yo, hoy) : null,
+    film: esFilm ? Object.assign(filmSalida_(film, yo, hoy), { todas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) }) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: ((ctx.discord.porPersona || {})[yo.clave] || []).filter(m => (!m.marca || misMarcas.some(x => x.slug === m.marca)) && new Date(m.fecha).getTime() > Date.now() - 3 * 864e5) /* solo sus marcas y los canales generales, de los últimos 3 días */, conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE, claveBrain: cfg.CLAVE_BRAINSTORMING || '' },
