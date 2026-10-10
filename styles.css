@@ -1061,3 +1061,9 @@ select{color-scheme:dark}
   .mio-st{padding:12px}.mio-st b{font-size:34px}.mio-st small{display:none}
   .proj-seg{display:flex;margin:14px 0}
 }
+
+/* Revisión en vivo */
+.viva{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);margin:0 0 12px}
+.viva i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(92,227,138,.18)}
+.viva.ok{color:var(--muted)}
+.viva .lnk{margin-left:6px;font-size:12px;color:var(--dim)}

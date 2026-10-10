@@ -1025,6 +1025,41 @@
     const gui = guiones().filter(g => !g.salio && (g.gest === 'revisar' || (g.gest === 'pendiente' && g.entrega && new Date(g.entrega) < finSem)));
     return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun };
   }
+  /* ---------------- revisión en vivo ----------------
+     Para quien revisa: se pide a Trello lo que está AHORA en "En revisión" y se combina con lo ya cargado,
+     así una pieza recién movida aparece al abrir (sin esperar la lectura general de cada 10 minutos). */
+  async function revisionViva(silencioso) {
+    if (DEMO || !S.data || !esRevisa() || S.vivaPidiendo) return;
+    S.vivaPidiendo = true;
+    try {
+      const j = await get({ action: 'revision', k: S.key || S.pkey });
+      if (!j || j.error) throw new Error((j && (j.mensaje || j.error)) || 'sin respuesta');
+      const viejas = {}; S.data.cards.forEach(c => { if (c.cat === 'pieza' && c.etapa === 'revision') viejas[c.id] = c; });
+      const fallo = {}; (j.fallas || []).forEach(n => fallo[n] = 1);
+      // lo de Trello manda (nombre, lista, fecha); de lo ya cargado se conserva el historial de la pieza
+      const vivas = j.cards.map(c => viejas[c.id] ? Object.assign({}, c, { hist: viejas[c.id].hist }) : c), ids = {};
+      vivas.forEach(v => ids[v.id] = 1);
+      // si un tablero no respondió, sus piezas quedan como estaban (y se avisa)
+      const conservadas = Object.keys(viejas).map(k => viejas[k]).filter(c => fallo[c.tablero] && !ids[c.id]);
+      const nuevas = vivas.filter(v => !viejas[v.id]).length, salieron = Object.keys(viejas).filter(k => !ids[k] && !fallo[viejas[k].tablero]).length;
+      S.data.cards = S.data.cards.filter(c => !(c.cat === 'pieza' && (c.etapa === 'revision' || ids[c.id]))).concat(vivas, conservadas);
+      S.viva = { leido: j.leido, fallas: j.fallas || [], error: null };
+      if (!silencioso || nuevas) toast(nuevas ? '✓ ' + nuevas + (nuevas === 1 ? ' pieza nueva' : ' piezas nuevas') + ' en revisión' + (salieron ? ' · ' + salieron + ' ya no están' : '') : '✓ Revisión al día con Trello.');
+    } catch (e) { S.viva = { leido: (S.viva || {}).leido || null, fallas: [], error: e.message || 'sin conexión' }; }
+    S.vivaPidiendo = false;
+    if (!$('.modal') && !$('#drawer')) render();
+  }
+  // cartel arriba de la vista de revisión: en vivo, o por qué no
+  function estadoViva() {
+    if (DEMO) return '';
+    const V = S.viva;
+    if (!V) return '<div class="viva"><span class="spin">↻</span> Leyendo Trello en vivo…</div>';
+    if (V.error) return '<div class="estado-av"><span class="ei">!</span><div><b>No pude leer Trello en vivo</b> (' + esc(V.error) + '). Estás viendo la lectura general, que puede tener hasta 10 minutos de atraso.</div><button class="btn ghost" data-viva>Reintentar</button></div>';
+    const seg = Math.max(0, Math.round((Date.now() - new Date(V.leido).getTime()) / 1000));
+    return (V.fallas.length ? '<div class="estado-av"><span class="ei">!</span><div><b>No respondieron ' + V.fallas.length + (V.fallas.length === 1 ? ' tablero' : ' tableros') + ':</b> ' + V.fallas.map(esc).join(', ') + '. De esos se muestra lo último que se sabía.</div><button class="btn ghost" data-viva>Reintentar</button></div>' : '') +
+      '<div class="viva ok"><i></i>En vivo · leído de Trello ' + (seg < 60 ? 'recién' : 'hace ' + Math.round(seg / 60) + ' min') + '<button class="lnk" data-viva>volver a leer</button></div>';
+  }
+
   function vRevision() {
     const R = datosRevision();
     const FMT = { reel: 'Reel', historia: 'Historia', video: 'Video', carrusel: 'Carrusel', diseno: 'Diseño', guion: 'Guion' };
@@ -1069,7 +1104,7 @@
         '<div class="sec"><div class="sec-h"><h2>Videos<small>' + videos.length + '</small></h2><span class="act">reel 48 h antes · historia 1 día antes</span></div>' +
         (videos.length ? porMarca('pv', videos, c => fila(c, plazo(c) + datoPieza(c, c.plazo)), c => c.plazo < new Date()) : vacio('Los filmmakers están al día.')) + '</div>';
     }
-    return tabs + '<div class="revc">' + cuerpo + '</div>';
+    return estadoViva() + tabs + '<div class="revc">' + cuerpo + '</div>';
   }
   // en Hoy (para Ivo): resumen de lo que tiene para revisar
   function bloqueRevision() {
@@ -1334,6 +1369,7 @@
     root.querySelectorAll('[data-mio-nuevo]').forEach(x => x.onclick = nuevoPedido);
     root.querySelectorAll('[data-mio-rf]').forEach(x => x.onclick = () => refrescarMio());
     root.querySelectorAll('[data-mio-ir]').forEach(x => x.onclick = () => { const el = document.getElementById('mio-' + x.dataset.mioIr); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    root.querySelectorAll('[data-viva]').forEach(x => x.onclick = () => { S.viva = null; render(); revisionViva(); });
     root.querySelectorAll('[data-rf]').forEach(b => b.onclick = actualizar);
     root.querySelectorAll('[data-reconectar]').forEach(b => b.onclick = reconectar);
     root.querySelectorAll('[data-dc-ok]').forEach(b => b.onclick = () => { dcVer([b.dataset.dcOk]); render(); });
@@ -1596,6 +1632,8 @@
     if (!silencioso) S.marca = 'todas';
     S.data = j;
     S.falloCarga = null;
+    // quien revisa: enseguida se pide lo que está en revisión ahora mismo
+    if (esRevisa()) setTimeout(() => revisionViva(true), 50);
     try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(j)); } catch (e) {}
   }
   // Lo último que se cargó en este navegador: se muestra al instante mientras llega lo nuevo.
