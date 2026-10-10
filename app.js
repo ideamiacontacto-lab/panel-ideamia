@@ -225,20 +225,22 @@
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa(), film = esFilm();
     // filmmaker: solo Mi semana y Discord
-    if (film && ['film', 'discord'].indexOf(S.tab) < 0) S.tab = 'film';
-    if (!film && S.tab === 'film') S.tab = 'hoy';
+    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
+    if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
+    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
     if (ivo && ['revision', 'guiones', 'discord'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, film: vFilm }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
-    const nav = film ? [['film', 'Mi semana', I.flag, datosFilm().porHacer.filter(c => datosFilm().sem(c) === 0).length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+    const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
+    const nav = film ? [['film', 'Reels', I.flag, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.check, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.pen, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.cal, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]];
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { film: 'Mi semana', semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
+    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -1316,7 +1318,10 @@
     const sem = c => !c.plazo || c.plazo <= finDeSemana(0) ? 0 : c.plazo <= finDeSemana(1) ? 1 : 2;
     const porHacer = P.filter(c => c.etapa !== 'revision'), enRev = P.filter(c => c.etapa === 'revision');
     const est = k => (F.est || {})[k] || null;
-    const visPend = F.visitas.filter(v => pasa([v.marca]) && v.cuando === 'esta semana' && !(est(v.clave) && est(v.clave).estado === 'hecho'));
+    // visita cumplida: marcó algún día de esta semana (hasta hoy) para esa marca, o el "Fui" de antes
+    const lun0 = ymdL(lunesDe(NOW, 0)), hoy0 = ymdL(NOW), preA = 'film:' + S.data.yo.clave + ':asis:';
+    const fue = s => Object.keys(F.est || {}).some(k => { if (k.indexOf(preA) !== 0) return false; const p = k.slice(preA.length).split(':'); return p[1] === s && p[0] >= lun0 && p[0] <= hoy0; });
+    const visPend = F.visitas.filter(v => pasa([v.marca]) && v.cuando === 'esta semana' && !(est(v.clave) && est(v.clave).estado === 'hecho') && !fue(v.marca));
     return { F, P, sem, porHacer, enRev, est, visPend, corr: porHacer.filter(c => c.etapa === 'correccion'), atras: porHacer.filter(c => c.plazo && c.plazo < NOW),
       guiones: S.data.cards.filter(c => c.cat === 'guion' && pasa(c.m)) };
   }
@@ -1324,64 +1329,122 @@
     const D = datosFilm(), n0 = D.porHacer.filter(c => D.sem(c) === 0).length, n1 = D.porHacer.filter(c => D.sem(c) === 1).length;
     return (D.atras.length ? '<b class="rojo">' + D.atras.length + (D.atras.length === 1 ? ' atrasada' : ' atrasadas') + '</b> · ' : '') + '<b>' + n0 + '</b> para entregar esta semana · <b>' + n1 + '</b> la que viene' + (D.visPend.length ? ' · te ' + (D.visPend.length === 1 ? 'falta 1 visita' : 'faltan ' + D.visPend.length + ' visitas') : '');
   }
+  // Presencialidades: cada día que fue (o piensa ir) queda como un renglón propio: puede haber más de un día por semana,
+  // coberturas extra y marcas que no son las suyas de siempre. Clave: film:<persona>:asis:<fecha>:<marca>[:x…]
+  const ymdL = d => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  const lunesDe = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) + 7 * (n || 0));
+  const nomMarcaF = s => { const t = ((S.data.film || {}).todas || []).find(m => m.slug === s); return (marca(s) || t || { nombre: s }).nombre; };
+  function asistencias() {
+    const F = S.data.film || { est: {} }, pre = 'film:' + S.data.yo.clave + ':asis:';
+    return Object.keys(F.est || {}).filter(k => k.indexOf(pre) === 0).map(k => {
+      const p = k.slice(pre.length).split(':'), d = String(F.est[k].detalle || '').split('|');
+      return { clave: k, fecha: p[0], marca: p[1], extra: d[0] === 'extra', que: d.slice(1).join('|') };
+    }).sort((a, b) => a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0);
+  }
   function vFilm() {
     const D = datosFilm(), F = D.F, FMT = { reel: 'Reel', historia: 'Historia', video: 'Video' };
-    const seg = LS.get('filmseg', 'sem0');
     const dm = d => DIAS_L[d.getDay()].slice(0, 3) + ' ' + d.getDate() + '/' + (d.getMonth() + 1);
-    // ---- piezas, en carpetas por marca ----
-    const lista = seg === 'sem0' ? D.porHacer.filter(c => D.sem(c) === 0) : seg === 'sem1' ? D.porHacer.filter(c => D.sem(c) === 1) : seg === 'rev' ? D.enRev : D.P;
-    const fila = c => {
-      const atras = c.etapa !== 'revision' && c.plazo && c.plazo < NOW;
-      const cuando_ = c.plazo ? '<span class="' + (atras ? 'fl-rojo' : '') + '">' + (atras ? 'había que entregar ' : 'entregar ') + dm(c.plazo) + '</span><span class="fl-dim">sale ' + dm(new Date(c.salida)) + '</span>' : '<span class="fl-dim">sin fecha de salida</span>';
-      const estado = c.etapa === 'revision' ? '<span class="pill ok">Ya está en revisión</span>' : '<button class="btn y fl-ok" data-film-listo="' + esc(c.id) + '">Listo</button>';
-      return '<div class="fl-r' + (atras ? ' tarde' : '') + '"><div class="fl-t"><a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a><div class="fl-m"><span class="pill">' + (FMT[c.formato] || 'Video') + '</span>' + (c.etapa === 'correccion' ? '<span class="pill bad">A corregir</span>' : c.etapa === 'espera' ? '<span class="pill">En espera</span>' : '') + cuando_ + '</div></div>' + estado + '</div>';
+    const hoyId_ = ymdL(NOW);
+    const tile = (num, t, s, cl, attr) => '<button class="mio-st' + (num ? ' ' + cl : '') + '" ' + attr + '><b>' + num + '</b><span>' + t + '</span><small>' + s + '</small></button>';
+    // ================= Reels / Historias: piezas en carpetas por marca =================
+    if (S.tab === 'film' || S.tab === 'fhist') {
+      const hist = S.tab === 'fhist', es = c => hist ? c.formato === 'historia' : c.formato !== 'historia';
+      const P = D.P.filter(es), porHacer = D.porHacer.filter(es), enRev = D.enRev.filter(es);
+      const seg = LS.get('filmseg', 'sem0');
+      const lista = seg === 'sem0' ? porHacer.filter(c => D.sem(c) === 0) : seg === 'sem1' ? porHacer.filter(c => D.sem(c) === 1) : seg === 'rev' ? enRev : P;
+      const fila = c => {
+        const atras = c.etapa !== 'revision' && c.plazo && c.plazo < NOW;
+        const cuando_ = c.plazo ? '<span class="' + (atras ? 'fl-rojo' : '') + '">' + (atras ? 'había que entregar ' : 'entregar ') + dm(c.plazo) + '</span><span class="fl-dim">sale ' + dm(new Date(c.salida)) + '</span>' : '<span class="fl-dim">sin fecha de salida</span>';
+        const estado = c.etapa === 'revision' ? '<span class="pill ok">Ya está en revisión</span>' : '<button class="btn y fl-ok" data-film-listo="' + esc(c.id) + '">Listo</button>';
+        return '<div class="fl-r' + (atras ? ' tarde' : '') + '"><div class="fl-t"><a class="lnk" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a><div class="fl-m"><span class="pill">' + (FMT[c.formato] || 'Video') + '</span>' + (c.etapa === 'correccion' ? '<span class="pill bad">A corregir</span>' : c.etapa === 'espera' ? '<span class="pill">En espera</span>' : '') + cuando_ + '</div></div>' + estado + '</div>';
+      };
+      const g = {}; lista.forEach(c => (g[c.m[0]] = g[c.m[0]] || []).push(c));
+      const ks = Object.keys(g).sort((a, b) => g[b].filter(c => c.plazo && c.plazo < NOW).length - g[a].filter(c => c.plazo && c.plazo < NOW).length || g[b].length - g[a].length);
+      const carpetas = ks.map(s => {
+        const L = g[s].sort((a, b) => (a.plazo || 9e15) - (b.plazo || 9e15)), nA = L.filter(c => c.etapa !== 'revision' && c.plazo && c.plazo < NOW).length, nC = L.filter(c => c.etapa === 'correccion').length;
+        const k = 'film:' + S.tab + ':' + seg + ':' + s, abierta = S.abiertos[k] != null ? S.abiertos[k] : (ks.length <= 2 || nA > 0 || nC > 0);
+        return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><small>' + L.length + '</small>' + (nA ? '<em>' + nA + (nA === 1 ? ' atrasada' : ' atrasadas') + '</em>' : '') + (nC ? '<em>' + nC + ' a corregir</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
+          (abierta ? '<div class="fl-list">' + L.map(fila).join('') + '</div>' : '') + '</div>';
+      }).join('');
+      const n = k => k === 'sem0' ? porHacer.filter(c => D.sem(c) === 0).length : k === 'sem1' ? porHacer.filter(c => D.sem(c) === 1).length : k === 'rev' ? enRev.length : P.length;
+      const tabs = '<div class="seg fl-seg">' + [['sem0', 'Esta semana'], ['sem1', 'La que viene'], ['rev', 'En revisión'], ['todo', 'Todo']].map(x => '<button class="' + (seg === x[0] ? 'on' : '') + '" data-filmseg="' + x[0] + '">' + x[1] + (n(x[0]) ? '<em>' + n(x[0]) + '</em>' : '') + '</button>').join('') + '</div>';
+      const que = hist ? 'historias' : 'reels';
+      const vacio = { sem0: 'Nada para entregar esta semana.', sem1: 'Todavía no hay ' + que + ' para la semana que viene.', rev: 'No tenés ' + que + ' esperando revisión.', todo: 'No hay ' + que + ' en los últimos 15 días ni en las próximas dos semanas.' }[seg];
+      const atras = porHacer.filter(c => c.plazo && c.plazo < NOW).length, corr = porHacer.filter(c => c.etapa === 'correccion').length;
+      return '<div class="mio-sts fl-sts">' + tile(n('sem0'), 'Esta semana', 'para entregar', 'y', 'data-filmseg="sem0"') + tile(atras, 'Atrasadas', 'ya había que entregar', 'bad', 'data-filmseg="sem0"') + tile(corr, 'A corregir', 'te las devolvieron', 'warn', 'data-filmseg="todo"') + tile(enRev.length, 'En revisión', 'esperando el visto', 'ok', 'data-filmseg="rev"') + '</div>' +
+        '<div class="sec"><div class="sec-h"><h2>' + (hist ? 'Historias' : 'Reels') + '<small>por marca</small></h2></div>' + tabs + (lista.length ? carpetas : '<div class="empty">' + vacio + '</div>') +
+        '<p class="ayuda">"Listo" pasa la tarjeta a <b>En revisión</b> en Trello y le llega a quien revisa. ' + (hist ? 'Historias: se entregan el día anterior.' : 'Reels: se entregan 48 h antes de que salgan.') + '</p></div>';
+    }
+    // ================= Guiones: reuniones y qué se presenta de sus marcas =================
+    if (S.tab === 'fgui') {
+      const fechaR = r => { const e = D.est(r.clave); return e && e.estado === 'movida' && e.detalle ? new Date(e.detalle.replace(' ', 'T')) : new Date(r.fecha + 'T' + (r.hora || '16:00')); };
+      const nomMarcas = [...new Set(D.guiones.filter(x => !x.salio && x.gest !== 'aprobado').map(x => (marca(x.m[0]) || { nombre: x.m[0] }).nombre))].join(', ');
+      const reunion = r => {
+        const e = D.est(r.clave), st = e ? e.estado : '', f = fechaR(r), paso = f < NOW;
+        if (paso && st !== 'novoy') return '';
+        if (paso && st === 'novoy') return '<div class="fl-re falto"><div><b>No estuviste en la reunión del ' + dm(f) + '</b><p>Preguntá qué ideas se presentaron y de qué se tratan' + (nomMarcas ? ' (tus marcas con guiones en curso: ' + esc(nomMarcas) + ')' : '') + '.</p></div><button class="btn y" data-film-est="' + esc(r.clave) + '" data-estado="preguntado">Ya pregunté</button></div>';
+        const b = (estado, txt) => '<button class="fl-b' + (st === estado ? ' on' : '') + '" data-film-est="' + esc(r.clave) + '" data-estado="' + (st === estado ? 'deshacer' : estado) + '">' + txt + '</button>';
+        return '<div class="fl-re"><div><b>' + dm(f) + ' · ' + ('0' + f.getHours()).slice(-2) + ':' + ('0' + f.getMinutes()).slice(-2) + ' h</b><p>Guiones y presentación de ideas' + (st === 'movida' ? ' · <span class="fl-dim">se movió de fecha</span>' : '') + (st === 'novoy' ? ' · <span class="fl-rojo">después te recuerdo preguntar qué se presentó</span>' : '') + '</p></div>' +
+          '<div class="fl-bs">' + b('voy', 'Voy') + b('novoy', 'No voy') + '<button class="fl-b' + (st === 'movida' ? ' on' : '') + '" data-film-mover="' + esc(r.clave) + '" data-ffecha="' + esc(r.fecha) + '" data-fhora="' + esc(r.hora || '16:00') + '">Cambió</button></div></div>';
+      };
+      const reus = F.reuniones.filter(r => r.fecha >= hoyId_ || (D.est(r.clave) || {}).estado === 'novoy').map(reunion).filter(Boolean);
+      const gEst = { revisar: ['Se presenta', 'ok'], pendiente: ['Fede lo está escribiendo', ''], correccion: ['En corrección', 'warn'], aprobado: ['Aprobado', 'ok'] };
+      const gs = D.guiones.filter(x => x.gest !== 'aprobado').sort((a, b) => (a.gest === 'revisar' ? 0 : 1) - (b.gest === 'revisar' ? 0 : 1));
+      const guion = x => '<div class="fl-r"><div class="fl-t"><a class="lnk" href="' + esc(x.ourl || x.url) + '" target="_blank" rel="noopener">' + esc(x.n) + '</a><div class="fl-m"><span class="pill ' + (gEst[x.gest] || ['', ''])[1] + '">' + (gEst[x.gest] || [x.gest])[0] + '</span>' + (x.salida ? '<span class="fl-dim">sale ' + dm(new Date(x.salida)) + '</span>' : '') + '</div></div></div>';
+      const gg = {}; gs.forEach(x => (gg[x.m[0]] = gg[x.m[0]] || []).push(x));
+      const carp = Object.keys(gg).map(s => {
+        const L = gg[s], nP = L.filter(x => x.gest === 'revisar').length, k = 'film:gui:' + s, abierta = S.abiertos[k] != null ? S.abiertos[k] : (nP > 0 || Object.keys(gg).length <= 2);
+        return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc(nomMarcaF(s)) + '</b><small>' + L.length + '</small>' + (nP ? '<em>' + nP + (nP === 1 ? ' se presenta' : ' se presentan') + '</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' + (abierta ? '<div class="fl-list">' + L.map(guion).join('') + '</div>' : '') + '</div>';
+      }).join('');
+      return '<div class="sec"><div class="sec-h"><h2>Reuniones<small>lunes y viernes · guiones y presentación de ideas</small></h2></div>' + (reus.length ? reus.join('') : '<div class="empty">No hay reuniones en los próximos días.</div>') + '</div>' +
+        '<div class="sec"><div class="sec-h"><h2>Guiones de tus marcas<small>' + gs.length + ' en curso</small></h2></div>' + (gs.length ? carp : '<div class="empty">No hay guiones en curso de tus marcas.</div>') + '</div>';
+    }
+    // ================= Presencialidad: visitas de la semana + registro de asistencias =================
+    const A = asistencias(), pre = 'film:' + S.data.yo.clave + ':asis:';
+    const DIAS_C = ['L', 'M', 'X', 'J', 'V', 'S'], NOM_D = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const visita = (v, n) => {
+      const lun = lunesDe(NOW, n), viejo = D.est(v.clave), fuiViejo = viejo && viejo.estado === 'hecho';
+      const dias = DIAS_C.map((l, i) => { const f = ymdL(new Date(lun.getFullYear(), lun.getMonth(), lun.getDate() + i)); return { l: l, f: f, k: pre + f + ':' + v.marca, on: !!D.est(pre + f + ':' + v.marca), nom: NOM_D[i] }; });
+      const fui = dias.filter(d => d.on && d.f <= hoyId_), voy = dias.filter(d => d.on && d.f > hoyId_);
+      const txt = (fui.length ? 'Fuiste ' + fui.map(d => d.nom).join(' y ') : '') + (fui.length && voy.length ? ' · ' : '') + (voy.length ? 'Vas ' + voy.map(d => d.nom).join(' y ') : '') || (fuiViejo ? 'Fuiste' : v.ideal ? 'Ideal ' + v.ideal : 'Todavía sin día');
+      return '<div class="fl-v' + (fui.length || fuiViejo ? ' ok' : '') + '"><div class="fl-vn">' + tagM(v.marca) + '<small>' + esc(txt) + '</small></div>' +
+        '<div class="fl-vd">' + dias.map(d => '<button class="fl-d' + (d.on ? (d.f <= hoyId_ ? ' on' : ' plan') : '') + (d.f === hoyId_ ? ' hoy' : '') + '" data-film-est="' + esc(d.k) + '" data-estado="' + (d.on ? 'deshacer' : 'hecho') + '" data-detalle="semanal" data-fmarca="' + esc(v.marca) + '" title="' + d.nom + '">' + d.l + '</button>').join('') + '</div></div>';
     };
-    const g = {}; lista.forEach(c => (g[c.m[0]] = g[c.m[0]] || []).push(c));
-    const ks = Object.keys(g).sort((a, b) => g[b].filter(c => c.plazo && c.plazo < NOW).length - g[a].filter(c => c.plazo && c.plazo < NOW).length || g[b].length - g[a].length);
-    const carpetas = ks.map(s => {
-      const L = g[s].sort((a, b) => (a.plazo || 9e15) - (b.plazo || 9e15)), nA = L.filter(c => c.etapa !== 'revision' && c.plazo && c.plazo < NOW).length, nC = L.filter(c => c.etapa === 'correccion').length;
-      const k = 'film:' + seg + ':' + s, abierta = S.abiertos[k] != null ? S.abiertos[k] : (ks.length <= 2 || nA > 0 || nC > 0);
-      return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><small>' + L.length + '</small>' + (nA ? '<em>' + nA + (nA === 1 ? ' atrasada' : ' atrasadas') + '</em>' : '') + (nC ? '<em>' + nC + ' a corregir</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
-        (abierta ? '<div class="fl-list">' + L.map(fila).join('') + '</div>' : '') + '</div>';
+    const vis = (cu, n) => { const L = F.visitas.filter(v => v.cuando === cu && pasa([v.marca])); return L.length ? '<div class="fl-vg"><h3>' + (n ? 'La semana que viene' : 'Esta semana') + '</h3>' + L.map(v => visita(v, n)).join('') + '</div>' : ''; };
+    // registro: carpetas por mes y, adentro, por semana
+    const MES = MESES.map(m => m.charAt(0).toUpperCase() + m.slice(1));
+    const fd = f => new Date(f + 'T12:00:00');
+    const filaA = a => '<div class="fl-r"><div class="fl-t"><b class="fl-af">' + dm(fd(a.fecha)) + '</b>' + (a.fecha > hoyId_ ? ' <span class="fl-dim">(planeado)</span>' : '') + '<div class="fl-m"><span class="tag"><i style="background:' + color(a.marca) + '"></i>' + esc(nomMarcaF(a.marca)) + '</span><span class="pill ' + (a.extra ? 'warn' : 'ok') + '">' + (a.extra ? 'Extra' : 'Cobertura semanal') + '</span>' + (a.que ? '<span>' + esc(a.que) + '</span>' : '') + '</div></div><button class="lnk fl-q" data-film-est="' + esc(a.clave) + '" data-estado="deshacer" data-fmarca="' + esc(a.marca) + '">quitar</button></div>';
+    const meses = {}; A.forEach(a => (meses[a.fecha.slice(0, 7)] = meses[a.fecha.slice(0, 7)] || []).push(a));
+    const mesHoy = hoyId_.slice(0, 7), semHoy = ymdL(lunesDe(NOW, 0));
+    const registro = Object.keys(meses).sort().reverse().map(mk => {
+      const L = meses[mk], nS = L.filter(a => !a.extra).length, nX = L.length - nS, k = 'film:asis:' + mk, abierta = S.abiertos[k] != null ? S.abiertos[k] : mk === mesHoy;
+      const sems = {}; L.forEach(a => { const s = ymdL(lunesDe(fd(a.fecha), 0)); (sems[s] = sems[s] || []).push(a); });
+      const cuerpo = Object.keys(sems).sort().reverse().map(sk => {
+        const k2 = 'film:asis:s:' + sk, ab2 = S.abiertos[k2] != null ? S.abiertos[k2] : sk >= semHoy || Object.keys(sems).length === 1, l = fd(sk);
+        return '<div class="fl-sem' + (ab2 ? ' on' : '') + '"><button class="fl-sem-h" data-mcar="' + esc(k2) + '" data-abierta="' + (ab2 ? 1 : 0) + '"><b>Semana del ' + l.getDate() + '/' + (l.getMonth() + 1) + '</b><small>' + sems[sk].length + (sems[sk].length === 1 ? ' día' : ' días') + '</small><i>' + (ab2 ? '−' : '+') + '</i></button>' + (ab2 ? '<div class="fl-list">' + sems[sk].map(filaA).join('') + '</div>' : '') + '</div>';
+      }).join('');
+      return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:var(--y)"></span><b>' + MES[+mk.slice(5) - 1] + ' ' + mk.slice(0, 4) + '</b><small>' + L.length + '</small><em class="suave">' + nS + ' semanal' + (nS === 1 ? '' : 'es') + (nX ? ' · ' + nX + ' extra' : '') + '</em><i>' + (abierta ? '−' : '+') + '</i></button>' + (abierta ? '<div class="fl-sems">' + cuerpo + '</div>' : '') + '</div>';
     }).join('');
-    const n = k => k === 'sem0' ? D.porHacer.filter(c => D.sem(c) === 0).length : k === 'sem1' ? D.porHacer.filter(c => D.sem(c) === 1).length : k === 'rev' ? D.enRev.length : D.P.length;
-    const tabs = '<div class="seg fl-seg">' + [['sem0', 'Esta semana'], ['sem1', 'La que viene'], ['rev', 'En revisión'], ['todo', 'Todo']].map(x => '<button class="' + (seg === x[0] ? 'on' : '') + '" data-filmseg="' + x[0] + '">' + x[1] + (n(x[0]) ? '<em>' + n(x[0]) + '</em>' : '') + '</button>').join('') + '</div>';
-    const vacio = { sem0: 'Nada para entregar esta semana.', sem1: 'Todavía no hay nada cargado para la semana que viene.', rev: 'No tenés nada esperando revisión.', todo: 'No hay piezas en los últimos 15 días ni en las próximas dos semanas.' }[seg];
-    // ---- visitas ----
-    const DIAS_C = [['lun', 'L'], ['mar', 'M'], ['mie', 'X'], ['jue', 'J'], ['vie', 'V'], ['sab', 'S']];
-    const visita = v => {
-      const e = D.est(v.clave), fui = e && e.estado === 'hecho', dia = e && e.estado === 'plan' ? e.detalle : '';
-      return '<div class="fl-v' + (fui ? ' ok' : '') + '"><div class="fl-vn">' + tagM(v.marca) + (v.ideal ? '<small>ideal ' + esc(v.ideal) + '</small>' : '') + '</div>' +
-        '<div class="fl-vd">' + (fui ? '<span class="pill ok">Fui</span><button class="lnk" data-film-est="' + esc(v.clave) + '" data-estado="deshacer" data-fmarca="' + esc(v.marca) + '">deshacer</button>' :
-          DIAS_C.map(d => '<button class="fl-d' + (dia === d[0] ? ' on' : '') + '" data-film-est="' + esc(v.clave) + '" data-estado="' + (dia === d[0] ? 'deshacer' : 'plan') + '" data-detalle="' + d[0] + '" data-fmarca="' + esc(v.marca) + '" title="Voy el ' + d[0] + '">' + d[1] + '</button>').join('') +
-          '<button class="btn ghost fl-fui" data-film-est="' + esc(v.clave) + '" data-estado="hecho" data-fmarca="' + esc(v.marca) + '">✓ Fui</button>') + '</div></div>';
-    };
-    const vis = cu => { const L = F.visitas.filter(v => v.cuando === cu && pasa([v.marca])); return L.length ? '<div class="fl-vg"><h3>' + (cu === 'esta semana' ? 'Esta semana' : 'La semana que viene') + '</h3>' + L.map(visita).join('') + '</div>' : ''; };
-    // ---- reuniones de guiones y presentación de ideas ----
-    const hoyId_ = NOW.getFullYear() + '-' + ('0' + (NOW.getMonth() + 1)).slice(-2) + '-' + ('0' + NOW.getDate()).slice(-2);
-    const fechaR = r => { const e = D.est(r.clave); return e && e.estado === 'movida' && e.detalle ? new Date(e.detalle.replace(' ', 'T')) : new Date(r.fecha + 'T' + (r.hora || '16:00')); };
-    const nomMarcas = [...new Set(D.guiones.filter(x => !x.salio && x.gest !== 'aprobado').map(x => (marca(x.m[0]) || { nombre: x.m[0] }).nombre))].join(', ');
-    const reunion = r => {
-      const e = D.est(r.clave), st = e ? e.estado : '', f = fechaR(r), paso = f < NOW;
-      if (paso && st !== 'novoy') return '';
-      if (paso && st === 'novoy') return '<div class="fl-re falto"><div><b>No estuviste en la reunión del ' + dm(f) + '</b><p>Preguntá qué ideas se presentaron y de qué se tratan' + (nomMarcas ? ' (tus marcas con guiones en curso: ' + esc(nomMarcas) + ')' : '') + '.</p></div><button class="btn y" data-film-est="' + esc(r.clave) + '" data-estado="preguntado">Ya pregunté</button></div>';
-      const b = (estado, txt) => '<button class="fl-b' + (st === estado ? ' on' : '') + '" data-film-est="' + esc(r.clave) + '" data-estado="' + (st === estado ? 'deshacer' : estado) + '">' + txt + '</button>';
-      return '<div class="fl-re"><div><b>' + dm(f) + ' · ' + ('0' + f.getHours()).slice(-2) + ':' + ('0' + f.getMinutes()).slice(-2) + ' h</b><p>Guiones y presentación de ideas' + (st === 'movida' ? ' · <span class="fl-dim">se movió de fecha</span>' : '') + (st === 'novoy' ? ' · <span class="fl-rojo">después te recuerdo preguntar qué se presentó</span>' : '') + '</p></div>' +
-        '<div class="fl-bs">' + b('voy', 'Voy') + b('novoy', 'No voy') + '<button class="fl-b' + (st === 'movida' ? ' on' : '') + '" data-film-mover="' + esc(r.clave) + '" data-ffecha="' + esc(r.fecha) + '" data-fhora="' + esc(r.hora || '16:00') + '">Cambió</button></div></div>';
-    };
-    const reus = F.reuniones.filter(r => r.fecha >= hoyId_ || (D.est(r.clave) || {}).estado === 'novoy').map(reunion).filter(Boolean);
-    // qué se presenta de sus marcas (tableros de guiones)
-    const gEst = { revisar: ['Se presenta', 'ok'], pendiente: ['Fede lo está escribiendo', ''], correccion: ['En corrección', 'warn'], aprobado: ['Aprobado', 'ok'] };
-    const gs = D.guiones.filter(x => x.gest !== 'aprobado').sort((a, b) => (a.gest === 'revisar' ? 0 : 1) - (b.gest === 'revisar' ? 0 : 1));
-    const guion = x => '<div class="fl-r"><div class="fl-t"><a class="lnk" href="' + esc(x.ourl || x.url) + '" target="_blank" rel="noopener">' + esc(x.n) + '</a><div class="fl-m">' + tagM(x.m[0]) + '<span class="pill ' + (gEst[x.gest] || ['', ''])[1] + '">' + (gEst[x.gest] || [x.gest])[0] + '</span>' + (x.salida ? '<span class="fl-dim">sale ' + dm(new Date(x.salida)) + '</span>' : '') + '</div></div></div>';
-    const tile = (id, num, t, s, cl) => '<button class="mio-st' + (num ? ' ' + cl : '') + '" data-film-ir="' + id + '"><b>' + num + '</b><span>' + t + '</span><small>' + s + '</small></button>';
-    return '<div class="mio-sts fl-sts">' + tile('piezas', D.porHacer.filter(c => D.sem(c) === 0).length, 'Esta semana', 'para entregar', 'y') + tile('piezas', D.atras.length, 'Atrasadas', 'ya había que entregar', 'bad') + tile('piezas', D.corr.length, 'A corregir', 'te las devolvieron', 'warn') + tile('visitas', D.visPend.length, 'Visitas', 'te faltan esta semana', 'warn') + '</div>' +
-      '<div class="sec" id="film-piezas"><div class="sec-h"><h2>Tus piezas<small>por marca</small></h2></div>' + tabs + (lista.length ? carpetas : '<div class="empty">' + vacio + '</div>') +
-      '<p class="ayuda">"Listo" pasa la tarjeta a <b>En revisión</b> en Trello y le llega a quien revisa. Se muestran solo las piezas de los últimos 15 días y de las próximas dos semanas. Reels: entregar 48 h antes de que salgan. Historias: el día anterior.</p></div>' +
-      '<div class="sec" id="film-visitas"><div class="sec-h"><h2>Visitas<small>una por semana a cada marca</small></h2></div><div class="fl-vs">' + vis('esta semana') + vis('la semana que viene') + '</div>' +
-      '<p class="ayuda">Tocá el día en que pensás ir para tenerlo anotado, y "Fui" cuando ya fuiste.</p></div>' +
-      '<div class="sec" id="film-reu"><div class="sec-h"><h2>Reuniones<small>lunes y viernes · guiones y presentación de ideas</small></h2></div>' + (reus.length ? reus.join('') : '<div class="empty">No hay reuniones en los próximos días.</div>') + '</div>' +
-      '<div class="sec" id="film-gui"><div class="sec-h"><h2>Guiones de tus marcas<small>' + gs.length + ' en curso</small></h2></div>' + (gs.length ? '<div class="fl-list suelta">' + gs.map(guion).join('') + '</div>' : '<div class="empty">No hay guiones en curso de tus marcas.</div>') + '</div>';
+    const esteMes = (meses[mesHoy] || []).filter(a => a.fecha <= hoyId_), estaSem = A.filter(a => a.fecha >= semHoy && a.fecha <= hoyId_);
+    return '<div class="mio-sts fl-sts">' + tile(D.visPend.length, 'Visitas', 'te faltan esta semana', 'warn', 'data-nada') + tile(estaSem.length, 'Esta semana', 'días que fuiste', 'ok', 'data-nada') + tile(esteMes.length, 'Este mes', 'presencialidades', 'ok', 'data-nada') + tile(esteMes.filter(a => a.extra).length, 'Extras', 'este mes', 'y', 'data-nada') + '</div>' +
+      '<div class="sec"><div class="sec-h"><h2>Visitas<small>por semana</small></h2><button class="btn y fl-mas" data-film-anotar>+ Anotar</button></div><div class="fl-vs">' + vis('esta semana', 0) + vis('la semana que viene', 1) + '</div>' +
+      '<p class="ayuda">Tocá cada día que fuiste o que pensás ir: podés marcar más de uno por semana. Con <b>+ Anotar</b> cargás una cobertura extra o una marca que no es de las tuyas de siempre.</p></div>' +
+      '<div class="sec"><div class="sec-h"><h2>Asistencias<small>' + A.length + ' anotadas</small></h2></div>' + (A.length ? registro : '<div class="empty">Todavía no hay presencialidades anotadas.</div>') + '</div>';
+  }
+  // anotar una presencialidad a mano: cualquier marca, semanal o extra (con qué fue a hacer)
+  function filmAnotar() {
+    const F = S.data.film || {}, todas = (F.todas && F.todas.length ? F.todas : S.data.marcas).slice().sort((a, b) => a.nombre < b.nombre ? -1 : 1);
+    modal('<h3>Anotar presencialidad</h3><div class="two"><label class="field"><span>Día</span><input type="date" id="faF" value="' + ymdL(NOW) + '"></label><label class="field"><span>Marca</span><select id="faM">' + todas.map(m => '<option value="' + esc(m.slug) + '">' + esc(m.nombre) + '</option>').join('') + '</select></label></div>' +
+      '<div class="fl-tipo"><label><input type="radio" name="faT" value="semanal" checked><span>Cobertura semanal</span></label><label><input type="radio" name="faT" value="extra"><span>Algo extra</span></label></div>' +
+      '<label class="field"><span>¿Qué fuiste a hacer? (si es extra)</span><textarea id="faQ" rows="2" maxlength="200" placeholder="Evento, lanzamiento, fotos de producto…"></textarea></label>' +
+      '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Guardar</button></div>', async m => {
+      const f = $('#faF', m).value, s = $('#faM', m).value, t = (m.querySelector('input[name=faT]:checked') || {}).value || 'semanal', q = $('#faQ', m).value.trim().replace(/\|/g, '/');
+      if (!f) throw new Error('Elegí el día.');
+      if (t === 'extra' && !q) throw new Error('Contá qué fuiste a hacer.');
+      const base = 'film:' + S.data.yo.clave + ':asis:' + f + ':' + s;
+      await filmEstado(t === 'extra' || F.est[base] ? base + ':x' + Date.now().toString(36) : base, 'hecho', t === 'extra' ? 'extra|' + q : 'semanal' + (q ? '|' + q : ''), s);
+    });
   }
   // guardar lo que marca (visitas y reuniones): queda en el Registro del Sheet, como el resto del panel
   async function filmEstado(clave, estado, detalle, marca_) {
@@ -1488,7 +1551,7 @@
     root.querySelectorAll('[data-film-listo]').forEach(x => x.onclick = () => filmListo(x.dataset.filmListo));
     root.querySelectorAll('[data-film-est]').forEach(x => x.onclick = () => filmEstado(x.dataset.filmEst, x.dataset.estado, x.dataset.detalle || '', x.dataset.fmarca || ''));
     root.querySelectorAll('[data-film-mover]').forEach(x => x.onclick = () => filmMover(x.dataset.filmMover, x.dataset.ffecha, x.dataset.fhora));
-    root.querySelectorAll('[data-film-ir]').forEach(x => x.onclick = () => { const el = document.getElementById('film-' + x.dataset.filmIr); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    root.querySelectorAll('[data-film-anotar]').forEach(x => x.onclick = () => filmAnotar());
     root.querySelectorAll('[data-hoymodo]').forEach(x => x.onclick = () => { LS.set('hoymodo', x.dataset.hoymodo); render(); });
     root.querySelectorAll('[data-rf]').forEach(b => b.onclick = actualizar);
     root.querySelectorAll('[data-reconectar]').forEach(b => b.onclick = reconectar);

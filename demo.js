@@ -210,6 +210,6 @@ window.PANEL_DEMO_PROJECT.mio = {
     visitas: [v("gabriel-varisco", "2026-W41", "esta semana", "lunes o viernes"), v("isco", "2026-W41", "esta semana"), v("vice-burger", "2026-W41", "esta semana"),
       v("gabriel-varisco", "2026-W42", "la semana que viene", "lunes o viernes"), v("isco", "2026-W42", "la semana que viene"), v("vice-burger", "2026-W42", "la semana que viene")],
     reuniones: [{ clave: "film:bauti:reu:2026-10-05", fecha: "2026-10-05", hora: "16:00" }, { clave: "film:bauti:reu:2026-10-09", fecha: "2026-10-09", hora: "16:00" }, { clave: "film:bauti:reu:2026-10-12", fecha: "2026-10-12", hora: "16:00" }, { clave: "film:bauti:reu:2026-10-16", fecha: "2026-10-16", hora: "16:00" }],
-    est: { "film:bauti:reu:2026-10-05": { estado: "novoy", detalle: "", fecha: "2026-10-05 10:00" }, "film:bauti:vis:isco:2026-W41": { estado: "plan", detalle: "jue", fecha: "2026-10-06 10:00" } }
+    est: { "film:bauti:reu:2026-10-05": { estado: "novoy", detalle: "", fecha: "2026-10-05 10:00" }, "film:bauti:asis:2026-10-06:isco": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-10-08:isco": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-10-07:tritato:x1": { estado: "hecho", detalle: "extra|Fotos del local nuevo" }, "film:bauti:asis:2026-10-13:vice-burger": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-09-30:quality-tienda": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-09-24:vice-burger": { estado: "hecho", detalle: "semanal" } }
   };
 })();

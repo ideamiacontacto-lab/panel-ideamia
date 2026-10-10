@@ -1121,3 +1121,37 @@ select{color-scheme:dark}
 .hoy-seg button{padding:6px 14px;font-size:12.5px}
 @media(max-width:700px){.hoy-sts{grid-template-columns:repeat(3,1fr)}.hoy-sts .mio-st:nth-child(n+4){grid-column:span 1}.hoy-seg{display:flex}}
 .hoy-sts{max-width:820px;margin-left:auto;margin-right:auto}
+
+/* ---- filmmaker: presencialidades (varios días por semana, extras y registro por mes y semana) ---- */
+.fl-d{width:30px;height:30px}
+.fl-d.plan{border-color:var(--y);color:var(--y);border-style:dashed}
+.fl-d.hoy{box-shadow:0 0 0 2px rgba(255,242,0,.18)}
+.fl-mas{padding:7px 14px;font-size:13px;font-weight:700;margin-left:auto}
+.fl-sems{border-top:1px solid var(--line);padding:6px 10px 10px}
+.fl-sem{border:1px solid var(--line);border-radius:12px;margin-top:8px;background:var(--s2,rgba(255,255,255,.02))}
+.fl-sem-h{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;text-align:left}
+.fl-sem-h b{font-size:13.5px;font-weight:600}
+.fl-sem-h small{color:var(--dim);font-size:12px}
+.fl-sem-h i{margin-left:auto;font-style:normal;color:var(--dim);font-size:16px}
+.fl-sem .fl-list{padding:0 14px}
+.fl-af{font-size:14px;font-weight:600;text-transform:capitalize}
+.fl-q{font-size:12px;color:var(--dim);flex:none}
+.mcar-h em.suave{background:transparent;color:var(--muted);font-weight:500;padding:0}
+.fl-tipo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 14px}
+.fl-tipo label{position:relative;cursor:pointer}
+.fl-tipo input{position:absolute;opacity:0}
+.fl-tipo span{display:block;text-align:center;padding:11px 8px;border:1px solid var(--line2);border-radius:12px;font-size:13.5px;font-weight:600;color:var(--muted);transition:all .15s}
+.fl-tipo input:checked+span{background:var(--y);color:var(--y-ink);border-color:var(--y)}
+@media (max-width:760px){
+  .fl-vd{width:100%;justify-content:space-between;gap:6px}
+  .fl-d{width:auto;flex:1;height:38px;border-radius:11px;font-size:13px}
+  .fl-mas{padding:8px 14px}
+}
+
+/* ---- repaso mobile: recuadros sin huecos, saludo que no se corta ---- */
+@media(max-width:700px){
+  .hoy-sts{display:flex;flex-wrap:wrap;gap:8px}
+  .hoy-sts .mio-st{flex:1 1 calc(33.333% - 6px);min-width:0}
+  .hoy-sts .mio-st:nth-last-child(2):nth-child(3n+1),.hoy-sts .mio-st:last-child:nth-child(3n+2){flex-basis:calc(50% - 4px)}
+  .mhead .kick{font-size:10px;letter-spacing:.1em}
+}
