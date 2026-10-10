@@ -318,11 +318,11 @@ function listaRevision_(listas, accion) {
 }
 /* Google permite 20.000 pedidos a otros servicios por día: se cuentan para poder verlo en ?action=estado. */
 let PEDIDOS_ = 0;
-function anotarUso_(seg) {
+function anotarUso_(seg, etapas) {
   try {
     const hoy = ymd_(new Date()); let u = {}; try { u = JSON.parse(P.getProperty('USO_DIA') || '{}'); } catch (e) {}
     if (u.dia !== hoy) u = { dia: hoy, pedidos: 0, lecturas: 0, seg: 0, ayer: u.dia ? { dia: u.dia, pedidos: u.pedidos, lecturas: u.lecturas, seg: u.seg } : null };
-    u.pedidos += PEDIDOS_; u.lecturas++; u.seg += Math.round(seg); u.ultima = { pedidos: PEDIDOS_, seg: Math.round(seg) };
+    u.pedidos += PEDIDOS_; u.lecturas++; u.seg += Math.round(seg); u.ultima = { pedidos: PEDIDOS_, seg: Math.round(seg), etapas: (etapas || []).join(" · ") };
     P.setProperty('USO_DIA', JSON.stringify(u)); PEDIDOS_ = 0;
   } catch (e) {}
 }
@@ -628,13 +628,13 @@ function actualizar(desdeWeb) {
   const lock = LockService.getScriptLock();
   // si justo está corriendo el disparador, el botón de la web espera a que termine en vez de fallar
   if (!lock.tryLock(desdeWeb ? 110000 : 5000)) return { ok: false, error: 'Ya se está actualizando' };
-  const T0_ = Date.now(); PEDIDOS_ = 0;
+  const T0_ = Date.now(), etapas_ = [], tk_ = n => etapas_.push(n + " " + Math.round((Date.now() - T0_) / 1000) + "s/" + PEDIDOS_); PEDIDOS_ = 0;
   try {
     // recién actualizado (por el disparador o por otra persona): no se vuelve a leer todo
     if (desdeWeb) { try { const s = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = new Date(s.generado || 0).getTime(); if (Date.now() - g < 60000) return { ok: true, reciente: true, generado: new Date(g).toISOString(), incompletos: s.fallas || [] }; } catch (e) {} }
     try { asegurarRutinas_(); } catch (e) {}
     const cat = catalogo_(), cfg = config_();
-    const snap = leerTrello_(cat);
+    tk_("inicio"); const snap = leerTrello_(cat); tk_("trello");
     // tableros que Trello no devolvió: se mantienen sus tarjetas de la lectura anterior (mejor algo un poco viejo que verlas desaparecer)
     if (snap.fallas.length) {
       const ant = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
@@ -646,7 +646,7 @@ function actualizar(desdeWeb) {
     }
     // filtro de CM y privados de Discord (antes de guardar: así la foto ya refleja a qué lista fue cada pieza). Si falla, no corta la actualización.
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
-    snap.generado = new Date().toISOString();
+    tk_("privados"); snap.generado = new Date().toISOString();
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     P.deleteProperty('ULTIMA_FALLA');
     CacheService.getScriptCache().put('snapinfo', JSON.stringify({ generado: snap.generado, fallas: snap.fallas }), 21600);
@@ -660,15 +660,15 @@ function actualizar(desdeWeb) {
       try { const dc = leerDiscord_(cfg, cat); if (dc) { guardarJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json', dc); P.deleteProperty('DISCORD_ERROR'); } P.setProperty('DISCORD_T', String(Date.now())); }
       catch (e) { P.setProperty('DISCORD_ERROR', String(e.message).slice(0, 300)); }
     }
-    try { recordatoriosFilm_(); } catch (e) {}
+    tk_("discord"); try { recordatoriosFilm_(); } catch (e) {}
     CacheService.getScriptCache().removeAll(['snap', 'estados']); // 'estados' se rearma desde la planilla (por si alguien la editó a mano)
-    construirBases_();
+    tk_("film"); construirBases_(); tk_("bases");
     return { ok: true, tarjetas: snap.cards.length, generado: snap.generado, incompletos: snap.fallas };
   } catch (e) {
     // queda anotado para que la web lo muestre (antes solo se veía en el registro de ejecuciones de Google)
     P.setProperty('ULTIMA_FALLA', JSON.stringify({ cuando: new Date().toISOString(), mensaje: String(e.message || e).replace(/key=[^&\s]+|token=[^&\s]+/g, '…').slice(0, 250) }));
     throw e;
-  } finally { anotarUso_((Date.now() - T0_) / 1000); lock.releaseLock(); }
+  } finally { anotarUso_((Date.now() - T0_) / 1000, etapas_); lock.releaseLock(); }
 }
 
 /* Para revisar desde el editor: cuántas tarjetas trajo por marca y tipo de lista. */
