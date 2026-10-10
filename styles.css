@@ -1113,3 +1113,11 @@ select{color-scheme:dark}
   .fl-bs{width:100%}.fl-b{flex:1}
 }
 .fl-re.falto b{text-transform:none}
+
+/* Hoy (social media): recuadros y carpetas por tipo o marca */
+.hoy-sts{margin:16px 0 4px}
+.mio-st.dc b{color:#8B95FF}
+.hoy-seg{position:static;display:inline-flex;margin:0 0 12px}
+.hoy-seg button{padding:6px 14px;font-size:12.5px}
+@media(max-width:700px){.hoy-sts{grid-template-columns:repeat(3,1fr)}.hoy-sts .mio-st:nth-child(n+4){grid-column:span 1}.hoy-seg{display:flex}}
+.hoy-sts{max-width:820px;margin-left:auto;margin-right:auto}

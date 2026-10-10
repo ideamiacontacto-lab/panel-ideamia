@@ -241,7 +241,7 @@
     const TIT = { film: 'Mi semana', semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
-      ? (ivo ? '' : cintaUrgente()) + '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
       : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const headF = film && portada ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
@@ -404,16 +404,10 @@
     const nDc = D.discord ? dcSinVer().length : 0, nSal = porSalir().length, nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length;
     const reps = (D.reportes || []).filter(r => pasa(r.marca)), nRepV = reps.filter(r => new Date(r.vence) < ahora).length;
     const nVen = vencidas().length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length, nGui = guionAtencion();
-    const ch = (n, txt, attr, cl) => n ? '<button class="av' + (cl ? ' ' + cl : '') + '" ' + attr + '><i></i><b>' + n + '</b> ' + txt + '</button>' : '';
-    const html = ch(nVen, nVen === 1 ? 'vencida' : 'vencidas', 'data-vencidas', 'bad') +
-      ch(nRepV, nRepV === 1 ? 'reporte vencido' : 'reportes vencidos', 'data-tab="semana"', 'bad') +
-      ch(nDc, nDc === 1 ? 'mención' : 'menciones', 'data-tab="discord"', 'dc') +
-      ch(nSal, 'por salir', 'data-por-salir', 'warn') +
-      ch(nInp, nInp === 1 ? 'input' : 'inputs', 'data-tab="inputs"', 'y') +
-      ch(reps.length - nRepV, 'reportes', 'data-tab="semana"', '') +
-      ch(nReu, 'reuniones sin fecha', 'data-tab="reuniones"', '') +
-      ch(nGui, 'guiones', 'data-tab="guiones"', '');
-    return html ? '<div class="avisos">' + html + '</div>' : '';
+    // recuadros: los números que importan, una sola vez, y cada uno lleva a lo suyo (antes: cinta + chips + etiquetas repetían lo mismo)
+    const tl = (n, t, s, attr, cl) => '<button class="mio-st' + (n ? ' ' + cl : '') + '" ' + attr + '><b>' + n + '</b><span>' + t + '</span><small>' + s + '</small></button>';
+    return '<div class="mio-sts hoy-sts">' + tl(nVen, 'Vencidas', 'tarjetas pasadas de fecha', 'data-vencidas', 'bad') + tl(nInp, 'Inputs', 'pedidos para revisar', 'data-tab="inputs"', 'y') + tl(nSal, 'Por salir', 'chequealas antes', 'data-por-salir', 'warn') +
+      tl(reps.length, 'Reportes', nRepV ? nRepV + (nRepV === 1 ? ' vencido' : ' vencidos') : 'para cargar', 'data-tab="semana"', nRepV ? 'bad' : '') + tl(nDc, 'Menciones', 'en Discord, sin leer', 'data-tab="discord"', 'dc') + '</div>';
   }
 
   /* ---------------- "Mi día": arrancar con 3 prioridades (estilo Sunsama), línea de tiempo con lo que tiene hora
@@ -491,7 +485,17 @@
     const grupos = TIPOS_HOY.map(tp => { const L = hoyL.filter(x => !usados[x.k] && tp[3](x)); L.forEach(x => usados[x.k] = 1); return [tp, L.sort((a, b) => b.u - a.u)]; })
       .filter(g => g[1].length).sort((a, b) => Math.max.apply(null, b[1].map(x => x.u)) - Math.max.apply(null, a[1].map(x => x.u)));
     let abrio = false;
-    if (grupos.length) cuerpo += '<div class="sec"><div class="sec-h"><h2>En el día<small>' + hoyL.length + '</small></h2></div>' + grupos.map(([tp, L]) => {
+    const modoHoy = LS.get('hoymodo', 'tipo');
+    const segHoy = '<div class="seg hoy-seg"><button class="' + (modoHoy === 'tipo' ? 'on' : '') + '" data-hoymodo="tipo">Por tipo</button><button class="' + (modoHoy === 'marca' ? 'on' : '') + '" data-hoymodo="marca">Por marca</button></div>';
+    if (grupos.length && modoHoy === 'marca') {
+      const gm = {}; hoyL.forEach(x => (gm[x.marca || ''] = gm[x.marca || ''] || []).push(x));
+      const km = Object.keys(gm).sort((a, b) => (!a) - (!b) || gm[b].filter(x => x.u >= 3).length - gm[a].filter(x => x.u >= 3).length || gm[b].length - gm[a].length);
+      cuerpo += '<div class="sec"><div class="sec-h"><h2>En el día<small>' + hoyL.length + '</small></h2></div>' + segHoy + km.map((s, i) => {
+        const L = gm[s].sort((a, b) => b.u - a.u), urg = L.filter(x => x.u >= 3).length;
+        return tarjeta('hm-' + (s || 'general'), s ? esc((marca(s) || {}).nombre || s) : 'General · de todas las marcas', L.length, urg ? urg + (urg === 1 ? ' urgente' : ' urgentes') : '', i === 0 && urg > 0, () => L.map(fila).join(''), null, s ? color(s) : 'var(--dim)');
+      }).join('') + '</div>';
+    } else
+    if (grupos.length) cuerpo += '<div class="sec"><div class="sec-h"><h2>En el día<small>' + hoyL.length + '</small></h2></div>' + segHoy + grupos.map(([tp, L]) => {
       const urg = L.filter(x => x.u >= 3).length, def = !abrio && urg > 0; if (def) abrio = true;
       return tarjeta('h-' + tp[0], tp[1], L.length, urg ? urg + (urg === 1 ? ' urgente' : ' urgentes') : '', def, () => L.map(fila).join(''), tp[2]);
     }).join('') + '</div>';
@@ -1485,6 +1489,7 @@
     root.querySelectorAll('[data-film-est]').forEach(x => x.onclick = () => filmEstado(x.dataset.filmEst, x.dataset.estado, x.dataset.detalle || '', x.dataset.fmarca || ''));
     root.querySelectorAll('[data-film-mover]').forEach(x => x.onclick = () => filmMover(x.dataset.filmMover, x.dataset.ffecha, x.dataset.fhora));
     root.querySelectorAll('[data-film-ir]').forEach(x => x.onclick = () => { const el = document.getElementById('film-' + x.dataset.filmIr); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    root.querySelectorAll('[data-hoymodo]').forEach(x => x.onclick = () => { LS.set('hoymodo', x.dataset.hoymodo); render(); });
     root.querySelectorAll('[data-rf]').forEach(b => b.onclick = actualizar);
     root.querySelectorAll('[data-reconectar]').forEach(b => b.onclick = reconectar);
     root.querySelectorAll('[data-dc-ok]').forEach(b => b.onclick = () => { dcVer([b.dataset.dcOk]); render(); });

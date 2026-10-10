@@ -2,13 +2,31 @@
 // 1) Discord: lee canales y mensajes con el token del bot (secreto DISCORD_TOKEN). El panel se identifica con CLAVE.
 // 2) Trello: sirve imágenes y videos adjuntos a tarjetas con un link firmado por el panel (HMAC con CLAVE, vence a las 6 h),
 //    usando las claves de Trello guardadas acá (secretos TRELLO_KEY y TRELLO_TOKEN). Así Ivo ve los archivos sin abrir Trello.
-// Solo lectura. Secretos: CLAVE, DISCORD_TOKEN, TRELLO_KEY, TRELLO_TOKEN.
+// 3) Discord, mensaje privado: POST /dm con { usuario: "<id de Discord>", texto: "..." }. Es lo único que escribe:
+//    el bot le manda un privado a esa persona (recordatorios del panel). También pide CLAVE.
+// Secretos: CLAVE, DISCORD_TOKEN, TRELLO_KEY, TRELLO_TOKEN.
 const b64url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const UA = 'DiscordBot (https://ideamiacontacto-lab.github.io/panel-ideamia, 1.0)';
 
 export default {
   async fetch(req, env) {
-    if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('solo lectura', { status: 405 });
     const u = new URL(req.url);
+
+    // --- mensaje privado de Discord (única ruta que escribe) ---
+    if (req.method === 'POST') {
+      if (u.pathname !== '/dm') return new Response('ruta no permitida', { status: 400 });
+      if (!env.CLAVE || req.headers.get('x-clave') !== env.CLAVE) return new Response('clave incorrecta', { status: 403 });
+      let b = {}; try { b = await req.json(); } catch (e) { return new Response('pedido mal formado', { status: 400 }); }
+      const usuario = String(b.usuario || ''), texto = String(b.texto || '').slice(0, 1800);
+      if (!/^\d{15,22}$/.test(usuario) || !texto.trim()) return new Response('falta el usuario o el texto', { status: 400 });
+      const h = { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'User-Agent': UA, 'content-type': 'application/json' };
+      const canal = await fetch('https://discord.com/api/v10/users/@me/channels', { method: 'POST', headers: h, body: JSON.stringify({ recipient_id: usuario }) });
+      if (!canal.ok) return new Response(await canal.text(), { status: canal.status, headers: { 'content-type': 'application/json' } });
+      const c = await canal.json();
+      const r = await fetch('https://discord.com/api/v10/channels/' + c.id + '/messages', { method: 'POST', headers: h, body: JSON.stringify({ content: texto, allowed_mentions: { parse: [] } }) });
+      return new Response(r.ok ? JSON.stringify({ ok: true }) : await r.text(), { status: r.status, headers: { 'content-type': 'application/json' } });
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('método no permitido', { status: 405 });
 
     // --- adjuntos de Trello: /trello/att/<tarjeta>/<adjunto>/<vence>/<firma>?n=<nombre del archivo> ---
     const m = /^\/trello\/att\/([a-f0-9]{24})\/([a-f0-9]{24})\/(\d+)\/([A-Za-z0-9_-]+)$/.exec(u.pathname);
@@ -33,9 +51,7 @@ export default {
     // --- Discord (solo rutas de lectura de la API) ---
     if (!env.CLAVE || req.headers.get('x-clave') !== env.CLAVE) return new Response('clave incorrecta', { status: 403 });
     if (!/^\/api\/v10\/(guilds|channels)\//.test(u.pathname)) return new Response('ruta no permitida', { status: 400 });
-    const r = await fetch('https://discord.com' + u.pathname + u.search, {
-      headers: { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'User-Agent': 'DiscordBot (https://ideamiacontacto-lab.github.io/panel-ideamia, 1.0)' }
-    });
+    const r = await fetch('https://discord.com' + u.pathname + u.search, { headers: { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'User-Agent': UA } });
     return new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json' } });
   }
 };
