@@ -610,6 +610,8 @@ function actualizar(desdeWeb) {
         if (bt) { b.listas = bt.listas; b.etiquetas = bt.etiquetas; }
       });
     }
+    // filtro de CM y privados de Discord (antes de guardar: así la foto ya refleja a qué lista fue cada pieza). Si falla, no corta la actualización.
+    try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
     snap.generado = new Date().toISOString();
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     P.deleteProperty('ULTIMA_FALLA');
@@ -1412,8 +1414,8 @@ function pruebaPrivado() {
    Se apagan todos juntos con PRIVADOS_DISCORD = no en la pestaña Config. Cada persona necesita DISCORD_ID_<CLAVE> en Config.
    1) Filtro de CM: lo que entra a "Filtro" de un tablero CM se reparte mirando la tarjeta ORIGINAL del SCL (las que llegan al CM
       son espejos sin etiquetas, por eso Butler no podía): con etiqueta (i) → "Contenido no programable"; sin (i) → "Listo para programar".
-      Al CM le llega un privado con cada pieza: qué es, cuándo sale y si es programable.
-   2) Inputs: cuando aparece un input con etiqueta "Pedido del cliente" o "Urgente", privado al social media de esa marca.
+      Al CM no se le manda privado: los avisos de canal de Make salen como siempre.
+   2) Inputs: cuando aparece un input con etiqueta "Urgente", privado al social media de esa marca (una sola vez por input).
    3) Una vez por día (después de las 9): a las diseñadoras lo que quedó pendiente (lo mismo que sale en el canal, de Avisos.gs)
       y al filmmaker las piezas que ya tendría que haber entregado. */
 const fechaAR_ = iso => Utilities.formatDate(new Date(iso), TZ, 'dd/MM HH:mm');
@@ -1469,9 +1471,9 @@ function filtroCM_(snap, dry) {
   });
   return out;
 }
-/* Inputs con etiqueta "Pedido del cliente" o "Urgente" que todavía no se avisaron. La primera vez solo toma nota de los que ya había. */
+/* Inputs con etiqueta "Urgente" que todavía no se avisaron. La primera vez solo toma nota de los que ya había. */
 function inputsParaAvisar_(snap, cat) {
-  const marcados = (snap.cards || []).filter(c => c.cat === 'input' && c.tipo === 'scl' && (c.lab || []).some(x => /pedido del cliente|urgente/.test(norm_(x))));
+  const marcados = (snap.cards || []).filter(c => c.cat === 'input' && c.tipo === 'scl' && (c.lab || []).some(x => /urgente/.test(norm_(x))));
   const prop = P.getProperty('INPUTS_AVISADOS'), ya = {}; (prop || '').split(',').forEach(x => { if (x) ya[x] = 1; });
   return { marcados: marcados, primera: prop == null, nuevos: prop == null ? [] : marcados.filter(c => !ya[c.id]), ya: ya };
 }
@@ -1493,13 +1495,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
   // 1) filtro de CM + aviso a quien lleva el CM de cada marca
   const f = filtroCM_(snap, dry);
   f.problemas.forEach(p => notas.push('Filtro CM · ' + p));
-  const porCM = {}; f.avisar.forEach(m => { const mm = cat.marcas.filter(x => x.slug === m.marca)[0], k = (mm && mm.cm) || ''; (porCM[k] = porCM[k] || []).push(m); });
-  Object.keys(porCM).forEach(k => {
-    const id = idDiscord_(cfg, k), L = porCM[k];
-    const lineas = L.map(m => '• **' + nombreMarca_(cat, m.marca) + '** · ' + String(m.titulo).slice(0, 90) + (m.tipo ? ' · ' + m.tipo : '') + ' · ' + (m.sale ? 'sale ' + fechaAR_(m.sale) : 'sin fecha de salida') + ' · ' + (m.programable ? 'LISTO PARA PROGRAMAR' : 'NO PROGRAMABLE (i)' + (m.movida ? ', la pasé a "' + m.lista + '"' : '')) + ' · ' + m.url);
-    if (!k || !id) { notas.push('Filtro CM · ' + L.length + ' piezas repartidas, pero no hay CM con ID de Discord para avisar (' + (k || 'marca sin CM') + ')'); return; }
-    para(k, id, trozos_('Hola ' + nombreDe_(k) + '. ' + (L.length === 1 ? 'Te entró 1 pieza' : 'Te entraron ' + L.length + ' piezas') + ' a los tableros de CM:', lineas));
-  });
+  // (al CM no se le manda privado: el panel solo acomoda las tarjetas y los avisos de canal de Make salen como siempre)
   // 2) inputs marcados como pedido del cliente o urgente
   const inp = inputsParaAvisar_(snap, cat), porSM = {};
   inp.nuevos.forEach(c => { const mm = cat.marcas.filter(x => x.slug === c.m[0])[0], k = (mm && mm.sm) || ''; (porSM[k] = porSM[k] || []).push(c); });
@@ -1507,31 +1503,39 @@ function privadosArmar_(snap, cat, cfg, opciones) {
   Object.keys(porSM).forEach(k => {
     const id = idDiscord_(cfg, k), L = porSM[k];
     if (!k || !id) { notas.push('Inputs · ' + L.length + ' sin avisar: ' + (k ? 'falta DISCORD_ID_' + k.toUpperCase() + ' en Config' : 'la marca no tiene social media')); return; }
-    const lineas = L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + String(c.n).slice(0, 90) + ' · ' + (c.lab || []).filter(x => /pedido del cliente|urgente/.test(norm_(x))).join(', ') + (c.due ? ' · vence ' + fechaAR_(c.due) : '') + ' · ' + c.url);
+    const lineas = L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + String(c.n).slice(0, 90) + ' · ' + (c.lab || []).filter(x => /urgente/.test(norm_(x))).join(', ') + (c.due ? ' · vence ' + fechaAR_(c.due) : '') + ' · ' + c.url);
     para(k, id, trozos_('Hola ' + nombreDe_(k) + '. Por favor mirá ' + (L.length === 1 ? 'este input que te cargaron' : 'estos ' + L.length + ' inputs que te cargaron') + ':', lineas).map((t, i, a) => i === a.length - 1 ? t + '\nCuando lo veas, marcalo en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
     L.forEach(c => sinAvisar[c.id] = k);
   });
   // 3) diarios: diseñadoras (lo mismo que arma Avisos.gs para el canal) y filmmaker
+  const filmInfo = { ya: {}, atrasadas: [], porAvisar: {} };
   if (o.diarios) {
+    // diseñadoras: SOLO lo que no entregaron en la entrega de ayer. Sale el día siguiente a cada entrega (los días los define Avisos.gs,
+    // que arma el aviso del canal): así el canal y el privado dicen lo mismo. Nada de pedidos extra, urgentes ni correcciones.
     if (typeof avisosDisenoArmar_ === 'function' && typeof AV_MARCAS !== 'undefined') {
       const porQuien = {};
       avisosDisenoArmar_(o.ahora || hoyAR_(), snap.cards).forEach(m => {
         const k = Object.keys(AV_MARCAS).filter(x => AV_MARCAS[x].marca === m.marca)[0]; if (!k) return;
-        (porQuien[AV_MARCAS[k].quien] = porQuien[AV_MARCAS[k].quien] || []).push(String(m.texto).replace(/^<@\d+> · /, ''));
+        const falt = String(m.texto).split('\n\n').filter(b => /^📦/.test(b))[0]; if (!falt) return;
+        (porQuien[AV_MARCAS[k].quien] = porQuien[AV_MARCAS[k].quien] || []).push('**' + m.marca + '**\n' + falt.split('\n').slice(1).join('\n'));
       });
       Object.keys(porQuien).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
-        trozos_('Hola. Te paso por privado lo que quedó pendiente de diseño (también está en el canal de cada marca):', porQuien[id].join('\n\n').split('\n'))));
+        trozos_('Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):', porQuien[id].join('\n').split('\n'))));
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
+    // filmmaker: cada pieza atrasada se le avisa UNA sola vez (no se repite todos los días)
+    (P.getProperty('FILM_AVISADAS') || '').split(',').forEach(x => { if (x) filmInfo.ya[x] = 1; });
     cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).forEach(p => {
-      const L = atrasadasFilm_(snap, filmConfig_(cfg, cat)), id = idDiscord_(cfg, p.clave);
+      const todas = atrasadasFilm_(snap, filmConfig_(cfg, cat)), L = todas.filter(c => !filmInfo.ya[c.id]), id = idDiscord_(cfg, p.clave);
+      todas.forEach(c => filmInfo.atrasadas.push(c.id));
       if (!L.length) return;
       if (!id) { notas.push('Filmmaker · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
       const lineas = L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + (c.formato === 'historia' ? 'Historia' : 'Reel') + ' · ' + String(c.n).slice(0, 80) + (c.etapa === 'correccion' ? ' · A CORREGIR' : '') + ' · ' + (new Date(c.salida) < new Date() ? 'salía ' : 'sale ') + fechaAR_(c.salida) + ' · ' + c.url);
       para(p.clave, id, trozos_('Hola ' + p.nombre + '. ' + (L.length === 1 ? 'Esta pieza ya tendría que estar entregada' : 'Estas ' + L.length + ' piezas ya tendrían que estar entregadas') + ' (reels: 48 h antes de salir; historias: el día anterior):', lineas)
         .map((t, i, a) => i === a.length - 1 ? t + '\nCuando las tengas, marcá "Listo" en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
+      L.forEach(c => filmInfo.porAvisar[c.id] = p.clave);
     });
   }
-  return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar };
+  return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo };
 }
 /* Lo llama cada actualización. Mueve lo del filtro de CM y manda los privados; si un envío falla, queda anotado y se reintenta en la próxima. */
 function privadosEnviar_(snap, cat, cfg) {
@@ -1545,6 +1549,8 @@ function privadosEnviar_(snap, cat, cfg) {
   const avisados = r.inputs.marcados.filter(c => r.inputs.ya[c.id] || !activos || (r.inputsPorAvisar[c.id] && !fallaron[r.inputsPorAvisar[c.id]]) || r.inputs.primera).map(c => c.id);
   P.setProperty('INPUTS_AVISADOS', avisados.join(',').slice(0, 8800));
   P.setProperty('CM_REVISADAS', r.filtro.revisadas.join(',').slice(0, 8800));
+  // filmmaker: quedan anotadas las atrasadas ya avisadas (y solo mientras sigan atrasadas); las que fallaron se reintentan mañana
+  if (diarios) P.setProperty('FILM_AVISADAS', r.film.atrasadas.filter(id => r.film.ya[id] || !activos || (r.film.porAvisar[id] && !fallaron[r.film.porAvisar[id]])).join(',').slice(0, 8800));
   if (diarios) P.setProperty('PRIVADOS_DIA', hoyId);
   if (error) P.setProperty('DISCORD_DM_ERROR', new Date().toISOString() + ' · ' + error); else if (r.msgs.length) P.deleteProperty('DISCORD_DM_ERROR');
   if (r.notas.length) P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ' + r.notas.join(' | ')).slice(0, 900)); else P.deleteProperty('PRIVADOS_NOTAS');
@@ -1561,7 +1567,7 @@ function probarPrivados() {
   const r = privadosArmar_(snap, cat, cfg, { dry: true, diarios: true, ahora: hoy });
   console.log('FILTRO CM' + (r.filtro.primera ? ' (primera vez: revisa todo lo que ya hay)' : '') + ': movería ' + r.filtro.movidas.length + ' · avisaría al CM de ' + r.filtro.avisar.length + ' · problemas: ' + (r.filtro.problemas.join(' | ') || 'ninguno'));
   r.filtro.movidas.forEach(m => console.log('   ' + m.tablero + ' → ' + m.lista + ' · ' + String(m.titulo).slice(0, 60) + (m.sale ? ' · sale ' + fechaAR_(m.sale) : '')));
-  console.log('INPUTS con Pedido del cliente o Urgente: ' + r.inputs.marcados.length + ' · ' + (r.inputs.primera ? 'es la PRIMERA vez: se toma nota de estos y se avisa solo de los que entren después' : 'nuevos sin avisar: ' + r.inputs.nuevos.length));
+  console.log('INPUTS con etiqueta Urgente: ' + r.inputs.marcados.length + ' · ' + (r.inputs.primera ? 'es la PRIMERA vez: se toma nota de estos y se avisa solo de los que entren después' : 'nuevos sin avisar: ' + r.inputs.nuevos.length));
   r.inputs.marcados.slice(0, 12).forEach(c => console.log('   ' + c.tablero + ' · ' + String(c.n).slice(0, 60) + ' · ' + (c.lab || []).join(', ')));
   console.log('NOTAS: ' + (r.notas.join(' | ') || 'ninguna'));
   console.log('PRIVADOS QUE SALDRÍAN HOY (' + r.msgs.length + '):');
