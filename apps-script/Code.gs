@@ -53,8 +53,12 @@ function leerDiscord_(cfg, cat) {
   todosLosCanales.forEach(c => { if (c.type === 4) categorias[c.id] = c.name; });
   const canales = todosLosCanales.filter(c => c.type === 0 || c.type === 5 || c.type === 2);
   let hilos = []; try { hilos = (get('/guilds/' + guild + '/threads/active').threads || []); } catch (e) {}
-  const todos = canales.concat(hilos), nombres = {};
-  todos.forEach(c => nombres[c.id] = c.name);
+  // canales donde el bot no tiene permiso: no se vuelven a pedir hasta mañana (eran 43 pedidos perdidos en cada lectura)
+  let sinP = {}; try { const g = JSON.parse(P.getProperty('DISCORD_SIN_PERMISO') || '{}'); if (g.t && Date.now() - g.t < 24 * 36e5) sinP = g; } catch (e) {}
+  const vedados = {}; (sinP.ids || []).forEach(id => vedados[id] = 1); const nuevosVedados = [];
+  const nombres = {}; canales.concat(hilos).forEach(c => nombres[c.id] = c.name);
+  const todos = canales.concat(hilos).filter(c => !vedados[c.id]);
+  PEDIDOS_ += 2 + todos.length;
   // marca de cada canal: por el nombre del canal, de su canal padre (hilos) o de su categoría
   const porId = {}; todosLosCanales.concat(hilos).forEach(c => porId[c.id] = c);
   const marcaCanal = ch => { let s = ch.name || ''; const p = porId[ch.parent_id]; if (p) { s += ' ' + p.name; const g = porId[p.parent_id]; if (g) s += ' ' + g.name; } return marcasEn_(s, cat.marcas)[0] || ''; };
@@ -67,8 +71,9 @@ function leerDiscord_(cfg, cat) {
     const rs = UrlFetchApp.fetchAll(lote.map(c => ({ url: API + '/channels/' + c.id + '/messages?limit=50', headers: H, muteHttpExceptions: true })));
     rs.forEach((r, j) => {
       st.codigos[r.getResponseCode()] = (st.codigos[r.getResponseCode()] || 0) + 1;
-      if (r.getResponseCode() !== 200) return; // canal sin permiso para el bot
       const ch = lote[j];
+      if (r.getResponseCode() === 403) nuevosVedados.push(ch.id);
+      if (r.getResponseCode() !== 200) return; // canal sin permiso para el bot
       JSON.parse(r.getContentText()).forEach(m => {
         st.mensajes++; if (new Date(m.timestamp).getTime() >= limite) { st.recientes++; st.menciones += (m.mentions || []).length; if (!m.content && !(m.attachments || []).length && !(m.embeds || []).length) st.vacios++; }
         if (new Date(m.timestamp).getTime() < limite) return;
@@ -87,7 +92,8 @@ function leerDiscord_(cfg, cat) {
     if (i + 10 < todos.length) Utilities.sleep(1100);
   }
   Object.keys(out).forEach(k => { out[k].sort((a, b) => b.fecha.localeCompare(a.fecha)); out[k] = out[k].slice(0, 40); });
-  return { generado: new Date().toISOString(), canales: todos.length, stats: st, porPersona: out };
+  if (nuevosVedados.length || !sinP.t) P.setProperty('DISCORD_SIN_PERMISO', JSON.stringify({ t: sinP.t || Date.now(), ids: (sinP.ids || []).concat(nuevosVedados) }).slice(0, 8900));
+  return { generado: new Date().toISOString(), canales: todos.length, sinPermiso: (sinP.ids || []).length + nuevosVedados.length, stats: st, porPersona: out };
 }
 
 function cambiarClave_(prop, titulo) {
@@ -297,6 +303,7 @@ function trello_(path, params, method) {
   const url = 'https://api.trello.com/1' + path + '?' + Object.keys(q).map(x => x + '=' + encodeURIComponent(q[x])).join('&');
   const op = { method: method, muteHttpExceptions: true };
   if (method !== 'get' && params && Object.keys(params).length) { const f = {}; Object.keys(params).forEach(x => { if (params[x] != null) f[x] = String(params[x]); }); op.payload = f; } // como formulario: Trello lo lee igual que en la URL
+  PEDIDOS_++;
   const r = UrlFetchApp.fetch(url, op);
   if (r.getResponseCode() >= 300) throw new Error('Trello ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
   return JSON.parse(r.getContentText());
@@ -309,6 +316,16 @@ function listaRevision_(listas, accion) {
   for (let i = 0; i < pats.length; i++) { const l = (listas || []).filter(x => pats[i].test(norm_(x.name || x.n || '')))[0]; if (l) return l; }
   return null;
 }
+/* Google permite 20.000 pedidos a otros servicios por día: se cuentan para poder verlo en ?action=estado. */
+let PEDIDOS_ = 0;
+function anotarUso_(seg) {
+  try {
+    const hoy = ymd_(new Date()); let u = {}; try { u = JSON.parse(P.getProperty('USO_DIA') || '{}'); } catch (e) {}
+    if (u.dia !== hoy) u = { dia: hoy, pedidos: 0, lecturas: 0, seg: 0, ayer: u.dia ? { dia: u.dia, pedidos: u.pedidos, lecturas: u.lecturas, seg: u.seg } : null };
+    u.pedidos += PEDIDOS_; u.lecturas++; u.seg += Math.round(seg); u.ultima = { pedidos: PEDIDOS_, seg: Math.round(seg) };
+    P.setProperty('USO_DIA', JSON.stringify(u)); PEDIDOS_ = 0;
+  } catch (e) {}
+}
 /* Trello permite ~100 pedidos cada 10 s por token: se leen en tandas de 25 con una pausa entre tandas. */
 function trelloVarios_(rutas) {
   const k = P.getProperty('TRELLO_KEY'), tk = P.getProperty('TRELLO_TOKEN');
@@ -317,6 +334,7 @@ function trelloVarios_(rutas) {
     for (let i = 0; i < idx.length; i += 25) {
       if (i) Utilities.sleep(3000);
       const tanda = idx.slice(i, i + 25);
+      PEDIDOS_ += tanda.length;
       const reqs = tanda.map(j => ({ url: 'https://api.trello.com/1' + rutas[j] + (rutas[j].indexOf('?') >= 0 ? '&' : '?') + 'key=' + k + '&token=' + tk, muteHttpExceptions: true }));
       UrlFetchApp.fetchAll(reqs).forEach((res, n) => { const j = tanda[n]; codigo[j] = res.getResponseCode(); try { if (codigo[j] < 300) out[j] = JSON.parse(res.getContentText()); } catch (e) {} });
     }
@@ -361,22 +379,26 @@ function leerTrello_(cat) {
     if (!esProject && !marcas.length) return;
     elegidos.push({ id: b.id, nombre: b.name, url: b.shortUrl, tipo: esProject ? 'project' : tipo, marca: marcas[0] || '' });
   });
-  const rutas = [];
+  // Lectura unida: un solo pedido por tablero (listas, etiquetas y tarjetas juntas) en vez de dos. Se enciende sola cuando
+  // probarLecturaUnida() comprueba que trae exactamente lo mismo (propiedad LECTURA_UNIDA).
+  const unida = P.getProperty('LECTURA_UNIDA') === 'si', rutas = [];
   elegidos.forEach(b => {
+    if (unida) { rutas.push(RUTA_TABLERO_(b.id)); return; }
     rutas.push('/boards/' + b.id + '?fields=name&lists=open&list_fields=name,pos&labels=all&label_fields=name,color&labels_limit=100');
     rutas.push('/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,dateLastActivity,labels&attachments=true&attachment_fields=name,url,mimeType');
   });
   const res = trelloVarios_(rutas);
   const cards = [], haceUnaSemana = Date.now() - 7 * 864e5, indice = {}, fallas = [];
   elegidos.forEach((b, i) => {
+    const iA = unida ? i : i * 2, iB = unida ? i : i * 2 + 1, tarjetas = res[iB] == null ? null : unida ? (Array.isArray(res[iB].cards) ? res[iB].cards : null) : res[iB];
     // si Trello no devolvió este tablero (ni al reintentar), se avisa y después se conservan sus tarjetas de la lectura anterior
-    if (res[i * 2] == null || res[i * 2 + 1] == null) { fallas.push(b.nombre + ' (Trello ' + ((res[i * 2] == null ? res.codigos[i * 2] : res.codigos[i * 2 + 1]) || 'sin respuesta') + ')'); b.fallo = true; return; }
-    const info = res[i * 2] || {}, listas = {};
+    if (res[iA] == null || tarjetas == null) { fallas.push(b.nombre + ' (Trello ' + ((res[iA] == null ? res.codigos[iA] : res.codigos[iB]) || 'sin respuesta') + ')'); b.fallo = true; return; }
+    const info = res[iA] || {}, listas = {};
     (info.lists || []).forEach(l => listas[l.id] = l);
     // listas y etiquetas del tablero: para crear y mover tarjetas desde el panel
     b.listas = (info.lists || []).map(l => ({ id: l.id, n: l.name, cat: catLista_(l.name) }));
     b.etiquetas = (info.labels || []).map(x => ({ id: x.id, n: x.name || '', c: x.color || '' }));
-    (res[i * 2 + 1] || []).forEach(c => {
+    tarjetas.forEach(c => {
       const l = listas[c.idList]; if (!l) return;
       const catL = catLista_(l.name);
       if (b.tipo !== 'project') indice[String(c.shortUrl).split('/c/')[1]] = { id: c.id, n: c.name, m: b.marca, lista: l.name, tablero: b.nombre, ini: c.start, due: c.due, dc: !!c.dueComplete, url: c.shortUrl, lab: (c.labels || []).map(x => x.name).filter(Boolean) };
@@ -414,8 +436,11 @@ function leerTrello_(cat) {
   });
   // Historial de las piezas (para Ivo): cuándo se cargó la tarjeta en Diseño/Producción, cuándo le pusieron fecha de salida
   // a la tarjeta de SCL (y para qué día) y cuándo la movieron por última vez. Últimos 21 días de actividad de esos tableros.
-  const hist = {};
-  try {
+  // Se vuelve a pedir cada media hora (son 27 pedidos): entre medio se usa lo guardado.
+  let hist = {}, histGuardado = null;
+  try { histGuardado = leerJson_('HIST_FILE_ID', 'panel-ideamia-historial.json'); } catch (e) {}
+  if (histGuardado && histGuardado.t && Date.now() - histGuardado.t < 28 * 6e4 && histGuardado.h) hist = histGuardado.h;
+  else try {
     const desde = new Date(Date.now() - 21 * 864e5).toISOString();
     const conHist = elegidos.filter(b => ['scl', 'diseno', 'produccion'].indexOf(b.tipo) >= 0);
     const acts = trelloVarios_(conHist.map(b => '/boards/' + b.id + '/actions?filter=createCard,copyCard,updateCard:due,updateCard:idList&since=' + desde + '&limit=1000&fields=type,date,data'));
@@ -426,7 +451,10 @@ function leerTrello_(cat) {
       else if (d.old && 'due' in d.old) { if (!h.fecha || a.date > h.fecha) { h.fecha = a.date; h.para = d.card.due || null; h.antes = d.old.due || null; } }
       else if (d.listAfter) { if (!h.movida || a.date > h.movida) { h.movida = a.date; h.a = d.listAfter.name; } }
     }));
-  } catch (e) {}
+    // solo se guarda si respondieron todos los tableros; si no, se reintenta en la próxima lectura
+    if (acts.every(x => x != null)) guardarJson_('HIST_FILE_ID', 'panel-ideamia-historial.json', { t: Date.now(), h: hist });
+    else if (histGuardado && histGuardado.h) Object.keys(histGuardado.h).forEach(k => { if (!hist[k]) hist[k] = histGuardado.h[k]; });
+  } catch (e) { if (histGuardado && histGuardado.h) hist = histGuardado.h; }
   // Las tarjetas del Project suelen ser enlaces a una tarjeta de otro tablero (el título es la URL): se toma marca y título de la original.
   const vivas = {}; cards.forEach(c => vivas[c.id] = 1);
   // Guiones: título, fecha de entrega (= fecha de inicio de la tarjeta de SCL) y fecha de salida, de la tarjeta original.
@@ -600,6 +628,7 @@ function actualizar(desdeWeb) {
   const lock = LockService.getScriptLock();
   // si justo está corriendo el disparador, el botón de la web espera a que termine en vez de fallar
   if (!lock.tryLock(desdeWeb ? 110000 : 5000)) return { ok: false, error: 'Ya se está actualizando' };
+  const T0_ = Date.now(); PEDIDOS_ = 0;
   try {
     // recién actualizado (por el disparador o por otra persona): no se vuelve a leer todo
     if (desdeWeb) { try { const s = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = new Date(s.generado || 0).getTime(); if (Date.now() - g < 60000) return { ok: true, reciente: true, generado: new Date(g).toISOString(), incompletos: s.fallas || [] }; } catch (e) {} }
@@ -624,8 +653,13 @@ function actualizar(desdeWeb) {
     // Lectura automática con la API de Claude: apagada salvo que Config → IA_AUTOMATICA diga "sí" (gasta créditos).
     if (si_(cfg.IA_AUTOMATICA)) recomendarTarjetas_(snap, cat, cfg);
     // Discord: menciones de cada uno (solo si hay bot y servidor cargados)
-    try { const dc = leerDiscord_(cfg, cat); if (dc) { guardarJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json', dc); P.deleteProperty('DISCORD_ERROR'); } }
-    catch (e) { P.setProperty('DISCORD_ERROR', String(e.message).slice(0, 300)); }
+    // Se lee cada 20 minutos (desde el botón de la web, si pasaron 3) y nunca si la lectura de Trello ya vino lenta:
+    // así una demora de Discord no corta la actualización por tiempo.
+    const dcHace = Date.now() - Number(P.getProperty('DISCORD_T') || 0), vaLento = Date.now() - T0_ > 200000;
+    if (!vaLento && dcHace > (desdeWeb ? 3 : 18) * 6e4) {
+      try { const dc = leerDiscord_(cfg, cat); if (dc) { guardarJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json', dc); P.deleteProperty('DISCORD_ERROR'); } P.setProperty('DISCORD_T', String(Date.now())); }
+      catch (e) { P.setProperty('DISCORD_ERROR', String(e.message).slice(0, 300)); }
+    }
     try { recordatoriosFilm_(); } catch (e) {}
     CacheService.getScriptCache().removeAll(['snap', 'estados']); // 'estados' se rearma desde la planilla (por si alguien la editó a mano)
     construirBases_();
@@ -634,7 +668,7 @@ function actualizar(desdeWeb) {
     // queda anotado para que la web lo muestre (antes solo se veía en el registro de ejecuciones de Google)
     P.setProperty('ULTIMA_FALLA', JSON.stringify({ cuando: new Date().toISOString(), mensaje: String(e.message || e).replace(/key=[^&\s]+|token=[^&\s]+/g, '…').slice(0, 250) }));
     throw e;
-  } finally { lock.releaseLock(); }
+  } finally { anotarUso_((Date.now() - T0_) / 1000); lock.releaseLock(); }
 }
 
 /* Para revisar desde el editor: cuántas tarjetas trajo por marca y tipo de lista. */
@@ -1735,6 +1769,30 @@ function pruebaMuestras() {
   M.forEach(t => console.log(t.split('\n').slice(0, 2).join(' · ') + ' (' + t.length + ' caracteres)'));
 }
 
+/* PRUEBA sin efectos: compara la lectura de siempre (2 pedidos por tablero) con la lectura unida (1 pedido por tablero).
+   Tienen que dar las mismas tarjetas, con las mismas etiquetas y adjuntos, en todos los tableros. */
+const RUTA_TABLERO_ = id => '/boards/' + id + '?fields=name&lists=open&list_fields=name,pos&labels=all&label_fields=name,color&labels_limit=100' +
+  '&cards=open&card_fields=name,desc,due,dueComplete,start,idList,shortUrl,dateLastActivity,labels&card_attachments=true&card_attachment_fields=name,url,mimeType';
+function probarLecturaUnida() {
+  const cat = catalogo_(), boards = trello_('/members/me/boards', { filter: 'open', fields: 'name,shortUrl' });
+  const el = boards.filter(b => tipoTablero_(b.name) || norm_(b.name) === 'project');
+  const t0 = Date.now(), A = trelloVarios_(el.map(b => '/boards/' + b.id + '/cards?filter=open&fields=name,desc,due,dueComplete,start,idList,shortUrl,dateLastActivity,labels&attachments=true&attachment_fields=name,url,mimeType'));
+  const t1 = Date.now(), B = trelloVarios_(el.map(b => RUTA_TABLERO_(b.id))), t2 = Date.now();
+  const firma = L => (L || []).map(c => [c.id, c.name, c.due, c.dueComplete, c.start, c.idList, c.shortUrl, String(c.desc || '').length, (c.labels || []).map(x => x.name).join(','), (c.attachments || []).map(a => a.url).join(',')].join('|')).sort().join('\n');
+  let iguales = 0; const dif = [];
+  el.forEach((b, i) => {
+    if (!A[i] || !B[i]) { dif.push(b.name + ': sin respuesta (' + A.codigos[i] + '/' + B.codigos[i] + ')'); return; }
+    if (firma(A[i]) === firma(B[i].cards)) iguales++; else dif.push(b.name + ': ' + A[i].length + ' tarjetas contra ' + (B[i].cards || []).length);
+  });
+  console.log('Tableros: ' + el.length + ' · iguales: ' + iguales + ' · distintos: ' + dif.length + ' · tarjetas: ' + A.reduce((s, x) => s + (x ? x.length : 0), 0));
+  console.log('Tiempo lectura de siempre (solo tarjetas): ' + (t1 - t0) + ' ms · lectura unida (todo): ' + (t2 - t1) + ' ms · la más grande: ' + Math.max.apply(null, A.map(x => x ? x.length : 0)) + ' tarjetas');
+  if (dif.length) console.log('DISTINTOS:\n' + dif.join('\n'));
+  // si coincide todo, la lectura unida queda encendida; si algo difiere, se vuelve a la de siempre
+  if (!dif.length && iguales === el.length) { P.setProperty('LECTURA_UNIDA', 'si'); console.log('LECTURA UNIDA ENCENDIDA'); } else { P.deleteProperty('LECTURA_UNIDA'); console.log('Se sigue con la lectura de siempre'); }
+}
+/* Para ver el gasto del día: pedidos a otros servicios (tope de Google: 20.000) y segundos de lectura (tope: 90 minutos = 5.400). */
+function verUso() { console.log(P.getProperty('USO_DIA') + ' · lectura unida: ' + P.getProperty('LECTURA_UNIDA') + ' · canales de Discord sin permiso: ' + ((JSON.parse(P.getProperty('DISCORD_SIN_PERMISO') || '{}').ids || []).length)); }
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
@@ -1956,6 +2014,7 @@ function doGet(e) {
         // a qué lista va una pieza al aprobarla o mandarla a corregir, por tablero (si dice FALTA, ese botón no anda en ese tablero)
         revision: (snap.tableros || []).filter(b => b.tipo === 'diseno' || b.tipo === 'produccion').map(b => { const ok = listaRevision_(b.listas, 'aprobar'), co = listaRevision_(b.listas, 'corregir'); return b.nombre + ' · aprobar → ' + (ok ? ok.n : 'FALTA') + ' · corregir → ' + (co ? co.n : 'FALTA'); }),
         claves: { trello: !!P.getProperty('TRELLO_TOKEN'), claude: !!P.getProperty('ANTHROPIC_KEY'), equipo: !!P.getProperty('TEAM_KEY'), project: !!P.getProperty('PROJECT_KEY'), discord: !!P.getProperty('DISCORD_TOKEN') },
+        uso: (() => { try { return JSON.parse(P.getProperty('USO_DIA') || 'null'); } catch (e) { return null; } })(), lecturaUnida: P.getProperty('LECTURA_UNIDA') === 'si',
         discord: (() => { const d = leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'); return { generado: d.generado || null, canales: d.canales || 0, stats: d.stats || null, menciones: Object.keys(d.porPersona || {}).map(k => k + ':' + d.porPersona[k].length), privado: P.getProperty('DISCORD_DM_ERROR') || null, error: (P.getProperty('DISCORD_ERROR') || '').replace(/[A-Za-z0-9_.-]{24,}/g, '…') || null }; })() }, q.cb);
     }
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
