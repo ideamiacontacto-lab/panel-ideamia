@@ -433,7 +433,8 @@ function leerTrello_(cat) {
   cards.forEach(c => {
     if (c.cat !== 'guion' && c.cat !== 'pieza') return;
     const m = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), orig = m && indice[m[1]];
-    if (!orig) return;
+    // sin tarjeta original (archivada o de un tablero que no se lee): se muestra igual, con un título claro en vez del link
+    if (!orig) { if (m && c.cat === 'pieza') { c.sinOrig = true; c.n = 'Pieza sin título (no encuentro la tarjeta original de SCL)'; } return; }
     c.n = orig.n; c.ourl = orig.url; c.olista = orig.tablero + ' · ' + orig.lista; c.entrega = orig.ini || null; c.salida = orig.due || null; c.lab = (c.lab || []).concat((orig.lab || []).filter(x => (c.lab || []).indexOf(x) < 0));
     // a veces se publica directo sin pasar la tarjeta de guiones: si la original ya salió, se marca para ordenar
     // "ya salió" solo si la tarjeta de SCL está en una lista de publicado o la marcaron completa: que haya pasado la fecha no alcanza (si sigue en revisión, está atrasada y hay que verla igual)
@@ -762,7 +763,9 @@ function panel_(personaClave, ctx) {
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
     if (c.cat === 'guion') return true;
     // Ivo: solo lo que le dejan en revisión en Diseño y Producción (más los guiones, arriba)
-    if (c.cat === 'pieza') return esRevisa && (c.etapa === 'revision' || c.etapa === 'pendiente') && !c.salio && !/^https?:\/\/trello\.com\/c\//.test(c.n);
+    // lo que está en revisión se muestra SIEMPRE (aunque la de SCL figure programada o no se encuentre la original): esconderlo era perder piezas.
+    // Lo pendiente (próximas entregas) sí se filtra: si ya salió o no tiene original, no hay nada que entregar.
+    if (c.cat === 'pieza') return esRevisa && (c.etapa === 'revision' || (c.etapa === 'pendiente' && !c.salio && !c.sinOrig));
     if (esRevisa && !esProject) return false;
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
@@ -1138,6 +1141,57 @@ function auditarRevision() {
   console.log('El panel muestra y ya NO están en revisión: ' + sobran.length + (sobran.length ? ' → ' + sobran.slice(0, 8).map(c => c.tablero + ' · ' + c.n.slice(0, 40)).join(' | ') : ''));
 }
 
+/* ---------------- revisión EN VIVO ----------------
+   Lo que está AHORA en "En revisión" de cada tablero de Diseño y Producción, leído directo de Trello.
+   La web lo pide al abrir la vista de quien revisa, así una pieza recién movida aparece al momento
+   (sin esperar la lectura general de cada 10 minutos). Si un tablero no responde, se informa cuál. */
+function revisionViva_() {
+  const c = CacheService.getScriptCache();
+  let tabs = null; try { tabs = JSON.parse(c.get('tabsRev') || 'null'); } catch (e) {}
+  if (!tabs) {
+    const cat = catalogo_();
+    tabs = trello_('/members/me/boards', { filter: 'open', fields: 'name,shortUrl' })
+      .map(b => ({ id: b.id, nombre: b.name, url: b.shortUrl, tipo: tipoTablero_(b.name), marca: marcasEn_(b.name.replace(/^\S+\s*/, ''), cat.marcas)[0] || '' }))
+      .filter(b => (b.tipo === 'diseno' || b.tipo === 'produccion') && b.marca);
+    c.put('tabsRev', JSON.stringify(tabs), 3600);
+  }
+  const res = trelloVarios_(tabs.map(b => '/boards/' + b.id + '/lists?filter=open&fields=name&cards=open&card_fields=name,due,dueComplete,start,shortUrl,dateLastActivity,labels'));
+  const cards = [], fallas = [];
+  tabs.forEach((b, i) => {
+    if (res[i] == null) { fallas.push(b.nombre); return; }
+    res[i].forEach(l => {
+      const n = norm_(l.name); if (!/revisi/.test(n)) return;
+      (l.cards || []).forEach(k => cards.push({
+        id: k.id, n: k.name, d: '', due: k.due, dc: !!k.dueComplete, ini: k.start, lista: l.name, cat: 'pieza', etapa: 'revision',
+        formato: /histori/.test(n) ? 'historia' : /reel|video/.test(n) ? 'reel' : b.tipo === 'produccion' ? 'video' : 'diseno',
+        tipo: b.tipo, tablero: b.nombre, turl: b.url, url: k.shortUrl, act: k.dateLastActivity, lab: (k.labels || []).map(x => x.name).filter(Boolean), att: [], m: [b.marca]
+      }));
+    });
+  });
+  // el título de estas tarjetas es un link a la original de SCL: se trae la original para mostrar nombre, fecha de salida y etiquetas
+  const conLink = cards.map(x => ({ x: x, s: (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(x.n) || [])[1] })).filter(o => o.s);
+  if (conLink.length) {
+    const or = trelloVarios_(conLink.map(o => '/cards/' + o.s + '?fields=name,due,start,dueComplete,shortUrl,labels,closed&list=true&list_fields=name&board=true&board_fields=name'));
+    conLink.forEach((o, i) => {
+      const g = or[i], x = o.x;
+      if (!g) { x.sinOrig = true; x.n = 'Pieza sin título (no encuentro la tarjeta original de SCL)'; return; }
+      x.n = g.name; x.ourl = g.shortUrl; x.olista = ((g.board || {}).name || '') + ' · ' + ((g.list || {}).name || '') + (g.closed ? ' (archivada)' : '');
+      x.entrega = g.start || null; x.salida = g.due || null;
+      x.lab = x.lab.concat((g.labels || []).map(y => y.name).filter(y => y && x.lab.indexOf(y) < 0));
+      const t = norm_(x.n + ' ' + x.lab.join(' '));
+      if (x.formato === 'video') x.formato = /histori/.test(t) ? 'historia' : 'reel'; else if (x.formato === 'diseno' && /carrus/.test(t)) x.formato = 'carrusel';
+    });
+  }
+  return { ok: true, leido: new Date().toISOString(), cards: cards, fallas: fallas, tableros: tabs.length };
+}
+
+/* Prueba de solo lectura de la revisión en vivo: cuántas piezas hay ahora en revisión y con qué título quedan. */
+function probarRevisionViva() {
+  const t0 = Date.now(), r = revisionViva_();
+  console.log('Tableros leídos: ' + r.tableros + ' · sin respuesta: ' + (r.fallas.join(', ') || 'ninguno') + ' · piezas en revisión: ' + r.cards.length + ' · tardó ' + (Date.now() - t0) + ' ms');
+  r.cards.forEach(c => console.log('   ' + c.tablero + ' · ' + c.formato + ' · ' + c.n.slice(0, 50) + (c.salida ? ' · sale ' + c.salida.slice(0, 10) : '') + (c.sinOrig ? ' · SIN ORIGINAL' : '')));
+}
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
@@ -1364,6 +1418,10 @@ function doGet(e) {
     if (q.action === 'equipo') return json_({ ok: true, equipo: equipo_() }, q.cb);
     if (q.action === 'cliente') return json_(vistaCliente_(q.marca, q.dias), q.cb); // calendario provisorio de una marca (página de links del cliente)
     if (q.action === 'burgersMes') return json_(burgersMes_(q.marca), q.cb); // burger del mes cargada por el cliente (pestaña Anual)
+    if (q.action === 'revision') { // lo que está en revisión AHORA (para quien revisa): lectura directa de Trello
+      if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
+      try { return json_(revisionViva_(), q.cb); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer Trello en vivo: ' + String(e.message || e).slice(0, 200) }, q.cb); }
+    }
     if (q.action === 'mio') { // solo el tablero Project del project (para refrescar "Mi día" sin recargar todo)
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       try { return json_({ ok: true, mio: miTablero_() }, q.cb); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer el tablero Project: ' + String(e.message || e).slice(0, 200) }, q.cb); }
