@@ -1880,8 +1880,7 @@ function pruebaTareasMes() {
     discordPrivado_(yo.id, '**MUESTRA · privado a ' + p.nombre + '** · *el primer día hábil del mes, a la mañana*');
     textos.forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)\n' + t); });
     const snapP = snapshot_(), datosP = anualDatos_(snapP, cat);
-    cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snapP, datosP, prox) || []).forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)
-' + t); }));
+    cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snapP, datosP, prox) || []).forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)\n' + t); }));
   });
 }
 
@@ -2047,7 +2046,6 @@ function auditarInputs() {
    le llega, junto con sus tareas del mes y por marca: las fechas del mes con la acción prevista, cuáles no están cargadas en la lista
    de Efemérides de Trello, qué campañas de los meses siguientes hay que empezar a planificar ya, y las metas del período.
    Anticipación (la define el propio calendario): campañas mayores 30 días hábiles antes, campañas especiales 20. */
-const MESES_ = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 function docTexto_(id) {
   PEDIDOS_++;
   const r = UrlFetchApp.fetch('https://docs.google.com/document/d/' + id + '/export?format=txt', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
@@ -2062,22 +2060,26 @@ function recursoDoc_(snap, slug, patron) {
   }
   return L.length ? { tarjeta: L[0].url } : null;
 }
-const nivelAccion_ = a => { const n = norm_(a); return /campana integral|influencer|pauta/.test(n) ? 1 : /accion previa|colab|sorteo/.test(n) ? 2 : (!n || /aislada|quizas|\?\s*$/.test(n)) ? 4 : 3; };
+const nivelAccion_ = a => { const n = norm_(a); return /campana integral|influencer|pauta/.test(n) ? 1 : /accion previa|colab|sorteo|campana|activacion|promocion|reel/.test(n) ? 2 : (!n || /aislada|quizas|\?\s*$/.test(n)) ? 4 : 3; };
+/* Acepta los dos formatos que usan los calendarios: "6 de Enero → Reyes Magos: acción" y "6 de enero - Día de Reyes: acción"
+   (también "11 de junio al 19 de julio: Mundial"), con el mes como título ("ENERO" o "ENERO:"). */
 function calendarioAnualParse_(txt) {
   const out = []; let mes = -1, pendiente = null;
   String(txt).split(/\r?\n/).forEach(l0 => {
-    const l = l0.replace(/\*/g, '').replace(/^[\s\-•·●○▪■◦>]+/, '').trim(); if (!l) return;
-    const h = MESES_.indexOf(norm_(l)); if (h >= 0) { mes = h; pendiente = null; return; }
+    const l = l0.replace(/\*/g, '').replace(/^[\s\-•·●○▪■◦>.]+/, '').trim(); if (!l) return;
+    const h = MESES_.indexOf(norm_(l.replace(/\s*:\s*$/, ''))); if (h >= 0) { mes = h; pendiente = null; return; }
     if (mes < 0) return;
-    const m = /^(.{1,60}?)\s*(?:→|->|=>)\s*(.*)$/.exec(l);
+    let m = /^(\d{1,2}[^→:]{0,45}?)\s*(?:→|->|=>|\s[-–—]\s)\s*(.*)$/.exec(l);
+    if (!m) { const c = /^(\d{1,2}\s[^:]{3,45}?)\s*:\s*(.+)$/.exec(l); if (c && MESES_.some(x => norm_(c[1]).indexOf(x.slice(0, 3)) >= 0)) m = c; } // sin flecha ni guion: "fecha: nombre"
     let fechaTxt, resto;
-    if (m && /\d/.test(m[1])) { fechaTxt = m[1].trim(); resto = m[2].trim(); if (!resto) { pendiente = fechaTxt; return; } }
+    if (m) { fechaTxt = m[1].trim(); resto = m[2].trim(); if (!resto) { pendiente = fechaTxt; return; } }
     else if (pendiente && /:/.test(l) && l.length < 260) { fechaTxt = pendiente; resto = l; } // sub-ítems de una fecha ("25 de Mayo →" y abajo varias)
     else return;
     const dia = Number((/\d{1,2}/.exec(fechaTxt) || [0])[0]); if (!dia || dia > 31) return;
     const i = resto.indexOf(':'), nombre = (i > 0 ? resto.slice(0, i) : resto).trim(), accion = (i > 0 ? resto.slice(i + 1) : '').replace(/→.*$/, '').trim();
     if (!nombre || nombre.length > 90) return;
-    out.push({ mes: mes, dia: dia, fecha: fechaTxt, nombre: nombre, accion: accion.slice(0, 160), nivel: nivelAccion_(accion) });
+    const brain = /brainstorming/i.test(nombre);
+    out.push({ mes: mes, dia: dia, fecha: fechaTxt, nombre: brain ? nombre.replace(/brainstorming/i, 'Brainstorming') : nombre, accion: accion.slice(0, 160), nivel: brain ? 0 : nivelAccion_(accion) });
   });
   // una misma campaña puede figurar en dos meses (ej. Black Friday): se deja una por mes y nombre
   return out.filter((x, i, a) => a.findIndex(y => y.mes === x.mes && y.dia === x.dia && norm_(y.nombre) === norm_(x.nombre)) === i);
@@ -2114,20 +2116,26 @@ function anualDatos_(snap, cat, forzar) {
 function restarHabiles_(d, n) { const x = new Date(d); while (n > 0) { x.setDate(x.getDate() - 1); if (x.getDay() !== 0 && x.getDay() !== 6) n--; } return x; }
 /* Mensaje del mes para una marca. fecha = cualquier día del mes del que se habla. Devuelve null si la marca no tiene calendario leído. */
 function recomendacionesMarca_(m, snap, datos, fecha) {
-  const o = (datos.marcas || {})[m.slug]; if (!o || !o.items || !o.items.length) return null;
+  const o = (datos.marcas || {})[m.slug];
+  if (!o || !o.items || !o.items.length) {
+    // sin documento de calendario anual: se usan las fechas cargadas en la lista Efemérides de Trello de esa marca
+    const delMesT = k => { const ym = Utilities.formatDate(new Date(fecha.getFullYear(), fecha.getMonth() + k, 15), TZ, 'yyyy-MM'); return (snap.cards || []).filter(c => c.cat === 'efem' && c.m[0] === m.slug && c.due && Utilities.formatDate(new Date(c.due), TZ, 'yyyy-MM') === ym).sort((a, b) => new Date(a.due) - new Date(b.due)).map(c => '• ' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM') + ' · **' + String(c.n).slice(0, 70) + '**' + (c.d ? ' · ' + String(c.d).split('\n')[0].slice(0, 110) : '')); };
+    const a0 = delMesT(0), a1 = delMesT(1); if (!a0.length && !a1.length) return null;
+    return trozos_('📌 **' + m.nombre + ' · ' + MESES_[fecha.getMonth()] + ' según Efemérides de Trello**', (a0.length ? ['**Este mes**'].concat(a0) : ['Este mes no hay fechas cargadas en Efemérides.']).concat(a1.length ? ['', '**El mes que viene (para ir planificando)**'].concat(a1) : [], ['', 'Esta marca no tiene documento de "Calendario anual" en Recursos Corporativos: por eso no hay niveles de campaña ni fechas de planificación.']));
+  }
   const mes = fecha.getMonth(), anio = fecha.getFullYear(), ini = new Date(anio, mes, 1), hoy = hoyAR_();
-  const dd = n => ('0' + n).slice(-2), NIV = { 1: 'campaña mayor', 2: 'campaña especial', 3: 'publicación o historias', 4: 'mención eventual' };
+  const dd = n => ('0' + n).slice(-2), NIV = { 0: 'reunión de equipo', 1: 'campaña mayor', 2: 'campaña especial', 3: 'publicación o historias', 4: 'mención eventual' };
   // tarjetas de Efemérides de la marca en Trello, por fecha: para avisar cuál falta cargar
   const efem = (snap.cards || []).filter(c => c.cat === 'efem' && c.m[0] === m.slug && c.due).map(c => new Date(c.due).getTime());
   const cargada = d => efem.some(t => Math.abs(t - d.getTime()) <= 2.5 * 864e5);
   const lineas = [], delMes = o.items.filter(x => x.mes === mes).sort((a, b) => a.dia - b.dia);
   if (delMes.length) {
     lineas.push('**Este mes**');
-    delMes.forEach(x => { const d = new Date(anio, mes, x.dia, 12); lineas.push('• ' + dd(x.dia) + '/' + dd(mes + 1) + ' · **' + x.nombre + '** · ' + NIV[x.nivel] + (x.accion ? ': ' + x.accion.charAt(0).toLowerCase() + x.accion.slice(1) : '') + (x.nivel <= 3 && !cargada(d) ? ' · ⚠️ no está en Efemérides de Trello' : '')); });
+    delMes.forEach(x => { const d = new Date(anio, mes, x.dia, 12); lineas.push('• ' + dd(x.dia) + '/' + dd(mes + 1) + ' · **' + x.nombre + '** · ' + NIV[x.nivel] + (x.accion ? ': ' + x.accion.charAt(0).toLowerCase() + x.accion.slice(1) : '') + (x.nivel >= 1 && x.nivel <= 3 && !cargada(d) ? ' · ⚠️ no está en Efemérides de Trello' : '')); });
   } else lineas.push('Este mes el calendario anual no marca ninguna fecha.');
   // lo que viene y necesita anticipación: mayores (30 días hábiles) y especiales (20) de los dos meses siguientes
   const prox = [];
-  [1, 2].forEach(k => { const mm = (mes + k) % 12, aa = anio + (mes + k > 11 ? 1 : 0); o.items.filter(x => x.mes === mm && x.nivel <= 2).forEach(x => {
+  [1, 2].forEach(k => { const mm = (mes + k) % 12, aa = anio + (mes + k > 11 ? 1 : 0); o.items.filter(x => x.mes === mm && x.nivel >= 1 && x.nivel <= 2).forEach(x => {
     const d = new Date(aa, mm, x.dia, 12), arranque = restarHabiles_(d, x.nivel === 1 ? 30 : 20);
     if (arranque.getTime() > new Date(anio, mes + 1, 7).getTime()) return; // todavía falta: se avisa el mes que viene
     prox.push({ t: d.getTime(), l: '• ' + dd(x.dia) + '/' + dd(mm + 1) + ' · **' + x.nombre + '** · ' + NIV[x.nivel] + ' · ' + (arranque.getTime() < Math.max(hoy.getTime(), ini.getTime()) ? 'ya tendría que estar en marcha (se planifica desde el ' + dd(arranque.getDate()) + '/' + dd(arranque.getMonth() + 1) + ')' : 'empezar a planificar antes del ' + dd(arranque.getDate()) + '/' + dd(arranque.getMonth() + 1)) });
@@ -2142,8 +2150,8 @@ function recomendacionesMarca_(m, snap, datos, fecha) {
 function probarCalendarioAnual() {
   const cat = catalogo_(), snap = snapshot_(), d = anualDatos_(snap, cat, true), hoy = hoyAR_(), prox = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
   cat.marcas.forEach(m => { const o = d.marcas[m.slug]; console.log(m.nombre + ' · calendario: ' + (o.items.length ? o.items.length + ' fechas (' + MESES_.map((n, i) => n.slice(0, 3) + ' ' + o.items.filter(x => x.mes === i).length).join(', ') + ')' : 'NO · ' + o.nota) + ' · OKR: ' + (o.txtOkr ? 'leído' + (okrParse_(o.txtOkr, prox.getMonth()).length ? ' con metas del semestre' : ' (sin metas en formato S1/S2)') : o.okr ? 'tarjeta sin documento legible' : 'sin tarjeta')); });
-  const ej = cat.marcas.filter(m => d.marcas[m.slug].items.length)[0];
-  if (ej) (recomendacionesMarca_(ej, snap, d, prox) || []).forEach(t => console.log('(' + t.length + ' caracteres)\n' + t));
+  // un ejemplo de cada caso: con flecha (ISCO), con guion (GV) y sin documento (usa Efemérides)
+  ['isco', 'gabriel-varisco', 'tritato'].forEach(s => { const m = cat.marcas.filter(x => x.slug === s)[0]; if (m) (recomendacionesMarca_(m, snap, d, prox) || ['(' + s + ': sin nada para mandar)']).forEach(t => console.log('(' + t.length + ' caracteres)\n' + t)); });
 }
 
 /* ---------------- web app ---------------- */
