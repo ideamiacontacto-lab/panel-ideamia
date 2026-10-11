@@ -1273,3 +1273,30 @@ select{color-scheme:dark}
 .agp-meet{color:var(--y);font-weight:600}
 .modal .check+.check{margin-top:-8px}
 .agp-edit{color:var(--text);text-decoration:underline;text-underline-offset:3px;font-size:12.5px}
+
+/* ---------- repaso general: menos scroll en el celular, carpetas, carruseles y fundidos ---------- */
+.ag-carp{padding:4px 12px 10px}
+.ag-carp .agp-d:first-child{margin-top:10px}
+.agp-nada{color:var(--dim);font-size:13.5px;margin:0 0 10px}
+/* popups: entran con fundido y se van con fundido */
+.modal{animation:velo .18s ease-out}
+.modal .mb{animation:sube .24s var(--ease)}
+.modal.sale{opacity:0;transition:opacity .16s ease-in}
+.modal.sale .mb{transform:translateY(12px);transition:transform .16s ease-in}
+@keyframes velo{from{opacity:0}}
+@keyframes sube{from{opacity:0;transform:translateY(18px)}}
+/* carpetas: el contenido aparece con un fundido corto */
+.mcar.on>.list,.mcar.on>.fl-sems,.fl-sem.on>.fl-list{animation:in .22s var(--ease)}
+@media(max-width:700px){
+  /* los recuadros de "Hoy" entran todos en una sola fila */
+  .hoy-sts{display:grid!important;grid-template-columns:repeat(5,1fr);gap:6px}
+  .hoy-sts .mio-st,.hoy-sts .mio-st:nth-child(n){flex:none;grid-column:auto;padding:9px 4px 8px;align-items:center;text-align:center;border-radius:12px;min-width:0}
+  .hoy-sts .mio-st b{font-size:26px}
+  .hoy-sts .mio-st span{font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  /* "Se vienen": tarjetas en fila que se deslizan con el dedo, en vez de una lista larga */
+  .sv-car{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 0 6px;margin:0 -2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .sv-car::-webkit-scrollbar{display:none}
+  .sv-car .fecha{flex:0 0 78%;scroll-snap-align:start;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--s2);grid-template-columns:38px 1fr}
+  .sv-car .fecha .fq{grid-column:2;font-size:11.5px;color:var(--muted)}
+}
+@media(prefers-reduced-motion:reduce){.modal,.modal .mb,.view,.mcar.on>.list{animation:none!important}}

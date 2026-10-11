@@ -533,7 +533,7 @@
   function costado(chico) {
     const fs = proximasFechas(30), L = S.data.links;
     const seVienen = fs.filter(f => f.tipo !== 'feriado' || diasA(f.d) <= 14).slice(0, chico ? 4 : 6);
-    return (seVienen.length ? '<div class="box"><h3><span class="spark">✦</span>Se vienen</h3>' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '<div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
+    return (seVienen.length ? '<div class="box sv-box"><h3><span class="spark">✦</span>Se vienen</h3><div class="sv-car">' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '</div><div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
       (() => { const sg = sugerencias(), max = S.todasSug ? 99 : chico ? 3 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
       (chico ? '' : '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
       '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button> <button class="btn ghost" data-copiar-plan>Copiar</button></div>' +
@@ -1175,12 +1175,19 @@
     const atras = items.filter(it => diasA(it.d) < 0 && it.cl === 'card');
     return '<p class="leyenda"><span class="lg efem">✦ Fecha del calendario anual</span><span class="lg sug">✦ Fecha sugerida por rubro</span><span class="lg fer">★ Feriado</span><span class="lg">Tocá cualquier fecha o tarjeta para ver el detalle</span></p>' +
       (atras.length ? '<div class="day today"><div class="dd">!<small>vencidas</small></div><div>' + atras.map(it => '<div class="ag card"><span class="h">' + cuando(it.d) + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') + '</div></div>' : '') +
-      dias.map(d => {
+      // hoy y mañana a la vista; el resto de la semana y lo de más adelante, en carpetas (para no tener que bajar tanto)
+      (() => {
+        const cuenta = L => L.reduce((s, d) => s + items.filter(it => diasA(it.d) === diasA(d)).length, 0);
+        const cerca = dias.filter(d => diasA(d) <= 1), resto = dias.filter(d => diasA(d) > 1 && d < lunesDe(NOW, 1)), despues = dias.filter(d => diasA(d) > 1 && d >= lunesDe(NOW, 1));
+        const carpeta = (id, tit, L) => { const h = L.map(diaAg).join(''); return h ? tarjeta(id, tit, cuenta(L), '', false, () => '<div class="ag-carp">' + h + '</div>', I.cal) : ''; };
+        return cerca.map(diaAg).join('') + carpeta('ag-resto', 'Resto de esta semana', resto) + carpeta('ag-desp', 'La semana que viene y después', despues);
+      })();
+    function diaAg(d) {
         const de = items.filter(it => diasA(it.d) === diasA(d)).sort((a, b) => a.h.localeCompare(b.h));
         const wk = d.getDay() === 0 || d.getDay() === 6;
         if (wk && !de.length) return '';
-        return '<div class="day' + (diasA(d) === 0 ? ' today' : '') + (wk ? ' weekend' : '') + '"><div class="dd">' + d.getDate() + '<small>' + (diasA(d) === 0 ? 'hoy' : diasA(d) === 1 ? 'mañana' : DIAS[d.getDay()]) + '</small></div><div>' + (de.length ? de.map(it => '<div class="ag ' + it.cl + '"><span class="h">' + it.h + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') : '<div class="ag"><span class="h"></span><span class="x" style="color:var(--dim)">Sin entregas</span></div>') + '</div></div>';
-      }).join('');
+        return'<div class="day' + (diasA(d) === 0 ? ' today' : '') + (wk ? ' weekend' : '') + '"><div class="dd">' + d.getDate() + '<small>' + (diasA(d) === 0 ? 'hoy' : diasA(d) === 1 ? 'mañana' : DIAS[d.getDay()]) + '</small></div><div>' + (de.length ? de.map(it => '<div class="ag ' + it.cl + '"><span class="h">' + it.h + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') : '<div class="ag"><span class="h"></span><span class="x" style="color:var(--dim)">Sin entregas</span></div>') + '</div></div>';
+    }
   }
 
   /* ---------------- vista RECURSOS ---------------- */
@@ -1370,7 +1377,7 @@
     AGP.cargando = false; render();
   }
   function vAgendaPriv() {
-    const que = '<p class="mio-que">Las reuniones del calendario <b>ideamia.contacto</b>, que solo ven Joaquín e Ivo. Lo que agenden desde acá se crea solo en ese calendario de Google y les llega la invitación a quienes elijan. El resto del equipo no ve esta pantalla: pide la clave del project.</p>';
+    const que = '<p class="mio-que">Calendario <b>ideamia.contacto</b>: solo lo ven Joaquín e Ivo (pide la clave del project). Lo que agendes acá se crea en Google Calendar y les llega la invitación a quienes elijas.</p>';
     if (!DEMO && !S.pkey) return que + '<div class="agp-key"><label class="field"><span>Clave del project</span><input type="password" id="agpK" autocomplete="off" placeholder="La misma con la que se entra a la vista Project"></label><button class="btn y" data-agp-key>Entrar a la agenda</button>' + (AGP.error ? '<div class="err">' + esc(AGP.error) + '</div>' : '') + '<p class="ayuda">Se pide una sola vez en este dispositivo.</p></div>';
     if (!AGP.data && !AGP.error) { if (!AGP.cargando) setTimeout(agpCargar, 0); return que + '<div class="loading"><b>Cargando</b>Leyendo el calendario…</div>'; }
     const barra = '<div class="agp-bar"><button class="btn y" data-agp-nueva>' + I.cal + 'Agendar reunión</button><button class="btn ghost" data-agp-leer>' + (AGP.cargando ? 'Leyendo…' : 'Volver a leer') + '</button>' + (AGP.data ? '<span class="agp-leido">leído ' + hm(new Date(AGP.data.leido)) + '</span>' : '') + '</div>';
@@ -1386,7 +1393,12 @@
         (inv.length ? '<span>con ' + inv.join(', ') + '</span>' : e.cal === 'privado' ? '<span>sin invitados</span>' : '') + (e.lugar ? (/^https?:\/\//.test(e.lugar) ? '<a class="lnk" href="' + esc(e.lugar) + '" target="_blank" rel="noopener">Abrir el link ↗</a>' : '<span>' + esc(e.lugar) + '</span>') : '') +
         (e.mio && e.uid ? '<button class="lnk agp-edit" data-agp-inv="' + esc(e.id) + '">Invitados: agregar o sacar</button>' : '') + (e.meet ? '<a class="lnk agp-meet" href="' + esc(e.meet) + '" target="_blank" rel="noopener">Entrar al Meet ↗</a>' : '') + (e.link && e.link !== '#' ? '<a class="lnk" href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir en Calendar ↗</a>' : '') + '</div></div></div>';
     };
-    const cuerpo = orden.map(k => { const d = ymdD(k), n = diasA(d); return '<h3 class="agp-d' + (n === 0 ? ' hoy' : '') + '">' + (n === 0 ? 'Hoy · ' : n === 1 ? 'Mañana · ' : '') + DIAS_L[d.getDay()].toLowerCase() + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()] + '<small>' + dias[k].length + '</small></h3>' + dias[k].map(fila).join(''); }).join('');
+    // hoy y mañana a la vista; el resto, en carpetas por semana (con muchas reuniones la lista era interminable)
+    const tramo = k => { const d = ymdD(k), n = diasA(d); return n <= 0 ? 'hoy' : n === 1 ? 'man' : d < lunesDe(NOW, 1) ? 's0' : d < lunesDe(NOW, 2) ? 's1' : 'mas'; };
+    const TRAMOS = [['s0', 'Resto de esta semana'], ['s1', 'La semana que viene'], ['mas', 'Más adelante']];
+    const cuerpo = (orden.some(k => tramo(k) === 'hoy') ? '' : '<p class="agp-nada">Hoy no tenés reuniones.</p>') + orden.filter(k => tramo(k) === 'hoy' || tramo(k) === 'man').map(diaP).join('') +
+      TRAMOS.map(t => { const ks = orden.filter(k => tramo(k) === t[0]), n = ks.reduce((s, k) => s + dias[k].length, 0); return ks.length ? tarjeta('agp-' + t[0], t[1], n, '', false, () => '<div class="ag-carp">' + ks.map(diaP).join('') + '</div>', I.cal) : ''; }).join('');
+    function diaP(k) { const d = ymdD(k), n = diasA(d); return '<h3 class="agp-d' + (n === 0 ? ' hoy' : '') + '">' + (n === 0 ? 'Hoy · ' : n === 1 ? 'Mañana · ' : '') + DIAS_L[d.getDay()].toLowerCase() + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()] + '<small>' + dias[k].length + '</small></h3>' + dias[k].map(fila).join(''); }
     return que + barra + (AGP.error ? '<div class="empty">' + esc(AGP.error) + '</div>' : '') + (AGP.data.equipoOk ? '' : '<p class="ayuda">No pude leer el calendario del equipo: acá abajo solo figuran las reuniones privadas.</p>') +
       (E.length ? cuerpo : '<div class="empty">No hay reuniones en los próximos 45 días. Tocá "Agendar reunión" para crear la primera.</div>');
   }
@@ -1781,7 +1793,7 @@
   function modal(html, onOk) {
     const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = '<div class="mb">' + html + '</div>';
     document.body.appendChild(m);
-    const cerrar = () => m.remove();
+    const cerrar = () => { if (m.classList.contains('sale')) return; m.classList.add('sale'); setTimeout(() => m.remove(), 170); };
     m.onclick = e => { if (e.target === m) cerrar(); };
     $('[data-x]', m).onclick = cerrar;
     $('[data-ok]', m).onclick = async () => { const b = $('[data-ok]', m); b.disabled = true; b.textContent = 'Guardando…'; try { await onOk(m); cerrar(); } catch (e) { $('.err', m).textContent = e.message; b.disabled = false; b.textContent = 'Reintentar'; } };
