@@ -158,6 +158,11 @@
     });
     // piezas que están pendientes en Diseño o Producción y no tienen fecha de salida en SCL: hay que decidir qué se hace con ellas
     D.cards.filter(c => c.cat === 'sinfecha').forEach(c => out.push({ k: 'sf:' + c.id, tipo: 'guion', marca: c.m[0], obj: c, url: c.ourl || c.url, t: (c.formato === 'reel' || c.formato === 'video' ? 'Reel' : c.formato === 'historia' ? 'Historia' : 'Diseño') + ' sin fecha: ' + c.n, meta: ['<span class="pill warn">¿qué hacemos con esto?</span>', 'ponele fecha en SCL, pasalo a "Para más adelante" o archivalo'], u: 2 }));
+    // cumpleaños de hoy y de mañana (tarjeta "Cumpleaños" de la lista Datos de la marca)
+    Object.keys((D.anual || {}).marcas || {}).forEach(s => (D.anual.marcas[s].items || []).filter(x => x.nivel === 5).forEach(x => {
+      const n = diasA(new Date(NOW.getFullYear(), x.mes, x.dia));
+      if (n === 0 || n === 1) out.push({ k: 'cum:' + s + ':' + x.mes + '-' + x.dia + ':' + x.nombre, tipo: 'guion', marca: s, obj: {}, url: D.anual.marcas[s].cumples || '#', t: x.nombre + (n === 0 ? ' · es hoy' : ' · es mañana'), meta: ['<span class="pill y">🎂 saludo en historias</span>'], u: n === 0 ? 3 : 1 });
+    }));
     // reportes que faltan cargar en la web de reportes (se van solos cuando los cargan)
     (D.reportes || []).forEach(r => {
       const v = new Date(r.vence), h = (v - new Date()) / 36e5;
@@ -1204,7 +1209,7 @@
      El calendario anual de cada marca (el documento que está en Recursos Corporativos del SCL), mes por mes desde hoy. */
   function vAnual() {
     const A = (S.data.anual || {}).marcas || {};
-    const NIV = { 0: ['Reunión de equipo', ''], 1: ['Campaña mayor', 'bad'], 2: ['Campaña especial', 'warn'], 3: ['Publicación o historias', 'ok'], 4: ['Mención', ''] };
+    const NIV = { 0: ['Reunión de equipo', ''], 1: ['Campaña mayor', 'bad'], 2: ['Campaña especial', 'warn'], 3: ['Publicación o historias', 'ok'], 4: ['Mención', ''], 5: ['🎂 Cumpleaños', 'y'] };
     const slugs = S.data.marcas.map(m => m.slug).filter(s => pasa([s]));
     const mesHoy = NOW.getMonth(), dd = n => ('0' + n).slice(-2), MES = MESES.map(m => m.charAt(0).toUpperCase() + m.slice(1));
     const primera = slugs.filter(x => A[x] && A[x].items && A[x].items.length)[0];
