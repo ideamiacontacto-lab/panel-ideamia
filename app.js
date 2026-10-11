@@ -1382,7 +1382,7 @@
       const s = new Date(e.s), f = new Date(e.f), ya = f < new Date();
       const inv = (e.inv || []).filter(g => g.mail !== AGP.data.calendario).map(g => esc(g.n || g.mail) + (EST[g.est] ? ' <i>(' + EST[g.est] + ')</i>' : ''));
       return '<div class="agp-ev' + (e.cal === 'privado' ? ' priv' : '') + (ya ? ' ya' : '') + '"><div class="agp-h">' + (e.dia ? '<b>Todo</b><small>el día</small>' : '<b>' + hm(s) + '</b><small>' + hm(f) + '</small>') + '</div><div class="agp-b"><div class="tt">' + esc(e.t) + '</div><div class="mt">' +
-        (e.cal === 'privado' ? '<span class="pill y">Privado · solo Joaquín e Ivo</span>' : '<span class="pill">También lo ve el equipo</span>') +
+        (e.cal !== 'privado' ? '<span class="pill">También lo ve el equipo</span>' : inv.length ? '<span class="pill y">Privado · lo ven los invitados</span>' : '<span class="pill y">Privado · solo Joaquín e Ivo</span>') +
         (inv.length ? '<span>con ' + inv.join(', ') + '</span>' : e.cal === 'privado' ? '<span>sin invitados</span>' : '') + (e.lugar ? '<span>' + esc(e.lugar) + '</span>' : '') +
         (e.link && e.link !== '#' ? '<a class="lnk" href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir en Calendar ↗</a>' : '') + '</div></div></div>';
     };
