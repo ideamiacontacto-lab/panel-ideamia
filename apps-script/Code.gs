@@ -430,7 +430,7 @@ function leerTrello_(cat) {
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input' || catL === 'datos';
       const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby'].indexOf(catL) >= 0 || b.tipo === 'project';
       cards.push({
-        id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
+        id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, catL === 'datos' ? 4000 : 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
         lista: l.name, cat: catL, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity,
         lab: (c.labels || []).map(x => x.name).filter(Boolean),
         att: conAdjuntos ? (c.attachments || []).slice(0, 8).map(a => ({ n: a.name, u: a.url })) : [],
@@ -934,7 +934,7 @@ function panel_(personaClave, ctx) {
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
-    anual: esFilm || (esRevisa && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy),
+    anual: esFilm || (esRevisa && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy, snap),
     film: esFilm ? Object.assign(filmSalida_(film, yo, hoy), { todas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) }) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: ((ctx.discord.porPersona || {})[yo.clave] || []).filter(m => (!m.marca || misMarcas.some(x => x.slug === m.marca)) && new Date(m.fecha).getTime() > Date.now() - 3 * 864e5) /* solo sus marcas y los canales generales, de los últimos 3 días */, conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
@@ -2155,23 +2155,39 @@ function anualDatos_(snap, cat, forzar) {
 /* primera línea de una descripción de Trello, sin links (para que el mensaje no se llene de direcciones) */
 function limpio_(d) { return String(d || '').replace(/\[[^\]]*\]\([^)]*\)/g, '').replace(/https?:\/\/\S+/g, '').split('\n').map(x => x.trim()).filter(x => x.replace(/[^a-záéíóúñ0-9]/gi, '').length > 3)[0] || ''; }
 /* Lo que la web muestra en la pestaña "Anual" del social media: el calendario de cada marca suya, ya leído (sin el texto del OKR). */
-function anualSalida_(datos, misMarcas, hoy) {
+function anualSalida_(datos, misMarcas, hoy, snap) {
   const out = {};
   misMarcas.forEach(m => {
-    const o = ((datos || {}).marcas || {})[m.slug]; if (!o) return;
-    out[m.slug] = { items: o.items || [], nota: o.nota || '', url: (o.cal && o.cal.url) || '', okr: (o.okr && o.okr.url) || '', metas: o.txtOkr ? okrParse_(o.txtOkr, hoy.getMonth()) : [] };
+    const o = ((datos || {}).marcas || {})[m.slug] || {}, cu = cumplesMarca_(snap, m.slug);
+    if (!o.items && !cu.items.length) return;
+    out[m.slug] = { items: (o.items || []).concat(cu.items), nota: o.nota || '', url: (o.cal && o.cal.url) || '', okr: (o.okr && o.okr.url) || '', cumples: cu.url, metas: o.txtOkr ? okrParse_(o.txtOkr, hoy.getMonth()) : [] };
   });
   return { leido: (datos || {}).leido || null, marcas: out };
+}
+/* Cumpleaños de una marca: la tarjeta que se llama "Cumpleaños…" en la lista "Datos de la marca" (o en Recursos Corporativos) del SCL.
+   Una línea por persona: "28/1 Guido" o "05/01 Villamonte Gustavo". Van al calendario anual como un tipo aparte (nivel 5). */
+function cumplesMarca_(snap, slug) {
+  const L = ((snap || {}).cards || []).filter(c => (c.cat === 'datos' || c.cat === 'recursos') && c.m[0] === slug && /cumple/.test(norm_(c.n))).sort((a, b) => (a.cat === 'datos' ? 0 : 1) - (b.cat === 'datos' ? 0 : 1));
+  const items = [];
+  if (L.length) String(L[0].d || '').split(/\r?\n/).forEach(l => {
+    const m = /^\s*[-•*]?\s*(\d{1,2})\s*\/\s*(\d{1,2})\s+(.{2,60})$/.exec(l); if (!m) return;
+    const dia = Number(m[1]), mes = Number(m[2]) - 1; if (dia < 1 || dia > 31 || mes < 0 || mes > 11) return;
+    items.push({ mes: mes, dia: dia, fecha: m[1] + '/' + m[2], nombre: 'Cumpleaños de ' + m[3].trim().replace(/^./, x => x.toUpperCase()), accion: '', nivel: 5 });
+  });
+  return { items: items, url: L.length ? L[0].url : '' };
 }
 function restarHabiles_(d, n) { const x = new Date(d); while (n > 0) { x.setDate(x.getDate() - 1); if (x.getDay() !== 0 && x.getDay() !== 6) n--; } return x; }
 /* Mensaje del mes para una marca. fecha = cualquier día del mes del que se habla. Devuelve null si la marca no tiene calendario leído. */
 function recomendacionesMarca_(m, snap, datos, fecha) {
   const o = (datos.marcas || {})[m.slug];
+  // cumpleaños del mes (tarjeta "Cumpleaños" de Datos de la marca)
+  const cumMes = cumplesMarca_(snap, m.slug).items.filter(x => x.mes === fecha.getMonth()).sort((p, q) => p.dia - q.dia).map(x => '• ' + ('0' + x.dia).slice(-2) + '/' + ('0' + (x.mes + 1)).slice(-2) + ' · ' + x.nombre.replace(/^Cumpleaños de /, ''));
+  const bloqueCum = cumMes.length ? ['', '**Cumpleaños del mes** 🎂'].concat(cumMes) : [];
   if (!o || !o.items || !o.items.length) {
     // sin documento de calendario anual: se usan las fechas cargadas en la lista Efemérides de Trello de esa marca
     const delMesT = k => { const ym = Utilities.formatDate(new Date(fecha.getFullYear(), fecha.getMonth() + k, 15), TZ, 'yyyy-MM'); return (snap.cards || []).filter(c => c.cat === 'efem' && c.m[0] === m.slug && c.due && Utilities.formatDate(new Date(c.due), TZ, 'yyyy-MM') === ym).sort((a, b) => new Date(a.due) - new Date(b.due)).map(c => '• ' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM') + ' · **' + String(c.n).slice(0, 70) + '**' + (limpio_(c.d) ? ' · ' + limpio_(c.d) : '')); };
-    const a0 = delMesT(0), a1 = delMesT(1); if (!a0.length && !a1.length) return null;
-    return trozos_('📌 **' + m.nombre + ' · ' + MESES_[fecha.getMonth()] + ' según Efemérides de Trello**', (a0.length ? ['**Este mes**'].concat(a0) : ['Este mes no hay fechas cargadas en Efemérides.']).concat(a1.length ? ['', '**El mes que viene (para ir planificando)**'].concat(a1) : [], ['', 'Esta marca no tiene documento de "Calendario anual" en Recursos Corporativos: por eso no hay niveles de campaña ni fechas de planificación.']));
+    const a0 = delMesT(0), a1 = delMesT(1); if (!a0.length && !a1.length && !cumMes.length) return null;
+    return trozos_('📌 **' + m.nombre + ' · ' + MESES_[fecha.getMonth()] + ' según Efemérides de Trello**', (a0.length ? ['**Este mes**'].concat(a0) : ['Este mes no hay fechas cargadas en Efemérides.']).concat(a1.length ? ['', '**El mes que viene (para ir planificando)**'].concat(a1) : [], bloqueCum, ['', 'Esta marca no tiene documento de "Calendario anual" en Recursos Corporativos: por eso no hay niveles de campaña ni fechas de planificación.']));
   }
   const mes = fecha.getMonth(), anio = fecha.getFullYear(), ini = new Date(anio, mes, 1), hoy = hoyAR_();
   const dd = n => ('0' + n).slice(-2), NIV = { 0: 'reunión de equipo', 1: 'campaña mayor', 2: 'campaña especial', 3: 'publicación o historias', 4: 'mención eventual' };
@@ -2191,6 +2207,7 @@ function recomendacionesMarca_(m, snap, datos, fecha) {
     prox.push({ t: d.getTime(), l: '• ' + dd(x.dia) + '/' + dd(mm + 1) + ' · **' + x.nombre + '** · ' + NIV[x.nivel] + ' · ' + (arranque.getTime() < Math.max(hoy.getTime(), ini.getTime()) ? 'ya tendría que estar en marcha (se planifica desde el ' + dd(arranque.getDate()) + '/' + dd(arranque.getMonth() + 1) + ')' : 'empezar a planificar antes del ' + dd(arranque.getDate()) + '/' + dd(arranque.getMonth() + 1)) });
   }); });
   if (prox.length) { lineas.push('', '**Para empezar a planificar ya**'); prox.sort((a, b) => a.t - b.t).forEach(x => lineas.push(x.l)); }
+  bloqueCum.forEach(x => lineas.push(x));
   const metas = o.txtOkr ? okrParse_(o.txtOkr, mes) : [];
   if (metas.length) { lineas.push('', '**Metas del ' + (mes < 6 ? 'primer' : 'segundo') + ' semestre (OKR)**'); metas.forEach(x => lineas.push('• ' + x)); }
   lineas.push('', 'Calendario anual: ' + o.cal.url + (o.okr && o.okr.url ? ' · OKR: ' + o.okr.url : ''));
