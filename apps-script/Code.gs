@@ -2014,6 +2014,27 @@ function unificarSFB() {
   console.log('Después: ' + sh.getDataRange().getValues().slice(1).map(r => r[0] + ' [' + r[1] + ']').join(' | '));
 }
 
+/* Para revisar desde el editor: los inputs de cada social media, comparando Trello EN VIVO con lo que muestra el panel.
+   Dice cuántos hay por marca, hace cuánto que nadie los toca en Trello y cuántos están marcados en el panel. No cambia nada. */
+function auditarInputs() {
+  const cat = catalogo_(), est = estados_(), ahora = Date.now();
+  const boards = trello_('/members/me/boards', { filter: 'open', fields: 'name' }).map(b => ({ id: b.id, nombre: b.name, tipo: tipoTablero_(b.name), marca: marcasEn_(b.name.replace(/^\S+\s*/, ''), cat.marcas)[0] || '' })).filter(b => b.tipo === 'scl' && b.marca);
+  const res = trelloVarios_(boards.map(b => '/boards/' + b.id + '/lists?filter=open&fields=name&cards=open&card_fields=name,shortUrl,dateLastActivity,labels'));
+  const vivo = [];
+  boards.forEach((b, i) => (res[i] || []).forEach(l => { if (catLista_(l.name) === 'input') (l.cards || []).forEach(c => vivo.push({ id: c.id, n: c.name, marca: b.marca, lista: l.name, dias: Math.floor((ahora - new Date(c.dateLastActivity).getTime()) / 864e5), urg: (c.labels || []).some(x => /urgente/i.test(x.name || '')) })); }));
+  const snap = snapshot_(), enPanel = {}; (snap.cards || []).forEach(c => { if (c.cat === 'input' && c.tipo === 'scl') enPanel[c.id] = 1; });
+  console.log('Lectura del panel: ' + snap.generado + ' · inputs en Trello ahora: ' + vivo.length + ' · en el panel: ' + Object.keys(enPanel).length + ' · en Trello y no en el panel: ' + vivo.filter(c => !enPanel[c.id]).length + ' · en el panel y ya no en Trello: ' + Object.keys(enPanel).filter(id => !vivo.some(c => c.id === id)).length);
+  cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim())).forEach(p => {
+    const mias = cat.marcas.filter(m => m.sm === p.clave).map(m => m.slug), L = vivo.filter(c => mias.indexOf(c.marca) >= 0);
+    const marc = L.filter(c => est['inp:' + c.id] || est['card:' + c.id]);
+    const tramo = (a, b) => L.filter(c => c.dias >= a && c.dias < b).length;
+    console.log('— ' + p.nombre + ': ' + L.length + ' inputs en Trello · marcados en el panel: ' + marc.length + ' · urgentes: ' + L.filter(c => c.urg).length +
+      '\n   Última vez que alguien los tocó en Trello → hoy o ayer: ' + tramo(0, 2) + ' · 2 a 7 días: ' + tramo(2, 8) + ' · 8 a 30 días: ' + tramo(8, 31) + ' · más de 30 días: ' + tramo(31, 99999) +
+      '\n   Por marca: ' + mias.map(s => s + ' ' + L.filter(c => c.marca === s).length).join(' · ') +
+      '\n   Los 6 más viejos: ' + L.slice().sort((a, b) => b.dias - a.dias).slice(0, 6).map(c => c.marca + ' · ' + String(c.n).slice(0, 40) + ' (' + c.dias + ' días)').join(' | '));
+  });
+}
+
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
    Lo que sale en los próximos días según el tablero SCL de la marca, con el estado de cada parte: copy, diseño, guion y video.
