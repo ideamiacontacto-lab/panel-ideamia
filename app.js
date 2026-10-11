@@ -156,6 +156,8 @@
       else if (g.gest === 'pendiente' && n <= 1) out.push(Object.assign(base, { t: 'Guion de Fede: ' + g.n, meta: [n < 0 ? '<span class="pill bad">atrasado · era el ' + dm(e) + '</span>' : '<span class="pill warn">lo entrega ' + cuando(e) + '</span>', 'Guiones · pendiente de entrega'], u: n < 0 ? 4 : 2 }));
       else if (g.gest === 'revisar') out.push(Object.assign(base, { t: 'Guion listo para revisar: ' + g.n, meta: ['verlo en la reunión del ' + dm(proxLunes()), 'Guiones · listos para revisión'], u: 2 }));
     });
+    // piezas que están pendientes en Diseño o Producción y no tienen fecha de salida en SCL: hay que decidir qué se hace con ellas
+    D.cards.filter(c => c.cat === 'sinfecha').forEach(c => out.push({ k: 'sf:' + c.id, tipo: 'guion', marca: c.m[0], obj: c, url: c.ourl || c.url, t: (c.formato === 'reel' || c.formato === 'video' ? 'Reel' : c.formato === 'historia' ? 'Historia' : 'Diseño') + ' sin fecha: ' + c.n, meta: ['<span class="pill warn">¿qué hacemos con esto?</span>', 'ponele fecha en SCL, pasalo a "Para más adelante" o archivalo'], u: 2 }));
     // reportes que faltan cargar en la web de reportes (se van solos cuando los cargan)
     (D.reportes || []).forEach(r => {
       const v = new Date(r.vence), h = (v - new Date()) / 36e5;
@@ -236,15 +238,15 @@
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
-      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]];
+      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
+    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -257,6 +259,7 @@
       : ctrl + headF + '<div class="view" id="view">' + bannerEstado() + vista + '</div>';
     document.body.classList.toggle('movil', S.movil);
     document.body.classList.toggle('ivo', esRevisa());
+    document.body.classList.toggle('nav6', nav.length === 6);
     bind(app);
     renderTop();
   }
@@ -1178,23 +1181,50 @@
   /* ---------------- vista RECURSOS ---------------- */
   function vRecursos() {
     const f = S.filtroRes.toLowerCase();
-    const L = S.data.cards.filter(c => (c.cat === 'recursos' || c.cat === 'fichas') && pasa(c.m) && (!f || (c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase().includes(f)));
+    const L = S.data.cards.filter(c => ['recursos', 'fichas', 'datos', 'standby'].indexOf(c.cat) >= 0 && pasa(c.m) && (!f || (c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase().includes(f)));
     const porMarca = {}; L.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
     // dentro de cada marca, agrupado por tipo de material
     const TIPOS_RES = [['logos', 'Logos e identidad', /logo|isotipo|imagotipo|identidad|manual|tipograf|paleta|brand/], ['menus', 'Menús, precios y catálogos', /men[uú]|carta|precio|catalog|lista de|tarifa/], ['fotos', 'Fotos y videos', /foto|video|imagen|banco|render|sesion|sesión/], ['otros', 'Otros', /./]];
-    const tipoRes = c => c.cat === 'fichas' ? ['fichas', 'Fichas técnicas'] : TIPOS_RES.find(t => t[2].test((c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase())).slice(0, 2);
+    const tipoRes = c => c.cat === 'fichas' ? ['fichas', 'Fichas técnicas'] : c.cat === 'datos' ? ['datos', 'Datos de la marca'] : c.cat === 'standby' ? ['standby', 'Para más adelante'] : TIPOS_RES.find(t => t[2].test((c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase())).slice(0, 2);
     const fila = c => '<div class="rrow"><div><a class="n" href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + ' <span>↗</span></a>' + (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + '</div></div>';
     const marcas = Object.keys(porMarca), todoAbierto = !!f || marcas.length === 1;
     S.resAb = S.resAb || {};
     const bloque = s => {
       const ab = todoAbierto || S.resAb[s], grupos = {};
       porMarca[s].forEach(c => { const t = tipoRes(c); (grupos[t[1]] = grupos[t[1]] || []).push(c); });
-      const orden = ['Logos e identidad', 'Fichas técnicas', 'Menús, precios y catálogos', 'Fotos y videos', 'Otros'].filter(t => grupos[t]);
+      const orden = ['Datos de la marca', 'Para más adelante', 'Logos e identidad', 'Fichas técnicas', 'Menús, precios y catálogos', 'Fotos y videos', 'Otros'].filter(t => grupos[t]);
       return '<div class="rbox' + (ab ? ' on' : '') + '"><button class="rhead" data-res-m="' + esc(s) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><span class="rchips">' + orden.map(t => '<em>' + t.split(/[ ,]/)[0] + ' ' + grupos[t].length + '</em>').join('') + '</span><i>' + (ab ? '−' : '+') + '</i></button>' +
         (ab ? '<div class="rbody">' + orden.map(t => '<div class="dw-l">' + t + '</div>' + grupos[t].map(fila).join('')).join('') + '</div>' : '') + '</div>';
     };
     return '<input class="search" id="qres" placeholder="Buscar logo, manual, ficha, menú…" value="' + esc(S.filtroRes) + '">' +
       (marcas.length ? marcas.map(bloque).join('') : '<div class="empty">' + (f ? 'No encontré nada con "' + esc(S.filtroRes) + '".' : 'Todavía no hay recursos corporativos ni fichas técnicas en los tableros SCL.') + '</div>');
+  }
+
+  /* ---------------- CALENDARIO ANUAL por marca ----------------
+     El calendario anual de cada marca (el documento que está en Recursos Corporativos del SCL), mes por mes desde hoy. */
+  function vAnual() {
+    const A = (S.data.anual || {}).marcas || {};
+    const NIV = { 0: ['Reunión de equipo', ''], 1: ['Campaña mayor', 'bad'], 2: ['Campaña especial', 'warn'], 3: ['Publicación o historias', 'ok'], 4: ['Mención', ''] };
+    const slugs = S.data.marcas.map(m => m.slug).filter(s => pasa([s]));
+    const mesHoy = NOW.getMonth(), dd = n => ('0' + n).slice(-2), MES = MESES.map(m => m.charAt(0).toUpperCase() + m.slice(1));
+    const primera = slugs.filter(x => A[x] && A[x].items && A[x].items.length)[0];
+    const bloque = s => {
+      const o = A[s], n = o && o.items ? o.items.length : 0, nMes = n ? o.items.filter(x => x.mes === mesHoy).length : 0;
+      const k = 'an:' + s, ab = S.abiertos[k] != null ? S.abiertos[k] : (slugs.length <= 2 || s === primera);
+      const cab = '<button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (ab ? 1 : 0) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><small>' + n + '</small>' + (nMes ? '<em>' + nMes + ' este mes</em>' : '') + (!n ? '<em class="suave">sin calendario cargado</em>' : '') + '<i>' + (ab ? '−' : '+') + '</i></button>';
+      if (!ab) return '<div class="mcar">' + cab + '</div>';
+      if (!n) return '<div class="mcar on">' + cab + '<div class="empty" style="margin:12px 14px 14px">Esta marca todavía no tiene calendario anual leído' + (o && o.nota ? ' (' + esc(o.nota) + ')' : '') + '. Tiene que haber una tarjeta "Calendario anual" en Recursos Corporativos del tablero SCL, con el link al documento de Google.</div></div>';
+      const cuerpo = [...Array(12)].map((_, i) => {
+        const mm = (mesHoy + i) % 12, L = o.items.filter(x => x.mes === mm).sort((a, b) => a.dia - b.dia); if (!L.length) return '';
+        const k2 = k + ':' + mm, ab2 = S.abiertos[k2] != null ? S.abiertos[k2] : i <= 1;
+        return '<div class="fl-sem' + (ab2 ? ' on' : '') + '"><button class="fl-sem-h" data-mcar="' + esc(k2) + '" data-abierta="' + (ab2 ? 1 : 0) + '"><b>' + MES[mm] + (i === 0 ? ' · este mes' : i === 1 ? ' · el mes que viene' : '') + '</b><small>' + L.length + (L.length === 1 ? ' fecha' : ' fechas') + '</small><i>' + (ab2 ? '−' : '+') + '</i></button>' +
+          (ab2 ? '<div class="fl-list">' + L.map(x => '<div class="fl-r an-r"><b class="an-d">' + dd(x.dia) + '/' + dd(mm + 1) + '</b><div class="fl-t"><b class="an-n">' + esc(x.nombre) + '</b><div class="fl-m"><span class="pill ' + NIV[x.nivel][1] + '">' + NIV[x.nivel][0] + '</span>' + (x.accion ? '<span>' + esc(x.accion) + '</span>' : '') + '</div></div></div>').join('') + '</div>' : '') + '</div>';
+      }).join('');
+      const pie = '<p class="ayuda" style="margin:10px 14px 14px">' + (o.metas && o.metas.length ? '<b>Metas del semestre:</b> ' + o.metas.map(esc).join(' · ') + '<br>' : '') + (o.url ? '<a class="lnk" href="' + esc(o.url) + '" target="_blank" rel="noopener">Abrir el calendario anual ↗</a>' : '') + (o.okr ? ' · <a class="lnk" href="' + esc(o.okr) + '" target="_blank" rel="noopener">Abrir los OKR ↗</a>' : '') + '</p>';
+      return '<div class="mcar on">' + cab + '<div class="fl-sems">' + cuerpo + '</div>' + pie + '</div>';
+    };
+    return '<p class="mio-que">El calendario anual de cada marca, mes por mes desde hoy. Sale del documento <b>"Calendario anual"</b> que está en Recursos Corporativos de cada tablero SCL: si lo corrigen ahí, acá se actualiza dentro de la semana. Las campañas mayores se planifican 30 días hábiles antes y las especiales 20.</p>' +
+      (slugs.length ? slugs.map(bloque).join('') : '<div class="empty">No tenés marcas asignadas.</div>');
   }
 
   /* ---------------- vista MARCAS ---------------- */

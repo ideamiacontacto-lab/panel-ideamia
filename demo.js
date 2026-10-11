@@ -213,3 +213,21 @@ window.PANEL_DEMO_PROJECT.mio = {
     est: { "film:bauti:reu:2026-10-05": { estado: "novoy", detalle: "", fecha: "2026-10-05 10:00" }, "film:bauti:asis:2026-10-06:isco": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-10-08:isco": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-10-07:tritato:x1": { estado: "hecho", detalle: "extra|Fotos del local nuevo" }, "film:bauti:asis:2026-10-13:vice-burger": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-09-30:quality-tienda": { estado: "hecho", detalle: "semanal" }, "film:bauti:asis:2026-09-24:vice-burger": { estado: "hecho", detalle: "semanal" } }
   };
 })();
+
+// Calendario anual por marca (pestaña Anual) y una pieza sin fecha, de ejemplo
+window.PANEL_DEMO.anual = { leido: "2026-10-07T09:00:00-03:00", marcas: {
+  "isco": { url: "#", okr: "#", nota: "", metas: ["Seguidores netos: 2.600 - 2.800", "Alcance: 130.000 – 140.000", "Contactos: 1.400 – 1.700"], items: [
+    { mes: 9, dia: 11, fecha: "11 de Octubre", nombre: "Día del Dulce de Leche", accion: "Acción previa por historias y Reel o publicación + colab (semana del ddl)", nivel: 2 },
+    { mes: 9, dia: 18, fecha: "18 de Octubre", nombre: "Día de la Madre", accion: "Campaña integral con influencers y colaboradores, promociones, pauta, acciones en el local", nivel: 1 },
+    { mes: 9, dia: 31, fecha: "31 de octubre", nombre: "Halloween", accion: "Acción previa por historias y Reel o publicación", nivel: 2 },
+    { mes: 10, dia: 2, fecha: "2 al 4 de Noviembre", nombre: "Cyber Monday", accion: "Campaña integral con influencers y colaboradores, promociones, pauta", nivel: 1 },
+    { mes: 10, dia: 11, fecha: "11 de Noviembre", nombre: "Día del Brownie", accion: "Historias alusivas y publicación", nivel: 3 },
+    { mes: 11, dia: 24, fecha: "24 y 25 de Diciembre", nombre: "Navidad", accion: "Campaña integral con influencers y colaboradores, promociones, pauta", nivel: 1 },
+    { mes: 0, dia: 6, fecha: "6 de Enero", nombre: "Reyes Magos", accion: "Historias alusivas y quizás alguna publicación a feed", nivel: 3 }] },
+  "gabriel-varisco": { url: "#", okr: "", nota: "", metas: [], items: [
+    { mes: 9, dia: 20, fecha: "20 de octubre", nombre: "Brainstorming (Fiestas)", accion: "", nivel: 0 },
+    { mes: 10, dia: 27, fecha: "27 de noviembre", nombre: "Black Friday", accion: "", nivel: 4 },
+    { mes: 11, dia: 24, fecha: "24 de diciembre", nombre: "Navidad", accion: "Colaboraciones, sorteos. Campaña integral (influencers + promo + pauta)", nivel: 1 }] },
+  "tritato": { url: "", okr: "", nota: "no hay tarjeta \"Calendario anual\" en Recursos Corporativos", metas: [], items: [] }
+} };
+window.PANEL_DEMO.cards.push({ id: "sf1", n: "Reel Día del Panadero", d: "", cat: "sinfecha", formato: "reel", etapa: "pendiente", lista: "Reels pendientes", tipo: "produccion", tablero: "Produccion GV", m: ["gabriel-varisco"], due: null, att: [], lab: [], url: "#", ourl: "#", act: "2026-10-01T10:00:00Z" });

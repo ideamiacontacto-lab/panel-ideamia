@@ -1218,3 +1218,16 @@ select{color-scheme:dark}
 .np-us{display:flex;gap:18px;flex-wrap:wrap;margin:2px 0 12px}
 .np-us .np-u{margin:0}
 @media(min-width:701px){.mio-sts:has(.mio-st:nth-child(6)){grid-template-columns:repeat(6,1fr)}}
+
+/* ---- pestaña Anual (calendario anual por marca) y barra de 6 ---- */
+.an-r{align-items:flex-start;gap:14px}
+.an-d{flex:none;width:52px;font-family:var(--f-d);font-size:22px;line-height:1;color:var(--y);letter-spacing:.02em;padding-top:2px}
+.an-n{display:block;font-weight:600;font-size:14.5px;line-height:1.3}
+.an-r .fl-m{align-items:flex-start}
+.an-r .fl-m span:not(.pill){line-height:1.4}
+@media(max-width:700px){
+  .nav6 .bnav{grid-template-columns:repeat(6,1fr)}
+  .nav6 .bnav span{font-size:9.5px;letter-spacing:0}
+  .nav6 .bnav svg{width:21px;height:21px}
+  .an-d{width:44px;font-size:19px}
+}
