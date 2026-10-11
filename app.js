@@ -214,7 +214,7 @@
   /* ---------------- render general ---------------- */
   function render() {
     const app = $('#app');
-    if (S.proj) { app.innerHTML = vistaProject(); bind(app); return; }
+    if (S.proj) { document.body.classList.toggle('movil', S.movil); app.innerHTML = vistaProject(); bind(app); return; }
     const D = S.data; if (!D) return;
     const t = agrupado(), tot = t.length, ok = t.filter(x => hecho(x.obj)).length;
     const hoyD = NOW, nombre = D.yo.nombre;
@@ -1250,15 +1250,18 @@
     const et = n => { const e = (M.etiquetas || []).find(x => x.n === n); return '<span class="mio-et' + (/^urgente$/i.test(n) ? ' urg' : '') + '"><i style="background:' + colorEt(e && e.c) + '"></i>' + esc(n) + '</span>'; };
     const fila = (c, extra) => '<a class="mio-r" href="' + esc(c.url) + '" target="_blank" rel="noopener"><div class="mio-t"><b>' + esc(c.n) + '</b><div class="mio-m">' + c.lab.map(et).join('') + '<span class="mio-l">' + esc(c.lista) + '</span>' + (extra || '') + '</div></div><span class="mio-go">↗</span></a>';
     const vence = c => { const n = diasA(new Date(c.due)); return '<span class="pill ' + (n < 0 ? 'bad' : n === 0 ? 'warn' : '') + '">' + (n < 0 ? '' : 'vence ') + cuando(new Date(c.due)) + '</span>'; };
-    const sec = (id, tit, sub, L, filaFn, vacio) => '<div class="sec mio-sec" id="mio-' + id + '"><div class="sec-h"><h2>' + tit + '<small>' + L.length + (sub ? ' · ' + sub : '') + '</small></h2></div>' + (L.length ? '<div class="mio-list">' + L.map(filaFn).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
+    // cada sección es una carpeta: se abre y se cierra, y arranca abierta solo si tiene algo y pide acción (Bandeja y Para hoy)
+    const sec = (id, tit, sub, L, filaFn, vacio, abre) => { const k = 'mio:' + id, ab = S.abiertos[k] != null ? S.abiertos[k] : !!(abre && L.length);
+      return '<div class="mcar mio-sec' + (ab ? ' on' : '') + '" id="mio-' + id + '"><button class="mcar-h" data-mcar="' + k + '" data-abierta="' + (ab ? 1 : 0) + '"><b>' + tit + '</b><small>' + L.length + '</small>' + (sub ? '<em class="suave">' + sub + '</em>' : '') + '<i>' + (ab ? '−' : '+') + '</i></button>' +
+        (ab ? (L.length ? '<div class="mio-list">' + L.map(filaFn).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') : '') + '</div>'; };
     const tile = (id, n, t, s, cl) => '<button class="mio-st' + (n ? ' ' + cl : '') + '" data-mio-ir="' + id + '"><b>' + n + '</b><span>' + t + '</span><small>' + s + '</small></button>';
     const leido = minutosDesde(M.leido);
     return '<div class="mio-top"><div class="chips mio-chips"><button class="chip' + (!S.projMarca ? ' on' : '') + '" data-mio-marca="">Todas</button>' + marcas.map(e => '<button class="chip' + (S.projMarca === e.n ? ' on' : '') + '" data-mio-marca="' + esc(e.n) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div>' +
       '<button class="btn y mio-add" data-mio-nuevo>+ Pedido</button></div>' +
       (!DEMO && leido != null && leido > 30 ? '<div class="estado-av"><span class="ei">!</span><div><b>Tu tablero se leyó hace ' + leido + ' min.</b> Puede haber cambios en Trello que no estás viendo.</div><button class="btn ghost" data-mio-rf>Leer ahora</button></div>' : '') +
       '<div class="mio-sts">' + tile('bandeja', D.bandeja.length, 'Bandeja', 'para procesar', 'y') + tile('hoy', D.hoy.length, 'Hoy', 'vence o ya venció', 'bad') + tile('semana', D.semana.length, '7 días', 'lo que viene', '') + tile('seguimiento', D.seguimiento.length, 'Seguimiento', (M.dias || 3) + ' días o más quietas', 'warn') + tile('sinfecha', D.sinFecha.length, 'Sin fecha', 'falta asignar', 'warn') + '</div>' +
-      sec('bandeja', 'Bandeja', 'procesalas y pasalas a "Por hacer"', D.bandeja, c => fila(c, c.due ? vence(c) : ''), 'Bandeja vacía. Todo procesado.') +
-      sec('hoy', 'Para hoy', 'vencen hoy o ya vencieron', D.hoy, c => fila(c, vence(c)), 'Nada vence hoy.') +
+      sec('bandeja', 'Bandeja', 'procesalas y pasalas a "Por hacer"', D.bandeja, c => fila(c, c.due ? vence(c) : ''), 'Bandeja vacía. Todo procesado.', true) +
+      sec('hoy', 'Para hoy', 'vencen hoy o ya vencieron', D.hoy, c => fila(c, vence(c)), 'Nada vence hoy.', true) +
       sec('semana', 'Próximos 7 días', '', D.semana, c => fila(c, vence(c)), 'Nada vence en los próximos 7 días.') +
       sec('seguimiento', 'Seguimiento', 'en "Enviado / en seguimiento" sin movimiento', D.seguimiento, c => fila(c, '<span class="pill warn">hace ' + D.diasQuieta(c) + ' días sin movimiento</span>'), 'Nada frenado hace ' + (M.dias || 3) + ' días o más.') +
       sec('sinfecha', 'Sin fecha', 'ponéles fecha en Trello', D.sinFecha, c => fila(c), 'Todas tienen fecha.') +
@@ -1305,10 +1308,14 @@
   function vistaProject() {
     const tab = S.projTab || 'mio', M = S.proj.mio;
     const D = M && !M.error ? datosMio() : null, n = D ? D.bandeja.length + D.hoy.length : 0;
-    const seg = '<div class="seg proj-seg"><button class="' + (tab === 'mio' ? 'on' : '') + '" data-projtab="mio">Mi día' + (n ? '<em>' + n + '</em>' : '') + '</button><button class="' + (tab === 'equipo' ? 'on' : '') + '" data-projtab="equipo">Equipo</button></div>';
-    if (tab === 'equipo') return vistaEquipo().replace('</section>', '</section>' + seg);
+    // la misma navegación que el resto: pestañas arriba en la compu, barra abajo en el celular
+    const sinTocar = (S.proj.personas || []).reduce((s, p) => s + ((p.inputs || {}).sinTocar || 0), 0);
+    const NAV = [['mio', 'Mi día', I.check, n], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
+    const seg = S.movil ? '' : '<div class="seg proj-seg">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<em>' + x[3] + '</em>' : '') + '</button>').join('') + '</div>';
+    const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
+    if (tab === 'equipo' || tab === 'registro') return vistaEquipo(tab === 'registro').replace('</section>', '</section>' + seg) + bnav;
     const resumen = !D ? 'Tu tablero Project de Trello, en un vistazo.' : n ? 'Tenés <b>' + D.bandeja.length + '</b> en Bandeja para procesar y <b>' + D.hoy.length + '</b> que ' + (D.hoy.length === 1 ? 'vence' : 'vencen') + ' hoy o ya ' + (D.hoy.length === 1 ? 'venció' : 'vencieron') + '.' : 'Bandeja vacía y nada vence hoy. Bien ahí.';
-    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Mi día <em>· Project</em></h1><p>' + resumen + '</p></div></section>' + seg + '<div class="view">' + vistaMio() + '</div>';
+    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Mi día <em>· Project</em></h1><p>' + resumen + '</p></div></section>' + seg + '<div class="view">' + vistaMio() + '</div>' + bnav;
   }
   /* ---------------- MI SEMANA (filmmaker) ----------------
      Qué tiene que filmar y editar por marca (esta semana y la que viene), a qué marcas le toca ir,
@@ -1477,24 +1484,28 @@
     });
   }
 
-  function vistaEquipo() {
+  function vistaEquipo(soloRegistro) {
     const P = S.proj, f = S.filtroReg;
     const nm = c => { const p = P.personas.find(x => x.clave === c); return p ? p.nombre : c; };
     const ms = s => { const m = P.marcas.find(x => x.slug === s); return m ? m.nombre : s; };
-    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Equipo <em>· al día</em></h1><p>Qué tildó cada uno, qué reuniones coordinó y qué inputs siguen sin tocar. Todo queda también en la pestaña <b>Registro</b> del Sheet.</p></div></section>' +
-      '<div class="view"><div class="ppl">' + P.personas.map(p => {
+    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>' + (soloRegistro ? 'Registro <em>· movimientos</em>' : 'Equipo <em>· al día</em>') + '</h1><p>' + (soloRegistro ? 'Lo último que tildó o cargó cada uno. Queda también en la pestaña <b>Registro</b> del Sheet.' : 'Qué tildó cada uno, qué reuniones coordinó y qué inputs siguen sin tocar. Tocá un nombre para ver el detalle.') + '</p></div></section>' +
+      '<div class="view">' + (soloRegistro ? '' : '<div class="ppl">' + P.personas.map(p => {
         const pct = p.rutinas.total ? Math.round(p.rutinas.hechas / p.rutinas.total * 100) : 0;
         const ag = p.reuniones.filter(r => r.estado), sin = p.reuniones.filter(r => !r.estado);
-        return '<div class="person"><div class="rl">' + esc(p.rol) + '</div><h4>' + esc(p.nombre) + '</h4>' +
+        // cada persona es una carpeta: cerrada muestra el resumen, abierta el detalle. Se abre sola si tiene inputs sin tocar o reuniones vencidas.
+        const k = 'eq:' + p.clave, alerta = p.inputs.sinTocar > 0 || sin.some(r => r.vencida), ab = S.abiertos[k] != null ? S.abiertos[k] : (!S.movil && alerta);
+        const cab = '<button class="mcar-h" data-mcar="' + k + '" data-abierta="' + (ab ? 1 : 0) + '"><b>' + esc(p.nombre) + '</b><small>' + esc(p.rol) + '</small><em class="suave">' + p.rutinas.hechas + '/' + p.rutinas.total + ' rutinas</em>' + (p.inputs.sinTocar ? '<em>' + p.inputs.sinTocar + (p.inputs.sinTocar === 1 ? ' input sin tocar' : ' inputs sin tocar') + '</em>' : '') + (sin.length ? '<em class="suave">' + sin.length + ' sin fecha</em>' : '') + '<i>' + (ab ? '−' : '+') + '</i></button>';
+        if (!ab) return '<div class="mcar eq-p">' + cab + '</div>';
+        return '<div class="mcar eq-p on">' + cab + '<div class="person">' +
           '<div class="pr"><span>Rutinas de hoy y la semana</span><b>' + p.rutinas.hechas + '/' + p.rutinas.total + '</b></div><div class="bar"><i style="width:' + pct + '%"></i></div>' +
           '<div class="pr"><span>Inputs sin tocar</span><b' + (p.inputs.sinTocar ? ' style="color:var(--warn)"' : '') + '>' + p.inputs.sinTocar + ' de ' + p.inputs.total + '</b></div>' +
           (p.reuniones.length ? '<div class="lst">' + sin.concat(ag).map(r => '<div class="it"><span>' + esc(r.nombre) + (r.marca ? ' · ' + esc(ms(r.marca)) : '') + '</span><span>' + (r.estado ? '<span class="pill ok">' + (/^\d{4}-\d\d-\d\d/.test(r.estado.detalle) ? corto(ymdD(r.estado.detalle)) + ' · ' + esc(r.estado.detalle.slice(11, 16)) : esc(r.estado.detalle.slice(0, 16))) + '</span>' : '<span class="pill ' + (r.vencida ? 'bad' : 'warn') + '">sin fecha · hasta el ' + r.hasta + '</span>') + '</span></div>').join('') + '</div>' : '') +
-          '<div style="margin-top:14px"><a class="btn" href="?p=' + encodeURIComponent(p.clave) + '">Ver su panel →</a></div></div>';
-      }).join('') + '</div>' +
-      '<div class="sec"><div class="sec-h"><h2>Registro<small>últimos movimientos</small></h2><select class="search" id="freg" style="width:auto;margin:0;padding:6px 10px"><option value="">Todos</option>' + P.personas.map(p => '<option value="' + esc(p.clave) + '"' + (f === p.clave ? ' selected' : '') + '>' + esc(p.nombre) + '</option>').join('') + '</select></div>' +
+          '<div style="margin-top:14px"><a class="btn" href="?p=' + encodeURIComponent(p.clave) + '">Ver su panel →</a></div></div></div>';
+      }).join('') + '</div>') +
+      (!soloRegistro ? '' : '<div class="sec"><div class="sec-h"><h2>Registro<small>últimos movimientos</small></h2><select class="search" id="freg" style="width:auto;margin:0;padding:6px 10px"><option value="">Todos</option>' + P.personas.map(p => '<option value="' + esc(p.clave) + '"' + (f === p.clave ? ' selected' : '') + '>' + esc(p.nombre) + '</option>').join('') + '</select></div>' +
       '<table class="tbl"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th class="hm">Marca</th><th>Estado</th></tr></thead><tbody>' +
       P.registro.filter(r => !f || r.persona === f).map(r => '<tr><td class="m">' + esc(r.fecha.slice(5)) + '</td><td>' + esc(nm(r.persona)) + '</td><td>' + esc(({ reunion: 'Reunión', rutina: 'Rutina', input: 'Input', evento: 'Calendario', card: 'Tarjeta', plan: 'Arrancó el día' })[r.tipo] || r.tipo) + ' · <span style="color:var(--muted)">' + esc((r.clave.split(':')[1] || '').replace(/-/g, ' ')) + '</span>' + (r.detalle ? '<div style="color:var(--muted);font-size:12px">' + esc(r.detalle) + '</div>' : '') + '</td><td class="hm m">' + esc(r.marca ? ms(r.marca) : '—') + '</td><td><span class="pill ' + ({ hecho: 'ok', agendada: 'ok', archivado: '', procesado: 'y', project: 'y' }[r.estado] || '') + '">' + esc(r.estado) + '</span></td></tr>').join('') +
-      '</tbody></table></div></div>';
+      '</tbody></table></div>') + '</div>';
   }
 
   /* ---------------- interacción ---------------- */
@@ -1549,7 +1560,7 @@
     root.querySelectorAll('[data-mio-marca]').forEach(x => x.onclick = () => { S.projMarca = x.dataset.mioMarca; render(); });
     root.querySelectorAll('[data-mio-nuevo]').forEach(x => x.onclick = nuevoPedido);
     root.querySelectorAll('[data-mio-rf]').forEach(x => x.onclick = () => refrescarMio());
-    root.querySelectorAll('[data-mio-ir]').forEach(x => x.onclick = () => { const el = document.getElementById('mio-' + x.dataset.mioIr); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    root.querySelectorAll('[data-mio-ir]').forEach(x => x.onclick = () => { S.abiertos['mio:' + x.dataset.mioIr] = true; render(); const el = document.getElementById('mio-' + x.dataset.mioIr); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     root.querySelectorAll('[data-viva]').forEach(x => x.onclick = () => { S.viva = null; render(); revisionViva(); });
     root.querySelectorAll('[data-filmseg]').forEach(x => x.onclick = () => { LS.set('filmseg', x.dataset.filmseg); render(); });
     root.querySelectorAll('[data-film-listo]').forEach(x => x.onclick = () => filmListo(x.dataset.filmListo));
