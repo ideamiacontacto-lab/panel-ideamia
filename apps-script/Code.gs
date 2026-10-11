@@ -649,7 +649,7 @@ function actualizar(desdeWeb) {
     // filtro de CM y privados de Discord (antes de guardar: así la foto ya refleja a qué lista fue cada pieza). Si falla, no corta la actualización.
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
     // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
-    try { tareasDelMesEnviar_(cat, cfg); } catch (e) {}
+    try { tareasDelMesEnviar_(cat, cfg, snap); } catch (e) {}
     // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
     try { seguimientoEnviar_(snap, cat, cfg); } catch (e) {}
     tk_("privados"); snap.generado = new Date().toISOString();
@@ -1850,7 +1850,7 @@ function tareasDelMesArmar_(p, cat, fecha) {
   return trozos_('📅 **' + p.nombre + ', estas son tus tareas de ' + NOM_MES[mes - 1] + '**', lineas);
 }
 /* Lo llama cada actualización: manda la lista una sola vez por mes, el primer día hábil (hasta el 7), entre las 9 y las 12. */
-function tareasDelMesEnviar_(cat, cfg) {
+function tareasDelMesEnviar_(cat, cfg, snap) {
   if (/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim()) || /^no$/i.test(String(cfg.TAREAS_MES_DISCORD || 'si').trim())) return;
   const hoy = hoyAR_(), mes = ym_(hoy), dow = hoy.getDay(), h = hoy.getHours();
   if (dow === 0 || dow === 6 || hoy.getDate() > 7 || h < 9 || h >= 12) return;
@@ -1860,6 +1860,8 @@ function tareasDelMesEnviar_(cat, cfg) {
     const id = idDiscord_(cfg, p.clave), textos = id && tareasDelMesArmar_(p, cat, hoy);
     if (!textos) return;
     try { textos.forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); }); hecho.a.push(p.clave); } catch (e) { P.setProperty('DISCORD_DM_ERROR', (new Date().toISOString() + ' · tareas del mes de ' + p.clave + ': ' + e.message).slice(0, 300)); }
+    // y, por cada marca suya, lo que marca el calendario anual para este mes (si falla, las tareas igual salieron)
+    try { const datos = anualDatos_(snap || snapshot_(), cat); cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snap || snapshot_(), datos, hoy) || []).forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); })); } catch (e) {}
   });
   P.setProperty('TAREAS_MES', JSON.stringify(hecho));
 }
@@ -1877,6 +1879,9 @@ function pruebaTareasMes() {
     if (!textos) { console.log(p.clave + ': sin marcas, no se le manda'); return; }
     discordPrivado_(yo.id, '**MUESTRA · privado a ' + p.nombre + '** · *el primer día hábil del mes, a la mañana*');
     textos.forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)\n' + t); });
+    const snapP = snapshot_(), datosP = anualDatos_(snapP, cat);
+    cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snapP, datosP, prox) || []).forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)
+' + t); }));
   });
 }
 
@@ -2034,6 +2039,111 @@ function auditarInputs() {
       '\n   Por marca: ' + mias.map(s => s + ' ' + L.filter(c => c.marca === s).length).join(' · ') +
       '\n   Los 6 más viejos: ' + L.slice().sort((a, b) => b.dias - a.dias).slice(0, 6).map(c => c.marca + ' · ' + String(c.n).slice(0, 40) + ' (' + c.dias + ' días)').join(' | '));
   });
+}
+
+/* ---------------- calendario anual y OKR de cada marca (recomendaciones del mes) ----------------
+   En "Recursos Corporativos" de cada tablero SCL hay una tarjeta "Calendario anual" y otra "OKRS ANUALES" con el link al documento.
+   Una vez por mes se leen esos documentos (sin IA: el calendario tiene formato fijo "fecha → nombre: acción") y a cada social media
+   le llega, junto con sus tareas del mes y por marca: las fechas del mes con la acción prevista, cuáles no están cargadas en la lista
+   de Efemérides de Trello, qué campañas de los meses siguientes hay que empezar a planificar ya, y las metas del período.
+   Anticipación (la define el propio calendario): campañas mayores 30 días hábiles antes, campañas especiales 20. */
+const MESES_ = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function docTexto_(id) {
+  PEDIDOS_++;
+  const r = UrlFetchApp.fetch('https://docs.google.com/document/d/' + id + '/export?format=txt', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('no pude abrir el documento (código ' + r.getResponseCode() + ')');
+  return r.getContentText();
+}
+function recursoDoc_(snap, slug, patron) {
+  const L = (snap.cards || []).filter(c => c.cat === 'recursos' && c.m[0] === slug && patron.test(norm_(c.n))).sort((a, b) => (a.tipo === 'scl' ? 0 : 1) - (b.tipo === 'scl' ? 0 : 1));
+  for (let i = 0; i < L.length; i++) {
+    const m = /docs\.google\.com\/document\/d\/([\w-]+)/.exec((L[i].d || '') + ' ' + (L[i].att || []).map(a => a.u).join(' '));
+    if (m) return { id: m[1], url: 'https://docs.google.com/document/d/' + m[1], tarjeta: L[i].url };
+  }
+  return L.length ? { tarjeta: L[0].url } : null;
+}
+const nivelAccion_ = a => { const n = norm_(a); return /campana integral|influencer|pauta/.test(n) ? 1 : /accion previa|colab|sorteo/.test(n) ? 2 : (!n || /aislada|quizas|\?\s*$/.test(n)) ? 4 : 3; };
+function calendarioAnualParse_(txt) {
+  const out = []; let mes = -1, pendiente = null;
+  String(txt).split(/\r?\n/).forEach(l0 => {
+    const l = l0.replace(/\*/g, '').replace(/^[\s\-•·●○▪■◦>]+/, '').trim(); if (!l) return;
+    const h = MESES_.indexOf(norm_(l)); if (h >= 0) { mes = h; pendiente = null; return; }
+    if (mes < 0) return;
+    const m = /^(.{1,60}?)\s*(?:→|->|=>)\s*(.*)$/.exec(l);
+    let fechaTxt, resto;
+    if (m && /\d/.test(m[1])) { fechaTxt = m[1].trim(); resto = m[2].trim(); if (!resto) { pendiente = fechaTxt; return; } }
+    else if (pendiente && /:/.test(l) && l.length < 260) { fechaTxt = pendiente; resto = l; } // sub-ítems de una fecha ("25 de Mayo →" y abajo varias)
+    else return;
+    const dia = Number((/\d{1,2}/.exec(fechaTxt) || [0])[0]); if (!dia || dia > 31) return;
+    const i = resto.indexOf(':'), nombre = (i > 0 ? resto.slice(0, i) : resto).trim(), accion = (i > 0 ? resto.slice(i + 1) : '').replace(/→.*$/, '').trim();
+    if (!nombre || nombre.length > 90) return;
+    out.push({ mes: mes, dia: dia, fecha: fechaTxt, nombre: nombre, accion: accion.slice(0, 160), nivel: nivelAccion_(accion) });
+  });
+  // una misma campaña puede figurar en dos meses (ej. Black Friday): se deja una por mes y nombre
+  return out.filter((x, i, a) => a.findIndex(y => y.mes === x.mes && y.dia === x.dia && norm_(y.nombre) === norm_(x.nombre)) === i);
+}
+/* Metas del semestre en curso, si el documento de OKR tiene el formato "S1 — Enero a Junio" / "S2 — Julio a Diciembre". */
+function okrParse_(txt, mes) {
+  const lineas = String(txt).split(/\r?\n/).map(l => l.replace(/[*#]/g, '').trim()), sem = mes < 6 ? 1 : 2, out = [];
+  const ini = lineas.findIndex(l => new RegExp('^S' + sem + '\\b').test(l) || (sem === 1 ? /^enero a junio/i : /^julio a diciembre/i).test(l));
+  if (ini < 0) return out;
+  for (let i = ini + 1; i < Math.min(lineas.length, ini + 14) && out.length < 4; i++) {
+    if (/^S[12]\b/.test(lineas[i])) break;
+    if (/seguidores|alcance|contactos|consultas|ventas/i.test(lineas[i]) && /\d/.test(lineas[i]) && lineas[i].length < 90) out.push(lineas[i].replace(/^[\s\-•·●○]+/, ''));
+  }
+  return out;
+}
+/* Lee (una vez por mes) el calendario anual y los OKR de todas las marcas y los deja guardados. forzar = true los vuelve a leer. */
+function anualDatos_(snap, cat, forzar) {
+  const mes = ym_(hoyAR_());
+  let g = {}; try { g = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'); } catch (e) {}
+  if (!forzar && g.mes === mes && g.marcas) return g;
+  const marcas = {};
+  cat.marcas.forEach(m => {
+    const cal = recursoDoc_(snap, m.slug, /calendario anual/), okr = recursoDoc_(snap, m.slug, /okr/), o = { cal: cal, okr: okr, items: [], metas: [], nota: '' };
+    if (!cal) o.nota = 'no hay tarjeta "Calendario anual" en Recursos Corporativos';
+    else if (!cal.id) o.nota = 'la tarjeta "Calendario anual" no tiene el link a un documento de Google';
+    else try { o.items = calendarioAnualParse_(docTexto_(cal.id)); if (!o.items.length) o.nota = 'no pude leer fechas del calendario (formato distinto al de "fecha → nombre: acción")'; } catch (e) { o.nota = 'calendario: ' + e.message; }
+    if (okr && okr.id) try { o.txtOkr = docTexto_(okr.id).slice(0, 12000); } catch (e) {}
+    marcas[m.slug] = o;
+  });
+  g = { mes: mes, leido: new Date().toISOString(), marcas: marcas };
+  guardarJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json', g);
+  return g;
+}
+function restarHabiles_(d, n) { const x = new Date(d); while (n > 0) { x.setDate(x.getDate() - 1); if (x.getDay() !== 0 && x.getDay() !== 6) n--; } return x; }
+/* Mensaje del mes para una marca. fecha = cualquier día del mes del que se habla. Devuelve null si la marca no tiene calendario leído. */
+function recomendacionesMarca_(m, snap, datos, fecha) {
+  const o = (datos.marcas || {})[m.slug]; if (!o || !o.items || !o.items.length) return null;
+  const mes = fecha.getMonth(), anio = fecha.getFullYear(), ini = new Date(anio, mes, 1), hoy = hoyAR_();
+  const dd = n => ('0' + n).slice(-2), NIV = { 1: 'campaña mayor', 2: 'campaña especial', 3: 'publicación o historias', 4: 'mención eventual' };
+  // tarjetas de Efemérides de la marca en Trello, por fecha: para avisar cuál falta cargar
+  const efem = (snap.cards || []).filter(c => c.cat === 'efem' && c.m[0] === m.slug && c.due).map(c => new Date(c.due).getTime());
+  const cargada = d => efem.some(t => Math.abs(t - d.getTime()) <= 2.5 * 864e5);
+  const lineas = [], delMes = o.items.filter(x => x.mes === mes).sort((a, b) => a.dia - b.dia);
+  if (delMes.length) {
+    lineas.push('**Este mes**');
+    delMes.forEach(x => { const d = new Date(anio, mes, x.dia, 12); lineas.push('• ' + dd(x.dia) + '/' + dd(mes + 1) + ' · **' + x.nombre + '** · ' + NIV[x.nivel] + (x.accion ? ': ' + x.accion.charAt(0).toLowerCase() + x.accion.slice(1) : '') + (x.nivel <= 3 && !cargada(d) ? ' · ⚠️ no está en Efemérides de Trello' : '')); });
+  } else lineas.push('Este mes el calendario anual no marca ninguna fecha.');
+  // lo que viene y necesita anticipación: mayores (30 días hábiles) y especiales (20) de los dos meses siguientes
+  const prox = [];
+  [1, 2].forEach(k => { const mm = (mes + k) % 12, aa = anio + (mes + k > 11 ? 1 : 0); o.items.filter(x => x.mes === mm && x.nivel <= 2).forEach(x => {
+    const d = new Date(aa, mm, x.dia, 12), arranque = restarHabiles_(d, x.nivel === 1 ? 30 : 20);
+    if (arranque.getTime() > new Date(anio, mes + 1, 7).getTime()) return; // todavía falta: se avisa el mes que viene
+    prox.push({ t: d.getTime(), l: '• ' + dd(x.dia) + '/' + dd(mm + 1) + ' · **' + x.nombre + '** · ' + NIV[x.nivel] + ' · ' + (arranque.getTime() < Math.max(hoy.getTime(), ini.getTime()) ? 'ya tendría que estar en marcha (se planifica desde el ' + dd(arranque.getDate()) + '/' + dd(arranque.getMonth() + 1) + ')' : 'empezar a planificar antes del ' + dd(arranque.getDate()) + '/' + dd(arranque.getMonth() + 1)) });
+  }); });
+  if (prox.length) { lineas.push('', '**Para empezar a planificar ya**'); prox.sort((a, b) => a.t - b.t).forEach(x => lineas.push(x.l)); }
+  const metas = o.txtOkr ? okrParse_(o.txtOkr, mes) : [];
+  if (metas.length) { lineas.push('', '**Metas del ' + (mes < 6 ? 'primer' : 'segundo') + ' semestre (OKR)**'); metas.forEach(x => lineas.push('• ' + x)); }
+  lineas.push('', 'Calendario anual: ' + o.cal.url + (o.okr && o.okr.url ? ' · OKR: ' + o.okr.url : ''));
+  return trozos_('📌 **' + m.nombre + ' · ' + MESES_[mes] + ' según el calendario anual**', lineas);
+}
+/* PRUEBA sin efectos: qué encontró de cada marca (vuelve a leer los documentos) y cómo quedaría el mensaje del mes que viene de una. */
+function probarCalendarioAnual() {
+  const cat = catalogo_(), snap = snapshot_(), d = anualDatos_(snap, cat, true), hoy = hoyAR_(), prox = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+  cat.marcas.forEach(m => { const o = d.marcas[m.slug]; console.log(m.nombre + ' · calendario: ' + (o.items.length ? o.items.length + ' fechas (' + MESES_.map((n, i) => n.slice(0, 3) + ' ' + o.items.filter(x => x.mes === i).length).join(', ') + ')' : 'NO · ' + o.nota) + ' · OKR: ' + (o.txtOkr ? 'leído' + (okrParse_(o.txtOkr, prox.getMonth()).length ? ' con metas del semestre' : ' (sin metas en formato S1/S2)') : o.okr ? 'tarjeta sin documento legible' : 'sin tarjeta')); });
+  const ej = cat.marcas.filter(m => d.marcas[m.slug].items.length)[0];
+  if (ej) (recomendacionesMarca_(ej, snap, d, prox) || []).forEach(t => console.log('(' + t.length + ' caracteres)\n' + t));
 }
 
 /* ---------------- web app ---------------- */
