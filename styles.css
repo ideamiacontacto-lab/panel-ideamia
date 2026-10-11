@@ -1,6 +1,6 @@
 /* Panel diario · Ideamia — misma identidad que la web de reportes:
    negro, blanco y amarillo #FFF200 · Bebas Neue (títulos), Syne (subtítulos), Outfit (texto). Líneas finas, esquinas casi rectas. */
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+/* las tipografías se cargan desde index.html (con preconnect): un @import acá frenaba el primer dibujo de la página */
 
 :root{
   --bg:#0A0A0A; --s1:#111; --s2:#161616; --s3:#1C1C1C; --line:#222; --line2:#2E2E2E;
