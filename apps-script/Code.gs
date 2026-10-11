@@ -650,6 +650,8 @@ function actualizar(desdeWeb) {
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
     // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
     try { tareasDelMesEnviar_(cat, cfg); } catch (e) {}
+    // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
+    try { seguimientoEnviar_(snap, cat, cfg); } catch (e) {}
     tk_("privados"); snap.generado = new Date().toISOString();
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     P.deleteProperty('ULTIMA_FALLA');
@@ -1876,6 +1878,140 @@ function pruebaTareasMes() {
     discordPrivado_(yo.id, '**MUESTRA · privado a ' + p.nombre + '** · *el primer día hábil del mes, a la mañana*');
     textos.forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)\n' + t); });
   });
+}
+
+/* ---------------- seguimiento: segundo aviso, aviso al project y resumen de los lunes ----------------
+   A) Input con etiqueta Urgente ya avisado por privado: si a las 24 h sigue sin marcar en el panel, un único recordatorio
+      al social media; si a las 48 h sigue igual, le llega al project. Solo en horario de trabajo (lun a vie, 9 a 18).
+   B) Los lunes a la mañana el project recibe un privado con lo que quedó sin atender, por persona.
+   Se apaga con Config SEGUIMIENTO_DISCORD = no (o con PRIVADOS_DISCORD = no). */
+function idJoaquin_(cfg) {
+  const c = String(cfg.DISCORD_ID_JOAQUIN || P.getProperty('JOAQUIN_ID') || '').trim();
+  if (/^\d{15,22}$/.test(c)) return c;
+  const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  if (!puente || !clave || !guild) return '';
+  PEDIDOS_++;
+  const r = UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/members/search?query=joaquin&limit=10', { headers: { 'x-clave': clave }, muteHttpExceptions: true });
+  const yo = (r.getResponseCode() < 300 ? JSON.parse(r.getContentText()).map(m => m.user).filter(u => u && !u.bot) : []).filter(u => /joaquinyarce/i.test(u.username))[0];
+  if (yo) P.setProperty('JOAQUIN_ID', yo.id);
+  return yo ? yo.id : '';
+}
+/* Qué inputs urgentes toca recordar y cuáles toca pasarle al project. No envía nada: solo calcula. */
+function seguimientoInputs_(snap, cat) {
+  const prop = P.getProperty('INPUTS_SEG'), primera = prop == null; let T = {}; try { T = JSON.parse(prop || '{}'); } catch (e) {}
+  const avisados = {}; (P.getProperty('INPUTS_AVISADOS') || '').split(',').forEach(x => { if (x) avisados[x] = 1; });
+  const est = estados_(), ahora = Date.now(), out = { recordar: [], escalar: [], T: {} };
+  inputsParaAvisar_(snap, cat).marcados.forEach(c => {
+    if (!avisados[c.id]) return; // todavía no salió el primer aviso
+    // la primera vez, lo que ya estaba de antes no se recuerda ni se pasa al project: el reloj corre para lo nuevo
+    const t = T[c.id] || (primera ? { t: ahora, r: 1, e: 1 } : { t: ahora });
+    if (!(est['inp:' + c.id] || est['card:' + c.id])) {
+      const h = (ahora - t.t) / 36e5;
+      if (!t.r && h >= 24) out.recordar.push(c); else if (t.r && !t.e && h >= 48) out.escalar.push(c);
+    }
+    out.T[c.id] = t; // lo que ya no es input urgente (lo movieron o archivaron) deja de seguirse solo
+  });
+  return out;
+}
+function smDe_(cat, c) { return (cat.marcas.filter(x => x.slug === c.m[0])[0] || {}).sm || ''; }
+function lineaInput_(cat, c) { return '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + String(c.n).slice(0, 90) + (c.due ? ' · vence ' + fechaAR_(c.due) : '') + ' · ' + c.url; }
+/* Resumen de lo que quedó sin atender, por persona (lo mismo que muestra la pestaña Equipo, más filmmaker y guiones). */
+function resumenSemanalArmar_(snap, cat, cfg) {
+  const est = estados_(), hoy = hoyAR_(), lineas = [];
+  cat.equipo.filter(p => !/project/i.test(p.rol)).forEach(p => {
+    const L = [];
+    if (/film|audiovis/i.test(p.rol)) {
+      const a = atrasadasFilm_(snap, filmConfig_(cfg, cat));
+      if (a.length) L.push('• ' + a.length + (a.length === 1 ? ' pieza atrasada' : ' piezas atrasadas') + ': ' + a.slice(0, 4).map(c => nombreMarca_(cat, c.m[0]) + ' · ' + String(c.n).slice(0, 40)).join('; ') + (a.length > 4 ? '…' : ''));
+    } else {
+      let pn = null; try { pn = aplicarEstados_(base_(p.clave), est); } catch (e) {}
+      if (!pn || pn.error) return;
+      const inp = (pn.cards || []).filter(c => c.cat === 'input'), sinT = inp.filter(c => !c.estado), urg = sinT.filter(c => (c.lab || []).some(x => /urgente/.test(norm_(x))));
+      if (sinT.length) L.push('• Inputs sin tocar: ' + sinT.length + ' de ' + inp.length + (urg.length ? ' (' + urg.length + (urg.length === 1 ? ' urgente' : ' urgentes') + ')' : ''));
+      const reu = (pn.reuniones || []).filter(x => !x.estado), reuV = reu.filter(x => x.vencida);
+      if (reu.length) L.push('• Reuniones sin fecha: ' + reu.length + (reuV.length ? ' (' + reuV.length + (reuV.length === 1 ? ' vencida' : ' vencidas') + ')' : '') + ': ' + reu.slice(0, 4).map(x => x.nombre + (x.marca ? ' · ' + nombreMarca_(cat, x.marca) : '')).join('; ') + (reu.length > 4 ? '…' : ''));
+      const rep = pn.reportes || [], repV = rep.filter(x => x.vence && new Date(x.vence) < new Date());
+      if (rep.length) L.push('• Reportes sin cargar: ' + rep.length + (repV.length ? ' (' + repV.length + (repV.length === 1 ? ' vencido' : ' vencidos') + ')' : ''));
+      const rut = (pn.rutinas || []).filter(x => x.vencida && !x.estado);
+      if (rut.length) L.push('• Rutinas vencidas sin tildar: ' + rut.length + ': ' + rut.slice(0, 3).map(x => String(x.tarea).slice(0, 45)).join('; ') + (rut.length > 3 ? '…' : ''));
+      const corr = (pn.cards || []).filter(c => c.cat === 'corr' && c.due && new Date(c.due) < new Date() && !c.dc);
+      if (corr.length) L.push('• Correcciones vencidas: ' + corr.length);
+    }
+    if (L.length) { lineas.push('', '**' + p.nombre + '** · ' + p.rol); L.forEach(x => lineas.push(x)); }
+  });
+  // guiones que Fede ya tendría que haber entregado
+  const hoy0 = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
+  const gui = (snap.cards || []).filter(c => c.cat === 'guion' && c.gest === 'pendiente' && !c.salio && c.entrega && new Date(c.entrega).getTime() < hoy0);
+  if (gui.length) { lineas.push('', '**Fede** · guiones'); lineas.push('• ' + gui.length + (gui.length === 1 ? ' guion atrasado' : ' guiones atrasados') + ': ' + gui.slice(0, 4).map(c => nombreMarca_(cat, c.m[0]) + ' · ' + String(c.n).slice(0, 40)).join('; ') + (gui.length > 4 ? '…' : '')); }
+  if (!lineas.length) lineas.push('', 'Nada pendiente: todo el equipo está al día.');
+  lineas.push('', 'Detalle por persona en la pestaña Equipo: https://ideamiacontacto-lab.github.io/panel-ideamia/');
+  return trozos_('🗂️ **Resumen del lunes ' + Utilities.formatDate(hoy, TZ, 'dd/MM') + ' · lo que quedó sin atender**', lineas);
+}
+/* Lo llama cada actualización, después de los privados. Si un envío falla, no se anota y se reintenta en la próxima lectura. */
+function seguimientoEnviar_(snap, cat, cfg) {
+  if (/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim()) || /^no$/i.test(String(cfg.SEGUIMIENTO_DISCORD || 'si').trim())) return;
+  const hoy = hoyAR_(), dow = hoy.getDay(), h = hoy.getHours(), habil = dow >= 1 && dow <= 5 && h >= 9 && h < 18;
+  const s = seguimientoInputs_(snap, cat), panel = 'https://ideamiacontacto-lab.github.io/panel-ideamia/';
+  if (habil && (s.recordar.length || s.escalar.length)) {
+    // A1) recordatorio único al social media
+    const porSM = {}; s.recordar.forEach(c => { const k = smDe_(cat, c); (porSM[k] = porSM[k] || []).push(c); });
+    Object.keys(porSM).forEach(k => {
+      const id = idDiscord_(cfg, k), L = porSM[k]; if (!k || !id) return;
+      try {
+        trozos_('Hola ' + nombreDe_(k) + '. Ayer te avisé de ' + (L.length === 1 ? 'este input urgente y sigue' : 'estos inputs urgentes y siguen') + ' sin marcar en el panel:', L.map(c => lineaInput_(cat, c)))
+          .forEach((t, i, a) => discordPrivado_(id, i === a.length - 1 ? t + '\nSi ya lo viste, marcalo en el panel y no te lo recuerdo más: ' + panel : t));
+        L.forEach(c => { s.T[c.id].r = 1; s.T[c.id].tr = Date.now(); });
+      } catch (e) {}
+    });
+    // A2) pasó otro día sin marcar: le llega al project
+    if (s.escalar.length) {
+      const yo = idJoaquin_(cfg);
+      if (yo) try {
+        trozos_('⏰ **Inputs urgentes sin ver hace 2 días o más** (ya se les recordó una vez):', s.escalar.map(c => lineaInput_(cat, c) + ' · a cargo de ' + nombreDe_(smDe_(cat, c)))).forEach(t => discordPrivado_(yo, t));
+        s.escalar.forEach(c => { s.T[c.id].e = 1; });
+      } catch (e) {}
+    }
+  }
+  P.setProperty('INPUTS_SEG', JSON.stringify(s.T).slice(0, 8900));
+  // B) resumen de los lunes (una vez por semana, entre las 9 y las 12)
+  if (dow === 1 && h >= 9 && h < 12 && P.getProperty('RESUMEN_SEM') !== semana_(hoy)) {
+    const yo = idJoaquin_(cfg);
+    if (yo) try { resumenSemanalArmar_(snap, cat, cfg).forEach(t => { discordPrivado_(yo, t); Utilities.sleep(500); }); P.setProperty('RESUMEN_SEM', semana_(hoy)); } catch (e) {}
+  }
+}
+/* MUESTRA: le manda a JOAQUÍN cómo llegan los tres mensajes (recordatorio al social media, aviso al project y resumen del lunes con
+   los datos reales de hoy). No le escribe a nadie más y no anota nada. */
+function pruebaSeguimiento() {
+  const cfg = config_(), cat = catalogo_(), snap = snapshot_(), yo = idJoaquin_(cfg);
+  if (!yo) { console.log('No encontré a Joaquín en el servidor de Discord'); return; }
+  const s = seguimientoInputs_(snap, cat), urg = inputsParaAvisar_(snap, cat).marcados, ej = urg[0];
+  console.log('Inputs urgentes hoy: ' + urg.length + ' · tocaría recordar ahora: ' + s.recordar.length + ' · tocaría pasarte ahora: ' + s.escalar.length);
+  const linea = ej ? lineaInput_(cat, ej) : '• **(marca)** · (nombre del input) · vence dd/mm · (link)', quien = ej ? nombreDe_(smDe_(cat, ej)) : 'Orne';
+  discordPrivado_(yo, '**MUESTRA A1 · privado a ' + quien + '** · *24 h después del primer aviso, si no lo marcó en el panel. Una sola vez.*\n▔▔▔▔▔▔▔▔▔▔\nHola ' + quien + '. Ayer te avisé de este input urgente y sigue sin marcar en el panel:\n' + linea + '\nSi ya lo viste, marcalo en el panel y no te lo recuerdo más: https://ideamiacontacto-lab.github.io/panel-ideamia/');
+  Utilities.sleep(600);
+  discordPrivado_(yo, '**MUESTRA A2 · privado a vos** · *48 h después, si sigue sin marcar.*\n▔▔▔▔▔▔▔▔▔▔\n⏰ **Inputs urgentes sin ver hace 2 días o más** (ya se les recordó una vez):\n' + linea + ' · a cargo de ' + quien);
+  Utilities.sleep(600);
+  discordPrivado_(yo, '**MUESTRA B · privado a vos** · *todos los lunes entre las 9 y las 12, con datos reales de hoy.*');
+  resumenSemanalArmar_(snap, cat, cfg).forEach(t => { Utilities.sleep(600); discordPrivado_(yo, t); console.log('(' + t.length + ' caracteres)\n' + t); });
+}
+/* Una sola vez: en la pestaña Marcas, "SkilfulBlack" y "SFB" eran la misma marca cargada dos veces. Deja solo SFB (con los nombres viejos
+   como alias, así cualquier tarjeta que diga Skilful sigue cayendo en SFB) y borra la fila vieja. */
+function unificarSFB() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('Marcas'), v = sh.getDataRange().getValues();
+  const fila = n => v.map((r, i) => norm_(r[0]) === n ? i : -1).filter(i => i >= 0)[0];
+  const iV = fila('skilfulblack'), iN = fila('sfb');
+  console.log('Antes: ' + v.slice(1).map(r => r[0] + ' [' + r[1] + '] sm:' + r[2] + ' cm:' + r[3]).join(' | '));
+  if (iV == null) { console.log('No hay fila SkilfulBlack: no hay nada que unificar.'); return; }
+  if (iN == null) { sh.getRange(iV + 1, 1).setValue('SFB'); sh.getRange(iV + 1, 2).setValue('sfb,skilful,skilfulblack'); console.log('No había fila SFB: renombré SkilfulBlack a SFB.'); }
+  else {
+    const alias = lista_(String(v[iN][1]) + ',' + String(v[iV][1]) + ',skilful,skilfulblack,sfb').filter((x, i, a) => a.indexOf(x) === i).join(',');
+    sh.getRange(iN + 1, 2).setValue(alias);
+    [3, 4, 5, 6].forEach(c => { if (!String(v[iN][c - 1] || '').trim() && String(v[iV][c - 1] || '').trim()) sh.getRange(iN + 1, c).setValue(v[iV][c - 1]); }); // lo que SFB tuviera vacío se completa con lo de la fila vieja
+    sh.deleteRow(iV + 1);
+    console.log('Fila SkilfulBlack borrada. Alias de SFB: ' + alias);
+  }
+  CacheService.getScriptCache().removeAll(['equipo', 'marcasLista', 'snap']);
+  console.log('Después: ' + sh.getDataRange().getValues().slice(1).map(r => r[0] + ' [' + r[1] + ']').join(' | '));
 }
 
 /* ---------------- web app ---------------- */
