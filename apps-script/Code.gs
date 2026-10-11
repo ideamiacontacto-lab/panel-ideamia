@@ -2470,8 +2470,24 @@ function agendaPrivada_() {
   let equipoOk = true;
   try { const ce = idEq !== P0.id ? CalendarApp.getCalendarById(idEq) : null; if (ce) ce.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, idEq, 'equipo', nombres); if (vistos[o.id]) vistos[o.id].cal = 'equipo'; else out.push(o); }); else if (idEq !== P0.id) equipoOk = false; } catch (x) { equipoOk = false; }
   out.sort((a, b) => new Date(a.s) - new Date(b.s));
-  return { ok: true, leido: new Date().toISOString(), calendario: P0.id, equipoOk: equipoOk, eventos: out,
-    invitables: cat.equipo.filter(p => p.email && p.email !== P0.id).map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol, email: p.email })) };
+  // link de Meet de cada reunión (solo si está activado el servicio avanzado de Calendar; si no, la agenda funciona igual sin el link)
+  try {
+    if (typeof Calendar !== 'undefined') {
+      const meets = {};
+      ((Calendar.Events.list(P0.id, { timeMin: desde.toISOString(), timeMax: hasta.toISOString(), singleEvents: true, maxResults: 500, fields: 'items(iCalUID,hangoutLink,start)' }) || {}).items || [])
+        .forEach(x => { if (x.hangoutLink && x.start && x.start.dateTime) meets[x.iCalUID + '@' + new Date(x.start.dateTime).getTime()] = x.hangoutLink; });
+      out.forEach(o => { if (meets[o.id]) o.meet = meets[o.id]; });
+    }
+  } catch (x) {}
+  // a quién se puede invitar con un toque: el equipo con mail (hoja Equipo, columna E) y los de Config · AGENDA_INVITADOS ("Nombre mail, Nombre mail")
+  const inv = cat.equipo.filter(p => p.email && p.email !== P0.id).map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol, email: p.email }));
+  String(cfg.AGENDA_INVITADOS || '').split(/[,;\n]+/).forEach(t => {
+    const m = /([^\s<>]+@[^\s<>]+\.[^\s<>]+)/.exec(t); if (!m) return;
+    const mail = m[1].toLowerCase(), nombre = t.replace(m[1], '').replace(/[<>]/g, '').trim() || mail;
+    if (mail !== P0.id && !inv.some(p => p.email === mail)) { inv.push({ clave: '', nombre: nombre, rol: '', email: mail }); nombres[mail] = nombre; }
+  });
+  out.forEach(o => o.inv.forEach(g => { if (!g.n && nombres[g.mail]) g.n = nombres[g.mail]; }));
+  return { ok: true, leido: new Date().toISOString(), calendario: P0.id, equipoOk: equipoOk, eventos: out, meet: typeof Calendar !== 'undefined', invitables: inv };
 }
 function agendarPrivada_(b) {
   const titulo = String(b.titulo || '').trim().slice(0, 200);
@@ -2481,17 +2497,29 @@ function agendarPrivada_(b) {
   const malos = mails.filter(x => !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(x));
   if (malos.length) return { error: 'datos', mensaje: 'Este mail no parece válido: ' + malos.join(', ') };
   if (mails.length > 30) return { error: 'datos', mensaje: 'Son demasiados invitados (máximo 30)' };
-  const P0 = calPrivado_(), ini = new Date(b.fecha + 'T' + b.hora + ':00-03:00'), dur = Math.min(Math.max(Number(b.duracion) || 45, 10), 480);
-  const op = { description: 'Agendada desde el Panel Ideamia' + (b.persona ? ' por ' + String(b.persona).slice(0, 40) : '') + (b.nota ? '\n' + String(b.nota).slice(0, 1500) : '') };
-  if (b.lugar) op.location = String(b.lugar).slice(0, 300);
-  if (mails.length) { op.guests = mails.join(','); op.sendInvites = b.avisar !== false; }
-  const ev = P0.cal.createEvent(titulo, ini, new Date(ini.getTime() + dur * 6e4), op);
-  return { ok: true, evento: agendaEvento_(ev, P0.id, 'privado', {}) };
+  const P0 = calPrivado_(), ini = new Date(b.fecha + 'T' + b.hora + ':00-03:00'), dur = Math.min(Math.max(Number(b.duracion) || 45, 10), 480), fin = new Date(ini.getTime() + dur * 6e4);
+  const desc = 'Agendada desde el Panel Ideamia' + (b.persona ? ' por ' + String(b.persona).slice(0, 40) : '') + (b.nota ? '\n' + String(b.nota).slice(0, 1500) : '');
+  const lugar = b.lugar ? String(b.lugar).slice(0, 300) : '', avisar = b.avisar !== false;
+  let meetFallo = '';
+  // con link de Meet: se crea por el servicio avanzado de Calendar, así la invitación ya sale con el link
+  if (b.meet) {
+    try {
+      const r = Calendar.Events.insert({ summary: titulo, description: desc, location: lugar, start: { dateTime: ini.toISOString() }, end: { dateTime: fin.toISOString() }, attendees: mails.map(x => ({ email: x })),
+        conferenceData: { createRequest: { requestId: Utilities.getUuid(), conferenceSolutionKey: { type: 'hangoutsMeet' } } } }, P0.id, { conferenceDataVersion: 1, sendUpdates: mails.length && avisar ? 'all' : 'none' });
+      return { ok: true, evento: { id: r.iCalUID + '@' + ini.getTime(), t: titulo, s: ini.toISOString(), f: fin.toISOString(), dia: false, cal: 'privado', inv: mails.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: lugar, desc: desc.slice(0, 300), panel: true, link: r.htmlLink || '', meet: r.hangoutLink || '' } };
+    } catch (e) { meetFallo = String(e.message || e).slice(0, 160); }
+  }
+  const op = { description: desc };
+  if (lugar) op.location = lugar;
+  if (mails.length) { op.guests = mails.join(','); op.sendInvites = avisar; }
+  const ev = P0.cal.createEvent(titulo, ini, fin, op);
+  return { ok: true, evento: agendaEvento_(ev, P0.id, 'privado', {}), meetFallo: meetFallo };
 }
 /* PRUEBA sin efectos: qué se lee del calendario privado (no crea nada). */
 function probarAgendaPrivada() {
   const a = agendaPrivada_();
   console.log('Calendario privado: ' + a.calendario + ' · calendario del equipo: ' + (a.equipoOk ? 'leído' : 'NO se pudo leer') + ' · reuniones en 45 días: ' + a.eventos.length + ' (privadas ' + a.eventos.filter(e => e.cal === 'privado').length + ', del equipo ' + a.eventos.filter(e => e.cal === 'equipo').length + ')');
+  console.log('Servicio de Calendar (para el link de Meet): ' + (a.meet ? 'activado' : 'NO activado') + ' · reuniones con Meet: ' + a.eventos.filter(e => e.meet).length);
   console.log('Se puede invitar a: ' + a.invitables.map(p => p.nombre + ' <' + p.email + '>').join(', '));
   a.eventos.slice(0, 12).forEach(e => console.log('   ' + Utilities.formatDate(new Date(e.s), TZ, 'dd/MM HH:mm') + ' · ' + e.cal + ' · ' + e.t.slice(0, 60) + (e.inv.length ? ' · ' + e.inv.length + ' invitados' : '')));
 }
