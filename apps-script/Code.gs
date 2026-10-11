@@ -2085,26 +2085,40 @@ function recursoDoc_(snap, slug, patron) {
   return L.length ? { tarjeta: L[0].url } : null;
 }
 const nivelAccion_ = a => { const n = norm_(a); return /campana integral|influencer|pauta/.test(n) ? 1 : /accion previa|colab|sorteo|campana|activacion|promocion|reel/.test(n) ? 2 : (!n || /aislada|quizas|\?\s*$/.test(n)) ? 4 : 3; };
-/* Acepta los dos formatos que usan los calendarios: "6 de Enero → Reyes Magos: acción" y "6 de enero - Día de Reyes: acción"
-   (también "11 de junio al 19 de julio: Mundial"), con el mes como título ("ENERO" o "ENERO:"). */
+/* Acepta los formatos que usan los calendarios:
+   - "6 de Enero → Reyes Magos: acción" y "6 de enero - Día de Reyes: acción", con el mes como título ("ENERO" o "ENERO:");
+   - "11 de junio al 19 de julio: Mundial";
+   - el de varias líneas: "1 de enero – Año Nuevo", abajo "Nivel 3" y abajo la descripción (sin título de mes: el mes sale de la fecha). */
 function calendarioAnualParse_(txt) {
-  const out = []; let mes = -1, pendiente = null;
+  const out = []; let mes = -1, pendiente = null, ultimo = null;
   String(txt).split(/\r?\n/).forEach(l0 => {
-    const l = l0.replace(/\*/g, '').replace(/^[\s\-•·●○▪■◦>.]+/, '').trim(); if (!l) return;
-    const h = MESES_.indexOf(norm_(l.replace(/\s*:\s*$/, ''))); if (h >= 0) { mes = h; pendiente = null; return; }
-    if (mes < 0) return;
+    const l = l0.replace(/\*/g, '').replace(/^[^0-9A-Za-zÁÉÍÓÚÑáéíóúñ¿¡"“(]+/, '').trim(); if (!l) return;
+    const h = MESES_.indexOf(norm_(l.replace(/\s*:\s*$/, ''))); if (h >= 0) { mes = h; pendiente = null; ultimo = null; return; }
     let m = /^(\d{1,2}[^→:]{0,45}?)\s*(?:→|->|=>|\s[-–—]\s)\s*(.*)$/.exec(l);
     if (!m) { const c = /^(\d{1,2}\s[^:]{3,45}?)\s*:\s*(.+)$/.exec(l); if (c && MESES_.some(x => norm_(c[1]).indexOf(x.slice(0, 3)) >= 0)) m = c; } // sin flecha ni guion: "fecha: nombre"
     let fechaTxt, resto;
     if (m) { fechaTxt = m[1].trim(); resto = m[2].trim(); if (!resto) { pendiente = fechaTxt; return; } }
     else if (pendiente && /:/.test(l) && l.length < 260) { fechaTxt = pendiente; resto = l; } // sub-ítems de una fecha ("25 de Mayo →" y abajo varias)
-    else return;
+    else {
+      // líneas que completan la fecha anterior (formato de varias líneas): "Nivel 2" y después la descripción
+      if (ultimo) {
+        const nv = /^nivel\s*([1-4])\b/i.exec(l);
+        if (nv) { if (ultimo.nivel !== 0) ultimo.nivel = Number(nv[1]); ultimo.fijo = true; }
+        else if (!ultimo.accion && l.length < 200 && l.replace(/[^a-záéíóúñ]/gi, '').length >= 12 && !/inicio de planificaci|brainstorming/i.test(l)) { ultimo.accion = l.slice(0, 200); if (!ultimo.fijo && ultimo.nivel !== 0) ultimo.nivel = nivelAccion_(l); }
+      }
+      return;
+    }
+    // si la fecha trae el mes escrito ("12 de octubre"), manda eso; si no, el título de mes bajo el que está
+    const enFecha = /^\d{1,2}(?:\s*(?:y|al|,)\s*\d{1,2})*\s+de\s+([a-záéíóúñ]+)/i.exec(fechaTxt), mesF = enFecha ? MESES_.indexOf(norm_(enFecha[1])) : -1;
+    const mesItem = mesF >= 0 ? mesF : mes; if (mesItem < 0) return;
     const dia = Number((/\d{1,2}/.exec(fechaTxt) || [0])[0]); if (!dia || dia > 31) return;
     const i = resto.indexOf(':'), nombre = (i > 0 ? resto.slice(0, i) : resto).trim(), accion = (i > 0 ? resto.slice(i + 1) : '').replace(/→.*$/, '').trim();
     if (!nombre || nombre.length > 90) return;
     const brain = /brainstorming/i.test(nombre), nx = /\(N([1-4])\)/i.exec(resto); // "(N2)": nivel escrito en el propio calendario
-    out.push({ mes: mes, dia: dia, fecha: fechaTxt, nombre: (brain ? nombre.replace(/brainstorming/i, 'Brainstorming') : nombre).replace(/\s*\(N[1-4]\)/i, ''), accion: accion.replace(/\s*\(N[1-4]\)\.?/i, '').trim().slice(0, 200), nivel: brain ? 0 : nx ? Number(nx[1]) : nivelAccion_(accion) });
+    ultimo = { mes: mesItem, dia: dia, fecha: fechaTxt, nombre: (brain ? nombre.replace(/brainstorming/i, 'Brainstorming') : nombre).replace(/\s*\(N[1-4]\)/i, ''), accion: accion.replace(/\s*\(N[1-4]\)\.?/i, '').trim().slice(0, 200), nivel: brain ? 0 : nx ? Number(nx[1]) : nivelAccion_(accion), fijo: !!nx };
+    out.push(ultimo);
   });
+  out.forEach(x => delete x.fijo);
   // una misma campaña puede figurar en dos meses (ej. Black Friday): se deja una por mes y nombre
   return out.filter((x, i, a) => a.findIndex(y => y.mes === x.mes && y.dia === x.dia && norm_(y.nombre) === norm_(x.nombre)) === i);
 }
