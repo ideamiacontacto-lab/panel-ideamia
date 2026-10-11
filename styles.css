@@ -1270,3 +1270,6 @@ select{color-scheme:dark}
 .modal .mb{max-height:92vh;overflow-y:auto}
 .modal .two .field,.modal .two input{min-width:0}
 .agp-nota{display:block;margin-top:8px;color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0}
+.agp-meet{color:var(--y);font-weight:600}
+.modal .check+.check{margin-top:-8px}
+.agp-edit{color:var(--text);text-decoration:underline;text-underline-offset:3px;font-size:12.5px}

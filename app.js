@@ -1351,9 +1351,9 @@
     return { ok: true, leido: new Date().toISOString(), calendario: 'ideamia.contacto@gmail.com', equipoOk: true,
       invitables: [{ clave: 'ivo', nombre: 'Ivo', rol: 'Dirección', email: 'ivo@ejemplo.com' }, { clave: 'orne', nombre: 'Orne', rol: 'SM', email: 'orne@ejemplo.com' }, { clave: 'rama', nombre: 'Rama', rol: 'SM', email: 'rama@ejemplo.com' }],
       eventos: [
-        { id: 'a1', t: 'Reunión con cliente nuevo · propuesta', s: d(0, 16), f: d(0, 17), cal: 'privado', inv: [{ mail: 'ivo@ejemplo.com', n: 'Ivo', est: 'YES' }, { mail: 'cliente@ejemplo.com', n: '', est: 'INVITED' }], lugar: 'Meet', desc: '', panel: true, link: '#' },
+        { id: 'a1', uid: 'a1', mio: true, t: 'Reunión con cliente nuevo · propuesta', s: d(0, 16), f: d(0, 17), cal: 'privado', inv: [{ mail: 'ivo@ejemplo.com', n: 'Ivo', est: 'YES' }, { mail: 'cliente@ejemplo.com', n: '', est: 'INVITED' }], lugar: 'Meet', desc: '', panel: true, link: '#' },
         { id: 'a2', t: 'Minuta semanal', s: d(1, 10), f: d(1, 11), cal: 'equipo', inv: [{ mail: 'orne@ejemplo.com', n: 'Orne', est: 'YES' }, { mail: 'rama@ejemplo.com', n: 'Rama', est: 'YES' }], lugar: '', desc: '', link: '#' },
-        { id: 'a3', t: 'Revisión de números con el contador', s: d(3, 9, 30), f: d(3, 10, 30), cal: 'privado', inv: [], lugar: '', desc: '', link: '#' }] };
+        { id: 'a3', uid: 'a3', mio: true, t: 'Revisión de números con el contador', s: d(3, 9, 30), f: d(3, 10, 30), cal: 'privado', inv: [], lugar: '', desc: '', link: '#' }] };
   }
   async function agpCargar() {
     if (AGP.cargando) return;
@@ -1383,8 +1383,8 @@
       const inv = (e.inv || []).filter(g => g.mail !== AGP.data.calendario).map(g => esc(g.n || g.mail) + (EST[g.est] ? ' <i>(' + EST[g.est] + ')</i>' : ''));
       return '<div class="agp-ev' + (e.cal === 'privado' ? ' priv' : '') + (ya ? ' ya' : '') + '"><div class="agp-h">' + (e.dia ? '<b>Todo</b><small>el día</small>' : '<b>' + hm(s) + '</b><small>' + hm(f) + '</small>') + '</div><div class="agp-b"><div class="tt">' + esc(e.t) + '</div><div class="mt">' +
         (e.cal !== 'privado' ? '<span class="pill">También lo ve el equipo</span>' : inv.length ? '<span class="pill y">Privado · lo ven los invitados</span>' : '<span class="pill y">Privado · solo Joaquín e Ivo</span>') +
-        (inv.length ? '<span>con ' + inv.join(', ') + '</span>' : e.cal === 'privado' ? '<span>sin invitados</span>' : '') + (e.lugar ? '<span>' + esc(e.lugar) + '</span>' : '') +
-        (e.link && e.link !== '#' ? '<a class="lnk" href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir en Calendar ↗</a>' : '') + '</div></div></div>';
+        (inv.length ? '<span>con ' + inv.join(', ') + '</span>' : e.cal === 'privado' ? '<span>sin invitados</span>' : '') + (e.lugar ? (/^https?:\/\//.test(e.lugar) ? '<a class="lnk" href="' + esc(e.lugar) + '" target="_blank" rel="noopener">Abrir el link ↗</a>' : '<span>' + esc(e.lugar) + '</span>') : '') +
+        (e.mio && e.uid ? '<button class="lnk agp-edit" data-agp-inv="' + esc(e.id) + '">Invitados: agregar o sacar</button>' : '') + (e.meet ? '<a class="lnk agp-meet" href="' + esc(e.meet) + '" target="_blank" rel="noopener">Entrar al Meet ↗</a>' : '') + (e.link && e.link !== '#' ? '<a class="lnk" href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir en Calendar ↗</a>' : '') + '</div></div></div>';
     };
     const cuerpo = orden.map(k => { const d = ymdD(k), n = diasA(d); return '<h3 class="agp-d' + (n === 0 ? ' hoy' : '') + '">' + (n === 0 ? 'Hoy · ' : n === 1 ? 'Mañana · ' : '') + DIAS_L[d.getDay()].toLowerCase() + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()] + '<small>' + dias[k].length + '</small></h3>' + dias[k].map(fila).join(''); }).join('');
     return que + barra + (AGP.error ? '<div class="empty">' + esc(AGP.error) + '</div>' : '') + (AGP.data.equipoOk ? '' : '<p class="ayuda">No pude leer el calendario del equipo: acá abajo solo figuran las reuniones privadas.</p>') +
@@ -1400,6 +1400,7 @@
       '<label class="field"><span>Otros invitados (mails separados por coma)</span><input id="aO" inputmode="email" placeholder="cliente@empresa.com, otro@mail.com"></label>' +
       '<label class="field"><span>Lugar o link (opcional)</span><input id="aL" placeholder="Oficina, link de Meet o Zoom…"></label>' +
       '<label class="field"><span>Nota (opcional)</span><input id="aN" placeholder="De qué se trata, qué hay que llevar…"></label>' +
+      '<label class="check"><input type="checkbox" id="aM"' + (AGP.data && AGP.data.meet === false ? ' disabled' : ' checked') + '> Crear el link de Google Meet' + (AGP.data && AGP.data.meet === false ? ' (no disponible)' : '') + '</label>' +
       '<label class="check"><input type="checkbox" id="aA" checked> Mandar la invitación por mail a los invitados</label><div class="err"></div>' +
       '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Agendar</button></div>', async m => {
       const titulo = $('#aT', m).value.trim(), fecha = $('#aF', m).value, hora = $('#aH', m).value;
@@ -1408,17 +1409,45 @@
       const invitados = [...m.querySelectorAll('.agp-inv input:checked')].map(x => x.value).concat($('#aO', m).value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean));
       const malo = invitados.find(x => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
       if (malo) throw new Error('Este mail no parece válido: ' + malo);
-      const cuerpo = { action: 'agendarPrivada', k: S.pkey, titulo, fecha, hora, duracion: Number($('#aD', m).value), invitados, lugar: $('#aL', m).value.trim(), nota: $('#aN', m).value.trim(), avisar: $('#aA', m).checked };
+      const cuerpo = { action: 'agendarPrivada', k: S.pkey, titulo, fecha, hora, duracion: Number($('#aD', m).value), invitados, lugar: $('#aL', m).value.trim(), nota: $('#aN', m).value.trim(), avisar: $('#aA', m).checked, meet: $('#aM', m).checked };
       const ini = new Date(fecha + 'T' + hora);
-      const r = DEMO ? { ok: true, evento: { id: 'n' + Date.now(), t: titulo, s: ini.toISOString(), f: new Date(ini.getTime() + cuerpo.duracion * 6e4).toISOString(), cal: 'privado', inv: invitados.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: cuerpo.lugar, panel: true, link: '#' } } : await post(cuerpo);
+      const r = DEMO ? { ok: true, evento: { id: 'n' + Date.now(), uid: 'n' + Date.now(), mio: true, t: titulo, s: ini.toISOString(), f: new Date(ini.getTime() + cuerpo.duracion * 6e4).toISOString(), cal: 'privado', inv: invitados.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: cuerpo.lugar, panel: true, link: '#' } } : await post(cuerpo);
       if (r.error) throw new Error(r.mensaje || r.error);
       LS.set('agpmails', invitados.filter(x => !inv.some(p => p.email === x)).concat(antes).filter((x, i, a) => a.indexOf(x) === i).slice(0, 12));
       if (AGP.data && r.evento) { (r.evento.inv || []).forEach(g => { g.n = g.n || (inv.find(p => p.email === g.mail) || {}).nombre || ''; }); AGP.data.eventos.push(r.evento); AGP.data.eventos.sort((a, b) => new Date(a.s) - new Date(b.s)); }
-      render(); toast('✓ Agendada en el calendario privado: ' + esc(titulo) + ' · ' + corto(ymdD(fecha)) + ' ' + hora + (invitados.length && cuerpo.avisar ? '<br>Invitación enviada a ' + invitados.length + (invitados.length === 1 ? ' persona.' : ' personas.') : ''));
+      render(); toast('✓ Agendada en el calendario privado: ' + esc(titulo) + ' · ' + corto(ymdD(fecha)) + ' ' + hora + (r.evento && r.evento.meet ? '<br>Con link de Meet.' : cuerpo.meet && !DEMO ? '<br>✗ No se pudo crear el link de Meet' + (r.meetFallo ? ' (' + esc(r.meetFallo) + ')' : '') + '. La reunión quedó agendada sin link.' : '') + (invitados.length && cuerpo.avisar ? '<br>Invitación enviada a ' + invitados.length + (invitados.length === 1 ? ' persona.' : ' personas.') : ''));
+    });
+  }
+  // Agregar o sacar invitados de una reunión que ya existe (solo las que creó ideamia.contacto).
+  function agpInvitados(id) {
+    const e = ((AGP.data || {}).eventos || []).find(x => x.id === id); if (!e) return;
+    const inv = AGP.data.invitables || [], cal = AGP.data.calendario;
+    const ya = (e.inv || []).filter(g => g.mail !== cal).map(g => g.mail);
+    const antes = LS.get('agpmails', []).filter(x => !inv.some(p => p.email === x) && ya.indexOf(x) < 0);
+    const chip = (mail, nombre, rol, on) => '<label><input type="checkbox" value="' + esc(mail) + '"' + (on ? ' checked' : '') + '><b>' + esc(nombre) + '</b>' + (rol ? '<small>' + esc(rol) + '</small>' : '') + '</label>';
+    const nombreDe = m => (inv.find(p => p.email === m) || {}).nombre || ((e.inv || []).find(g => g.mail === m) || {}).n || m;
+    modal('<h3>Invitados</h3><p><b>' + esc(e.t) + '</b> · ' + corto(new Date(e.s)) + ' ' + hm(new Date(e.s)) + '. Tildá a quién querés sumar y destildá a quién querés sacar.' + (e.rec ? ' Esta reunión se repite: el cambio vale para todas las fechas.' : '') + '</p>' +
+      '<div class="field"><span>Invitados</span><div class="agp-inv">' + ya.map(m => chip(m, nombreDe(m), '', true)).join('') + inv.filter(p => ya.indexOf(p.email) < 0).map(p => chip(p.email, p.nombre, p.rol, false)).join('') + antes.map(x => chip(x, x, '', false)).join('') + '</div></div>' +
+      '<label class="field"><span>Agregar otros (mails separados por coma)</span><input id="iO" inputmode="email" placeholder="cliente@empresa.com, otro@mail.com"></label>' +
+      '<label class="check"><input type="checkbox" id="iA" checked> Avisar por mail a los que sumo o saco</label><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Guardar invitados</button></div>', async m => {
+      const lista = [...m.querySelectorAll('.agp-inv input:checked')].map(x => x.value).concat($('#iO', m).value.split(/[,;\s]+/).map(x => x.trim().toLowerCase()).filter(Boolean)).filter((x, i, a) => a.indexOf(x) === i);
+      const malo = lista.find(x => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+      if (malo) throw new Error('Este mail no parece válido: ' + malo);
+      const r = DEMO ? { ok: true, inv: lista.map(x => ({ mail: x, n: '', est: 'INVITED' })) } : await post({ action: 'invitadosPrivada', k: S.pkey, uid: e.uid, invitados: lista, avisar: $('#iA', m).checked });
+      if (r.error) throw new Error(r.mensaje || r.error);
+      const viejos = e.inv || [];
+      e.inv = (r.inv || []).map(g => Object.assign(g, { n: g.n || (inv.find(p => p.email === g.mail) || {}).nombre || (viejos.find(v => v.mail === g.mail) || {}).n || '' }));
+      // si la reunión se repite, las otras fechas de la misma serie quedan con los mismos invitados
+      AGP.data.eventos.forEach(x => { if (x !== e && x.uid && x.uid === e.uid) x.inv = e.inv.map(g => Object.assign({}, g)); });
+      LS.set('agpmails', lista.filter(x => !inv.some(p => p.email === x)).concat(LS.get('agpmails', [])).filter((x, i, a) => a.indexOf(x) === i).slice(0, 12));
+      const mas = lista.filter(x => ya.indexOf(x) < 0).length, menos = ya.filter(x => lista.indexOf(x) < 0).length;
+      render(); toast('✓ Invitados guardados' + (mas || menos ? ': ' + [mas ? mas + (mas === 1 ? ' sumado' : ' sumados') : '', menos ? menos + (menos === 1 ? ' sacado' : ' sacados') : ''].filter(Boolean).join(', ') : ' (sin cambios)') + '.' + (r.sinAviso ? '<br>Google no les mandó mail: avisales vos.' : ''));
     });
   }
   function agpBind(root) {
     root.querySelectorAll('[data-agp-nueva]').forEach(b => b.onclick = agpNueva);
+    root.querySelectorAll('[data-agp-inv]').forEach(b => b.onclick = () => agpInvitados(b.dataset.agpInv));
     root.querySelectorAll('[data-agp-leer]').forEach(b => b.onclick = () => { agpCargar(); render(); });
     root.querySelectorAll('[data-agp-key]').forEach(b => b.onclick = () => { const v = ($('#agpK', root) || {}).value || ''; if (!v.trim()) return; S.pkey = v.trim(); LS.set('pkey', S.pkey); AGP.error = ''; AGP.data = null; render(); });
     const k = $('#agpK', root); if (k) k.onkeydown = e => { if (e.key === 'Enter') { const b = $('[data-agp-key]', root); if (b) b.click(); } };
