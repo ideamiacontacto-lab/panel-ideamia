@@ -239,19 +239,19 @@
     const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
     if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
-    if (ivo && ['revision', 'guiones', 'discord'].indexOf(S.tab) < 0) S.tab = 'revision';
+    if (ivo && ['revision', 'guiones', 'discord', 'agp'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
-      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
+      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más' };
+    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -1342,15 +1342,98 @@
     $('#npT', m).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ok]', m).click(); } });
   }
 
+  /* ---------------- AGENDA PRIVADA (project y dirección) ----------------
+     El calendario de ideamia.contacto, que solo ven Joaquín e Ivo. Pide la clave del project (no la del equipo).
+     Muestra las reuniones de los próximos 45 días y deja agendar una nueva, que se crea sola en ese calendario. */
+  const AGP = { data: null, cargando: false, error: '' };
+  function agpDemo() {
+    const d = (n, h, m) => new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n, h, m || 0).toISOString();
+    return { ok: true, leido: new Date().toISOString(), calendario: 'ideamia.contacto@gmail.com', equipoOk: true,
+      invitables: [{ clave: 'ivo', nombre: 'Ivo', rol: 'Dirección', email: 'ivo@ejemplo.com' }, { clave: 'orne', nombre: 'Orne', rol: 'SM', email: 'orne@ejemplo.com' }, { clave: 'rama', nombre: 'Rama', rol: 'SM', email: 'rama@ejemplo.com' }],
+      eventos: [
+        { id: 'a1', t: 'Reunión con cliente nuevo · propuesta', s: d(0, 16), f: d(0, 17), cal: 'privado', inv: [{ mail: 'ivo@ejemplo.com', n: 'Ivo', est: 'YES' }, { mail: 'cliente@ejemplo.com', n: '', est: 'INVITED' }], lugar: 'Meet', desc: '', panel: true, link: '#' },
+        { id: 'a2', t: 'Minuta semanal', s: d(1, 10), f: d(1, 11), cal: 'equipo', inv: [{ mail: 'orne@ejemplo.com', n: 'Orne', est: 'YES' }, { mail: 'rama@ejemplo.com', n: 'Rama', est: 'YES' }], lugar: '', desc: '', link: '#' },
+        { id: 'a3', t: 'Revisión de números con el contador', s: d(3, 9, 30), f: d(3, 10, 30), cal: 'privado', inv: [], lugar: '', desc: '', link: '#' }] };
+  }
+  async function agpCargar() {
+    if (AGP.cargando) return;
+    AGP.cargando = true; AGP.error = '';
+    try {
+      if (DEMO) AGP.data = agpDemo();
+      else {
+        const j = await get({ action: 'agenda', k: S.pkey });
+        if (j.error === 'clave') { S.pkey = ''; LS.set('pkey', ''); AGP.data = null; AGP.error = 'Esa no es la clave del project. Probá de nuevo.'; }
+        else if (j.error) AGP.error = j.mensaje || j.error;
+        else AGP.data = j;
+      }
+    } catch (e) { AGP.error = 'No se pudo leer el calendario. Revisá la conexión y tocá "Volver a leer".'; }
+    AGP.cargando = false; render();
+  }
+  function vAgendaPriv() {
+    const que = '<p class="mio-que">Las reuniones del calendario <b>ideamia.contacto</b>, que solo ven Joaquín e Ivo. Lo que agenden desde acá se crea solo en ese calendario de Google y les llega la invitación a quienes elijan. El resto del equipo no ve esta pantalla: pide la clave del project.</p>';
+    if (!DEMO && !S.pkey) return que + '<div class="agp-key"><label class="field"><span>Clave del project</span><input type="password" id="agpK" autocomplete="off" placeholder="La misma con la que se entra a la vista Project"></label><button class="btn y" data-agp-key>Entrar a la agenda</button>' + (AGP.error ? '<div class="err">' + esc(AGP.error) + '</div>' : '') + '<p class="ayuda">Se pide una sola vez en este dispositivo.</p></div>';
+    if (!AGP.data && !AGP.error) { if (!AGP.cargando) setTimeout(agpCargar, 0); return que + '<div class="loading"><b>Cargando</b>Leyendo el calendario…</div>'; }
+    const barra = '<div class="agp-bar"><button class="btn y" data-agp-nueva>' + I.cal + 'Agendar reunión</button><button class="btn ghost" data-agp-leer>' + (AGP.cargando ? 'Leyendo…' : 'Volver a leer') + '</button>' + (AGP.data ? '<span class="agp-leido">leído ' + hm(new Date(AGP.data.leido)) + '</span>' : '') + '</div>';
+    if (!AGP.data) return que + barra + '<div class="empty">' + esc(AGP.error) + '</div>';
+    const E = AGP.data.eventos || [], dias = {}, orden = [];
+    E.forEach(e => { const k = ymdL(new Date(e.s)); if (!dias[k]) { dias[k] = []; orden.push(k); } dias[k].push(e); });
+    const EST = { YES: 'va', NO: 'no va', MAYBE: 'quizás' };
+    const fila = e => {
+      const s = new Date(e.s), f = new Date(e.f), ya = f < new Date();
+      const inv = (e.inv || []).filter(g => g.mail !== AGP.data.calendario).map(g => esc(g.n || g.mail) + (EST[g.est] ? ' <i>(' + EST[g.est] + ')</i>' : ''));
+      return '<div class="agp-ev' + (e.cal === 'privado' ? ' priv' : '') + (ya ? ' ya' : '') + '"><div class="agp-h">' + (e.dia ? '<b>Todo</b><small>el día</small>' : '<b>' + hm(s) + '</b><small>' + hm(f) + '</small>') + '</div><div class="agp-b"><div class="tt">' + esc(e.t) + '</div><div class="mt">' +
+        (e.cal === 'privado' ? '<span class="pill y">Privado · solo Joaquín e Ivo</span>' : '<span class="pill">Calendario del equipo</span>') +
+        (inv.length ? '<span>con ' + inv.join(', ') + '</span>' : e.cal === 'privado' ? '<span>sin invitados</span>' : '') + (e.lugar ? '<span>' + esc(e.lugar) + '</span>' : '') +
+        (e.link && e.link !== '#' ? '<a class="lnk" href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir en Calendar ↗</a>' : '') + '</div></div></div>';
+    };
+    const cuerpo = orden.map(k => { const d = ymdD(k), n = diasA(d); return '<h3 class="agp-d' + (n === 0 ? ' hoy' : '') + '">' + (n === 0 ? 'Hoy · ' : n === 1 ? 'Mañana · ' : '') + DIAS_L[d.getDay()].toLowerCase() + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()] + '<small>' + dias[k].length + '</small></h3>' + dias[k].map(fila).join(''); }).join('');
+    return que + barra + (AGP.error ? '<div class="empty">' + esc(AGP.error) + '</div>' : '') + (AGP.data.equipoOk ? '' : '<p class="ayuda">No pude leer el calendario del equipo: acá abajo solo figuran las reuniones privadas.</p>') +
+      (E.length ? cuerpo : '<div class="empty">No hay reuniones en los próximos 45 días. Tocá "Agendar reunión" para crear la primera.</div>');
+  }
+  function agpNueva() {
+    const inv = (AGP.data && AGP.data.invitables) || [], iso = ymdL(NOW), h = String(Math.min(NOW.getHours() + 1, 20)).padStart(2, '0') + ':00';
+    modal('<h3>Agendar reunión</h3><p>Se crea en el calendario <b>ideamia.contacto</b> (el privado). Los invitados reciben el mail de Google Calendar y la ven en su calendario.</p>' +
+      '<label class="field"><span>Título</span><input id="aT" placeholder="Ej.: Reunión con el cliente · propuesta"></label>' +
+      '<div class="two"><label class="field"><span>Día</span><input type="date" id="aF" value="' + iso + '" min="' + iso + '"></label><label class="field"><span>Hora</span><input type="time" id="aH" value="' + h + '" step="300"></label></div>' +
+      '<label class="field"><span>Duración</span><select id="aD"><option value="30">30 minutos</option><option value="45" selected>45 minutos</option><option value="60">1 hora</option><option value="90">1 hora y media</option><option value="120">2 horas</option></select></label>' +
+      '<div class="field"><span>Invitados del equipo</span><div class="agp-inv">' + (inv.length ? inv.map(p => '<label><input type="checkbox" value="' + esc(p.email) + '"><b>' + esc(p.nombre) + '</b><small>' + esc(p.rol) + '</small></label>').join('') : '<small>No hay mails cargados en la hoja Equipo.</small>') + '</div></div>' +
+      '<label class="field"><span>Otros invitados (mails separados por coma)</span><input id="aO" inputmode="email" placeholder="cliente@empresa.com, otro@mail.com"></label>' +
+      '<label class="field"><span>Lugar o link (opcional)</span><input id="aL" placeholder="Oficina, link de Meet o Zoom…"></label>' +
+      '<label class="field"><span>Nota (opcional)</span><input id="aN" placeholder="De qué se trata, qué hay que llevar…"></label>' +
+      '<label class="check"><input type="checkbox" id="aA" checked> Mandar la invitación por mail a los invitados</label><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Agendar</button></div>', async m => {
+      const titulo = $('#aT', m).value.trim(), fecha = $('#aF', m).value, hora = $('#aH', m).value;
+      if (!titulo) throw new Error('Ponele un título a la reunión.');
+      if (!fecha || !hora) throw new Error('Poné el día y la hora.');
+      const invitados = [...m.querySelectorAll('.agp-inv input:checked')].map(x => x.value).concat($('#aO', m).value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean));
+      const malo = invitados.find(x => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+      if (malo) throw new Error('Este mail no parece válido: ' + malo);
+      const cuerpo = { action: 'agendarPrivada', k: S.pkey, titulo, fecha, hora, duracion: Number($('#aD', m).value), invitados, lugar: $('#aL', m).value.trim(), nota: $('#aN', m).value.trim(), avisar: $('#aA', m).checked };
+      const ini = new Date(fecha + 'T' + hora);
+      const r = DEMO ? { ok: true, evento: { id: 'n' + Date.now(), t: titulo, s: ini.toISOString(), f: new Date(ini.getTime() + cuerpo.duracion * 6e4).toISOString(), cal: 'privado', inv: invitados.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: cuerpo.lugar, panel: true, link: '#' } } : await post(cuerpo);
+      if (r.error) throw new Error(r.mensaje || r.error);
+      if (AGP.data && r.evento) { (r.evento.inv || []).forEach(g => { g.n = g.n || (inv.find(p => p.email === g.mail) || {}).nombre || ''; }); AGP.data.eventos.push(r.evento); AGP.data.eventos.sort((a, b) => new Date(a.s) - new Date(b.s)); }
+      render(); toast('✓ Agendada en el calendario privado: ' + esc(titulo) + ' · ' + corto(ymdD(fecha)) + ' ' + hora + (invitados.length && cuerpo.avisar ? '<br>Invitación enviada a ' + invitados.length + (invitados.length === 1 ? ' persona.' : ' personas.') : ''));
+    });
+  }
+  function agpBind(root) {
+    root.querySelectorAll('[data-agp-nueva]').forEach(b => b.onclick = agpNueva);
+    root.querySelectorAll('[data-agp-leer]').forEach(b => b.onclick = () => { agpCargar(); render(); });
+    root.querySelectorAll('[data-agp-key]').forEach(b => b.onclick = () => { const v = ($('#agpK', root) || {}).value || ''; if (!v.trim()) return; S.pkey = v.trim(); LS.set('pkey', S.pkey); AGP.error = ''; AGP.data = null; render(); });
+    const k = $('#agpK', root); if (k) k.onkeydown = e => { if (e.key === 'Enter') { const b = $('[data-agp-key]', root); if (b) b.click(); } };
+  }
+
   // Vista del project: "Mi día" (su tablero Project) y "Equipo" (lo que tildó cada uno)
   function vistaProject() {
     const tab = S.projTab || 'mio', M = S.proj.mio;
     const D = M && !M.error ? datosMio() : null, n = D ? D.bandeja.length + D.hoy.length : 0;
     // la misma navegación que el resto: pestañas arriba en la compu, barra abajo en el celular
     const sinTocar = (S.proj.personas || []).reduce((s, p) => s + ((p.inputs || {}).sinTocar || 0), 0);
-    const NAV = [['mio', 'Mi día', I.check, n], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
+    const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
+    const NAV = [['mio', 'Mi día', I.check, n], ['agenda', 'Agenda', I.cal, nAgp], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
     const seg = S.movil ? '' : '<div class="seg proj-seg">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<em>' + x[3] + '</em>' : '') + '</button>').join('') + '</div>';
     const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
+    if (tab === 'agenda') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Agenda <em>· privada</em></h1><p>Reuniones del calendario ideamia.contacto. Solo vos e Ivo.</p></div></section>' + seg + '<div class="view">' + vAgendaPriv() + '</div>' + bnav;
     if (tab === 'equipo' || tab === 'registro') return vistaEquipo(tab === 'registro').replace('</section>', '</section>' + seg) + bnav;
     const resumen = !D ? 'Tu tablero Project de Trello, en un vistazo.' : n ? 'Tenés <b>' + D.bandeja.length + '</b> en Bandeja para procesar y <b>' + D.hoy.length + '</b> que ' + (D.hoy.length === 1 ? 'vence' : 'vencen') + ' hoy o ya ' + (D.hoy.length === 1 ? 'venció' : 'vencieron') + '.' : 'Bandeja vacía y nada vence hoy. Bien ahí.';
     return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Mi día <em>· Project</em></h1><p>' + resumen + '</p></div></section>' + seg + '<div class="view">' + vistaMio() + '</div>' + bnav;
@@ -1548,6 +1631,7 @@
 
   /* ---------------- interacción ---------------- */
   function bind(root) {
+    agpBind(root);
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
     // lista de marcas: se abre con el botón y se cierra al elegir o al tocar afuera
