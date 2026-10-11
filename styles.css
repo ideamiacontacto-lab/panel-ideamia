@@ -1300,3 +1300,8 @@ select{color-scheme:dark}
   .sv-car .fecha .fq{grid-column:2;font-size:11.5px;color:var(--muted)}
 }
 @media(prefers-reduced-motion:reduce){.modal,.modal .mb,.view,.mcar.on>.list{animation:none!important}}
+
+/* el botón "+ Pedido" del project quedaba tapado por la barra de abajo del celular (se veía solo una franja amarilla) */
+@media(max-width:700px){
+  .mio-add{width:auto;left:auto;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:61}
+}
