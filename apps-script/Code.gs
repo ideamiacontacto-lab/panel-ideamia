@@ -1929,11 +1929,11 @@ function resumenSemanalArmar_(snap, cat, cfg) {
       const inp = (pn.cards || []).filter(c => c.cat === 'input'), sinT = inp.filter(c => !c.estado), urg = sinT.filter(c => (c.lab || []).some(x => /urgente/.test(norm_(x))));
       if (sinT.length) L.push('• Inputs sin tocar: ' + sinT.length + ' de ' + inp.length + (urg.length ? ' (' + urg.length + (urg.length === 1 ? ' urgente' : ' urgentes') + ')' : ''));
       const reu = (pn.reuniones || []).filter(x => !x.estado), reuV = reu.filter(x => x.vencida);
-      if (reu.length) L.push('• Reuniones sin fecha: ' + reu.length + (reuV.length ? ' (' + reuV.length + (reuV.length === 1 ? ' vencida' : ' vencidas') + ')' : '') + ': ' + reu.slice(0, 4).map(x => x.nombre + (x.marca ? ' · ' + nombreMarca_(cat, x.marca) : '')).join('; ') + (reu.length > 4 ? '…' : ''));
+      if (reu.length) L.push('• Reuniones sin fecha: ' + reu.length + (reuV.length ? ' (' + reuV.length + (reuV.length === 1 ? ' vencida' : ' vencidas') + ')' : '') + ': ' + reu.map(x => x.nombre).filter((x, i, a) => a.indexOf(x) === i).slice(0, 4).join('; '));
       const rep = pn.reportes || [], repV = rep.filter(x => x.vence && new Date(x.vence) < new Date());
       if (rep.length) L.push('• Reportes sin cargar: ' + rep.length + (repV.length ? ' (' + repV.length + (repV.length === 1 ? ' vencido' : ' vencidos') + ')' : ''));
       const rut = (pn.rutinas || []).filter(x => x.vencida && !x.estado);
-      if (rut.length) L.push('• Rutinas vencidas sin tildar: ' + rut.length + ': ' + rut.slice(0, 3).map(x => String(x.tarea).slice(0, 45)).join('; ') + (rut.length > 3 ? '…' : ''));
+      if (rut.length) L.push('• Rutinas vencidas sin tildar: ' + rut.length + ': ' + rut.map(x => String(x.tarea).slice(0, 45)).filter((x, i, a) => a.indexOf(x) === i).slice(0, 3).join('; ') + '…');
       const corr = (pn.cards || []).filter(c => c.cat === 'corr' && c.due && new Date(c.due) < new Date() && !c.dc);
       if (corr.length) L.push('• Correcciones vencidas: ' + corr.length);
     }
