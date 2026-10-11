@@ -1248,7 +1248,7 @@
     if (M.error) return '<div class="estado-av bad"><span class="ei">!</span><div><b>No pude leer tu tablero Project de Trello:</b> ' + esc(M.error) + '. La vista del equipo sigue funcionando.</div><button class="btn ghost" data-mio-rf>Reintentar</button></div>';
     const D = datosMio(), marcas = (M.etiquetas || []).filter(e => e.marca);
     const et = n => { const e = (M.etiquetas || []).find(x => x.n === n); return '<span class="mio-et' + (/^urgente$/i.test(n) ? ' urg' : '') + '"><i style="background:' + colorEt(e && e.c) + '"></i>' + esc(n) + '</span>'; };
-    const fila = (c, extra) => '<a class="mio-r" href="' + esc(c.url) + '" target="_blank" rel="noopener"><div class="mio-t"><b>' + esc(c.n) + '</b><div class="mio-m">' + c.lab.map(et).join('') + '<span class="mio-l">' + esc(c.lista) + '</span>' + (extra || '') + '</div></div><span class="mio-go">↗</span></a>';
+    const fila = (c, extra) => '<a class="mio-r" href="' + esc(c.url) + '" target="_blank" rel="noopener"><div class="mio-t"><b>' + esc(c.n) + '</b><div class="mio-m">' + c.lab.map(et).join('') + '<span class="mio-l">lista <b>' + esc(c.lista) + '</b></span>' + (extra || '') + '</div></div><span class="mio-go" title="Abrir en Trello">Trello ↗</span></a>';
     const vence = c => { const n = diasA(new Date(c.due)); return '<span class="pill ' + (n < 0 ? 'bad' : n === 0 ? 'warn' : '') + '">' + (n < 0 ? '' : 'vence ') + cuando(new Date(c.due)) + '</span>'; };
     // cada sección es una carpeta: se abre y se cierra, y arranca abierta solo si tiene algo y pide acción (Bandeja y Para hoy)
     const sec = (id, tit, sub, L, filaFn, vacio, abre) => { const k = 'mio:' + id, ab = S.abiertos[k] != null ? S.abiertos[k] : !!(abre && L.length);
@@ -1256,15 +1256,15 @@
         (ab ? (L.length ? '<div class="mio-list">' + L.map(filaFn).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') : '') + '</div>'; };
     const tile = (id, n, t, s, cl) => '<button class="mio-st' + (n ? ' ' + cl : '') + '" data-mio-ir="' + id + '"><b>' + n + '</b><span>' + t + '</span><small>' + s + '</small></button>';
     const leido = minutosDesde(M.leido);
-    return '<div class="mio-top"><div class="chips mio-chips"><button class="chip' + (!S.projMarca ? ' on' : '') + '" data-mio-marca="">Todas</button>' + marcas.map(e => '<button class="chip' + (S.projMarca === e.n ? ' on' : '') + '" data-mio-marca="' + esc(e.n) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div>' +
+    return '<p class="mio-que">' + (DEMO ? '<b>Datos de ejemplo.</b> ' : '') + 'Estas son las tarjetas de tu tablero <a class="lnk" href="' + esc(M.url || '#') + '" target="_blank" rel="noopener"><b>Project</b> de Trello ↗</a>, ordenadas según qué te piden hoy. Cada renglón es una tarjeta: tocala y se abre en Trello.</p><div class="mio-top"><div class="chips mio-chips"><button class="chip' + (!S.projMarca ? ' on' : '') + '" data-mio-marca="">Todas</button>' + marcas.map(e => '<button class="chip' + (S.projMarca === e.n ? ' on' : '') + '" data-mio-marca="' + esc(e.n) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div>' +
       '<button class="btn y mio-add" data-mio-nuevo>+ Pedido</button></div>' +
       (!DEMO && leido != null && leido > 30 ? '<div class="estado-av"><span class="ei">!</span><div><b>Tu tablero se leyó hace ' + leido + ' min.</b> Puede haber cambios en Trello que no estás viendo.</div><button class="btn ghost" data-mio-rf>Leer ahora</button></div>' : '') +
       '<div class="mio-sts">' + tile('bandeja', D.bandeja.length, 'Bandeja', 'para procesar', 'y') + tile('hoy', D.hoy.length, 'Hoy', 'vence o ya venció', 'bad') + tile('semana', D.semana.length, '7 días', 'lo que viene', '') + tile('seguimiento', D.seguimiento.length, 'Seguimiento', (M.dias || 3) + ' días o más quietas', 'warn') + tile('sinfecha', D.sinFecha.length, 'Sin fecha', 'falta asignar', 'warn') + '</div>' +
-      sec('bandeja', 'Bandeja', 'procesalas y pasalas a "Por hacer"', D.bandeja, c => fila(c, c.due ? vence(c) : ''), 'Bandeja vacía. Todo procesado.', true) +
-      sec('hoy', 'Para hoy', 'vencen hoy o ya vencieron', D.hoy, c => fila(c, vence(c)), 'Nada vence hoy.', true) +
-      sec('semana', 'Próximos 7 días', '', D.semana, c => fila(c, vence(c)), 'Nada vence en los próximos 7 días.') +
-      sec('seguimiento', 'Seguimiento', 'en "Enviado / en seguimiento" sin movimiento', D.seguimiento, c => fila(c, '<span class="pill warn">hace ' + D.diasQuieta(c) + ' días sin movimiento</span>'), 'Nada frenado hace ' + (M.dias || 3) + ' días o más.') +
-      sec('sinfecha', 'Sin fecha', 'ponéles fecha en Trello', D.sinFecha, c => fila(c), 'Todas tienen fecha.') +
+      sec('bandeja', 'Bandeja', 'lo recién cargado, sin ordenar · pasalas a "Por hacer" en Trello', D.bandeja, c => fila(c, c.due ? vence(c) : ''), 'Bandeja vacía. Todo procesado.', true) +
+      sec('hoy', 'Para hoy', 'tarjetas de cualquier lista con fecha de hoy o ya vencida', D.hoy, c => fila(c, vence(c)), 'Nada vence hoy.', true) +
+      sec('semana', 'Próximos 7 días', 'tarjetas que vencen esta semana', D.semana, c => fila(c, vence(c)), 'Nada vence en los próximos 7 días.') +
+      sec('seguimiento', 'Seguimiento', 'ya las mandaste y nadie las movió hace ' + (M.dias || 3) + ' días o más · reclamalas', D.seguimiento, c => fila(c, '<span class="pill warn">hace ' + D.diasQuieta(c) + ' días sin movimiento</span>'), 'Nada frenado hace ' + (M.dias || 3) + ' días o más.') +
+      sec('sinfecha', 'Sin fecha', 'en "Por hacer" o "En proceso" sin fecha de vencimiento · ponésela en Trello', D.sinFecha, c => fila(c), 'Todas tienen fecha.') +
       '<p class="ayuda">Todo esto es tu tablero <a class="lnk" href="' + esc(M.url) + '" target="_blank" rel="noopener">Project de Trello ↗</a>: acá se ve y se carga, las tarjetas se mueven allá. Lo de "Listo" no aparece. "Sin movimiento" cuenta desde la última actividad de la tarjeta (moverla, comentarla o editarla).</p>';
   }
   async function refrescarMio(silencioso) {

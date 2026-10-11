@@ -1206,3 +1206,12 @@ select{color-scheme:dark}
   .ag{row-gap:2px;padding:8px 0;border-bottom:1px solid var(--line)}
   .ag:last-child{border-bottom:0}
 }
+
+/* ---- Mi día (Project): que se entienda qué es cada cosa y de dónde sale ---- */
+.mio-que{margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--muted);max-width:760px}
+.mio-que b{color:var(--text)}
+.mio-r .mio-l b{display:inline;color:var(--muted);font-weight:600;font-size:inherit;font-family:inherit;margin:0}
+.mio-go{font-size:12px;color:var(--dim);white-space:nowrap}
+.mio-r:hover .mio-go{color:var(--y)}
+.mio-sec .mcar-h em.suave{white-space:normal;text-align:left;line-height:1.35}
+@media(max-width:700px){.mio-sec .mcar-h em.suave{flex-basis:100%}}
