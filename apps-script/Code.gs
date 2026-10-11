@@ -2464,11 +2464,11 @@ function agendaPrivada_() {
   const desde = new Date(Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd') + 'T00:00:00-03:00'), hasta = new Date(desde.getTime() + 45 * 864e5);
   const nombres = {}; cat.equipo.forEach(p => { if (p.email) nombres[p.email] = p.nombre; });
   const vistos = {}, out = [];
-  P0.cal.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, P0.id, 'privado', nombres); vistos[o.id] = 1; out.push(o); });
-  // las del calendario del equipo se suman para ver todo junto y no pisar horarios (las que ya están en el privado no se repiten)
+  P0.cal.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, P0.id, 'privado', nombres); vistos[o.id] = o; out.push(o); });
+  // las del calendario del equipo: las que también están en el privado se marcan como del equipo (el equipo las ve); las demás se suman
   const idEq = cfg.CALENDAR_ID || 'estudioideamia@gmail.com';
   let equipoOk = true;
-  try { const ce = idEq !== P0.id ? CalendarApp.getCalendarById(idEq) : null; if (ce) ce.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, idEq, 'equipo', nombres); if (!vistos[o.id]) out.push(o); }); else if (idEq !== P0.id) equipoOk = false; } catch (x) { equipoOk = false; }
+  try { const ce = idEq !== P0.id ? CalendarApp.getCalendarById(idEq) : null; if (ce) ce.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, idEq, 'equipo', nombres); if (vistos[o.id]) vistos[o.id].cal = 'equipo'; else out.push(o); }); else if (idEq !== P0.id) equipoOk = false; } catch (x) { equipoOk = false; }
   out.sort((a, b) => new Date(a.s) - new Date(b.s));
   return { ok: true, leido: new Date().toISOString(), calendario: P0.id, equipoOk: equipoOk, eventos: out,
     invitables: cat.equipo.filter(p => p.email && p.email !== P0.id).map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol, email: p.email })) };
