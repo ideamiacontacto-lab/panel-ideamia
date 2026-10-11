@@ -2439,6 +2439,63 @@ function claveOk_(k, project) {
   return ok;
 }
 
+/* ---------------- agenda privada (project y dirección) ----------------
+   El calendario de ideamia.contacto es privado: solo lo ven Joaquín e Ivo. Por eso todo esto pide la clave del project,
+   no la del equipo. Se leen las reuniones de los próximos 45 días (las privadas y, marcadas aparte, las del calendario del equipo)
+   y se pueden crear reuniones nuevas, que SIEMPRE van al calendario privado, con los invitados que se elijan. */
+const CAL_PRIVADO_ = 'ideamia.contacto@gmail.com';
+function calPrivado_() {
+  const id = String(config_().CAL_PRIVADO || CAL_PRIVADO_).trim(), cal = CalendarApp.getCalendarById(id);
+  if (!cal) throw new Error('no encuentro el calendario ' + id + ' (el panel tiene que estar publicado con esa cuenta)');
+  return { id: id, cal: cal };
+}
+function agendaEvento_(e, calId, tipo, nombres) {
+  let inv = [];
+  try { inv = e.getGuestList().map(g => { const m = String(g.getEmail()).toLowerCase(); return { mail: m, n: nombres[m] || '', est: String(g.getGuestStatus()) }; }); } catch (x) {}
+  const id = e.getId(), desc = String(e.getDescription() || '').replace(/<[^>]+>/g, ' ').trim();
+  return {
+    id: id + '@' + e.getStartTime().getTime(), t: e.getTitle() || '(sin título)', s: e.getStartTime().toISOString(), f: e.getEndTime().toISOString(), dia: e.isAllDayEvent(),
+    cal: tipo, inv: inv, lugar: String(e.getLocation() || '').slice(0, 200), desc: desc.slice(0, 300), panel: desc.indexOf('Agendada desde el Panel Ideamia') >= 0,
+    link: 'https://www.google.com/calendar/event?eid=' + Utilities.base64EncodeWebSafe(id.split('@')[0] + ' ' + calId).replace(/=+$/, '')
+  };
+}
+function agendaPrivada_() {
+  const cfg = config_(), cat = catalogo_(), P0 = calPrivado_();
+  const desde = new Date(Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd') + 'T00:00:00-03:00'), hasta = new Date(desde.getTime() + 45 * 864e5);
+  const nombres = {}; cat.equipo.forEach(p => { if (p.email) nombres[p.email] = p.nombre; });
+  const vistos = {}, out = [];
+  P0.cal.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, P0.id, 'privado', nombres); vistos[o.id] = 1; out.push(o); });
+  // las del calendario del equipo se suman para ver todo junto y no pisar horarios (las que ya están en el privado no se repiten)
+  const idEq = cfg.CALENDAR_ID || 'estudioideamia@gmail.com';
+  let equipoOk = true;
+  try { const ce = idEq !== P0.id ? CalendarApp.getCalendarById(idEq) : null; if (ce) ce.getEvents(desde, hasta).forEach(e => { const o = agendaEvento_(e, idEq, 'equipo', nombres); if (!vistos[o.id]) out.push(o); }); else if (idEq !== P0.id) equipoOk = false; } catch (x) { equipoOk = false; }
+  out.sort((a, b) => new Date(a.s) - new Date(b.s));
+  return { ok: true, leido: new Date().toISOString(), calendario: P0.id, equipoOk: equipoOk, eventos: out,
+    invitables: cat.equipo.filter(p => p.email && p.email !== P0.id).map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol, email: p.email })) };
+}
+function agendarPrivada_(b) {
+  const titulo = String(b.titulo || '').trim().slice(0, 200);
+  if (!titulo) return { error: 'datos', mensaje: 'Falta el título de la reunión' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.fecha || '') || !/^\d{2}:\d{2}$/.test(b.hora || '')) return { error: 'datos', mensaje: 'Falta la fecha o la hora' };
+  const mails = (Array.isArray(b.invitados) ? b.invitados : []).map(x => String(x).trim().toLowerCase()).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i);
+  const malos = mails.filter(x => !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(x));
+  if (malos.length) return { error: 'datos', mensaje: 'Este mail no parece válido: ' + malos.join(', ') };
+  if (mails.length > 30) return { error: 'datos', mensaje: 'Son demasiados invitados (máximo 30)' };
+  const P0 = calPrivado_(), ini = new Date(b.fecha + 'T' + b.hora + ':00-03:00'), dur = Math.min(Math.max(Number(b.duracion) || 45, 10), 480);
+  const op = { description: 'Agendada desde el Panel Ideamia' + (b.persona ? ' por ' + String(b.persona).slice(0, 40) : '') + (b.nota ? '\n' + String(b.nota).slice(0, 1500) : '') };
+  if (b.lugar) op.location = String(b.lugar).slice(0, 300);
+  if (mails.length) { op.guests = mails.join(','); op.sendInvites = b.avisar !== false; }
+  const ev = P0.cal.createEvent(titulo, ini, new Date(ini.getTime() + dur * 6e4), op);
+  return { ok: true, evento: agendaEvento_(ev, P0.id, 'privado', {}) };
+}
+/* PRUEBA sin efectos: qué se lee del calendario privado (no crea nada). */
+function probarAgendaPrivada() {
+  const a = agendaPrivada_();
+  console.log('Calendario privado: ' + a.calendario + ' · calendario del equipo: ' + (a.equipoOk ? 'leído' : 'NO se pudo leer') + ' · reuniones en 45 días: ' + a.eventos.length + ' (privadas ' + a.eventos.filter(e => e.cal === 'privado').length + ', del equipo ' + a.eventos.filter(e => e.cal === 'equipo').length + ')');
+  console.log('Se puede invitar a: ' + a.invitables.map(p => p.nombre + ' <' + p.email + '>').join(', '));
+  a.eventos.slice(0, 12).forEach(e => console.log('   ' + Utilities.formatDate(new Date(e.s), TZ, 'dd/MM HH:mm') + ' · ' + e.cal + ' · ' + e.t.slice(0, 60) + (e.inv.length ? ' · ' + e.inv.length + ' invitados' : '')));
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -2464,6 +2521,10 @@ function doGet(e) {
     if (q.action === 'mio') { // solo el tablero Project del project (para refrescar "Mi día" sin recargar todo)
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       try { return json_({ ok: true, mio: miTablero_() }, q.cb); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer el tablero Project: ' + String(e.message || e).slice(0, 200) }, q.cb); }
+    }
+    if (q.action === 'agenda') { // calendario privado de ideamia.contacto: solo con la clave del project
+      if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
+      try { return json_(agendaPrivada_(), q.cb); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo leer el calendario: ' + String(e.message || e).slice(0, 200) }, q.cb); }
     }
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
@@ -2513,6 +2574,9 @@ function doPost(e) {
         return json_({ ok: true });
       case 'actualizar':
         try { return json_(actualizar(true)); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer Trello: ' + String(e.message || e).slice(0, 200) }); }
+      case 'agendarPrivada': // reunión en el calendario privado (ideamia.contacto): solo con la clave del project
+        if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
+        try { return json_(agendarPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo crear la reunión: ' + String(e.message || e).slice(0, 200) }); }
       case 'pedidoRapido': // carga rápida del project: solo con su clave
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
         return json_(pedidoRapido_(b));
