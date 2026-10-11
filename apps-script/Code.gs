@@ -2455,7 +2455,7 @@ function agendaEvento_(e, calId, tipo, nombres) {
   const id = e.getId(), desc = String(e.getDescription() || '').replace(/<[^>]+>/g, ' ').trim();
   return {
     id: id + '@' + e.getStartTime().getTime(), t: e.getTitle() || '(sin título)', s: e.getStartTime().toISOString(), f: e.getEndTime().toISOString(), dia: e.isAllDayEvent(),
-    cal: tipo, inv: inv, lugar: String(e.getLocation() || '').slice(0, 200), desc: desc.slice(0, 300), panel: desc.indexOf('Agendada desde el Panel Ideamia') >= 0,
+    cal: tipo, uid: id, mio: (() => { try { return e.isOwnedByMe(); } catch (x) { return false; } })(), rec: (() => { try { return e.isRecurringEvent(); } catch (x) { return false; } })(), inv: inv, lugar: String(e.getLocation() || '').slice(0, 200), desc: desc.slice(0, 300), panel: desc.indexOf('Agendada desde el Panel Ideamia') >= 0,
     link: 'https://www.google.com/calendar/event?eid=' + Utilities.base64EncodeWebSafe(id.split('@')[0] + ' ' + calId).replace(/=+$/, '')
   };
 }
@@ -2506,7 +2506,7 @@ function agendarPrivada_(b) {
     try {
       const r = Calendar.Events.insert({ summary: titulo, description: desc, location: lugar, start: { dateTime: ini.toISOString() }, end: { dateTime: fin.toISOString() }, attendees: mails.map(x => ({ email: x })),
         conferenceData: { createRequest: { requestId: Utilities.getUuid(), conferenceSolutionKey: { type: 'hangoutsMeet' } } } }, P0.id, { conferenceDataVersion: 1, sendUpdates: mails.length && avisar ? 'all' : 'none' });
-      return { ok: true, evento: { id: r.iCalUID + '@' + ini.getTime(), t: titulo, s: ini.toISOString(), f: fin.toISOString(), dia: false, cal: 'privado', inv: mails.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: lugar, desc: desc.slice(0, 300), panel: true, link: r.htmlLink || '', meet: r.hangoutLink || '' } };
+      return { ok: true, evento: { id: r.iCalUID + '@' + ini.getTime(), t: titulo, s: ini.toISOString(), f: fin.toISOString(), dia: false, cal: 'privado', uid: r.iCalUID, mio: true, rec: false, inv: mails.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: lugar, desc: desc.slice(0, 300), panel: true, link: r.htmlLink || '', meet: r.hangoutLink || '' } };
     } catch (e) { meetFallo = String(e.message || e).slice(0, 160); }
   }
   const op = { description: desc };
@@ -2514,6 +2514,35 @@ function agendarPrivada_(b) {
   if (mails.length) { op.guests = mails.join(','); op.sendInvites = avisar; }
   const ev = P0.cal.createEvent(titulo, ini, fin, op);
   return { ok: true, evento: agendaEvento_(ev, P0.id, 'privado', {}), meetFallo: meetFallo };
+}
+/* Cambiar los invitados de una reunión que ya existe en el calendario privado (agregar o sacar). b.invitados = la lista completa que tiene que quedar.
+   Solo en reuniones creadas por ideamia.contacto (en las que lo invitó otro, Google no deja tocar los invitados). Si la reunión se repite, vale para todas las fechas. */
+function invitadosPrivada_(b) {
+  const uid = String(b.uid || '');
+  if (!uid) return { error: 'datos', mensaje: 'Falta la reunión' };
+  const mails = (Array.isArray(b.invitados) ? b.invitados : []).map(x => String(x).trim().toLowerCase()).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i);
+  const malos = mails.filter(x => !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(x));
+  if (malos.length) return { error: 'datos', mensaje: 'Este mail no parece válido: ' + malos.join(', ') };
+  if (mails.length > 30) return { error: 'datos', mensaje: 'Son demasiados invitados (máximo 30)' };
+  const P0 = calPrivado_(), avisar = b.avisar !== false;
+  const EST = { accepted: 'YES', declined: 'NO', tentative: 'MAYBE', needsAction: 'INVITED' };
+  // con el servicio avanzado de Calendar: a los que se agregan les llega la invitación y a los que se sacan, el aviso
+  if (typeof Calendar !== 'undefined') {
+    const it = ((Calendar.Events.list(P0.id, { iCalUID: uid, maxResults: 1 }) || {}).items || [])[0];
+    if (!it) return { error: 'datos', mensaje: 'No encontré esa reunión en el calendario (¿la borraron?)' };
+    const actuales = it.attendees || [];
+    const quedan = actuales.filter(a => a.self || a.organizer || mails.indexOf(String(a.email).toLowerCase()) >= 0);
+    mails.forEach(m => { if (!quedan.some(a => String(a.email).toLowerCase() === m)) quedan.push({ email: m }); });
+    const r = Calendar.Events.patch({ attendees: quedan }, P0.id, it.id, { sendUpdates: avisar ? 'all' : 'none' });
+    return { ok: true, inv: (r.attendees || []).filter(a => !a.self).map(a => ({ mail: String(a.email).toLowerCase(), n: '', est: EST[a.responseStatus] || 'INVITED' })) };
+  }
+  // sin ese servicio: se cambian igual, pero Google no manda el mail de invitación
+  const ev = P0.cal.getEventById(uid);
+  if (!ev) return { error: 'datos', mensaje: 'No encontré esa reunión en el calendario (¿la borraron?)' };
+  const ya = ev.getGuestList().map(g => String(g.getEmail()).toLowerCase());
+  ya.filter(m => mails.indexOf(m) < 0 && m !== P0.id).forEach(m => ev.removeGuest(m));
+  mails.filter(m => ya.indexOf(m) < 0).forEach(m => ev.addGuest(m));
+  return { ok: true, sinAviso: true, inv: ev.getGuestList().map(g => ({ mail: String(g.getEmail()).toLowerCase(), n: '', est: String(g.getGuestStatus()) })) };
 }
 /* PRUEBA sin efectos: qué se lee del calendario privado (no crea nada). */
 function probarAgendaPrivada() {
@@ -2605,6 +2634,9 @@ function doPost(e) {
       case 'agendarPrivada': // reunión en el calendario privado (ideamia.contacto): solo con la clave del project
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
         try { return json_(agendarPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo crear la reunión: ' + String(e.message || e).slice(0, 200) }); }
+      case 'invitadosPrivada': // agregar o sacar invitados de una reunión del calendario privado: solo con la clave del project
+        if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
+        try { return json_(invitadosPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudieron cambiar los invitados: ' + String(e.message || e).slice(0, 200) }); }
       case 'pedidoRapido': // carga rápida del project: solo con su clave
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
         return json_(pedidoRapido_(b));
