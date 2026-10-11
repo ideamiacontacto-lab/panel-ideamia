@@ -1198,3 +1198,11 @@ select{color-scheme:dark}
   .mcar-h{position:relative;padding-right:42px}
   .mcar-h>i{position:absolute;right:16px;top:50%;transform:translateY(-50%);margin:0}
 }
+
+/* ---- revisión completa: Agenda en el celular ---- */
+.leyenda .lg{display:inline!important;width:auto;white-space:nowrap}
+@media(max-width:700px){
+  .ag .tag{grid-column:2;justify-self:start;margin-top:-2px}
+  .ag{row-gap:2px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .ag:last-child{border-bottom:0}
+}
