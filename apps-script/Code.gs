@@ -1154,6 +1154,7 @@ function pedidoRapido_(b) {
     ids.push(e.id); nombres.push(e.n);
   }
   if (b.urgente) { const u = t.etiquetas.filter(x => norm_(x.n) === 'urgente')[0]; if (u) { ids.push(u.id); nombres.push(u.n); } else avisos.push('No existe la etiqueta "Urgente" en el tablero: la tarjeta se creó sin ella'); }
+  if (b.minuta) { const u = t.etiquetas.filter(x => /minuta/.test(norm_(x.n)))[0]; if (u) { ids.push(u.id); nombres.push(u.n); } else avisos.push('No existe la etiqueta "Ver en minuta" en el tablero: la tarjeta se creó sin ella'); }
   const q = { idList: bandeja.id, name: texto.slice(0, 300), desc: String(b.nota || '').slice(0, 1500), pos: 'top' };
   if (b.due) q.due = b.due;
   if (ids.length) q.idLabels = ids.join(',');
