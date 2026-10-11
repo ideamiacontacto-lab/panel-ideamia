@@ -1231,3 +1231,14 @@ select{color-scheme:dark}
   .nav6 .bnav svg{width:21px;height:21px}
   .an-d{width:44px;font-size:19px}
 }
+
+/* ---------- aviso para instalar el panel en el celular (pwa.js) ---------- */
+.pwa-bar{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;display:flex;align-items:center;gap:12px;
+  background:var(--s2);border:1px solid var(--line2);border-left:3px solid var(--y);border-radius:14px;padding:12px 10px 12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.55)}
+.pwa-bar div{flex:1;min-width:0}
+.pwa-bar b{display:block;font-family:var(--f-t);font-size:14px}
+.pwa-bar span{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:2px}
+.pwa-bar .btn{flex:none}
+.pwa-x{flex:none;width:36px;height:36px;font-size:22px;line-height:1;color:var(--muted)}
+/* instalada: la barra de arriba respeta la muesca del teléfono */
+@media (display-mode:standalone){.top{padding-top:env(safe-area-inset-top)}}
