@@ -1382,7 +1382,7 @@
       const s = new Date(e.s), f = new Date(e.f), ya = f < new Date();
       const inv = (e.inv || []).filter(g => g.mail !== AGP.data.calendario).map(g => esc(g.n || g.mail) + (EST[g.est] ? ' <i>(' + EST[g.est] + ')</i>' : ''));
       return '<div class="agp-ev' + (e.cal === 'privado' ? ' priv' : '') + (ya ? ' ya' : '') + '"><div class="agp-h">' + (e.dia ? '<b>Todo</b><small>el día</small>' : '<b>' + hm(s) + '</b><small>' + hm(f) + '</small>') + '</div><div class="agp-b"><div class="tt">' + esc(e.t) + '</div><div class="mt">' +
-        (e.cal === 'privado' ? '<span class="pill y">Privado · solo Joaquín e Ivo</span>' : '<span class="pill">Calendario del equipo</span>') +
+        (e.cal === 'privado' ? '<span class="pill y">Privado · solo Joaquín e Ivo</span>' : '<span class="pill">También lo ve el equipo</span>') +
         (inv.length ? '<span>con ' + inv.join(', ') + '</span>' : e.cal === 'privado' ? '<span>sin invitados</span>' : '') + (e.lugar ? '<span>' + esc(e.lugar) + '</span>' : '') +
         (e.link && e.link !== '#' ? '<a class="lnk" href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir en Calendar ↗</a>' : '') + '</div></div></div>';
     };
@@ -1391,12 +1391,12 @@
       (E.length ? cuerpo : '<div class="empty">No hay reuniones en los próximos 45 días. Tocá "Agendar reunión" para crear la primera.</div>');
   }
   function agpNueva() {
-    const inv = (AGP.data && AGP.data.invitables) || [], iso = ymdL(NOW), h = String(Math.min(NOW.getHours() + 1, 20)).padStart(2, '0') + ':00';
+    const inv = (AGP.data && AGP.data.invitables) || [], antes = LS.get('agpmails', []).filter(x => !inv.some(p => p.email === x)), iso = ymdL(NOW), h = String(Math.min(NOW.getHours() + 1, 20)).padStart(2, '0') + ':00';
     modal('<h3>Agendar reunión</h3><p>Se crea en el calendario <b>ideamia.contacto</b> (el privado). Los invitados reciben el mail de Google Calendar y la ven en su calendario.</p>' +
       '<label class="field"><span>Título</span><input id="aT" placeholder="Ej.: Reunión con el cliente · propuesta"></label>' +
       '<div class="two"><label class="field"><span>Día</span><input type="date" id="aF" value="' + iso + '" min="' + iso + '"></label><label class="field"><span>Hora</span><input type="time" id="aH" value="' + h + '" step="300"></label></div>' +
       '<label class="field"><span>Duración</span><select id="aD"><option value="30">30 minutos</option><option value="45" selected>45 minutos</option><option value="60">1 hora</option><option value="90">1 hora y media</option><option value="120">2 horas</option></select></label>' +
-      '<div class="field"><span>Invitados del equipo</span><div class="agp-inv">' + (inv.length ? inv.map(p => '<label><input type="checkbox" value="' + esc(p.email) + '"><b>' + esc(p.nombre) + '</b><small>' + esc(p.rol) + '</small></label>').join('') : '<small>No hay mails cargados en la hoja Equipo.</small>') + '</div></div>' +
+      '<div class="field"><span>Invitados</span><div class="agp-inv">' + (inv.length ? inv.map(p => '<label><input type="checkbox" value="' + esc(p.email) + '"><b>' + esc(p.nombre) + '</b><small>' + esc(p.rol) + '</small></label>').join('') : '<small>No hay mails cargados en la hoja Equipo.</small>') + antes.map(x => '<label><input type="checkbox" value="' + esc(x) + '"><b>' + esc(x) + '</b></label>').join('') + '</div><small class="agp-nota">Aparecen los del equipo que tienen mail en la hoja Equipo y los mails que ya invitaste desde acá.</small></div>' +
       '<label class="field"><span>Otros invitados (mails separados por coma)</span><input id="aO" inputmode="email" placeholder="cliente@empresa.com, otro@mail.com"></label>' +
       '<label class="field"><span>Lugar o link (opcional)</span><input id="aL" placeholder="Oficina, link de Meet o Zoom…"></label>' +
       '<label class="field"><span>Nota (opcional)</span><input id="aN" placeholder="De qué se trata, qué hay que llevar…"></label>' +
@@ -1412,6 +1412,7 @@
       const ini = new Date(fecha + 'T' + hora);
       const r = DEMO ? { ok: true, evento: { id: 'n' + Date.now(), t: titulo, s: ini.toISOString(), f: new Date(ini.getTime() + cuerpo.duracion * 6e4).toISOString(), cal: 'privado', inv: invitados.map(x => ({ mail: x, n: '', est: 'INVITED' })), lugar: cuerpo.lugar, panel: true, link: '#' } } : await post(cuerpo);
       if (r.error) throw new Error(r.mensaje || r.error);
+      LS.set('agpmails', invitados.filter(x => !inv.some(p => p.email === x)).concat(antes).filter((x, i, a) => a.indexOf(x) === i).slice(0, 12));
       if (AGP.data && r.evento) { (r.evento.inv || []).forEach(g => { g.n = g.n || (inv.find(p => p.email === g.mail) || {}).nombre || ''; }); AGP.data.eventos.push(r.evento); AGP.data.eventos.sort((a, b) => new Date(a.s) - new Date(b.s)); }
       render(); toast('✓ Agendada en el calendario privado: ' + esc(titulo) + ' · ' + corto(ymdD(fecha)) + ' ' + hora + (invitados.length && cuerpo.avisar ? '<br>Invitación enviada a ' + invitados.length + (invitados.length === 1 ? ' persona.' : ' personas.') : ''));
     });
