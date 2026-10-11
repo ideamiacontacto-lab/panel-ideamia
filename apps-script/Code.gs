@@ -646,6 +646,8 @@ function actualizar(desdeWeb) {
     }
     // filtro de CM y privados de Discord (antes de guardar: así la foto ya refleja a qué lista fue cada pieza). Si falla, no corta la actualización.
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
+    // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
+    try { tareasDelMesEnviar_(cat, cfg); } catch (e) {}
     tk_("privados"); snap.generado = new Date().toISOString();
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     P.deleteProperty('ULTIMA_FALLA');
@@ -1792,6 +1794,87 @@ function probarLecturaUnida() {
 }
 /* Para ver el gasto del día: pedidos a otros servicios (tope de Google: 20.000) y segundos de lectura (tope: 90 minutos = 5.400). */
 function verUso() { console.log(P.getProperty('USO_DIA') + ' · lectura unida: ' + P.getProperty('LECTURA_UNIDA') + ' · canales de Discord sin permiso: ' + ((JSON.parse(P.getProperty('DISCORD_SIN_PERMISO') || '{}').ids || []).length)); }
+
+/* ---------------- tareas del mes por privado (social media) ----------------
+   El primer día hábil de cada mes, a la mañana, cada social media recibe por privado de Discord su lista del mes:
+   lo que se hace una vez en el mes (con su ventana de días), las reuniones, lo de todas las semanas y lo de todos los días.
+   Sale de las pestañas Rutinas y Reuniones del Sheet: si se cambia algo ahí, el mes siguiente ya llega cambiado.
+   Se apaga con Config TAREAS_MES_DISCORD = no (o con PRIVADOS_DISCORD = no, que apaga todos los privados). */
+function tareasDelMesArmar_(p, cat, fecha) {
+  const NOM_MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const NOM_DIA = { dom: 'Domingo', lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado' };
+  const mes = fecha.getMonth() + 1, ultimo = finDeMes_(fecha), esCM = /cm/i.test(p.rol);
+  const mias = cat.marcas.filter(m => m.sm === p.clave || m.cm === p.clave);
+  if (!mias.length) return null;
+  // a qué marcas aplica cada tarea: todas las mías, solo las que tienen canal, ninguna en particular, o una lista
+  const marcasDe = porMarca => {
+    const v = norm_(String(porMarca === true ? 'si' : porMarca === false ? 'no' : porMarca || 'no'));
+    if (v === 'si' || v === 'sí') return { txt: mias.length > 1 ? 'todas tus marcas' : mias[0].nombre };
+    if (v === 'canal') { const L = mias.filter(m => m.canal); return L.length ? { txt: L.map(m => m.nombre).join(', ') } : null; }
+    if (v === 'no') return { txt: '' };
+    const l = lista_(v), L = mias.filter(m => l.some(x => m.slug === x.replace(/[^a-z0-9]+/g, '-') || (m.alias || []).indexOf(x) >= 0 || norm_(m.nombre) === x));
+    return L.length ? { txt: L.map(m => m.nombre).join(', ') } : null;
+  };
+  const ventana = cuando => {
+    const m = /^(?:meses:([\d,]+)\/)?(?:mes:)?(ultima-semana|\d+-\d+)$/.exec(cuando); if (!m) return null;
+    if (m[1] && m[1].split(',').map(Number).indexOf(mes) < 0) return { fuera: true };
+    let a, b; if (m[2] === 'ultima-semana') { a = ultimo - 6; b = ultimo; } else { a = Number(m[2].split('-')[0]); b = Math.min(Number(m[2].split('-')[1]), ultimo); }
+    return { a: a, b: b, txt: a === 1 && b >= ultimo ? 'En el mes' : 'Del ' + a + ' al ' + b };
+  };
+  const mensual = [], semanal = [], diaria = [];
+  cat.rutinas.filter(r => r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')).forEach(r => {
+    const mm = marcasDe(r.porMarca); if (!mm) return;
+    const cola = mm.txt ? ' · ' + mm.txt : '';
+    if (r.cuando === 'diaria') { diaria.push('• ' + r.tarea + cola); return; }
+    const s = /^semana:(\w+)$/.exec(r.cuando), d = /^dias:([a-z,\s]+)$/.exec(r.cuando);
+    if (s || d) {
+      const dias = (s ? [s[1]] : d[1].split(',')).map(x => x.trim().slice(0, 3)).filter(x => DIAS[x] != null);
+      if (dias.length) semanal.push({ o: DIAS[dias[0]] || 7, t: '• ' + dias.map(x => NOM_DIA[x]).join(' y ') + ' · ' + r.tarea + cola });
+      return;
+    }
+    const v = ventana(r.cuando); if (v && !v.fuera) mensual.push({ o: v.a, t: '• ' + v.txt + ' · ' + r.tarea + cola });
+  });
+  cat.reuniones.filter(r => r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')).forEach(r => {
+    const mm = marcasDe(r.porMarca), v = ventana(r.cuando); if (!mm || !v || v.fuera) return;
+    mensual.push({ o: v.a, t: '• ' + v.txt + ' · ' + r.nombre + (r.con ? ' (con ' + r.con + ')' : '') + (mm.txt ? ' · ' + mm.txt : '') + ' · hay que ponerle fecha' });
+  });
+  const lineas = ['Tus marcas: ' + mias.map(m => m.nombre).join(', ') + '.'];
+  if (mensual.length) { lineas.push('', '**Una vez en el mes**'); mensual.sort((a, b) => a.o - b.o).forEach(x => lineas.push(x.t)); }
+  if (semanal.length) { lineas.push('', '**Todas las semanas**'); semanal.sort((a, b) => a.o - b.o).forEach(x => lineas.push(x.t)); }
+  if (diaria.length) { lineas.push('', '**Todos los días**'); diaria.forEach(x => lineas.push(x)); }
+  lineas.push('', 'No hace falta que lo guardes: cada cosa te aparece en el panel el día que toca y ahí la vas tildando. https://ideamiacontacto-lab.github.io/panel-ideamia/');
+  return trozos_('📅 **' + p.nombre + ', estas son tus tareas de ' + NOM_MES[mes - 1] + '**', lineas);
+}
+/* Lo llama cada actualización: manda la lista una sola vez por mes, el primer día hábil (hasta el 7), entre las 9 y las 12. */
+function tareasDelMesEnviar_(cat, cfg) {
+  if (/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim()) || /^no$/i.test(String(cfg.TAREAS_MES_DISCORD || 'si').trim())) return;
+  const hoy = hoyAR_(), mes = ym_(hoy), dow = hoy.getDay(), h = hoy.getHours();
+  if (dow === 0 || dow === 6 || hoy.getDate() > 7 || h < 9 || h >= 12) return;
+  let hecho = {}; try { hecho = JSON.parse(P.getProperty('TAREAS_MES') || '{}'); } catch (e) {}
+  if (hecho.mes !== mes) hecho = { mes: mes, a: [] };
+  cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim()) && hecho.a.indexOf(p.clave) < 0).forEach(p => {
+    const id = idDiscord_(cfg, p.clave), textos = id && tareasDelMesArmar_(p, cat, hoy);
+    if (!textos) return;
+    try { textos.forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); }); hecho.a.push(p.clave); } catch (e) { P.setProperty('DISCORD_DM_ERROR', (new Date().toISOString() + ' · tareas del mes de ' + p.clave + ': ' + e.message).slice(0, 300)); }
+  });
+  P.setProperty('TAREAS_MES', JSON.stringify(hecho));
+}
+/* MUESTRA: le manda a JOAQUÍN cómo le llegaría a cada social media la lista del mes que viene. No le escribe a nadie más ni anota nada. */
+function pruebaTareasMes() {
+  const cfg = config_(), cat = catalogo_(), hoy = hoyAR_(), prox = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+  const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  const r = UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/members/search?query=joaquin&limit=10', { headers: { 'x-clave': clave }, muteHttpExceptions: true });
+  const yo = (r.getResponseCode() < 300 ? JSON.parse(r.getContentText()).map(m => m.user).filter(u => u && !u.bot) : []).filter(u => /joaquinyarce/i.test(u.username))[0];
+  if (!yo) { console.log('No encontré a Joaquín en el servidor'); return; }
+  const gente = cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim()));
+  console.log('Social media: ' + gente.map(p => p.clave + (idDiscord_(cfg, p.clave) ? ' ✓' : ' ✗ sin ID de Discord')).join(' · '));
+  gente.forEach(p => {
+    const textos = tareasDelMesArmar_(p, cat, prox);
+    if (!textos) { console.log(p.clave + ': sin marcas, no se le manda'); return; }
+    discordPrivado_(yo.id, '**MUESTRA · privado a ' + p.nombre + '** · *el primer día hábil del mes, a la mañana*');
+    textos.forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)\n' + t); });
+  });
+}
 
 /* ---------------- web app ---------------- */
 /* ---------------- calendario provisorio para el cliente (página de links de la marca) ----------------
