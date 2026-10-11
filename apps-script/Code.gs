@@ -355,6 +355,10 @@ function tipoTablero_(nombre) {
 }
 function catLista_(nombre) {
   const n = norm_(nombre);
+  // "Para más adelante": cosas guardadas para después (no cuentan como pendientes ni le aparecen a quien produce).
+  // "Datos de la marca": cumpleaños, horarios, contactos (información, no archivos).
+  if (/mas adelante|stand ?by/.test(n)) return 'standby';
+  if (/^datos\b/.test(n)) return 'datos';
   if (/anterior|publicad|terminad/.test(n)) return 'hecho';
   if (n.indexOf('efemer') >= 0) return 'efem';
   if (n.indexOf('input') >= 0 || n.indexOf('pedidos') >= 0) return 'input';
@@ -423,8 +427,8 @@ function leerTrello_(cat) {
       }
       // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
       if (catL === 'hecho' && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
-      const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input';
-      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente'].indexOf(catL) >= 0 || b.tipo === 'project';
+      const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input' || catL === 'datos';
+      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby'].indexOf(catL) >= 0 || b.tipo === 'project';
       cards.push({
         id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
         lista: l.name, cat: catL, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity,
@@ -467,6 +471,9 @@ function leerTrello_(cat) {
     // a veces se publica directo sin pasar la tarjeta de guiones: si la original ya salió, se marca para ordenar
     // "ya salió" solo si la tarjeta de SCL está en una lista de publicado o la marcaron completa: que haya pasado la fecha no alcanza (si sigue en revisión, está atrasada y hay que verla igual)
     c.salio = /publicad|programad|anterior|terminad/.test(norm_(orig.lista)) || orig.dc;
+    // si en SCL la guardaron en "Para más adelante", no es un pendiente: no le aparece a quien produce ni a quien revisa, ni se avisa
+    c.standby = /mas adelante|stand ?by/.test(norm_(orig.lista));
+    if (c.standby) c.salio = true;
     if (c.cat === 'pieza') {
       const hp = hist[c.id] || {}, ho = hist[orig.id] || {};
       c.hist = { cargada: hp.creada || null, fecha: ho.fecha || null, para: ho.para || null, antes: ho.antes || null, movida: hp.movida || null, a: hp.a || null };
@@ -652,6 +659,8 @@ function actualizar(desdeWeb) {
     try { tareasDelMesEnviar_(cat, cfg, snap); } catch (e) {}
     // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
     try { seguimientoEnviar_(snap, cat, cfg); } catch (e) {}
+    // calendario anual y OKR de cada marca: se releen solos una vez por semana (lo usa la pestaña Anual y el mensaje del mes)
+    try { anualDatos_(snap, cat); } catch (e) {}
     tk_("privados"); snap.generado = new Date().toISOString();
     guardarJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json', snap);
     P.deleteProperty('ULTIMA_FALLA');
@@ -756,6 +765,7 @@ function contexto_() {
   return {
     cfg, cat, hoy, snap: snapshot_(), ia: leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'), discord: leerJson_('DISCORD_FILE_ID', 'panel-ideamia-discord.json'),
     eventos: eventos_(cfg, cat, new Date(hoy.getTime() - 2 * 864e5), new Date(hoy.getTime() + 21 * 864e5)),
+    anual: (() => { try { return leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'); } catch (e) { return {}; } })(),
     feriados: feriados_(hoy)
   };
 }
@@ -820,7 +830,7 @@ function panel_(personaClave, ctx) {
     if (esFilm) {
       if (film.todas.indexOf(c.m[0]) < 0) return false;
       if (c.cat === 'guion') return film.reels.indexOf(c.m[0]) >= 0 && !c.salio;
-      if (c.cat !== 'pieza' || c.tipo !== 'produccion') return false;
+      if (c.cat !== 'pieza' || c.tipo !== 'produccion' || c.standby) return false;
       if (film.reels.indexOf(c.m[0]) < 0 && c.formato !== 'historia') return false; // marcas donde hace solo historias
       if (c.salio && c.etapa === 'pendiente') return false;
       // nada de más de 15 días para atrás ni de más de dos semanas para adelante: si no, la lista se vuelve eterna
@@ -833,13 +843,19 @@ function panel_(personaClave, ctx) {
     // Ivo: solo lo que le dejan en revisión en Diseño y Producción (más los guiones, arriba)
     // lo que está en revisión se muestra SIEMPRE (aunque la de SCL figure programada o no se encuentre la original): esconderlo era perder piezas.
     // Lo pendiente (próximas entregas) sí se filtra: si ya salió o no tiene original, no hay nada que entregar.
-    if (c.cat === 'pieza') return esRevisa && (c.etapa === 'revision' || (c.etapa === 'pendiente' && !c.salio && !c.sinOrig));
+    if (c.cat === 'pieza') {
+      if (c.standby) return false;
+      if (esRevisa) return c.etapa === 'revision' || (c.etapa === 'pendiente' && !c.salio && !c.sinOrig);
+      // social media: las piezas que están pendientes en Diseño o Producción y NO tienen fecha de salida en SCL. Nadie decidió cuándo salen:
+      // se le avisa para que les ponga fecha, las guarde en "Para más adelante" o las archive.
+      return !esCM && c.etapa === 'pendiente' && !c.salida && !c.salio && !c.sinOrig;
+    }
     if (esRevisa && !esProject) return false;
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
     if (c.cat === 'corr') return reciente(c);
-    if (['input', 'recursos', 'fichas', 'brainstorming'].indexOf(c.cat) >= 0) return true;
+    if (['input', 'recursos', 'fichas', 'brainstorming', 'datos', 'standby'].indexOf(c.cat) >= 0) return true;
     // aprobado / programado que sale en los próximos días: para el chequeo "por salir" (reels y carruseles)
     if (c.cat === 'hecho') return c.tipo === 'scl' && c.due && !c.dc && new Date(c.due) >= ayer && new Date(c.due) <= new Date(hoy.getTime() + ajustes.porVencer * 864e5);
     return enVentana(c, ajustes.porVencer);
@@ -849,6 +865,7 @@ function panel_(personaClave, ctx) {
     const e = est['inp:' + c.id] || est['card:' + c.id]; if (e) o.estado = e;
     if (c.cat === 'efem') { const k = clave_(c.n); o.enCalendario = k.length > 2 && piezas.some(p => p.m === c.m[0] && p.n.indexOf(k) >= 0); }
     if (c.cat === 'recursos' || c.cat === 'fichas') o.d = o.d.slice(0, 200);
+    if (c.cat === 'pieza' && !esRevisa && !esFilm) o.cat = 'sinfecha'; // para el social media no es una pieza a revisar: es algo a decidir
     return o;
   });
 
@@ -917,6 +934,7 @@ function panel_(personaClave, ctx) {
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
+    anual: esFilm || (esRevisa && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy),
     film: esFilm ? Object.assign(filmSalida_(film, yo, hoy), { todas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) }) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: ((ctx.discord.porPersona || {})[yo.clave] || []).filter(m => (!m.marca || misMarcas.some(x => x.slug === m.marca)) && new Date(m.fecha).getTime() > Date.now() - 3 * 864e5) /* solo sus marcas y los canales generales, de los últimos 3 días */, conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
@@ -1805,7 +1823,7 @@ function verUso() { console.log(P.getProperty('USO_DIA') + ' · lectura unida: '
    lo que se hace una vez en el mes (con su ventana de días), las reuniones, lo de todas las semanas y lo de todos los días.
    Sale de las pestañas Rutinas y Reuniones del Sheet: si se cambia algo ahí, el mes siguiente ya llega cambiado.
    Se apaga con Config TAREAS_MES_DISCORD = no (o con PRIVADOS_DISCORD = no, que apaga todos los privados). */
-function tareasDelMesArmar_(p, cat, fecha) {
+function tareasDelMesArmar_(p, cat, fecha, snap) {
   const NOM_MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const NOM_DIA = { dom: 'Domingo', lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado' };
   const mes = fecha.getMonth() + 1, ultimo = finDeMes_(fecha), esCM = /cm/i.test(p.rol);
@@ -1847,6 +1865,9 @@ function tareasDelMesArmar_(p, cat, fecha) {
   if (mensual.length) { lineas.push('', '**Una vez en el mes**'); mensual.sort((a, b) => a.o - b.o).forEach(x => lineas.push(x.t)); }
   if (semanal.length) { lineas.push('', '**Todas las semanas**'); semanal.sort((a, b) => a.o - b.o).forEach(x => lineas.push(x.t)); }
   if (diaria.length) { lineas.push('', '**Todos los días**'); diaria.forEach(x => lineas.push(x)); }
+  // lo que dejaron guardado en "Para más adelante": una vez por mes se les recuerda, para que no quede olvidado
+  const guardado = ((snap || {}).cards || []).filter(c => c.cat === 'standby' && c.tipo === 'scl' && mias.some(m => m.slug === c.m[0]));
+  if (guardado.length) { lineas.push('', '**Guardado en "Para más adelante" (' + guardado.length + ')**: ¿algo de esto ya se puede hacer?'); guardado.slice(0, 12).forEach(c => lineas.push('• ' + nombreMarca_(cat, c.m[0]) + ' · ' + String(c.n).slice(0, 70))); if (guardado.length > 12) lineas.push('… y ' + (guardado.length - 12) + ' más'); }
   lineas.push('', 'No hace falta que lo guardes: cada cosa te aparece en el panel el día que toca y ahí la vas tildando. https://ideamiacontacto-lab.github.io/panel-ideamia/');
   return trozos_('📅 **' + p.nombre + ', estas son tus tareas de ' + NOM_MES[mes - 1] + '**', lineas);
 }
@@ -1858,7 +1879,7 @@ function tareasDelMesEnviar_(cat, cfg, snap) {
   let hecho = {}; try { hecho = JSON.parse(P.getProperty('TAREAS_MES') || '{}'); } catch (e) {}
   if (hecho.mes !== mes) hecho = { mes: mes, a: [] };
   cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim()) && hecho.a.indexOf(p.clave) < 0).forEach(p => {
-    const id = idDiscord_(cfg, p.clave), textos = id && tareasDelMesArmar_(p, cat, hoy);
+    const id = idDiscord_(cfg, p.clave), textos = id && tareasDelMesArmar_(p, cat, hoy, snap || snapshot_());
     if (!textos) return;
     try { textos.forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); }); hecho.a.push(p.clave); } catch (e) { P.setProperty('DISCORD_DM_ERROR', (new Date().toISOString() + ' · tareas del mes de ' + p.clave + ': ' + e.message).slice(0, 300)); }
     // y, por cada marca suya, lo que marca el calendario anual para este mes (si falla, las tareas igual salieron)
@@ -1876,7 +1897,7 @@ function pruebaTareasMes() {
   const gente = cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim()));
   console.log('Social media: ' + gente.map(p => p.clave + (idDiscord_(cfg, p.clave) ? ' ✓' : ' ✗ sin ID de Discord')).join(' · '));
   gente.forEach(p => {
-    const textos = tareasDelMesArmar_(p, cat, prox);
+    const textos = tareasDelMesArmar_(p, cat, prox, snapshot_());
     if (!textos) { console.log(p.clave + ': sin marcas, no se le manda'); return; }
     discordPrivado_(yo.id, '**MUESTRA · privado a ' + p.nombre + '** · *el primer día hábil del mes, a la mañana*');
     textos.forEach(t => { Utilities.sleep(600); discordPrivado_(yo.id, t); console.log('(' + t.length + ' caracteres)\n' + t); });
@@ -1942,6 +1963,8 @@ function resumenSemanalArmar_(snap, cat, cfg) {
       if (rut.length) L.push('• Rutinas vencidas sin tildar: ' + rut.length + ': ' + rut.map(x => String(x.tarea).slice(0, 45)).filter((x, i, a) => a.indexOf(x) === i).slice(0, 3).join('; ') + '…');
       const corr = (pn.cards || []).filter(c => c.cat === 'corr' && c.due && new Date(c.due) < new Date() && !c.dc);
       if (corr.length) L.push('• Correcciones vencidas: ' + corr.length);
+      const sf = (pn.cards || []).filter(c => c.cat === 'sinfecha');
+      if (sf.length) L.push('• Piezas en Diseño o Producción sin fecha de salida: ' + sf.length + ': ' + sf.slice(0, 3).map(c => nombreMarca_(cat, c.m[0]) + ' · ' + String(c.n).slice(0, 40)).join('; ') + (sf.length > 3 ? '…' : ''));
     }
     if (L.length) { lineas.push('', '**' + p.nombre + '** · ' + p.rol); L.forEach(x => lineas.push(x)); }
   });
@@ -2079,8 +2102,8 @@ function calendarioAnualParse_(txt) {
     const dia = Number((/\d{1,2}/.exec(fechaTxt) || [0])[0]); if (!dia || dia > 31) return;
     const i = resto.indexOf(':'), nombre = (i > 0 ? resto.slice(0, i) : resto).trim(), accion = (i > 0 ? resto.slice(i + 1) : '').replace(/→.*$/, '').trim();
     if (!nombre || nombre.length > 90) return;
-    const brain = /brainstorming/i.test(nombre);
-    out.push({ mes: mes, dia: dia, fecha: fechaTxt, nombre: brain ? nombre.replace(/brainstorming/i, 'Brainstorming') : nombre, accion: accion.slice(0, 160), nivel: brain ? 0 : nivelAccion_(accion) });
+    const brain = /brainstorming/i.test(nombre), nx = /\(N([1-4])\)/i.exec(resto); // "(N2)": nivel escrito en el propio calendario
+    out.push({ mes: mes, dia: dia, fecha: fechaTxt, nombre: (brain ? nombre.replace(/brainstorming/i, 'Brainstorming') : nombre).replace(/\s*\(N[1-4]\)/i, ''), accion: accion.replace(/\s*\(N[1-4]\)\.?/i, '').trim().slice(0, 200), nivel: brain ? 0 : nx ? Number(nx[1]) : nivelAccion_(accion) });
   });
   // una misma campaña puede figurar en dos meses (ej. Black Friday): se deja una por mes y nombre
   return out.filter((x, i, a) => a.findIndex(y => y.mes === x.mes && y.dia === x.dia && norm_(y.nombre) === norm_(x.nombre)) === i);
@@ -2100,7 +2123,8 @@ function okrParse_(txt, mes) {
 function anualDatos_(snap, cat, forzar) {
   const mes = ym_(hoyAR_());
   let g = {}; try { g = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'); } catch (e) {}
-  if (!forzar && g.mes === mes && g.marcas) return g;
+  // se vuelven a leer al cambiar de mes o una vez por semana (por si alguien corrigió el documento)
+  if (!forzar && g.mes === mes && g.marcas && g.leido && Date.now() - new Date(g.leido).getTime() < 7 * 864e5) return g;
   const marcas = {};
   cat.marcas.forEach(m => {
     const cal = recursoDoc_(snap, m.slug, /calendario anual/), okr = recursoDoc_(snap, m.slug, /okr/), o = { cal: cal, okr: okr, items: [], metas: [], nota: '' };
@@ -2116,6 +2140,15 @@ function anualDatos_(snap, cat, forzar) {
 }
 /* primera línea de una descripción de Trello, sin links (para que el mensaje no se llene de direcciones) */
 function limpio_(d) { return String(d || '').replace(/\[[^\]]*\]\([^)]*\)/g, '').replace(/https?:\/\/\S+/g, '').split('\n').map(x => x.trim()).filter(x => x.replace(/[^a-záéíóúñ0-9]/gi, '').length > 3)[0] || ''; }
+/* Lo que la web muestra en la pestaña "Anual" del social media: el calendario de cada marca suya, ya leído (sin el texto del OKR). */
+function anualSalida_(datos, misMarcas, hoy) {
+  const out = {};
+  misMarcas.forEach(m => {
+    const o = ((datos || {}).marcas || {})[m.slug]; if (!o) return;
+    out[m.slug] = { items: o.items || [], nota: o.nota || '', url: (o.cal && o.cal.url) || '', okr: (o.okr && o.okr.url) || '', metas: o.txtOkr ? okrParse_(o.txtOkr, hoy.getMonth()) : [] };
+  });
+  return { leido: (datos || {}).leido || null, marcas: out };
+}
 function restarHabiles_(d, n) { const x = new Date(d); while (n > 0) { x.setDate(x.getDate() - 1); if (x.getDay() !== 0 && x.getDay() !== 6) n--; } return x; }
 /* Mensaje del mes para una marca. fecha = cualquier día del mes del que se habla. Devuelve null si la marca no tiene calendario leído. */
 function recomendacionesMarca_(m, snap, datos, fecha) {
