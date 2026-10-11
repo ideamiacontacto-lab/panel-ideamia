@@ -2113,13 +2113,15 @@ function anualDatos_(snap, cat, forzar) {
   guardarJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json', g);
   return g;
 }
+/* primera línea de una descripción de Trello, sin links (para que el mensaje no se llene de direcciones) */
+function limpio_(d) { return String(d || '').replace(/\[[^\]]*\]\([^)]*\)/g, '').replace(/https?:\/\/\S+/g, '').split('\n').map(x => x.trim()).filter(x => x.replace(/[^a-záéíóúñ0-9]/gi, '').length > 3)[0] || ''; }
 function restarHabiles_(d, n) { const x = new Date(d); while (n > 0) { x.setDate(x.getDate() - 1); if (x.getDay() !== 0 && x.getDay() !== 6) n--; } return x; }
 /* Mensaje del mes para una marca. fecha = cualquier día del mes del que se habla. Devuelve null si la marca no tiene calendario leído. */
 function recomendacionesMarca_(m, snap, datos, fecha) {
   const o = (datos.marcas || {})[m.slug];
   if (!o || !o.items || !o.items.length) {
     // sin documento de calendario anual: se usan las fechas cargadas en la lista Efemérides de Trello de esa marca
-    const delMesT = k => { const ym = Utilities.formatDate(new Date(fecha.getFullYear(), fecha.getMonth() + k, 15), TZ, 'yyyy-MM'); return (snap.cards || []).filter(c => c.cat === 'efem' && c.m[0] === m.slug && c.due && Utilities.formatDate(new Date(c.due), TZ, 'yyyy-MM') === ym).sort((a, b) => new Date(a.due) - new Date(b.due)).map(c => '• ' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM') + ' · **' + String(c.n).slice(0, 70) + '**' + (c.d ? ' · ' + String(c.d).split('\n')[0].slice(0, 110) : '')); };
+    const delMesT = k => { const ym = Utilities.formatDate(new Date(fecha.getFullYear(), fecha.getMonth() + k, 15), TZ, 'yyyy-MM'); return (snap.cards || []).filter(c => c.cat === 'efem' && c.m[0] === m.slug && c.due && Utilities.formatDate(new Date(c.due), TZ, 'yyyy-MM') === ym).sort((a, b) => new Date(a.due) - new Date(b.due)).map(c => '• ' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM') + ' · **' + String(c.n).slice(0, 70) + '**' + (limpio_(c.d) ? ' · ' + limpio_(c.d) : '')); };
     const a0 = delMesT(0), a1 = delMesT(1); if (!a0.length && !a1.length) return null;
     return trozos_('📌 **' + m.nombre + ' · ' + MESES_[fecha.getMonth()] + ' según Efemérides de Trello**', (a0.length ? ['**Este mes**'].concat(a0) : ['Este mes no hay fechas cargadas en Efemérides.']).concat(a1.length ? ['', '**El mes que viene (para ir planificando)**'].concat(a1) : [], ['', 'Esta marca no tiene documento de "Calendario anual" en Recursos Corporativos: por eso no hay niveles de campaña ni fechas de planificación.']));
   }
