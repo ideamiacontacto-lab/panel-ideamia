@@ -1927,7 +1927,8 @@ function resumenSemanalArmar_(snap, cat, cfg) {
       let pn = null; try { pn = aplicarEstados_(base_(p.clave), est); } catch (e) {}
       if (!pn || pn.error) return;
       const inp = (pn.cards || []).filter(c => c.cat === 'input'), sinT = inp.filter(c => !c.estado), urg = sinT.filter(c => (c.lab || []).some(x => /urgente/.test(norm_(x))));
-      if (sinT.length) L.push('• Inputs sin tocar: ' + sinT.length + ' de ' + inp.length + (urg.length ? ' (' + urg.length + (urg.length === 1 ? ' urgente' : ' urgentes') + ')' : ''));
+      const viejos = sinT.filter(c => c.act && Date.now() - new Date(c.act).getTime() > 30 * 864e5).length;
+      if (sinT.length) L.push('• Inputs sin tocar: ' + sinT.length + ' de ' + inp.length + (urg.length ? ' (' + urg.length + (urg.length === 1 ? ' urgente' : ' urgentes') + ')' : '') + (viejos ? ' · ' + viejos + ' llevan más de 30 días en la lista de inputs de Trello' : ''));
       const reu = (pn.reuniones || []).filter(x => !x.estado), reuV = reu.filter(x => x.vencida);
       if (reu.length) L.push('• Reuniones sin fecha: ' + reu.length + (reuV.length ? ' (' + reuV.length + (reuV.length === 1 ? ' vencida' : ' vencidas') + ')' : '') + ': ' + reu.map(x => x.nombre).filter((x, i, a) => a.indexOf(x) === i).slice(0, 4).join('; '));
       const rep = pn.reportes || [], repV = rep.filter(x => x.vence && new Date(x.vence) < new Date());
