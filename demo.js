@@ -179,7 +179,7 @@ window.PANEL_DEMO_PROJECT.mio = {
   cards: [
     { id: "m1", n: "Pedir fotos nuevas del local", d: "", due: null, dc: false, lista: "Bandeja", k: "bandeja", act: "2026-10-07T10:00:00-03:00", url: "#", lab: ["TRITATO"] },
     { id: "m2", n: "Cliente pide sumar promo de transferencia", d: "", due: "2026-10-08T18:00:00-03:00", dc: false, lista: "Bandeja", k: "bandeja", act: "2026-10-07T09:10:00-03:00", url: "#", lab: ["QUALITY", "Urgente"] },
-    { id: "m3", n: "Revisar propuesta de campaña del Día de la Madre", d: "", due: "2026-10-07T18:00:00-03:00", dc: false, lista: "En proceso", k: "proceso", act: "2026-10-06T16:00:00-03:00", url: "#", lab: ["ISCO"] },
+    { id: "m3", n: "Revisar propuesta de campaña del Día de la Madre", d: "", due: "2026-10-07T18:00:00-03:00", dc: false, lista: "En proceso", k: "proceso", act: "2026-10-06T16:00:00-03:00", url: "#", lab: ["ISCO", "Ver en minuta"] },
     { id: "m4", n: "Mandar reporte mensual de septiembre", d: "", due: "2026-10-05T18:00:00-03:00", dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-02T11:00:00-03:00", url: "#", lab: ["DYB"] },
     { id: "m5", n: "Armar brief de la producción de fotos", d: "", due: "2026-10-09T18:00:00-03:00", dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-06T11:00:00-03:00", url: "#", lab: ["VICE"] },
     { id: "m6", n: "Presupuesto de pauta de noviembre", d: "", due: "2026-10-13T18:00:00-03:00", dc: false, lista: "Por hacer", k: "hacer", act: "2026-10-05T11:00:00-03:00", url: "#", lab: ["GV"] },

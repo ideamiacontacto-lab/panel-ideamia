@@ -1215,3 +1215,6 @@ select{color-scheme:dark}
 .mio-r:hover .mio-go{color:var(--y)}
 .mio-sec .mcar-h em.suave{white-space:normal;text-align:left;line-height:1.35}
 @media(max-width:700px){.mio-sec .mcar-h em.suave{flex-basis:100%}}
+.np-us{display:flex;gap:18px;flex-wrap:wrap;margin:2px 0 12px}
+.np-us .np-u{margin:0}
+@media(min-width:701px){.mio-sts:has(.mio-st:nth-child(6)){grid-template-columns:repeat(6,1fr)}}

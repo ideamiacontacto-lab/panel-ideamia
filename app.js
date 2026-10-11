@@ -1239,7 +1239,9 @@
       hoy: conFecha.filter(c => dd(c) <= 0).sort(porFecha),
       semana: conFecha.filter(c => dd(c) >= 1 && dd(c) <= 7).sort(porFecha),
       seguimiento: vivas.filter(c => c.k === 'seguimiento' && diasQuieta(c) >= (M.dias || 3)).sort((a, b) => new Date(a.act) - new Date(b.act)),
-      sinFecha: vivas.filter(c => !c.due && c.k !== 'bandeja')
+      sinFecha: vivas.filter(c => !c.due && c.k !== 'bandeja'),
+      // temas para llevar a la minuta con los social media: cualquier tarjeta con la etiqueta "Ver en minuta", esté en la lista que esté
+      minuta: vivas.filter(c => c.lab.some(x => /minuta/i.test(x)))
     };
   }
   function vistaMio() {
@@ -1259,8 +1261,9 @@
     return '<p class="mio-que">' + (DEMO ? '<b>Datos de ejemplo.</b> ' : '') + 'Estas son las tarjetas de tu tablero <a class="lnk" href="' + esc(M.url || '#') + '" target="_blank" rel="noopener"><b>Project</b> de Trello ↗</a>, ordenadas según qué te piden hoy. Cada renglón es una tarjeta: tocala y se abre en Trello.</p><div class="mio-top"><div class="chips mio-chips"><button class="chip' + (!S.projMarca ? ' on' : '') + '" data-mio-marca="">Todas</button>' + marcas.map(e => '<button class="chip' + (S.projMarca === e.n ? ' on' : '') + '" data-mio-marca="' + esc(e.n) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div>' +
       '<button class="btn y mio-add" data-mio-nuevo>+ Pedido</button></div>' +
       (!DEMO && leido != null && leido > 30 ? '<div class="estado-av"><span class="ei">!</span><div><b>Tu tablero se leyó hace ' + leido + ' min.</b> Puede haber cambios en Trello que no estás viendo.</div><button class="btn ghost" data-mio-rf>Leer ahora</button></div>' : '') +
-      '<div class="mio-sts">' + tile('bandeja', D.bandeja.length, 'Bandeja', 'para procesar', 'y') + tile('hoy', D.hoy.length, 'Hoy', 'vence o ya venció', 'bad') + tile('semana', D.semana.length, '7 días', 'lo que viene', '') + tile('seguimiento', D.seguimiento.length, 'Seguimiento', (M.dias || 3) + ' días o más quietas', 'warn') + tile('sinfecha', D.sinFecha.length, 'Sin fecha', 'falta asignar', 'warn') + '</div>' +
+      '<div class="mio-sts">' + tile('bandeja', D.bandeja.length, 'Bandeja', 'para procesar', 'y') + tile('minuta', D.minuta.length, 'Minuta', 'para ver con el equipo', 'y') + tile('hoy', D.hoy.length, 'Hoy', 'vence o ya venció', 'bad') + tile('semana', D.semana.length, '7 días', 'lo que viene', '') + tile('seguimiento', D.seguimiento.length, 'Seguimiento', (M.dias || 3) + ' días o más quietas', 'warn') + tile('sinfecha', D.sinFecha.length, 'Sin fecha', 'falta asignar', 'warn') + '</div>' +
       sec('bandeja', 'Bandeja', 'lo recién cargado, sin ordenar · pasalas a "Por hacer" en Trello', D.bandeja, c => fila(c, c.due ? vence(c) : ''), 'Bandeja vacía. Todo procesado.', true) +
+      sec('minuta', 'Para ver en minuta', 'tarjetas con la etiqueta "Ver en minuta", de cualquier lista · cuando lo vean, sacale la etiqueta en Trello', D.minuta, c => fila(c, c.due ? vence(c) : ''), 'Nada para la minuta. En Trello, ponele la etiqueta "Ver en minuta" a lo que quieras tratar con el equipo y aparece acá.', true) +
       sec('hoy', 'Para hoy', 'tarjetas de cualquier lista con fecha de hoy o ya vencida', D.hoy, c => fila(c, vence(c)), 'Nada vence hoy.', true) +
       sec('semana', 'Próximos 7 días', 'tarjetas que vencen esta semana', D.semana, c => fila(c, vence(c)), 'Nada vence en los próximos 7 días.') +
       sec('seguimiento', 'Seguimiento', 'ya las mandaste y nadie las movió hace ' + (M.dias || 3) + ' días o más · reclamalas', D.seguimiento, c => fila(c, '<span class="pill warn">hace ' + D.diasQuieta(c) + ' días sin movimiento</span>'), 'Nada frenado hace ' + (M.dias || 3) + ' días o más.') +
@@ -1286,15 +1289,15 @@
       '<label class="field"><span>Qué es</span><input id="npT" maxlength="300" placeholder="Ej.: Pasar fotos nuevas del local a diseño"></label>' +
       '<div class="field"><span>Marca</span><div class="np-ms" id="npM"><button type="button" class="chip on" data-np-m="">Sin marca</button>' + marcas.map(e => '<button type="button" class="chip" data-np-m="' + esc(e.id) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div></div>' +
       '<div class="field"><span>Para cuándo</span><div class="np-f"><input type="date" id="npF"><button type="button" class="chip" data-np-f="' + iso(0) + '">Hoy</button><button type="button" class="chip" data-np-f="' + iso(1) + '">Mañana</button><button type="button" class="chip" data-np-f="">Sin fecha</button></div></div>' +
-      '<label class="np-u"><input type="checkbox" id="npU"><span>Urgente</span></label>' +
+      '<div class="np-us"><label class="np-u"><input type="checkbox" id="npU"><span>Urgente</span></label><label class="np-u"><input type="checkbox" id="npMi"><span>Ver en minuta</span></label></div>' +
       '<label class="field"><span>Nota (opcional)</span><textarea id="npN" rows="2" maxlength="1500" placeholder="Detalle, link, quién lo pidió…"></textarea></label>' +
       '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Cargar en Bandeja</button></div>', async mm => {
       const texto = $('#npT', mm).value.trim(); if (!texto) { $('#npT', mm).focus(); throw new Error('Escribí qué es el pedido.'); }
-      const sel = $('#npM .chip.on', mm), labelId = sel ? sel.dataset.npM : '', f = $('#npF', mm).value, urgente = $('#npU', mm).checked, nota = $('#npN', mm).value.trim();
+      const sel = $('#npM .chip.on', mm), labelId = sel ? sel.dataset.npM : '', f = $('#npF', mm).value, urgente = $('#npU', mm).checked, minuta = $('#npMi', mm).checked, nota = $('#npN', mm).value.trim();
       // la fecha se guarda a las 18:00 de Argentina (fin del día de trabajo)
-      const r = await post({ action: 'pedidoRapido', k: S.pkey || S.key, texto, labelId, urgente, nota, due: f ? f + 'T18:00:00-03:00' : '' });
+      const r = await post({ action: 'pedidoRapido', k: S.pkey || S.key, texto, labelId, urgente, minuta, nota, due: f ? f + 'T18:00:00-03:00' : '' });
       const et = marcas.find(e => e.id === labelId);
-      const card = r.card || { id: 'demo-' + Date.now(), n: texto, d: nota, due: f ? f + 'T18:00:00-03:00' : null, dc: false, lista: 'Bandeja', k: 'bandeja', act: new Date().toISOString(), url: '#', lab: (et ? [et.n] : []).concat(urgente ? ['Urgente'] : []) };
+      const card = r.card || { id: 'demo-' + Date.now(), n: texto, d: nota, due: f ? f + 'T18:00:00-03:00' : null, dc: false, lista: 'Bandeja', k: 'bandeja', act: new Date().toISOString(), url: '#', lab: (et ? [et.n] : []).concat(urgente ? ['Urgente'] : [], minuta ? ['Ver en minuta'] : []) };
       if (S.proj.mio && S.proj.mio.cards) S.proj.mio.cards.unshift(card);
       render();
       toast((r.pasos || ['Tarjeta creada en "Bandeja" de Project']).map(p => '✓ ' + esc(p)).join('<br>') + (r.avisos || []).map(a => '<br>✗ ' + esc(a)).join(''));
