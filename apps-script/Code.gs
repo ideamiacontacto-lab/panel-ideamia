@@ -1635,11 +1635,15 @@ function privadosArmar_(snap, cat, cfg, opciones) {
           partes.push('• **' + nombreMarca_(cat, s) + '**: ' + (det.length > 1 ? L.length + ' · ' + det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0]) + (u ? ' · ' + u + (u === 1 ? ' urgente' : ' urgentes') : ''));
         });
       }
-      if (manana.length) {
-        const soloUrg = manana.every(c => !(c.dp >= 1)), lunes = dow === 6 && manana.some(c => c.dp === 2);
-        partes.push((partes.length ? '\n' : '') + '**' + (soloUrg ? 'Con etiqueta Urgente' : 'Acordate que ' + (lunes ? 'entre mañana y el lunes' : 'mañana') + ' ' + (manana.length === 1 ? 'vence esta tarjeta' : 'vencen estas tarjetas')) + ':**');
-        manana.forEach(c => partes.push(lineaF(c)));
-        partes.push('Por favor avisame si no podés tener' + (manana.length === 1 ? 'la' : 'las') + ' para hoy.');
+      const vencen = manana.filter(c => c.dp >= 1), urg = manana.filter(c => !(c.dp >= 1));
+      if (vencen.length) {
+        partes.push((partes.length ? '\n' : '') + '**Acordate que ' + (dow === 6 && vencen.some(c => c.dp === 2) ? 'entre mañana y el lunes' : 'mañana') + ' ' + (vencen.length === 1 ? 'vence esta tarjeta' : 'vencen estas tarjetas') + ':**');
+        vencen.forEach(c => partes.push(lineaF(c)));
+        partes.push('Por favor avisame si no podés tener' + (vencen.length === 1 ? 'la' : 'las') + ' para hoy.');
+      }
+      if (urg.length) {
+        partes.push((partes.length ? '\n' : '') + '**' + (urg.length === 1 ? 'Esta tiene' : 'Estas tienen') + ' etiqueta Urgente:**');
+        urg.forEach(c => partes.push(lineaF(c)));
       }
       if (cerca.length) {
         partes.push((partes.length ? '\n' : '') + '**Ojo: ' + (cerca.length === 1 ? 'esta sale' : 'estas salen') + ' entre hoy y mañana y ' + (cerca.length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':**');
