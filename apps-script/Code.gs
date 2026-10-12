@@ -1087,6 +1087,8 @@ function tareasReportes_(clave, rol) {
 /* Suma al panel base lo que la persona fue tildando (pestaña Registro), los reportes que faltan y el checklist de la semana. */
 function aplicarEstados_(b, est) {
   if (!b || !b.ok) return b;
+  // producciones de fotografía: se leen en cada pedido (no van en la foto guardada) para que lo recién anotado se vea al recargar
+  if (/project|direcc|creativ|film|audiovis/i.test((b.yo || {}).rol || '')) { try { b.fotos = fotosSalida_(); } catch (e) { b.fotos = null; } }
   try { b.reportes = tareasReportes_(b.yo.clave, b.yo.rol); b.linkReportes = REP_WEB + '?resp=' + encodeURIComponent(b.yo.clave); } catch (e) { b.reportes = []; }
   if (b.semanaInfo) {
     const per = b.semanaInfo.dias.concat([b.semanaInfo.semana, b.semanaInfo.mes]);
@@ -1129,7 +1131,8 @@ function vistaProject_() {
   const marcas = cacheGet_('marcasLista') || catalogo_().marcas.map(m => ({ slug: m.slug, nombre: m.nombre }));
   // su propio tablero: si Trello falla, la vista del equipo se sigue viendo y "Mi día" muestra el motivo
   let mio; try { mio = miTablero_(); } catch (e) { mio = { error: String(e.message || e).slice(0, 200) }; }
-  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas, mio };
+  let fotos = null; try { fotos = fotosSalida_(marcas); } catch (e) {}
+  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas, mio, fotos };
 }
 
 /* ---------------- "Mi día" del project: su tablero Project de Trello, leído en vivo ----------------
@@ -2563,6 +2566,43 @@ function probarAgendaPrivada() {
   a.eventos.slice(0, 12).forEach(e => console.log('   ' + Utilities.formatDate(new Date(e.s), TZ, 'dd/MM HH:mm') + ' · ' + e.cal + ' · ' + e.t.slice(0, 60) + (e.inv.length ? ' · ' + e.inv.length + ' invitados' : '')));
 }
 
+/* ---------------- producciones de fotografía ----------------
+   Cada marca tiene una producción de fotos cada FOTO_MESES meses (Config; si no está, 2). Acá se anota cuándo fue la última
+   y la web calcula cuándo toca la próxima y avisa. Lo ven y lo anotan el project, dirección y el filmmaker.
+   Se guarda en un archivo de Drive (panel-ideamia-fotos.json): { marcas: { <slug>: { no, hist: [{ f, por, nota }] } } }. */
+function fotosSalida_(marcas) {
+  marcas = marcas || cacheGet_('marcasLista') || catalogo_().marcas.map(m => ({ slug: m.slug, nombre: m.nombre }));
+  const g = leerJson_('FOTOS_FILE_ID', 'panel-ideamia-fotos.json'), meses = Math.min(Math.max(Number(config_().FOTO_MESES) || 2, 1), 24);
+  return { meses: meses, marcas: marcas.map(m => {
+    const o = (g.marcas || {})[m.slug] || {}, h = (o.hist || []).slice().sort((a, b) => String(b.f).localeCompare(String(a.f)));
+    return { slug: m.slug, nombre: m.nombre, no: !!o.no, ultima: h.length ? h[0].f : '', por: h.length ? h[0].por || '' : '', nota: h.length ? h[0].nota || '' : '', hist: h.slice(0, 8) };
+  }) };
+}
+function fotoMarca_(b, quien) {
+  const cat = catalogo_(), slug = String(b.marca || ''), yo = cat.equipo.filter(p => p.clave === norm_(quien))[0];
+  if (!yo || !/project|direcc|creativ|film|audiovis/i.test(yo.rol)) return { error: 'permiso', mensaje: 'Las producciones de fotografía las anotan el project, dirección o el filmmaker' };
+  if (!cat.marcas.some(m => m.slug === slug)) return { error: 'datos', mensaje: 'No conozco esa marca' };
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = leerJson_('FOTOS_FILE_ID', 'panel-ideamia-fotos.json'); g.marcas = g.marcas || {};
+    const o = g.marcas[slug] = g.marcas[slug] || { hist: [] }; o.hist = o.hist || [];
+    if (b.accion === 'noAplica') o.no = !!b.no;
+    else if (b.accion === 'borrar') o.hist = o.hist.filter(x => x.f !== String(b.fecha || ''));
+    else {
+      const f = String(b.fecha || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return { error: 'datos', mensaje: 'Falta la fecha de la producción' };
+      if (f > Utilities.formatDate(new Date(Date.now() + 864e5), TZ, 'yyyy-MM-dd')) return { error: 'datos', mensaje: 'Esa fecha todavía no pasó: anotá la producción cuando ya esté hecha' };
+      o.hist = o.hist.filter(x => x.f !== f);
+      o.hist.push({ f: f, por: yo.nombre, nota: String(b.nota || '').trim().slice(0, 300) });
+      o.no = false;
+      registrar_(quien, 'foto', 'foto:' + slug + ':' + f, slug, 'hecho', 'Producción de fotografía del ' + f + (b.nota ? ' · ' + String(b.nota).slice(0, 150) : ''), '');
+    }
+    o.hist.sort((x, y) => String(y.f).localeCompare(String(x.f))); o.hist = o.hist.slice(0, 40);
+    guardarJson_('FOTOS_FILE_ID', 'panel-ideamia-fotos.json', g);
+  } finally { lock.releaseLock(); }
+  return { ok: true, fotos: fotosSalida_(cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre }))) };
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -2641,6 +2681,8 @@ function doPost(e) {
         return json_({ ok: true });
       case 'actualizar':
         try { return json_(actualizar(true)); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer Trello: ' + String(e.message || e).slice(0, 200) }); }
+      case 'fotoMarca': // anotar la última producción de fotografía de una marca (project, dirección o filmmaker)
+        try { return json_(fotoMarca_(b, quien)); } catch (e) { return json_({ error: 'servidor', mensaje: 'No se pudo guardar: ' + String(e.message || e).slice(0, 200) }); }
       case 'agendarPrivada': // reunión en el calendario privado (ideamia.contacto): solo con la clave del project
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
         try { return json_(agendarPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo crear la reunión: ' + String(e.message || e).slice(0, 200) }); }
