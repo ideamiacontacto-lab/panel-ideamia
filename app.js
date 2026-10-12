@@ -958,11 +958,13 @@
     const L = inputs().filter(c => pasa(c.m)).sort((a, b) => (!!inputPide(b) - !!inputPide(a)) || (pri(b) - pri(a)) || (new Date(b.act) - new Date(a.act)));
     const pend = L.filter(c => inputPide(c)), posp = L.filter(c => !inputPide(c) && c.estado && c.estado.estado === 'recordar'), resto = L.filter(c => !inputPide(c) && !(c.estado && c.estado.estado === 'recordar'));
     const brains = S.data.cards.filter(c => c.cat === 'brainstorming' && pasa(c.m));
+    const mover = S.data.cards.filter(c => c.cat === 'mover' && pasa(c.m));
     const nNuevos = pend.filter(c => inputPide(c) === 'nuevo').length;
     const plegable = (id, titulo, n, cuerpo) => '<div class="sec"><button class="pliegue' + (S.abiertos[id] ? ' on' : '') + '" data-pliegue="' + id + '"><span>' + titulo + '<small>' + n + '</small></span><i>' + (S.abiertos[id] ? '−' : '+') + '</i></button>' + (S.abiertos[id] ? '<div class="ilist">' + cuerpo + '</div>' : '') + '</div>';
     return '<div class="iresumen"><div><b>' + pend.length + '</b><span>para revisar' + (nNuevos ? ' · ' + nNuevos + (nNuevos === 1 ? ' nuevo' : ' nuevos') : '') + '</span></div><div><b>' + posp.length + '</b><span>pospuestos</span></div><div><b>' + resto.length + '</b><span>ya revisados</span></div><button class="btn" data-crear-nueva>＋ Nueva tarjeta</button></div>' +
       '<div class="sec">' + (pend.length ? cardsPorMarca('in', pend, filaInput, c => inputPide(c) === 'nuevo') + '<p class="ayuda">Tocá el título para ver todo el input, la idea y más opciones (mover, hablar con el project, archivar, Claude).</p>' : '<div class="empty">Nada para revisar. Cuando el project cargue un input en Trello aparece acá.</div>') + '</div>' +
       (posp.length ? plegable('posp', 'Pospuestos', posp.length, posp.sort((a, b) => a.estado.detalle.localeCompare(b.estado.detalle)).map(filaInput).join('')) : '') +
+      (mover.length ? plegable('mover', 'Para mover en el mes', mover.length, '<p class="ayuda" style="margin:0 0 8px">Lo que sacaste de Inputs porque lo seguís usando durante el mes. No pide revisión; cuando ya no sirva, archivalo en Trello.</p>' + mover.map(c => '<div class="irow visto"><i class="ibar" style="background:' + color(c.m[0]) + '"></i><div class="ibody"><button class="lnk it" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button><div class="mt"><span class="tag">' + esc((marca(c.m[0]) || {}).nombre || '') + '</span><a class="lnk" href="' + esc(c.url) + '" target="_blank" rel="noopener">Trello ↗</a></div></div></div>').join('')) : '') +
       (resto.length ? plegable('rev', 'Ya revisados', resto.length, resto.map(filaInput).join('')) : '') +
       (brains.length ? plegable('brain', 'Brainstorming y campañas', brains.length, brains.map(c => '<div class="irow visto"><i class="ibar" style="background:' + color(c.m[0]) + '"></i><div class="ibody"><button class="lnk it" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button><div class="mt"><span class="tag">' + esc((marca(c.m[0]) || {}).nombre || '') + '</span><span>' + esc(c.lista) + '</span></div></div><div class="ia-acts">' + btnClaude(c.id).split('</button>')[0] + '</button></div></div>').join('') + '<p class="ayuda"><a href="' + esc(S.data.links.brainstorming) + '" target="_blank" rel="noopener">Abrir la web de brainstorming ↗</a></p>') : '');
   }
@@ -1318,7 +1320,9 @@
       hoy: conFecha.filter(c => dd(c) <= 0).sort(porFecha),
       semana: conFecha.filter(c => dd(c) >= 1 && dd(c) <= 7).sort(porFecha),
       seguimiento: vivas.filter(c => c.k === 'seguimiento' && diasQuieta(c) >= (M.dias || 3)).sort((a, b) => new Date(a.act) - new Date(b.act)),
-      sinFecha: vivas.filter(c => !c.due && c.k !== 'bandeja'),
+      sinFecha: vivas.filter(c => !c.due && c.k !== 'bandeja' && c.k !== 'despues'),
+      // lista "Para más adelante": cosas para preguntar o ver en otro momento; con fecha, ese día aparecen en "Para hoy"
+      despues: vivas.filter(c => c.k === 'despues').sort((a, b) => new Date(a.due || 9e15) - new Date(b.due || 9e15)),
       // temas para llevar a la minuta con los social media: cualquier tarjeta con la etiqueta "Ver en minuta", esté en la lista que esté
       minuta: vivas.filter(c => c.lab.some(x => /minuta/i.test(x)))
     };
@@ -1347,6 +1351,7 @@
       sec('semana', 'Próximos 7 días', 'tarjetas que vencen esta semana', D.semana, c => fila(c, vence(c)), 'Nada vence en los próximos 7 días.') +
       sec('seguimiento', 'Seguimiento', 'ya las mandaste y nadie las movió hace ' + (M.dias || 3) + ' días o más · reclamalas', D.seguimiento, c => fila(c, '<span class="pill warn">hace ' + D.diasQuieta(c) + ' días sin movimiento</span>'), 'Nada frenado hace ' + (M.dias || 3) + ' días o más.') +
       sec('sinfecha', 'Sin fecha', 'en "Por hacer" o "En proceso" sin fecha de vencimiento · ponésela en Trello', D.sinFecha, c => fila(c), 'Todas tienen fecha.') +
+      sec('despues', 'Para más adelante', 'lo que guardaste para preguntar o ver después · ponele fecha en Trello y ese día te aparece en "Para hoy"', D.despues, c => fila(c), 'No guardaste nada para más adelante.') +
       '<p class="ayuda">Todo esto es tu tablero <a class="lnk" href="' + esc(M.url) + '" target="_blank" rel="noopener">Project de Trello ↗</a>: acá se ve y se carga, las tarjetas se mueven allá. Lo de "Listo" no aparece. "Sin movimiento" cuenta desde la última actividad de la tarjeta (moverla, comentarla o editarla).</p>';
   }
   async function refrescarMio(silencioso) {
@@ -1364,22 +1369,22 @@
   function nuevoPedido() {
     const M = S.proj.mio || {}, marcas = (M.etiquetas || []).filter(e => e.marca);
     const iso = n => { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
-    const m = modal('<h3>Nuevo pedido</h3><p>Entra a <b>Bandeja</b> de tu tablero Project. Después lo procesás desde Trello.</p>' +
+    const m = modal('<h3>Nuevo pedido</h3><p>Entra a <b>Bandeja</b> de tu tablero Project (o a <b>Para más adelante</b> si tildás esa casilla: ponele fecha y ese día te aparece). Después lo procesás desde Trello.</p>' +
       '<label class="field"><span>Qué es</span><input id="npT" maxlength="300" placeholder="Ej.: Pasar fotos nuevas del local a diseño"></label>' +
       '<div class="field"><span>Marca</span><div class="np-ms" id="npM"><button type="button" class="chip on" data-np-m="">Sin marca</button>' + marcas.map(e => '<button type="button" class="chip" data-np-m="' + esc(e.id) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div></div>' +
       '<div class="field"><span>Para cuándo</span><div class="np-f"><input type="date" id="npF"><button type="button" class="chip" data-np-f="' + iso(0) + '">Hoy</button><button type="button" class="chip" data-np-f="' + iso(1) + '">Mañana</button><button type="button" class="chip" data-np-f="">Sin fecha</button></div></div>' +
-      '<div class="np-us"><label class="np-u"><input type="checkbox" id="npU"><span>Urgente</span></label><label class="np-u"><input type="checkbox" id="npMi"><span>Ver en minuta</span></label></div>' +
+      '<div class="np-us"><label class="np-u"><input type="checkbox" id="npU"><span>Urgente</span></label><label class="np-u"><input type="checkbox" id="npMi"><span>Ver en minuta</span></label><label class="np-u"><input type="checkbox" id="npDe"><span>Para más adelante</span></label></div>' +
       '<label class="field"><span>Nota (opcional)</span><textarea id="npN" rows="2" maxlength="1500" placeholder="Detalle, link, quién lo pidió…"></textarea></label>' +
       '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Cargar en Bandeja</button></div>', async mm => {
       const texto = $('#npT', mm).value.trim(); if (!texto) { $('#npT', mm).focus(); throw new Error('Escribí qué es el pedido.'); }
-      const sel = $('#npM .chip.on', mm), labelId = sel ? sel.dataset.npM : '', f = $('#npF', mm).value, urgente = $('#npU', mm).checked, minuta = $('#npMi', mm).checked, nota = $('#npN', mm).value.trim();
+      const sel = $('#npM .chip.on', mm), labelId = sel ? sel.dataset.npM : '', f = $('#npF', mm).value, urgente = $('#npU', mm).checked, minuta = $('#npMi', mm).checked, despues = $('#npDe', mm).checked, nota = $('#npN', mm).value.trim();
       // la fecha se guarda a las 18:00 de Argentina (fin del día de trabajo)
-      const r = await post({ action: 'pedidoRapido', k: S.pkey || S.key, texto, labelId, urgente, minuta, nota, due: f ? f + 'T18:00:00-03:00' : '' });
+      const r = await post({ action: 'pedidoRapido', k: S.pkey || S.key, texto, labelId, urgente, minuta, despues, nota, due: f ? f + 'T18:00:00-03:00' : '' });
       const et = marcas.find(e => e.id === labelId);
-      const card = r.card || { id: 'demo-' + Date.now(), n: texto, d: nota, due: f ? f + 'T18:00:00-03:00' : null, dc: false, lista: 'Bandeja', k: 'bandeja', act: new Date().toISOString(), url: '#', lab: (et ? [et.n] : []).concat(urgente ? ['Urgente'] : [], minuta ? ['Ver en minuta'] : []) };
+      const card = r.card || { id: 'demo-' + Date.now(), n: texto, d: nota, due: f ? f + 'T18:00:00-03:00' : null, dc: false, lista: despues ? 'Para más adelante' : 'Bandeja', k: despues ? 'despues' : 'bandeja', act: new Date().toISOString(), url: '#', lab: (et ? [et.n] : []).concat(urgente ? ['Urgente'] : [], minuta ? ['Ver en minuta'] : []) };
       if (S.proj.mio && S.proj.mio.cards) S.proj.mio.cards.unshift(card);
       render();
-      toast((r.pasos || ['Tarjeta creada en "Bandeja" de Project']).map(p => '✓ ' + esc(p)).join('<br>') + (r.avisos || []).map(a => '<br>✗ ' + esc(a)).join(''));
+      toast((r.pasos || ['Tarjeta creada en "' + (despues ? 'Para más adelante' : 'Bandeja') + '" de Project']).map(p => '✓ ' + esc(p)).join('<br>') + (r.avisos || []).map(a => '<br>✗ ' + esc(a)).join(''));
     });
     m.querySelectorAll('[data-np-m]').forEach(b => b.onclick = () => { m.querySelectorAll('[data-np-m]').forEach(x => x.classList.toggle('on', x === b)); });
     m.querySelectorAll('[data-np-f]').forEach(b => b.onclick = () => { $('#npF', m).value = b.dataset.npF; });
