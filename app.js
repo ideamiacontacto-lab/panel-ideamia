@@ -712,28 +712,33 @@
     const c = S.data.cards.find(x => x.id === id); if (!c) return;
     panelLateral(esc(c.n), '<div class="pz-cargando">Trayendo la tarjeta de Trello…</div>');
     let v = null;
-    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ id: 'a1', card: 'p1', n: 'placa-1.png', u: '#', ver: true, subido: true, src: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#FFF200"/><text x="50%" y="45%" font-size="90" text-anchor="middle" font-family="Impact" fill="#0A0A0A">PROMO</text><text x="50%" y="58%" font-size="60" text-anchor="middle" font-family="Arial" fill="#0A0A0A">10% OFF</text></svg>') }, { n: 'reel-promo.mp4', u: '#', video: true, subido: true, src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
+    try { v = DEMO ? { pieza: { d: 'Diseño entregado. Va el carrusel en 4 placas.', att: [{ id: 'a1', card: 'p1', n: 'placa-1.png', u: '#', ver: true, subido: true, src: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#FFF200"/><text x="50%" y="45%" font-size="90" text-anchor="middle" font-family="Impact" fill="#0A0A0A">PROMO</text><text x="50%" y="58%" font-size="60" text-anchor="middle" font-family="Arial" fill="#0A0A0A">10% OFF</text></svg>') }, { n: 'reel-promo.mp4', u: '#', video: true, subido: true, src: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' }, { n: 'Canva · carrusel', u: '#' }], com: [{ q: 'Diseñadora', t: 'Listo, lo subí', f: '2026-10-07T13:00:00Z' }] }, original: { d: 'COPY: Promo del miércoles: llevando $80.000, 10% off en dulce de leche.\nPlacas: precio final grande.', att: [], com: [], chk: [{ n: 'Entrega', items: [{ n: 'Placa 1 · portada', ok: true }, { n: 'Placa 2 · precio', ok: true }, { n: 'Placa 3 · cierre', ok: false }] }] } } : await post({ action: 'verTarjeta', cardId: c.id, origUrl: c.ourl || '' }); }
     catch (e) { const b = $('#drawer .dw-b'); if (b) b.innerHTML = '<div class="empty">No pude traer la tarjeta: ' + esc(e.message) + '</div>'; return; }
     const p = v.pieza || {}, o = v.original || {};
     const adj = (p.att || []).concat(o.att || []);
     const coms = (p.com || []).concat(o.com || []).sort((a, b) => b.f.localeCompare(a.f)).slice(0, 6);
-    const html =
+    const dw0 = $('#drawer'); if (dw0) dw0.classList.add('pz-wide');
+    const chks = (o.chk || []).concat(p.chk || []).filter(k => k.items && k.items.length);
+    const html = '<div class="pz-2"><div class="pz-info">' +
       '<div class="mt" style="margin-bottom:12px">' + tagM(c.m[0]) + '<span class="pill">' + esc(c.tablero || '') + '</span>' + (c.salida ? '<span>sale ' + cuando(new Date(c.salida)) + '</span>' : '') + '</div>' +
+      (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + esc(o.d) + '</div>' : '') +
+      (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
+      chks.map(k => '<div class="dw-l">Checklist · ' + esc(k.n) + ' <b>' + k.items.filter(x => x.ok).length + '/' + k.items.length + '</b></div><div class="pz-chk">' + k.items.map(x => '<div class="' + (x.ok ? 'ok' : '') + '"><i>' + (x.ok ? '✓' : '') + '</i><span>' + esc(x.n) + '</span></div>').join('') + '</div>').join('') +
+      PZ_PIE_() + '</div><div class="pz-gal">' +
       (adj.length ? '<div class="dw-l">Lo que cargaron</div><div class="pz-adj">' + adj.map((a, i) => {
-        const pie = '<div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span><a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener">abrir ↗</a></div>';
+        const pie = '<div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span>' + (a.video ? '' : '<button class="pz-ver" data-pz-ver>Ver completa</button>') + '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" title="Abrir el archivo original en otra pestaña">original ↗</a></div>';
         // con el puente de Cloudflare el archivo llega directo (sin login en Trello): video que se reproduce acá, imagen que se agranda al tocar
         if (a.src && a.video) return '<div class="pz-prev grande vid"><video controls playsinline preload="metadata" src="' + esc(a.src) + '"></video>' + pie + '</div>';
         if (a.src && (a.ver || /^image\//.test(a.mime))) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + ' directa"><img src="' + esc(a.src) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'sin\')">' + pie + '</div>';
         // sin puente: la imagen la trae el servidor del panel; lo demás queda como link
         if (a.ver) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + '" data-att="' + esc(a.id) + '" data-card="' + esc(a.card) + '"><div class="pz-ph">Cargando vista previa…</div>' + pie + '</div>';
         return '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + (a.video ? '🎬' : I.clip) + '<span>' + esc(a.n) + '</span><em>' + (a.src ? 'ver' : a.subido ? 'abrir en Trello' : 'abrir link') + ' ↗</em></a>';
-      }).join('') + '</div>' : '<div class="empty" style="padding:12px 0">La tarjeta no tiene archivos adjuntos.</div>') +
-      (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + esc(o.d) + '</div>' : '') +
-      (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
+      }).join('') + '</div>' : '<div class="empty" style="padding:12px 0">La tarjeta no tiene archivos adjuntos.</div>') + '</div></div>';
+    function PZ_PIE_() { return (
       '<div id="pzcoms">' + (coms.length ? '<div class="dw-l">Comentarios</div>' + coms.map(x => '<div class="pz-com"><b>' + esc(x.q) + '</b> <small>' + hace(x.f) + '</small><div>' + esc(x.t) + '</div></div>').join('') : '') + '</div>' +
       '<div class="pz-acc"><textarea id="pzcom" rows="3" placeholder="Escribí un comentario o qué hay que corregir…"></textarea>' +
       '<div class="pz-btns"><button class="btn ghost" id="pzcomb">💬 Comentar</button><button class="btn ghost" id="pzcor">✏️ A corregir</button><button class="btn y" id="pzok">✓ Aprobar</button></div>' +
-      '<div class="err" id="pzerr"></div><a class="ayuda" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div>';
+      '<div class="err" id="pzerr"></div><a class="ayuda" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div>'); }
     const b = $('#drawer .dw-b'); if (!b) return;
     b.innerHTML = html;
     // resultado de cada acción, paso por paso: lo que se hizo (✓) y lo que no (✗), para que nunca quede la duda
@@ -775,19 +780,49 @@
       botones(true);
     };
     // vistas previas: el servidor baja cada archivo de Trello y lo devuelve como imagen; tocándola se ve en grande
-    const zoom = src => { const z = document.createElement('div'); z.className = 'pz-zoom'; z.innerHTML = '<img src="' + src + '" alt="">'; z.onclick = () => z.remove(); document.body.appendChild(z); };
-    b.querySelectorAll('.pz-prev.directa img').forEach(img => img.onclick = () => zoom(img.src));
+    // tocar una imagen (o "Ver completa") la abre acá mismo, entera; adentro se pasa a la siguiente y se puede ver a tamaño real
+    b.addEventListener('click', e => {
+      const im = e.target.closest('.pz-prev img'), bt = e.target.closest('[data-pz-ver]');
+      const el = im || (bt && bt.closest('.pz-prev').querySelector('img')); if (!el) return;
+      const L = [...b.querySelectorAll('.pz-prev img')].filter(x => x.getAttribute('src'));
+      visorImagenes(L.map(x => x.src), Math.max(0, L.indexOf(el)));
+    });
     b.querySelectorAll('.pz-prev:not(.directa):not(.vid)').forEach(async el => {
       const ph = el.querySelector('.pz-ph');
       try {
         const r = DEMO ? { ok: true, data: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#FFF200"/><text x="50%" y="45%" font-size="90" text-anchor="middle" font-family="Impact" fill="#0A0A0A">PROMO</text><text x="50%" y="58%" font-size="60" text-anchor="middle" font-family="Arial" fill="#0A0A0A">10% OFF</text></svg>') } : await post({ action: 'adjunto', cardId: el.dataset.card, attId: el.dataset.att });
         if (!r.ok || !r.data) { ph.textContent = 'Sin vista previa · tocá "abrir"'; ph.classList.add('sin'); return; }
         ph.outerHTML = '<img src="' + r.data + '" alt="">';
-        el.querySelector('img').onclick = () => { const z = document.createElement('div'); z.className = 'pz-zoom'; z.innerHTML = '<img src="' + r.data + '" alt="">'; z.onclick = () => z.remove(); document.body.appendChild(z); };
       } catch (e) { ph.textContent = 'Sin vista previa · tocá "abrir"'; ph.classList.add('sin'); }
     });
   }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarPanel(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('.pz-zoom')) cerrarPanel(); });
+  /* Visor de imágenes dentro del panel (sin abrir otra pestaña): la imagen entra entera en la pantalla; tocándola pasa a tamaño real
+     y se recorre con scroll. Flechas (o ← →) para pasar a la siguiente; ✕, Esc o tocar afuera para cerrar. */
+  function visorImagenes(srcs, i) {
+    if (!srcs.length) return;
+    const viejo = $('.pz-zoom'); if (viejo) viejo.remove();
+    const z = document.createElement('div'); z.className = 'pz-zoom';
+    const varias = srcs.length > 1;
+    z.innerHTML = '<div class="pz-zt"><span class="pz-zn"></span><button class="pz-zb" data-z="real">Tamaño real</button><button class="pz-zb" data-z="x" aria-label="Cerrar">✕</button></div>' +
+      '<div class="pz-zs"><img alt=""></div>' + (varias ? '<button class="pz-za izq" data-z="-1" aria-label="Anterior">‹</button><button class="pz-za der" data-z="1" aria-label="Siguiente">›</button>' : '');
+    const img = z.querySelector('img'), sc = z.querySelector('.pz-zs'), n = z.querySelector('.pz-zn'), bReal = z.querySelector('[data-z="real"]');
+    const real = on => { z.classList.toggle('real', on); bReal.textContent = on ? 'Ajustar a la pantalla' : 'Tamaño real'; sc.scrollTop = 0; sc.scrollLeft = 0; };
+    const ir = k => { i = (k + srcs.length) % srcs.length; img.src = srcs[i]; n.textContent = varias ? (i + 1) + ' de ' + srcs.length : ''; real(false); };
+    const cerrar = () => { z.remove(); document.removeEventListener('keydown', tecla, true); };
+    function tecla(e) {
+      if (e.key === 'Escape') { e.stopPropagation(); cerrar(); }
+      else if (varias && e.key === 'ArrowRight') ir(i + 1);
+      else if (varias && e.key === 'ArrowLeft') ir(i - 1);
+    }
+    z.onclick = e => {
+      const t = e.target.closest('[data-z]');
+      if (t) { const v = t.dataset.z; if (v === 'x') cerrar(); else if (v === 'real') real(!z.classList.contains('real')); else ir(i + Number(v)); return; }
+      if (e.target === img) real(!z.classList.contains('real')); else if (e.target === sc || e.target === z) cerrar();
+    };
+    document.addEventListener('keydown', tecla, true);
+    document.body.appendChild(z); ir(i);
+  }
 
   function detalleDia(d) {
     const its = itemsAgenda(14).filter(it => diasA(it.d) === diasA(d)).sort((a, b) => a.h.localeCompare(b.h));

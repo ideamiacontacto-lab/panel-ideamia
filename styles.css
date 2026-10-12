@@ -1305,3 +1305,58 @@ select{color-scheme:dark}
 @media(max-width:700px){
   .mio-add{width:auto;left:auto;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:61}
 }
+
+/* ---------- visor de piezas tipo Trello (revisión): texto a la izquierda, imágenes enteras a la derecha ---------- */
+.pz-wide .dw{width:min(1240px,100%)}
+.pz-wide .dw-b{padding:0;overflow:hidden;flex:1;min-height:0;display:flex}
+.pz-wide .pz-cargando{margin:auto}
+.pz-2{display:grid;grid-template-columns:minmax(340px,420px) minmax(0,1fr);width:100%;min-height:0}
+.pz-info{overflow-y:auto;padding:16px 20px 0;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.pz-info .pz-acc{position:sticky;bottom:0;margin-top:auto;padding:14px 0 16px}
+.pz-info #pzcoms{margin-bottom:16px}
+.pz-gal{overflow-y:auto;padding:4px 20px 30px;background:#0d0d0d;min-height:0}
+.pz-wide .pz-adj{grid-template-columns:1fr;gap:14px}
+/* las imágenes se ven enteras (sin recortar): entran en el alto de la pantalla y tocándolas se abren acá mismo */
+.pz-wide .pz-prev img,.pz-wide .pz-prev:not(.grande) img{width:100%;height:auto;max-height:calc(100vh - 170px);object-fit:contain;background:#000}
+.pz-wide .pz-prev.vid video{max-height:calc(100vh - 170px)}
+.pz-wide .pz-ph,.pz-wide .pz-prev.grande .pz-ph{height:300px}
+.pz-pie{align-items:center}
+.pz-pie span{flex:1;min-width:0}
+.pz-ver{flex:none;color:var(--y);font-size:12px;font-weight:600}
+.pz-pie a{color:var(--dim)}
+.pz-chk{background:var(--s2);border-radius:10px;padding:6px 12px}
+.pz-chk div{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;padding:5px 0;color:#d6d6d6}
+.pz-chk i{flex:none;width:16px;height:16px;margin-top:2px;border:1.5px solid var(--line2);border-radius:4px;font-style:normal;font-size:11px;line-height:13px;text-align:center;color:var(--y-ink)}
+.pz-chk .ok i{background:var(--y);border-color:var(--y)}
+.pz-chk .ok span{color:var(--dim);text-decoration:line-through}
+.dw-l b{color:var(--muted);font-weight:600}
+/* visor de imagen: entera en pantalla; "tamaño real" la deja en su tamaño y se recorre con scroll */
+.pz-zoom{display:block;padding:0;cursor:default}
+.pz-zt{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(rgba(0,0,0,.75),transparent)}
+.pz-zn{flex:1;font-size:13px;color:#ddd}
+.pz-zb{font-size:13px;color:#fff;background:rgba(255,255,255,.12);border-radius:999px;padding:7px 13px}
+.pz-zb:hover{background:rgba(255,255,255,.22)}
+.pz-zs{position:absolute;inset:0;overflow:auto;display:grid;place-items:center;padding:54px 16px 16px}
+.pz-zs img{max-width:100%;max-height:calc(100vh - 70px);object-fit:contain;border-radius:6px;cursor:zoom-in}
+.pz-zoom.real .pz-zs{place-items:start center}
+.pz-zoom.real .pz-zs img{max-width:none;max-height:none;cursor:zoom-out}
+.pz-za{position:absolute;top:50%;z-index:2;transform:translateY(-50%);width:46px;height:64px;font-size:34px;line-height:1;color:#fff;background:rgba(0,0,0,.45);border-radius:10px}
+.pz-za:hover{background:rgba(0,0,0,.7)}
+.pz-za.izq{left:10px}.pz-za.der{right:10px}
+@media(max-width:900px){
+  /* en el celular: primero las imágenes (se pasan con el dedo, cada una entera) y abajo el texto y los botones */
+  .pz-wide .dw-b{display:block;overflow-y:auto}
+  .pz-2{display:flex;flex-direction:column}
+  .pz-gal{order:1;overflow:visible;padding:0 0 6px}
+  .pz-gal>.dw-l{padding:0 16px}
+  .pz-info{order:2;overflow:visible;border-right:0;padding:6px 16px 0}
+  .pz-wide .pz-adj{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 16px 4px;scrollbar-width:none}
+  .pz-wide .pz-adj::-webkit-scrollbar{display:none}
+  .pz-wide .pz-adj>*{flex:0 0 88%;scroll-snap-align:center}
+  .pz-wide .pz-adj>*:only-child{flex-basis:100%}
+  .pz-wide .pz-prev img,.pz-wide .pz-prev:not(.grande) img{max-height:58vh}
+  .pz-wide .pz-prev.vid video{max-height:58vh}
+  .pz-info .pz-acc{bottom:0}
+  .pz-za{width:38px;height:54px}
+}
+@media(max-width:900px){.pz-wide .dw{max-height:94vh}}
