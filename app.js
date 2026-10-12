@@ -237,10 +237,10 @@
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa(), film = esFilm();
     // filmmaker: solo Mi semana y Discord
-    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'fotos', 'discord'];
+    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
-    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord' && S.tab !== 'fotos') S.tab = 'hoy';
-    if (!film && !esRevisa() && S.tab === 'fotos') S.tab = 'hoy';
+    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
+    if (!esRevisa() && S.tab === 'fotos') S.tab = film ? 'film' : 'hoy';
     if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
@@ -249,7 +249,7 @@
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
-    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
@@ -1388,7 +1388,7 @@
 
   /* ---------------- FOTOGRAFÍA: última producción de fotos de cada marca y cuándo toca la próxima ----------------
      Cada marca tiene producción de fotos cada N meses (2 si no se cambia en Config · FOTO_MESES). Se anota cuándo fue la última
-     y acá se ve cuál está vencida, cuál toca pronto y cuál está al día. Lo ven project, dirección y filmmaker. */
+     y acá se ve cuál está vencida, cuál toca pronto y cuál está al día. Lo ven solo el project y dirección. */
   const fotosData = () => (S.data ? S.data.fotos : S.proj ? S.proj.fotos : null) || (DEMO ? fotosDemo() : null);
   function fotosDemo() {
     if (S._fotosDemo) return S._fotosDemo;
