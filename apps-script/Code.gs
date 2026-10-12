@@ -1606,7 +1606,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
         trozos_('Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):', porQuien[id].join('\n').split('\n'))));
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
     // filmmaker: un solo privado por día, corto, con hasta tres partes:
-    //  · martes y jueves: RESUMEN de lo que quedó sin entregar, por marca y por tipo ("Tritato: 2 · 1 historia y 1 carrusel"), sin listar cada tarjeta
+    //  · viernes: RESUMEN de la semana que viene por marca y por tipo ("Tritato: 1 historia y 1 carrusel") y cuántas le quedaron pendientes, sin listar cada tarjeta
     //  · todos los días: lo que VENCE MAÑANA o tiene etiqueta Urgente, tarjeta por tarjeta y una sola vez ("avisame si no podés tenerla para hoy")
     //  · lo que ya está atrasado y SALE hoy o mañana: un recordatorio más, también una sola vez
     const hoyF = o.ahora || hoyAR_(), dow = hoyF.getDay(), hoyMs = Date.parse(ymd_(hoyF) + 'T00:00:00Z');
@@ -1626,14 +1626,19 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       const manana = pend.filter(c => !yaM[c.id] && ((c.dp >= 1 && c.dp <= (dow === 6 ? 2 : 1)) || (urgente(c) && c.dp >= 0)));
       const cerca = atras.filter(c => !yaC[c.id] && c.ds <= 1);
       const partes = [];
-      if ((dow === 2 || dow === 4) && atras.length) {
-        const porMarca = {}; atras.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
-        partes.push('**Te ' + (atras.length === 1 ? 'quedó 1 pieza' : 'quedaron ' + atras.length + ' piezas') + ' sin entregar:**');
-        Object.keys(porMarca).sort((a, b) => porMarca[b].length - porMarca[a].length).forEach(s => {
-          const L = porMarca[s], n = {}; L.forEach(c => n[tipoF(c)] = (n[tipoF(c)] || 0) + 1);
-          const det = ['reel', 'historia', 'carrusel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plural[t])), u = L.filter(urgente).length;
-          partes.push('• **' + nombreMarca_(cat, s) + '**: ' + (det.length > 1 ? L.length + ' · ' + det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0]) + (u ? ' · ' + u + (u === 1 ? ' urgente' : ' urgentes') : ''));
-        });
+      // viernes: lo que tiene para la semana que viene, por marca y por tipo, y cuántas le quedaron pendientes de antes
+      if (dow === 5) {
+        const ini = ((8 - dow) % 7) || 7, prox = pend.filter(c => c.ds >= ini && c.ds <= ini + 6);
+        const cuenta = L => { const n = {}; L.forEach(c => n[tipoF(c)] = (n[tipoF(c)] || 0) + 1); const det = ['reel', 'historia', 'carrusel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plural[t])); return det.length > 1 ? det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0] || ''; };
+        if (prox.length) {
+          const porMarca = {}; prox.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
+          partes.push('**Para la semana que viene tenés ' + (prox.length === 1 ? '1 pieza' : prox.length + ' piezas') + ':**');
+          Object.keys(porMarca).sort((a, b) => porMarca[b].length - porMarca[a].length).forEach(s => partes.push('• **' + nombreMarca_(cat, s) + '**: ' + cuenta(porMarca[s])));
+        }
+        if (atras.length) {
+          const marcasA = atras.map(c => nombreMarca_(cat, c.m[0])).filter((x, i, a) => a.indexOf(x) === i);
+          partes.push((partes.length ? '\n' : '') + '**Te ' + (atras.length === 1 ? 'quedó pendiente' : 'quedaron pendientes') + ' de antes:** ' + cuenta(atras) + ' (' + marcasA.join(', ') + ')');
+        }
       }
       const vencen = manana.filter(c => c.dp >= 1), urg = manana.filter(c => !(c.dp >= 1));
       if (vencen.length) {
