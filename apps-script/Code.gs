@@ -308,6 +308,16 @@ function trello_(path, params, method) {
   if (r.getResponseCode() >= 300) throw new Error('Trello ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
   return JSON.parse(r.getContentText());
 }
+/* Dónde se escribe un comentario para que se VEA. En Diseño y Producción muchas tarjetas son "espejo": su nombre es el link a la tarjeta
+   original de SCL, y Trello al abrirlas muestra la original. Un comentario puesto en el espejo queda guardado pero nadie lo ve,
+   así que se pone en la original. Si la tarjeta no es espejo (o no se puede leer), se usa la misma. */
+function tarjetaQueSeVe_(cardId, nombre) {
+  try {
+    if (nombre == null) nombre = (trello_('/cards/' + cardId, { fields: 'name' }) || {}).name;
+    const m = /^\s*https?:\/\/trello\.com\/c\/([A-Za-z0-9]+)/.exec(String(nombre || ''));
+    return m ? m[1] : cardId;
+  } catch (e) { return cardId; }
+}
 /* Listas a donde va una pieza al revisarla. Cada tablero las llama distinto:
    Diseño → "Aprobado" / "Rediseñar"; Producción → "Material Listo para Entregar" / "Correccion". */
 const LISTA_REVISION = { aprobar: [/aprobad/, /listo para entregar/, /material listo/, /^listo/], corregir: [/correc/, /redise/, /rehacer/, /cambios/] };
@@ -2653,11 +2663,12 @@ function doPost(e) {
       }
       case 'verTarjeta': { // contenido de una pieza para revisarla: la tarjeta de Diseño/Producción y la original de SCL
         const ver = id => { if (!id) return null; try {
-          const c = trello_('/cards/' + id, { fields: 'name,desc,due,shortUrl', attachments: 'true', attachment_fields: 'id,name,url,mimeType,isUpload,bytes,previews', actions: 'commentCard', actions_limit: 6, action_fields: 'data,date', action_memberCreator_fields: 'fullName' });
+          const c = trello_('/cards/' + id, { fields: 'name,desc,due,shortUrl', attachments: 'true', attachment_fields: 'id,name,url,mimeType,isUpload,bytes,previews', checklists: 'all', checklist_fields: 'name,pos', actions: 'commentCard', actions_limit: 6, action_fields: 'data,date', action_memberCreator_fields: 'fullName' });
           return { id: c.id, n: c.name, d: String(c.desc || '').slice(0, 2500), due: c.due, url: c.shortUrl,
             att: (c.attachments || []).slice(0, 12).map(a => ({ id: a.id, card: c.id, n: a.name, u: a.url, mime: a.mimeType || '', subido: !!a.isUpload, src: linkAdjunto_(c.id, a),
               ver: !!a.isUpload && (/^image\//.test(a.mimeType || '') || /\.(png|jpe?g|gif|webp)$/i.test(a.name || '') || (a.previews || []).length > 0),
               video: /^video\//.test(a.mimeType || '') || /\.(mp4|mov|webm)$/i.test(a.name || '') })),
+            chk: (c.checklists || []).sort((x, y) => x.pos - y.pos).slice(0, 6).map(k => ({ n: k.name, items: (k.checkItems || []).sort((x, y) => x.pos - y.pos).slice(0, 40).map(i => ({ n: String(i.name || '').slice(0, 200), ok: i.state === 'complete' })) })),
             com: (c.actions || []).map(a => ({ t: (a.data || {}).text || '', f: a.date, q: (a.memberCreator || {}).fullName || '' })) };
         } catch (e) { return null; } };
         const orig = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(String(b.origUrl || ''));
@@ -2679,7 +2690,7 @@ function doPost(e) {
       }
       case 'comentarTarjeta': { // comentario suelto en la tarjeta (sin moverla)
         if (!String(b.texto || '').trim()) return json_({ error: 'datos', mensaje: 'Escribí el comentario' });
-        const hecho = trello_('/cards/' + b.cardId + '/actions/comments', { text: ('💬 ' + nombreDe_(quien) + ': ' + String(b.texto).trim()).slice(0, 16000) }, 'post');
+        const hecho = trello_('/cards/' + tarjetaQueSeVe_(b.cardId) + '/actions/comments', { text: ('💬 ' + nombreDe_(quien) + ': ' + String(b.texto).trim()).slice(0, 16000) }, 'post');
         registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, 'comentó', String(b.nombre || '').slice(0, 80) + ' · ' + String(b.texto).slice(0, 150), '');
         return json_({ ok: true, pasos: [hecho && hecho.id ? 'Comentario puesto en la tarjeta de Trello' + (b.tablero ? ' de ' + b.tablero : '') : 'Trello no confirmó el comentario: revisalo en la tarjeta'] });
       }
@@ -2691,7 +2702,7 @@ function doPost(e) {
         const firma = nombreDe_(quien), coment = String(b.comentario || '').trim(), pasos = [], donde = b.tablero ? ' de ' + b.tablero : '';
         // primero el comentario: aunque después falle el movimiento, lo que escribió Ivo queda en Trello
         if (coment || b.accion === 'aprobar') {
-          try { trello_('/cards/' + b.cardId + '/actions/comments', { text: ((b.accion === 'aprobar' ? '✅ Aprobado por ' + firma + (coment ? ': ' : '') : '✏️ Para corregir (' + firma + '): ') + coment).slice(0, 16000) }, 'post'); }
+          try { trello_('/cards/' + tarjetaQueSeVe_(b.cardId, card.name) + '/actions/comments', { text: ((b.accion === 'aprobar' ? '✅ Aprobado por ' + firma + (coment ? ': ' : '') : '✏️ Para corregir (' + firma + '): ') + coment).slice(0, 16000) }, 'post'); }
           catch (e) { return json_({ error: 'comentario', mensaje: 'No se pudo poner el comentario en Trello y no se tocó nada de la tarjeta: ' + String(e.message).slice(0, 150) }); }
           pasos.push('Comentario puesto en la tarjeta de Trello' + donde);
         }
