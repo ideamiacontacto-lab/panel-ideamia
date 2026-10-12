@@ -1624,7 +1624,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       const atras = pend.filter(c => c.dp < 0);
       // el sábado también entra lo que vence el lunes (el domingo no se manda nada)
       const manana = pend.filter(c => !yaM[c.id] && ((c.dp >= 1 && c.dp <= (dow === 6 ? 2 : 1)) || (urgente(c) && c.dp >= 0)));
-      const cerca = atras.filter(c => !yaC[c.id] && c.ds <= 1);
+      const cerca = atras.filter(c => !yaC[c.id] && c.ds >= 0 && c.ds <= 1);
       const partes = [];
       // viernes: lo que tiene para la semana que viene, por marca y por tipo, y cuántas le quedaron pendientes de antes
       if (dow === 5) {
@@ -1640,7 +1640,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
           partes.push((partes.length ? '\n' : '') + '**Te ' + (atras.length === 1 ? 'quedó pendiente' : 'quedaron pendientes') + ' de antes:** ' + cuenta(atras) + ' (' + marcasA.join(', ') + ')');
         }
       }
-      const vencen = manana.filter(c => c.dp >= 1), urg = manana.filter(c => !(c.dp >= 1));
+      const lim = dow === 6 ? 2 : 1, vencen = manana.filter(c => c.dp >= 1 && c.dp <= lim), urg = manana.filter(c => !(c.dp >= 1 && c.dp <= lim));
       if (vencen.length) {
         partes.push((partes.length ? '\n' : '') + '**Acordate que ' + (dow === 6 && vencen.some(c => c.dp === 2) ? 'entre mañana y el lunes' : 'mañana') + ' ' + (vencen.length === 1 ? 'vence esta tarjeta' : 'vencen estas tarjetas') + ':**');
         vencen.forEach(c => partes.push(lineaF(c)));
