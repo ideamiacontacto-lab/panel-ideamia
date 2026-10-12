@@ -368,6 +368,8 @@ function catLista_(nombre) {
   // "Para más adelante": cosas guardadas para después (no cuentan como pendientes ni le aparecen a quien produce).
   // "Datos de la marca": cumpleaños, horarios, contactos (información, no archivos).
   if (/mas adelante|stand ?by/.test(n)) return 'standby';
+  // "Para mover en el mes": inputs que no se archivan porque se siguen usando durante el mes (salen de Inputs y dejan de pedir revisión).
+  if (/mover en el mes/.test(n)) return 'mover';
   if (/^datos\b/.test(n)) return 'datos';
   if (/anterior|publicad|terminad/.test(n)) return 'hecho';
   if (n.indexOf('efemer') >= 0) return 'efem';
@@ -438,7 +440,7 @@ function leerTrello_(cat) {
       // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
       if (catL === 'hecho' && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input' || catL === 'datos';
-      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby'].indexOf(catL) >= 0 || b.tipo === 'project';
+      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby', 'mover'].indexOf(catL) >= 0 || b.tipo === 'project';
       cards.push({
         id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, catL === 'datos' ? 4000 : 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
         lista: l.name, cat: catL, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity,
@@ -865,7 +867,7 @@ function panel_(personaClave, ctx) {
     if (c.cat === 'brainstorming' && c.tipo === 'cm' && !esCM && !esProject) return false;
     if (c.cat === 'efem') return c.due && new Date(c.due) >= ayer && new Date(c.due) <= limiteEfem;
     if (c.cat === 'corr') return reciente(c);
-    if (['input', 'recursos', 'fichas', 'brainstorming', 'datos', 'standby'].indexOf(c.cat) >= 0) return true;
+    if (['input', 'recursos', 'fichas', 'brainstorming', 'datos', 'standby', 'mover'].indexOf(c.cat) >= 0) return true;
     // aprobado / programado que sale en los próximos días: para el chequeo "por salir" (reels y carruseles)
     if (c.cat === 'hecho') return c.tipo === 'scl' && c.due && !c.dc && new Date(c.due) >= ayer && new Date(c.due) <= new Date(hoy.getTime() + ajustes.porVencer * 864e5);
     return enVentana(c, ajustes.porVencer);
@@ -1141,7 +1143,7 @@ function vistaProject_() {
 const NO_ES_MARCA = /^(urgente|extra|ver en minuta|ads|guion|guiones)$/;
 function etapaProject_(nombre) {
   const n = norm_(nombre);
-  return /bandeja/.test(n) ? 'bandeja' : /por hacer/.test(n) ? 'hacer' : /proceso/.test(n) ? 'proceso' : /enviado|seguimiento/.test(n) ? 'seguimiento' : /listo|hecho|terminad/.test(n) ? 'listo' : 'otra';
+  return /bandeja/.test(n) ? 'bandeja' : /mas adelante/.test(n) ? 'despues' : /por hacer/.test(n) ? 'hacer' : /proceso/.test(n) ? 'proceso' : /enviado|seguimiento/.test(n) ? 'seguimiento' : /listo|hecho|terminad/.test(n) ? 'listo' : 'otra';
 }
 function tableroProject_() {
   const c = CacheService.getScriptCache(); let id = c.get('projId');
@@ -1176,8 +1178,10 @@ function miTablero_() {
 function pedidoRapido_(b) {
   const texto = String(b.texto || '').trim();
   if (!texto) return { error: 'datos', mensaje: 'Escribí qué es el pedido' };
-  const t = miTablero_(), bandeja = t.listas.filter(l => l.k === 'bandeja')[0], pasos = [], avisos = [];
-  if (!bandeja) return { error: 'lista', mensaje: 'No encuentro la lista "Bandeja" en Project, así que no creé nada. Listas que tiene: ' + t.listas.map(l => l.n).join(', ') };
+  const t = miTablero_(), pasos = [], avisos = [];
+  // con b.despues va a "Para más adelante" (cosas para preguntar o ver en otro momento); si no, a Bandeja
+  const bandeja = b.despues ? t.listas.filter(l => l.k === 'despues')[0] : t.listas.filter(l => l.k === 'bandeja')[0];
+  if (!bandeja) return { error: 'lista', mensaje: 'No encuentro la lista "' + (b.despues ? 'Para más adelante' : 'Bandeja') + '" en Project, así que no creé nada. Listas que tiene: ' + t.listas.map(l => l.n).join(', ') };
   const ids = [], nombres = [];
   if (b.labelId) {
     const e = t.etiquetas.filter(x => x.id === b.labelId && x.marca)[0];
@@ -1194,7 +1198,7 @@ function pedidoRapido_(b) {
   pasos.push('Tarjeta creada en "' + bandeja.n + '" de Project');
   if (nombres.length) pasos.push('Etiquetas: ' + nombres.join(', '));
   if (b.due) pasos.push('Fecha: ' + Utilities.formatDate(new Date(b.due), TZ, 'dd/MM'));
-  return { ok: true, pasos: pasos, avisos: avisos, card: { id: card.id, n: card.name, d: q.desc, due: card.due || null, dc: false, lista: bandeja.n, k: 'bandeja', act: card.dateLastActivity || new Date().toISOString(), url: card.shortUrl, lab: nombres } };
+  return { ok: true, pasos: pasos, avisos: avisos, card: { id: card.id, n: card.name, d: q.desc, due: card.due || null, dc: false, lista: bandeja.n, k: bandeja.k, act: card.dateLastActivity || new Date().toISOString(), url: card.shortUrl, lab: nombres } };
 }
 
 /* Para revisar desde el editor: lee el tablero Project y muestra qué encontró. No crea ni cambia nada. */
@@ -1554,6 +1558,7 @@ function inputsParaAvisar_(snap, cat) {
   const prop = P.getProperty('INPUTS_AVISADOS'), ya = {}; (prop || '').split(',').forEach(x => { if (x) ya[x] = 1; });
   return { marcados: marcados, primera: prop == null, nuevos: prop == null ? [] : marcados.filter(c => !ya[c.id]), ya: ya };
 }
+const FILM_MOTIVOS = ['hoy', 'manana', 'vencida', 'cerca', 'urgente']; // por cada motivo se guarda a qué tarjetas ya se les avisó (FILM_HOY, FILM_MANANA…)
 /* Todo lo que el filmmaker tiene pendiente o para corregir en Producción, con fecha de salida (de sus marcas). */
 function pendientesFilm_(snap, film) {
   const hace15 = Date.now() - 15 * 864e5;
@@ -1591,7 +1596,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     L.forEach(c => sinAvisar[c.id] = k);
   });
   // 3) diarios: diseñadoras (lo mismo que arma Avisos.gs para el canal) y filmmaker
-  const filmInfo = { pendientes: [], manana: {}, cerca: {}, yaM: {}, yaC: {} };
+  const filmInfo = { pendientes: [], ya: {}, nuevos: {} }; FILM_MOTIVOS.forEach(k => { filmInfo.ya[k] = {}; filmInfo.nuevos[k] = {}; });
   if (o.diarios) {
     // diseñadoras: SOLO lo que no entregaron en la entrega de ayer. Sale el día siguiente a cada entrega (los días los define Avisos.gs,
     // que arma el aviso del canal): así el canal y el privado dicen lo mismo. Nada de pedidos extra, urgentes ni correcciones.
@@ -1605,31 +1610,35 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       Object.keys(porQuien).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
         trozos_('Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):', porQuien[id].join('\n').split('\n'))));
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
-    // filmmaker: un solo privado por día, corto, con hasta tres partes:
-    //  · viernes: RESUMEN de la semana que viene por marca y por tipo ("Tritato: 1 historia y 1 carrusel") y cuántas le quedaron pendientes, sin listar cada tarjeta
-    //  · todos los días: lo que VENCE MAÑANA o tiene etiqueta Urgente, tarjeta por tarjeta y una sola vez ("avisame si no podés tenerla para hoy")
-    //  · lo que ya está atrasado y SALE hoy o mañana: un recordatorio más, también una sola vez
+    // filmmaker: un solo privado por día, corto. Cada tarjeta se nombra UNA sola vez por motivo (no se repite todos los días):
+    //  · hoy tiene que entregar (reel: 48 h antes de salir; historia: el día anterior) → "si no vas a llegar, avisale al director creativo"
+    //  · mañana vence (el sábado también lo del lunes) y lo que tiene etiqueta Urgente
+    //  · se le venció (ya pasó el día de entrega y sigue pendiente)
+    //  · sale hoy o mañana y sigue pendiente
+    //  · viernes: RESUMEN de la semana que viene por marca y por tipo ("Tritato: 1 historia y 1 carrusel") y cuántas le quedaron pendientes
     const hoyF = o.ahora || hoyAR_(), dow = hoyF.getDay(), hoyMs = Date.parse(ymd_(hoyF) + 'T00:00:00Z');
     const diasA_ = f => Math.round((Date.parse(Utilities.formatDate(new Date(f), TZ, 'yyyy-MM-dd') + 'T00:00:00Z') - hoyMs) / 864e5);
-    const yaM = {}, yaC = {};
-    (P.getProperty('FILM_MANANA') || '').split(',').forEach(x => { if (x) yaM[x] = 1; });
-    (P.getProperty('FILM_CERCA') || '').split(',').forEach(x => { if (x) yaC[x] = 1; });
+    FILM_MOTIVOS.forEach(k => (P.getProperty('FILM_' + k.toUpperCase()) || '').split(',').forEach(x => { if (x) filmInfo.ya[k][x] = 1; }));
+    const ya = filmInfo.ya;
     const tipoF = c => /carrusel/.test(norm_(c.n + ' ' + (c.lab || []).join(' '))) ? 'carrusel' : c.formato === 'historia' ? 'historia' : 'reel';
     const plural = { carrusel: 'carruseles', historia: 'historias', reel: 'reels' }, Tipo = { carrusel: 'Carrusel', historia: 'Historia', reel: 'Reel' };
     const urgente = c => (c.lab || []).some(x => /urgente/.test(norm_(x)));
     const lineaF = c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + Tipo[tipoF(c)] + ' · ' + String(c.n).slice(0, 70) + (c.etapa === 'correccion' ? ' · a corregir' : '') + (urgente(c) ? ' · URGENTE' : '') + ' · sale ' + fechaAR_(c.salida) + ' · ' + c.url;
+    const cuenta = L => { const n = {}; L.forEach(c => n[tipoF(c)] = (n[tipoF(c)] || 0) + 1); const det = ['reel', 'historia', 'carrusel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plural[t])); return det.length > 1 ? det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0] || ''; };
     cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).forEach(p => {
       const pend = pendientesFilm_(snap, filmConfig_(cfg, cat)).map(c => Object.assign({}, c, { dp: diasA_(new Date(c.salida).getTime() - (c.formato === 'historia' ? 24 : 48) * 36e5), ds: diasA_(c.salida) }));
       pend.forEach(c => filmInfo.pendientes.push(c.id));
-      const atras = pend.filter(c => c.dp < 0);
-      // el sábado también entra lo que vence el lunes (el domingo no se manda nada)
-      const manana = pend.filter(c => !yaM[c.id] && ((c.dp >= 1 && c.dp <= (dow === 6 ? 2 : 1)) || (urgente(c) && c.dp >= 0)));
-      const cerca = atras.filter(c => !yaC[c.id] && c.ds >= 0 && c.ds <= 1);
-      const partes = [];
-      // viernes: lo que tiene para la semana que viene, por marca y por tipo, y cuántas le quedaron pendientes de antes
+      const atras = pend.filter(c => c.dp < 0), lim = dow === 6 ? 2 : 1; // el sábado también entra lo que vence el lunes (el domingo no se manda nada)
+      const G = {
+        hoy: pend.filter(c => !ya.hoy[c.id] && c.dp === 0),
+        manana: pend.filter(c => !ya.manana[c.id] && c.dp >= 1 && c.dp <= lim),
+        cerca: atras.filter(c => !ya.cerca[c.id] && c.ds >= 0 && c.ds <= 1)
+      };
+      G.vencida = atras.filter(c => !ya.vencida[c.id] && G.cerca.indexOf(c) < 0);
+      G.urgente = pend.filter(c => !ya.urgente[c.id] && urgente(c) && c.dp > lim);
+      const partes = [], bloque = (titulo, L, cierre) => { if (!L.length) return; partes.push((partes.length ? '\n' : '') + '**' + titulo + '**'); L.forEach(c => partes.push(lineaF(c))); if (cierre) partes.push(cierre); };
       if (dow === 5) {
         const ini = ((8 - dow) % 7) || 7, prox = pend.filter(c => c.ds >= ini && c.ds <= ini + 6);
-        const cuenta = L => { const n = {}; L.forEach(c => n[tipoF(c)] = (n[tipoF(c)] || 0) + 1); const det = ['reel', 'historia', 'carrusel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plural[t])); return det.length > 1 ? det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0] || ''; };
         if (prox.length) {
           const porMarca = {}; prox.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
           partes.push('**Para la semana que viene tenés ' + (prox.length === 1 ? '1 pieza' : prox.length + ' piezas') + ':**');
@@ -1640,27 +1649,17 @@ function privadosArmar_(snap, cat, cfg, opciones) {
           partes.push((partes.length ? '\n' : '') + '**Te ' + (atras.length === 1 ? 'quedó pendiente' : 'quedaron pendientes') + ' de antes:** ' + cuenta(atras) + ' (' + marcasA.join(', ') + ')');
         }
       }
-      const lim = dow === 6 ? 2 : 1, vencen = manana.filter(c => c.dp >= 1 && c.dp <= lim), urg = manana.filter(c => !(c.dp >= 1 && c.dp <= lim));
-      if (vencen.length) {
-        partes.push((partes.length ? '\n' : '') + '**Acordate que ' + (dow === 6 && vencen.some(c => c.dp === 2) ? 'entre mañana y el lunes' : 'mañana') + ' ' + (vencen.length === 1 ? 'vence esta tarjeta' : 'vencen estas tarjetas') + ':**');
-        vencen.forEach(c => partes.push(lineaF(c)));
-        partes.push('Por favor avisame si no podés tener' + (vencen.length === 1 ? 'la' : 'las') + ' para hoy.');
-      }
-      if (urg.length) {
-        partes.push((partes.length ? '\n' : '') + '**' + (urg.length === 1 ? 'Esta tiene' : 'Estas tienen') + ' etiqueta Urgente:**');
-        urg.forEach(c => partes.push(lineaF(c)));
-      }
-      if (cerca.length) {
-        partes.push((partes.length ? '\n' : '') + '**Ojo: ' + (cerca.length === 1 ? 'esta sale' : 'estas salen') + ' entre hoy y mañana y ' + (cerca.length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':**');
-        cerca.forEach(c => partes.push(lineaF(c)));
-      }
+      bloque('Acordate que hoy tenés que entregar:', G.hoy, 'Si no vas a llegar, avisale al director creativo.');
+      bloque('Acordate que ' + (dow === 6 && G.manana.some(c => c.dp === 2) ? 'entre mañana y el lunes' : 'mañana') + ' ' + (G.manana.length === 1 ? 'vence esta tarjeta' : 'vencen estas tarjetas') + ':', G.manana, 'Por favor avisame si no podés tener' + (G.manana.length === 1 ? 'la' : 'las') + ' a tiempo.');
+      bloque('Ojo: ' + (G.cerca.length === 1 ? 'esta sale' : 'estas salen') + ' entre hoy y mañana y ' + (G.cerca.length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':', G.cerca);
+      bloque((G.vencida.length === 1 ? 'Se te venció esta tarjeta' : 'Se te vencieron estas tarjetas') + ' (ya pasó el día de entrega):', G.vencida);
+      bloque((G.urgente.length === 1 ? 'Esta tiene' : 'Estas tienen') + ' etiqueta Urgente:', G.urgente);
       if (!partes.length) return;
       const id = idDiscord_(cfg, p.clave);
       if (!id) { notas.push('Filmmaker · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
       para(p.clave, id, trozos_('Hola ' + p.nombre + '.', partes).map((t, i, a) => i === a.length - 1 ? t + '\nEl detalle de todo está en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
-      manana.forEach(c => filmInfo.manana[c.id] = p.clave); cerca.forEach(c => filmInfo.cerca[c.id] = p.clave);
+      FILM_MOTIVOS.forEach(k => G[k].forEach(c => filmInfo.nuevos[k][c.id] = p.clave));
     });
-    filmInfo.yaM = yaM; filmInfo.yaC = yaC;
   }
   return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo };
 }
@@ -1679,8 +1678,7 @@ function privadosEnviar_(snap, cat, cfg) {
   // filmmaker: queda anotado lo que ya se le avisó (mientras la pieza siga pendiente), para no repetirlo; lo que falló se reintenta mañana
   if (diarios) {
     const sigue = {}; r.film.pendientes.forEach(id => sigue[id] = 1);
-    const junta = (ya, nuevos) => Object.keys(sigue).filter(id => ya[id] || (nuevos[id] && (!activos || !fallaron[nuevos[id]]))).join(',').slice(0, 8800);
-    P.setProperty('FILM_MANANA', junta(r.film.yaM, r.film.manana)); P.setProperty('FILM_CERCA', junta(r.film.yaC, r.film.cerca));
+    FILM_MOTIVOS.forEach(k => { const ya = r.film.ya[k], nuevos = r.film.nuevos[k]; P.setProperty('FILM_' + k.toUpperCase(), Object.keys(sigue).filter(id => ya[id] || (nuevos[id] && (!activos || !fallaron[nuevos[id]]))).join(',').slice(0, 8800)); });
   }
   if (diarios) P.setProperty('PRIVADOS_DIA', hoyId);
   if (error) P.setProperty('DISCORD_DM_ERROR', new Date().toISOString() + ' · ' + error); else if (r.msgs.length) P.deleteProperty('DISCORD_DM_ERROR');
