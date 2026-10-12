@@ -1554,6 +1554,12 @@ function inputsParaAvisar_(snap, cat) {
   const prop = P.getProperty('INPUTS_AVISADOS'), ya = {}; (prop || '').split(',').forEach(x => { if (x) ya[x] = 1; });
   return { marcados: marcados, primera: prop == null, nuevos: prop == null ? [] : marcados.filter(c => !ya[c.id]), ya: ya };
 }
+/* Todo lo que el filmmaker tiene pendiente o para corregir en Producción, con fecha de salida (de sus marcas). */
+function pendientesFilm_(snap, film) {
+  const hace15 = Date.now() - 15 * 864e5;
+  return (snap.cards || []).filter(c => c.cat === 'pieza' && c.tipo === 'produccion' && !c.salio && c.salida && film.todas.indexOf(c.m[0]) >= 0 && (c.etapa === 'pendiente' || c.etapa === 'correccion') &&
+    (film.reels.indexOf(c.m[0]) >= 0 || c.formato === 'historia') && new Date(c.salida).getTime() >= hace15).sort((a, b) => new Date(a.salida) - new Date(b.salida));
+}
 /* Lo que ya tendría que haber entregado el filmmaker: reels 48 h antes de salir, historias el día anterior. */
 function atrasadasFilm_(snap, film) {
   const ahora = Date.now(), hace15 = ahora - 15 * 864e5;
@@ -1585,7 +1591,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     L.forEach(c => sinAvisar[c.id] = k);
   });
   // 3) diarios: diseñadoras (lo mismo que arma Avisos.gs para el canal) y filmmaker
-  const filmInfo = { ya: {}, atrasadas: [], porAvisar: {} };
+  const filmInfo = { pendientes: [], manana: {}, cerca: {}, yaM: {}, yaC: {} };
   if (o.diarios) {
     // diseñadoras: SOLO lo que no entregaron en la entrega de ayer. Sale el día siguiente a cada entrega (los días los define Avisos.gs,
     // que arma el aviso del canal): así el canal y el privado dicen lo mismo. Nada de pedidos extra, urgentes ni correcciones.
@@ -1599,18 +1605,53 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       Object.keys(porQuien).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
         trozos_('Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):', porQuien[id].join('\n').split('\n'))));
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
-    // filmmaker: cada pieza atrasada se le avisa UNA sola vez (no se repite todos los días)
-    (P.getProperty('FILM_AVISADAS') || '').split(',').forEach(x => { if (x) filmInfo.ya[x] = 1; });
+    // filmmaker: un solo privado por día, corto, con hasta tres partes:
+    //  · martes y jueves: RESUMEN de lo que quedó sin entregar, por marca y por tipo ("Tritato: 2 · 1 historia y 1 carrusel"), sin listar cada tarjeta
+    //  · todos los días: lo que VENCE MAÑANA o tiene etiqueta Urgente, tarjeta por tarjeta y una sola vez ("avisame si no podés tenerla para hoy")
+    //  · lo que ya está atrasado y SALE hoy o mañana: un recordatorio más, también una sola vez
+    const hoyF = o.ahora || hoyAR_(), dow = hoyF.getDay(), hoyMs = Date.parse(ymd_(hoyF) + 'T00:00:00Z');
+    const diasA_ = f => Math.round((Date.parse(Utilities.formatDate(new Date(f), TZ, 'yyyy-MM-dd') + 'T00:00:00Z') - hoyMs) / 864e5);
+    const yaM = {}, yaC = {};
+    (P.getProperty('FILM_MANANA') || '').split(',').forEach(x => { if (x) yaM[x] = 1; });
+    (P.getProperty('FILM_CERCA') || '').split(',').forEach(x => { if (x) yaC[x] = 1; });
+    const tipoF = c => /carrusel/.test(norm_(c.n + ' ' + (c.lab || []).join(' '))) ? 'carrusel' : c.formato === 'historia' ? 'historia' : 'reel';
+    const plural = { carrusel: 'carruseles', historia: 'historias', reel: 'reels' }, Tipo = { carrusel: 'Carrusel', historia: 'Historia', reel: 'Reel' };
+    const urgente = c => (c.lab || []).some(x => /urgente/.test(norm_(x)));
+    const lineaF = c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + Tipo[tipoF(c)] + ' · ' + String(c.n).slice(0, 70) + (c.etapa === 'correccion' ? ' · a corregir' : '') + (urgente(c) ? ' · URGENTE' : '') + ' · sale ' + fechaAR_(c.salida) + ' · ' + c.url;
     cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).forEach(p => {
-      const todas = atrasadasFilm_(snap, filmConfig_(cfg, cat)), L = todas.filter(c => !filmInfo.ya[c.id]), id = idDiscord_(cfg, p.clave);
-      todas.forEach(c => filmInfo.atrasadas.push(c.id));
-      if (!L.length) return;
+      const pend = pendientesFilm_(snap, filmConfig_(cfg, cat)).map(c => Object.assign({}, c, { dp: diasA_(new Date(c.salida).getTime() - (c.formato === 'historia' ? 24 : 48) * 36e5), ds: diasA_(c.salida) }));
+      pend.forEach(c => filmInfo.pendientes.push(c.id));
+      const atras = pend.filter(c => c.dp < 0);
+      // el sábado también entra lo que vence el lunes (el domingo no se manda nada)
+      const manana = pend.filter(c => !yaM[c.id] && ((c.dp >= 1 && c.dp <= (dow === 6 ? 2 : 1)) || (urgente(c) && c.dp >= 0)));
+      const cerca = atras.filter(c => !yaC[c.id] && c.ds <= 1);
+      const partes = [];
+      if ((dow === 2 || dow === 4) && atras.length) {
+        const porMarca = {}; atras.forEach(c => (porMarca[c.m[0]] = porMarca[c.m[0]] || []).push(c));
+        partes.push('**Te ' + (atras.length === 1 ? 'quedó 1 pieza' : 'quedaron ' + atras.length + ' piezas') + ' sin entregar:**');
+        Object.keys(porMarca).sort((a, b) => porMarca[b].length - porMarca[a].length).forEach(s => {
+          const L = porMarca[s], n = {}; L.forEach(c => n[tipoF(c)] = (n[tipoF(c)] || 0) + 1);
+          const det = ['reel', 'historia', 'carrusel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plural[t])), u = L.filter(urgente).length;
+          partes.push('• **' + nombreMarca_(cat, s) + '**: ' + (det.length > 1 ? L.length + ' · ' + det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0]) + (u ? ' · ' + u + (u === 1 ? ' urgente' : ' urgentes') : ''));
+        });
+      }
+      if (manana.length) {
+        const soloUrg = manana.every(c => !(c.dp >= 1)), lunes = dow === 6 && manana.some(c => c.dp === 2);
+        partes.push((partes.length ? '\n' : '') + '**' + (soloUrg ? 'Con etiqueta Urgente' : 'Acordate que ' + (lunes ? 'entre mañana y el lunes' : 'mañana') + ' ' + (manana.length === 1 ? 'vence esta tarjeta' : 'vencen estas tarjetas')) + ':**');
+        manana.forEach(c => partes.push(lineaF(c)));
+        partes.push('Por favor avisame si no podés tener' + (manana.length === 1 ? 'la' : 'las') + ' para hoy.');
+      }
+      if (cerca.length) {
+        partes.push((partes.length ? '\n' : '') + '**Ojo: ' + (cerca.length === 1 ? 'esta sale' : 'estas salen') + ' entre hoy y mañana y ' + (cerca.length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':**');
+        cerca.forEach(c => partes.push(lineaF(c)));
+      }
+      if (!partes.length) return;
+      const id = idDiscord_(cfg, p.clave);
       if (!id) { notas.push('Filmmaker · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
-      const lineas = L.map(c => '• **' + nombreMarca_(cat, c.m[0]) + '** · ' + (c.formato === 'historia' ? 'Historia' : 'Reel') + ' · ' + String(c.n).slice(0, 80) + (c.etapa === 'correccion' ? ' · A CORREGIR' : '') + ' · ' + (new Date(c.salida) < new Date() ? 'salía ' : 'sale ') + fechaAR_(c.salida) + ' · ' + c.url);
-      para(p.clave, id, trozos_('Hola ' + p.nombre + '. ' + (L.length === 1 ? 'Esta pieza ya tendría que estar entregada' : 'Estas ' + L.length + ' piezas ya tendrían que estar entregadas') + ' (reels: 48 h antes de salir; historias: el día anterior):', lineas)
-        .map((t, i, a) => i === a.length - 1 ? t + '\nCuando las tengas, marcá "Listo" en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
-      L.forEach(c => filmInfo.porAvisar[c.id] = p.clave);
+      para(p.clave, id, trozos_('Hola ' + p.nombre + '.', partes).map((t, i, a) => i === a.length - 1 ? t + '\nEl detalle de todo está en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
+      manana.forEach(c => filmInfo.manana[c.id] = p.clave); cerca.forEach(c => filmInfo.cerca[c.id] = p.clave);
     });
+    filmInfo.yaM = yaM; filmInfo.yaC = yaC;
   }
   return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo };
 }
@@ -1626,12 +1667,32 @@ function privadosEnviar_(snap, cat, cfg) {
   const avisados = r.inputs.marcados.filter(c => r.inputs.ya[c.id] || !activos || (r.inputsPorAvisar[c.id] && !fallaron[r.inputsPorAvisar[c.id]]) || r.inputs.primera).map(c => c.id);
   P.setProperty('INPUTS_AVISADOS', avisados.join(',').slice(0, 8800));
   P.setProperty('CM_REVISADAS', r.filtro.revisadas.join(',').slice(0, 8800));
-  // filmmaker: quedan anotadas las atrasadas ya avisadas (y solo mientras sigan atrasadas); las que fallaron se reintentan mañana
-  if (diarios) P.setProperty('FILM_AVISADAS', r.film.atrasadas.filter(id => r.film.ya[id] || !activos || (r.film.porAvisar[id] && !fallaron[r.film.porAvisar[id]])).join(',').slice(0, 8800));
+  // filmmaker: queda anotado lo que ya se le avisó (mientras la pieza siga pendiente), para no repetirlo; lo que falló se reintenta mañana
+  if (diarios) {
+    const sigue = {}; r.film.pendientes.forEach(id => sigue[id] = 1);
+    const junta = (ya, nuevos) => Object.keys(sigue).filter(id => ya[id] || (nuevos[id] && (!activos || !fallaron[nuevos[id]]))).join(',').slice(0, 8800);
+    P.setProperty('FILM_MANANA', junta(r.film.yaM, r.film.manana)); P.setProperty('FILM_CERCA', junta(r.film.yaC, r.film.cerca));
+  }
   if (diarios) P.setProperty('PRIVADOS_DIA', hoyId);
   if (error) P.setProperty('DISCORD_DM_ERROR', new Date().toISOString() + ' · ' + error); else if (r.msgs.length) P.deleteProperty('DISCORD_DM_ERROR');
   if (r.notas.length) P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ' + r.notas.join(' | ')).slice(0, 900)); else P.deleteProperty('PRIVADOS_NOTAS');
   return r;
+}
+/* PRUEBA sin efectos: qué privado le llegaría al filmmaker hoy y cada uno de los próximos 7 días, con lo que hay ahora en Trello.
+   No manda nada ni anota nada (por eso lo de "mañana vence" puede repetirse de un día al otro: en la realidad sale una sola vez). */
+function probarAvisosFilm() {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), cfg = config_(), hoy = hoyAR_();
+  const film = cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).map(p => p.clave), solo = { cards: (snap.cards || []).filter(c => c.cat === 'pieza'), tableros: snap.tableros };
+  const pend = pendientesFilm_(snap, filmConfig_(cfg, cat));
+  console.log('Foto de Trello: ' + snap.generado + ' · filmmaker: ' + film.join(', ') + ' · ID de Discord: ' + film.map(k => idDiscord_(cfg, k) ? 'cargado' : 'FALTA').join(', ') + ' · piezas pendientes con fecha: ' + pend.length);
+  pend.slice(0, 25).forEach(c => console.log('   ' + nombreMarca_(cat, c.m[0]) + ' · ' + c.formato + ' · ' + c.etapa + ' · sale ' + fechaAR_(c.salida) + ' · ' + String(c.n).slice(0, 50) + ((c.lab || []).some(x => /urgente/.test(norm_(x))) ? ' · URGENTE' : '')));
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(hoy); d.setDate(d.getDate() + i);
+    if (d.getDay() === 0) { console.log('— ' + DIAS[0] + ' ' + ymd_(d) + ': los domingos no se manda nada'); continue; }
+    const m = privadosArmar_(solo, cat, cfg, { dry: true, diarios: true, ahora: d }).msgs.filter(x => film.indexOf(x.para) >= 0);
+    console.log('— ' + DIAS[d.getDay()] + ' ' + ymd_(d) + ': ' + (m.length ? '\n' + m.map(x => x.texto).join('\n') : 'no le llega nada'));
+  }
 }
 /* PRUEBA sin efectos: muestra qué movería el filtro de CM y qué privados saldrían (ahora, y los diarios de hoy, un martes y un viernes).
    No mueve tarjetas, no manda nada y no anota nada. */
