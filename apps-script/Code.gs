@@ -1088,7 +1088,7 @@ function tareasReportes_(clave, rol) {
 function aplicarEstados_(b, est) {
   if (!b || !b.ok) return b;
   // producciones de fotografía: se leen en cada pedido (no van en la foto guardada) para que lo recién anotado se vea al recargar
-  if (/project|direcc|creativ|film|audiovis/i.test((b.yo || {}).rol || '')) { try { b.fotos = fotosSalida_(); } catch (e) { b.fotos = null; } }
+  if (/project|direcc|creativ/i.test((b.yo || {}).rol || '')) { try { b.fotos = fotosSalida_(); } catch (e) { b.fotos = null; } }
   try { b.reportes = tareasReportes_(b.yo.clave, b.yo.rol); b.linkReportes = REP_WEB + '?resp=' + encodeURIComponent(b.yo.clave); } catch (e) { b.reportes = []; }
   if (b.semanaInfo) {
     const per = b.semanaInfo.dias.concat([b.semanaInfo.semana, b.semanaInfo.mes]);
@@ -2568,7 +2568,7 @@ function probarAgendaPrivada() {
 
 /* ---------------- producciones de fotografía ----------------
    Cada marca tiene una producción de fotos cada FOTO_MESES meses (Config; si no está, 2). Acá se anota cuándo fue la última
-   y la web calcula cuándo toca la próxima y avisa. Lo ven y lo anotan el project, dirección y el filmmaker.
+   y la web calcula cuándo toca la próxima y avisa. Lo ven y lo anotan solo el project y dirección.
    Se guarda en un archivo de Drive (panel-ideamia-fotos.json): { marcas: { <slug>: { no, hist: [{ f, por, nota }] } } }. */
 function fotosSalida_(marcas) {
   marcas = marcas || cacheGet_('marcasLista') || catalogo_().marcas.map(m => ({ slug: m.slug, nombre: m.nombre }));
@@ -2580,7 +2580,7 @@ function fotosSalida_(marcas) {
 }
 function fotoMarca_(b, quien) {
   const cat = catalogo_(), slug = String(b.marca || ''), yo = cat.equipo.filter(p => p.clave === norm_(quien))[0];
-  if (!yo || !/project|direcc|creativ|film|audiovis/i.test(yo.rol)) return { error: 'permiso', mensaje: 'Las producciones de fotografía las anotan el project, dirección o el filmmaker' };
+  if (!yo || !/project|direcc|creativ/i.test(yo.rol)) return { error: 'permiso', mensaje: 'Las producciones de fotografía las anotan solo el project y dirección' };
   if (!cat.marcas.some(m => m.slug === slug)) return { error: 'datos', mensaje: 'No conozco esa marca' };
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
