@@ -1601,15 +1601,51 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     // diseñadoras: SOLO lo que no entregaron en la entrega de ayer. Sale el día siguiente a cada entrega (los días los define Avisos.gs,
     // que arma el aviso del canal): así el canal y el privado dicen lo mismo. Nada de pedidos extra, urgentes ni correcciones.
     if (typeof avisosDisenoArmar_ === 'function' && typeof AV_MARCAS !== 'undefined') {
-      const porQuien = {};
-      avisosDisenoArmar_(o.ahora || hoyAR_(), snap.cards).forEach(m => {
+      const hoyD = o.ahora || hoyAR_(), partesDe = {}, sumar = (id, bloque) => (partesDe[id] = partesDe[id] || []).push(bloque);
+      // a) el día después de cada entrega (martes y viernes, lo define Avisos.gs): RESUMEN por marca de lo que faltó, sin listar cada tarjeta
+      //    ("TRITATO: 2 · 1 historia y 1 carrusel"). El detalle, tarjeta por tarjeta, ya sale en el canal de la marca.
+      const tipoD = t => { const n = norm_(t); return /histori/.test(n) ? 'historia' : /carrusel/.test(n) ? 'carrusel' : /reel|video/.test(n) ? 'reel' : 'placa'; };
+      const plD = { historia: 'historias', carrusel: 'carruseles', reel: 'reels', placa: 'placas' }, resumen = {};
+      avisosDisenoArmar_(hoyD, snap.cards).forEach(m => {
         const k = Object.keys(AV_MARCAS).filter(x => AV_MARCAS[x].marca === m.marca)[0]; if (!k) return;
         const falt = String(m.texto).split('\n\n').filter(b => /^📦/.test(b))[0]; if (!falt) return;
-        (porQuien[AV_MARCAS[k].quien] = porQuien[AV_MARCAS[k].quien] || []).push('**' + m.marca + '**\n' + falt.split('\n').slice(1).join('\n'));
+        const L = falt.split('\n').slice(1).filter(x => /^•/.test(x)); if (!L.length) return;
+        const n = {}; L.forEach(x => n[tipoD(x)] = (n[tipoD(x)] || 0) + 1);
+        const det = ['placa', 'carrusel', 'historia', 'reel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plD[t]));
+        (resumen[AV_MARCAS[k].quien] = resumen[AV_MARCAS[k].quien] || []).push('• **' + m.marca + '**: ' + (det.length > 1 ? L.length + ' · ' + det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0]));
       });
-      Object.keys(porQuien).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
-        trozos_('Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):', porQuien[id].join('\n').split('\n'))));
+      Object.keys(resumen).forEach(id => sumar(id, ['**Esto quedó sin entregar de la entrega de ayer** (el detalle está en el canal de cada marca):'].concat(resumen[id])));
+      // b) todos los días: lo que sale mañana y sigue pendiente (lo cargaron tarde o es urgente), tarjeta por tarjeta, para que avise si no llega
+      const porSalir = disenoPorSalir_(snap, hoyD), salen = {};
+      Object.keys(porSalir).forEach(k => porSalir[k].forEach(c => (salen[AV_MARCAS[k].quien] = salen[AV_MARCAS[k].quien] || []).push('• **' + AV_MARCAS[k].marca + '** · ' + String(c.n).slice(0, 70) + ((c.lab || []).some(x => /urgente/.test(norm_(x))) ? ' · URGENTE' : '') + ' · sale ' + fechaAR_(c.salida) + ' · ' + c.url)));
+      Object.keys(salen).forEach(id => sumar(id, ['**' + (salen[id].length === 1 ? 'Esta pieza sale' : 'Estas piezas salen') + (hoyD.getDay() === 6 ? ' entre mañana y el lunes' : ' mañana') + ' y ' + (salen[id].length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':**'].concat(salen[id], ['Si no llegás, avisá así vemos cómo resolverlo.'])));
+      Object.keys(partesDe).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
+        trozos_('Hola.', partesDe[id].reduce((a, b) => a.concat(a.length ? [''] : [], b), []))));
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
+    // guiones: el día de la reunión (Config GUIONES_RESUMEN_DIAS, por defecto lunes y viernes) se le recuerda por privado a Fede qué guiones
+    // tiene que presentar, y a cada social media que presenta las ideas de reels de sus marcas
+    if (guionesDiaDeResumen_(cfg, o.ahora || hoyAR_())) {
+      const hoyG = o.ahora || hoyAR_(), hoyGms = Date.parse(ymd_(hoyG) + 'T00:00:00Z'), hora = String(cfg.GUIONES_HORA || '16:00');
+      const diaG = f => Math.round((Date.parse(Utilities.formatDate(new Date(f), TZ, 'yyyy-MM-dd') + 'T00:00:00Z') - hoyGms) / 864e5);
+      const tit = c => /^https?:\/\//.test(String(c.n)) ? 'Guion sin título' : String(c.n).slice(0, 80);
+      const conGuiones = {}; (snap.tableros || []).filter(b => b.tipo === 'guiones' && b.marca).forEach(b => conGuiones[b.marca] = 1);
+      const G = (snap.cards || []).filter(c => c.cat === 'guion' && !c.salio && conGuiones[c.m[0]]);
+      const presenta = G.filter(c => c.gest === 'revisar'), entrega = G.filter(c => c.gest === 'pendiente' && c.entrega && diaG(c.entrega) <= 0);
+      const idFede = idDiscord_(cfg, 'fede') || (typeof GU_FEDE !== 'undefined' ? GU_FEDE : '');
+      if (idFede && (presenta.length || entrega.length)) {
+        const l = [];
+        if (presenta.length) { l.push('**Recordá que hoy tenés que presentar ' + (presenta.length === 1 ? 'este guion' : 'estos ' + presenta.length + ' guiones') + ' de reel** (reunión de las ' + hora + ' h):'); presenta.forEach(c => l.push('• **' + nombreMarca_(cat, c.m[0]) + '** · ' + tit(c) + ' · ' + c.url)); }
+        if (entrega.length) { l.push((l.length ? '\n' : '') + '**' + (entrega.length === 1 ? 'Este guion tenía' : 'Estos ' + entrega.length + ' guiones tenían') + ' que estar entregado' + (entrega.length === 1 ? '' : 's') + ' para hoy:**'); entrega.forEach(c => l.push('• **' + nombreMarca_(cat, c.m[0]) + '** · ' + tit(c) + (diaG(c.entrega) < 0 ? ' · era para el ' + Utilities.formatDate(new Date(c.entrega), TZ, 'dd/MM') : '') + ' · ' + c.url)); }
+        para('fede', idFede, trozos_('Hola Fede.', l));
+      }
+      cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim())).forEach(p => {
+        const mias = cat.marcas.filter(m => m.sm === p.clave && conGuiones[m.slug]); if (!mias.length) return;
+        const id = idDiscord_(cfg, p.clave); if (!id) { notas.push('Guiones · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
+        const ver = presenta.filter(c => mias.some(m => m.slug === c.m[0])).length;
+        para(p.clave, id, 'Hola ' + p.nombre + '. Recordá que hoy, en la reunión de guiones de las ' + hora + ' h, tenés que presentar las ideas de reels de ' + (mias.length === 1 ? 'tu marca' : 'tus marcas') + ': **' + mias.map(m => m.nombre).join(', ') + '**.' +
+          (ver ? '\nAdemás se ' + (ver === 1 ? 've 1 guion' : 'ven ' + ver + ' guiones') + ' de tus marcas que Fede ya entregó.' : ''));
+      });
+    }
     // filmmaker: un solo privado por día, corto. Cada tarjeta se nombra UNA sola vez por motivo (no se repite todos los días):
     //  · hoy tiene que entregar (reel: 48 h antes de salir; historia: el día anterior) → "si no vas a llegar, avisale al director creativo"
     //  · mañana vence (el sábado también lo del lunes) y lo que tiene etiqueta Urgente
@@ -1770,14 +1806,118 @@ function guionesDiaDeResumen_(cfg, ahora) {
   return lista_(cfg.GUIONES_RESUMEN_DIAS == null || cfg.GUIONES_RESUMEN_DIAS === '' ? 'lunes,viernes' : cfg.GUIONES_RESUMEN_DIAS).some(x => dias[ahora.getDay()].indexOf(norm_(x).slice(0, 3)) === 0);
 }
 /* Lo corre el disparador de cada mañana (8:45). Los días que no hay reunión deja el archivo sin mensajes. */
+/* ---------------- avisos en el canal de cada marca (filmmaker y diseñadoras) ----------------
+   Además del privado, algunas cosas se dicen en el canal de la marca para que dirección esté al tanto. El panel no escribe en canales:
+   deja los mensajes en el mismo archivo que arma guionesResumen() y el escenario de Make que lo lee a las 9:05 los publica en el canal
+   que diga cada uno. Son avisos del día (no hace falta acordarse de cuáles ya se mandaron):
+    · filmmaker, canal de producción de la marca: lo que HOY tiene que entregar (reel: 48 h antes de salir; historia: el día anterior)
+      y, los viernes, cuántos reels e historias tiene que entregar la semana que viene de esa marca;
+    · diseñadoras, canal de diseño de la marca: lo que sale mañana y sigue pendiente (lo cargaron tarde o es urgente). */
+// Canal de producción de cada marca: se busca en Discord por el nombre del canal (producción, video, audiovisual, reels) y la marca
+// (por su nombre, el del canal padre o el de la categoría). Se guarda una semana. Se puede forzar en Config: CANAL_PRODUCCION_<MARCA>.
+function canalesProduccion_(cat, cfg, forzar) {
+  let g = null; try { g = JSON.parse(P.getProperty('CANALES_PRODUCCION') || 'null'); } catch (e) {}
+  if (!forzar && g && g.t && Date.now() - g.t < 7 * 864e5) return g.canales || {};
+  const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  if (!puente || !clave || !/^\d{15,22}$/.test(guild)) return (g && g.canales) || {};
+  PEDIDOS_++;
+  const r = UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/channels', { headers: { 'x-clave': clave }, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) return (g && g.canales) || {};
+  const todos = JSON.parse(r.getContentText()), porId = {}, canales = {}, vistos = [];
+  todos.forEach(c => porId[c.id] = c);
+  todos.filter(c => c.type === 0 || c.type === 5).forEach(c => {
+    const padre = porId[c.parent_id], nombre = norm_(c.name), entero = c.name + ' ' + (padre ? padre.name : '');
+    if (!/producci|video|audiov|film|reel/.test(nombre)) return;
+    const slug = marcasEn_(entero, cat.marcas)[0]; vistos.push(c.name + ' (' + (padre ? padre.name : '-') + ') → ' + (slug || 'sin marca'));
+    if (slug && (!canales[slug] || /producci/.test(nombre))) canales[slug] = c.id;
+  });
+  P.setProperty('CANALES_PRODUCCION', JSON.stringify({ t: Date.now(), canales: canales, vistos: vistos.slice(0, 60) }).slice(0, 8800));
+  return canales;
+}
+function canalProduccion_(cat, cfg, slug) {
+  const m = cat.marcas.filter(x => x.slug === slug)[0], forzado = String(cfg['CANAL_PRODUCCION_' + String(slug).toUpperCase().replace(/[^A-Z0-9]+/g, '_')] || '').trim();
+  return /^\d{15,22}$/.test(forzado) ? forzado : (canalesProduccion_(cat, cfg)[slug] || '');
+}
+function avisosCanalArmar_(snap, cat, cfg, ahora) {
+  const out = [], notas = [], dow = ahora.getDay(), hoyMs = Date.parse(ymd_(ahora) + 'T00:00:00Z');
+  if (dow === 0) return { mensajes: out, notas: notas };
+  const diasA_ = f => Math.round((Date.parse(Utilities.formatDate(new Date(f), TZ, 'yyyy-MM-dd') + 'T00:00:00Z') - hoyMs) / 864e5);
+  const dm = f => Utilities.formatDate(new Date(f), TZ, 'dd/MM');
+  const urgente = c => (c.lab || []).some(x => /urgente/.test(norm_(x)));
+  // filmmaker
+  const tipoF = c => /carrusel/.test(norm_(c.n + ' ' + (c.lab || []).join(' '))) ? 'carrusel' : c.formato === 'historia' ? 'historia' : 'reel';
+  const plural = { carrusel: 'carruseles', historia: 'historias', reel: 'reels' }, Tipo = { carrusel: 'Carrusel', historia: 'Historia', reel: 'Reel' };
+  const cuenta = L => { const n = {}; L.forEach(c => n[tipoF(c)] = (n[tipoF(c)] || 0) + 1); const det = ['reel', 'historia', 'carrusel'].filter(t => n[t]).map(t => n[t] + ' ' + (n[t] === 1 ? t : plural[t])); return det.length > 1 ? det.slice(0, -1).join(', ') + ' y ' + det.slice(-1) : det[0] || ''; };
+  cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).forEach(p => {
+    const id = idDiscord_(cfg, p.clave), arroba = id ? '<@' + id + '>' : p.nombre;
+    const pend = pendientesFilm_(snap, filmConfig_(cfg, cat)).map(c => Object.assign({}, c, { dp: diasA_(new Date(c.salida).getTime() - (c.formato === 'historia' ? 24 : 48) * 36e5), ds: diasA_(c.salida) }));
+    const porMarca = {}; pend.forEach(c => { const g = porMarca[c.m[0]] = porMarca[c.m[0]] || { hoy: [], prox: [] }; if (c.dp === 0) g.hoy.push(c); if (dow === 5 && c.ds >= 3 && c.ds <= 9) g.prox.push(c); });
+    Object.keys(porMarca).forEach(slug => {
+      const g = porMarca[slug], lineas = [];
+      if (g.hoy.length) {
+        lineas.push('**Hoy ' + (g.hoy.length === 1 ? 'tiene que quedar entregada esta pieza' : 'tienen que quedar entregadas estas piezas') + ':**');
+        g.hoy.forEach(c => lineas.push('• ' + Tipo[tipoF(c)] + ' · **' + String(c.n).slice(0, 80) + '**' + (c.etapa === 'correccion' ? ' · a corregir' : '') + (urgente(c) ? ' · URGENTE' : '') + ' · sale el ' + dm(c.salida) + ' · ' + c.url));
+        lineas.push('Si no vas a llegar, avisale al director creativo.');
+      }
+      if (g.prox.length) lineas.push((lineas.length ? '\n' : '') + '**La semana que viene tenés que entregar:** ' + cuenta(g.prox) + '.');
+      if (!lineas.length) return;
+      const canal = canalProduccion_(cat, cfg, slug);
+      if (!canal) { notas.push('Filmmaker · ' + nombreMarca_(cat, slug) + ' no tiene canal de producción reconocido (se puede cargar CANAL_PRODUCCION_' + slug.toUpperCase().replace(/[^A-Z0-9]+/g, '_') + ' en Config)'); return; }
+      trozos_('🎬 ' + arroba + ' · **' + nombreMarca_(cat, slug).toUpperCase() + '**', lineas).forEach(t => out.push({ canal: canal, texto: t.slice(0, 1950) }));
+    });
+  });
+  // diseñadoras: lo que sale mañana (el sábado también lo del lunes) y sigue en "Pendiente de diseño"
+  if (typeof AV_MARCAS !== 'undefined') {
+    const porTablero = {};
+    (snap.cards || []).forEach(c => {
+      if (c.cat !== 'pieza' || c.tipo !== 'diseno' || c.salio || c.etapa !== 'pendiente' || !c.salida || /pedido/.test(norm_(c.lista))) return;
+      const k = norm_(c.tablero), ds = diasA_(c.salida); if (!AV_MARCAS[k] || !(ds >= 1 && ds <= (dow === 6 ? 2 : 1))) return;
+      (porTablero[k] = porTablero[k] || []).push(c);
+    });
+    Object.keys(porTablero).forEach(k => {
+      const L = porTablero[k], a = AV_MARCAS[k];
+      const lineas = L.map(c => '• **' + String(c.n).slice(0, 80) + '**' + (urgente(c) ? ' · URGENTE' : '') + ' · sale el ' + dm(c.salida) + ' · ' + c.url);
+      lineas.push('Si no llegás, avisá así vemos cómo resolverlo.');
+      trozos_('⏰ <@' + a.quien + '> · **' + a.marca + '** · ' + (L.length === 1 ? 'esta pieza sale' : 'estas piezas salen') + (dow === 6 ? ' entre mañana y el lunes' : ' mañana') + ' y ' + (L.length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':', lineas).forEach(t => out.push({ canal: a.canal, texto: t.slice(0, 1950) }));
+    });
+  }
+  return { mensajes: out, notas: notas };
+}
+/* PRUEBA sin efectos: qué canales de producción reconoce por marca y qué mensajes de canal saldrían hoy y los próximos 7 días. No publica nada. */
+function probarAvisosCanal() {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), cfg = config_(), hoy = hoyAR_();
+  const canales = canalesProduccion_(cat, cfg, true);
+  console.log('Canales de producción reconocidos: ' + (Object.keys(canales).map(s => nombreMarca_(cat, s) + ' → ' + canales[s]).join(' · ') || 'NINGUNO'));
+  try { console.log('Canales que miré: ' + (JSON.parse(P.getProperty('CANALES_PRODUCCION') || '{}').vistos || []).join(' | ')); } catch (e) {}
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(hoy); d.setDate(d.getDate() + i);
+    const r = avisosCanalArmar_(snap, cat, cfg, d);
+    console.log('— ' + DIAS[d.getDay()] + ' ' + ymd_(d) + ': ' + (r.mensajes.length ? r.mensajes.length + ' mensajes\n' + r.mensajes.map(m => '[canal ' + m.canal + ']\n' + m.texto).join('\n') : 'nada') + (r.notas.length ? '\nNOTAS: ' + r.notas.join(' | ') : ''));
+  }
+}
+
+/* Piezas de diseño que salen mañana (el sábado también las del lunes) y siguen en "Pendiente de diseño", por tablero. No cuenta los pedidos extra. */
+function disenoPorSalir_(snap, ahora) {
+  const out = {}; if (typeof AV_MARCAS === 'undefined') return out;
+  const dow = ahora.getDay(), hoyMs = Date.parse(ymd_(ahora) + 'T00:00:00Z');
+  (snap.cards || []).forEach(c => {
+    if (c.cat !== 'pieza' || c.tipo !== 'diseno' || c.salio || c.etapa !== 'pendiente' || !c.salida || /pedido/.test(norm_(c.lista))) return;
+    const k = norm_(c.tablero), ds = Math.round((Date.parse(Utilities.formatDate(new Date(c.salida), TZ, 'yyyy-MM-dd') + 'T00:00:00Z') - hoyMs) / 864e5);
+    if (AV_MARCAS[k] && ds >= 1 && ds <= (dow === 6 ? 2 : 1)) (out[k] = out[k] || []).push(c);
+  });
+  return out;
+}
 function guionesResumen() {
   const ahora = hoyAR_(), cfg = config_(), snap = snapshot_(), canal = String(cfg.GUIONES_CANAL || GU_CANAL).trim();
   const viejo = !snap.generado || (Date.now() - new Date(snap.generado).getTime()) > 3 * 36e5; // con la foto de Trello vieja, mejor no avisar
   let mensajes = [];
   if (guionesDiaDeResumen_(cfg, ahora) && !viejo && /^\d{15,22}$/.test(canal)) mensajes = guionesResumenArmar_(snap, catalogo_(), cfg, ahora).textos.map(t => ({ canal: canal, texto: t.slice(0, 1950) }));
+  // avisos del día para el canal de cada marca (filmmaker y diseñadoras): van en el mismo archivo, cada uno con su canal
+  let deCanal = 0; if (!viejo) { try { const av = avisosCanalArmar_(snap, catalogo_(), cfg, ahora); deCanal = av.mensajes.length; mensajes = mensajes.concat(av.mensajes); if (av.notas.length) P.setProperty('CANAL_NOTAS', (new Date().toISOString() + ' · ' + av.notas.join(' | ')).slice(0, 900)); else P.deleteProperty('CANAL_NOTAS'); } catch (e) { P.setProperty('CANAL_NOTAS', new Date().toISOString() + ' · error: ' + String(e.message).slice(0, 300)); } }
   const f = archivo_('GUIONES_FILE_ID', 'panel-ideamia-resumen-guiones.json');
   f.setContent(JSON.stringify({ fecha: ymd_(new Date()), generado: new Date().toISOString(), fotoTrello: snap.generado || null, mensajes: mensajes }));
-  return { archivo: f.getId(), mensajes: mensajes.length, viejo: viejo, canal: canal };
+  return { archivo: f.getId(), mensajes: mensajes.length, deCanal: deCanal, viejo: viejo, canal: canal };
 }
 /* Correr una vez desde el editor: deja el archivo visible para quien tenga el link (así lo lee Make) y programa el armado diario. */
 function instalarResumenGuiones() {
