@@ -25,6 +25,7 @@
 
   /* ---------------- iconos ---------------- */
   const I = {
+    cam: '<svg viewBox="0 0 24 24"><path d="M4 8h3.2l1.6-2.5h6.4L16.8 8H20v11H4z"/><circle cx="12" cy="13.2" r="3.4"/></svg>',
     reel: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg>',
     story: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 2.4"/><circle cx="12" cy="12" r="4"/></svg>',
     doc: '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5"/></svg>',
@@ -236,22 +237,23 @@
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa(), film = esFilm();
     // filmmaker: solo Mi semana y Discord
-    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
+    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'fotos', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
-    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
-    if (ivo && ['revision', 'guiones', 'discord', 'agp'].indexOf(S.tab) < 0) S.tab = 'revision';
+    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord' && S.tab !== 'fotos') S.tab = 'hoy';
+    if (!film && !esRevisa() && S.tab === 'fotos') S.tab = 'hoy';
+    if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
-    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
-      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
+    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada' };
+    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -1384,6 +1386,83 @@
     $('#npT', m).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ok]', m).click(); } });
   }
 
+  /* ---------------- FOTOGRAFÍA: última producción de fotos de cada marca y cuándo toca la próxima ----------------
+     Cada marca tiene producción de fotos cada N meses (2 si no se cambia en Config · FOTO_MESES). Se anota cuándo fue la última
+     y acá se ve cuál está vencida, cuál toca pronto y cuál está al día. Lo ven project, dirección y filmmaker. */
+  const fotosData = () => (S.data ? S.data.fotos : S.proj ? S.proj.fotos : null) || (DEMO ? fotosDemo() : null);
+  function fotosDemo() {
+    if (S._fotosDemo) return S._fotosDemo;
+    const ms = (S.data ? S.data.marcas : S.proj ? S.proj.marcas : []).slice(0, 6), d = n => ymdL(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - n));
+    const dias = [75, 52, 20, null, 64, 8];
+    return S._fotosDemo = { meses: 2, marcas: ms.map((m, i) => ({ slug: m.slug, nombre: m.nombre, no: false, ultima: dias[i] == null ? '' : d(dias[i]), por: dias[i] == null ? '' : 'Bauti', nota: i === 0 ? 'Producto nuevo y local' : '', hist: dias[i] == null ? [] : [{ f: d(dias[i]), por: 'Bauti', nota: '' }] })) };
+  }
+  // estado de una marca: 0 vencida · 1 sin registrar · 2 toca pronto (15 días) · 3 al día · 4 no lleva fotografía
+  function fotoEstado(m, meses) {
+    if (m.no) return { o: 4, pill: '', txt: 'No lleva fotografía' };
+    if (!m.ultima) return { o: 1, pill: 'warn', txt: 'Sin registrar' };
+    const u = ymdD(m.ultima), p = new Date(u.getFullYear(), u.getMonth() + meses, u.getDate()), n = diasA(p);
+    return n < 0 ? { o: 0, pill: 'bad', txt: 'Vencida hace ' + (-n) + (n === -1 ? ' día' : ' días'), prox: p, u: u }
+      : n <= 15 ? { o: 2, pill: 'warn', txt: n === 0 ? 'Toca hoy' : 'Toca en ' + n + (n === 1 ? ' día' : ' días'), prox: p, u: u }
+      : { o: 3, pill: 'ok', txt: 'Al día', prox: p, u: u };
+  }
+  const fotosPend = () => { const F = fotosData(); return F ? F.marcas.filter(m => { const e = fotoEstado(m, F.meses); return e.o === 0 || e.o === 2; }).length : 0; };
+  function vFotos() {
+    const F = fotosData();
+    if (!F) return '<div class="empty">Todavía no llegaron los datos de fotografía. Tocá ↻ arriba para volver a leer.</div>';
+    const L = F.marcas.map(m => Object.assign({ e: fotoEstado(m, F.meses) }, m)).sort((a, b) => a.e.o - b.e.o || (a.e.prox ? a.e.prox.getTime() : 0) - (b.e.prox ? b.e.prox.getTime() : 0));
+    const n = o => L.filter(m => m.e.o === o).length, cada = F.meses === 1 ? 'todos los meses' : 'cada ' + F.meses + ' meses';
+    const tile = (num, t, cl) => '<div class="mio-st ' + (num ? cl : '') + '"><b>' + num + '</b><span>' + t + '</span></div>';
+    const fila = m => {
+      const e = m.e, ant = (m.hist || []).slice(1, 4).map(h => dm(ymdD(h.f))).join(' · ');
+      return '<div class="ft-r' + (e.o === 0 ? ' venc' : '') + '"><span class="dotm" style="background:' + color(m.slug) + '"></span><div class="ft-t"><b>' + esc(m.nombre) + '</b>' +
+        '<div class="ft-m">' + (e.pill || e.o === 4 ? '<span class="pill ' + e.pill + '">' + e.txt + '</span>' : '') +
+        (m.ultima ? '<span>Última: <b>' + dm(e.u) + '/' + e.u.getFullYear() + '</b> (' + (diasA(e.u) === 0 ? 'hoy' : 'hace ' + (-diasA(e.u)) + ' días') + (m.por ? ', la anotó ' + esc(m.por) : '') + ')</span>' : m.no ? '' : '<span>Anotá cuándo fue la última para que empiece a avisar.</span>') +
+        (e.prox ? '<span>Próxima: <b>antes del ' + dm(e.prox) + '</b></span>' : '') + '</div>' +
+        (m.nota ? '<div class="ft-n">' + esc(m.nota) + '</div>' : '') + (ant ? '<div class="ft-n">Anteriores: ' + ant + '</div>' : '') +
+        '</div><button class="btn ' + (e.o <= 2 ? 'y' : 'ghost') + '" data-foto="' + esc(m.slug) + '">' + (m.no ? 'Cambiar' : 'Anotar') + '</button></div>';
+    };
+    const activas = L.filter(m => m.e.o < 4), sin = L.filter(m => m.e.o === 4);
+    return '<p class="mio-que">Cada marca tiene producción de fotos <b>' + cada + '</b>. Anotá cuándo fue la última y el panel te avisa cuándo toca la próxima: 15 días antes aparece como "toca pronto" y, si se pasa, como vencida.</p>' +
+      '<div class="mio-sts ft-sts">' + tile(n(0), 'Vencidas', 'bad') + tile(n(2), 'Tocan pronto', 'warn') + tile(n(1), 'Sin registrar', 'warn') + tile(n(3), 'Al día', 'ok') + '</div>' +
+      '<div class="ft-l">' + activas.map(fila).join('') + '</div>' +
+      (sin.length ? tarjeta('ft-no', 'No llevan fotografía', sin.length, '', false, () => '<div class="ft-l">' + sin.map(fila).join('') + '</div>') : '');
+  }
+  function fotoAnotar(slug) {
+    const F = fotosData(), m = F && F.marcas.find(x => x.slug === slug); if (!m) return;
+    const hoy = ymdL(NOW);
+    const hist = (m.hist || []).slice(0, 6);
+    const mm = modal('<h3>Fotografía · ' + esc(m.nombre) + '</h3><p>Anotá cuándo se hizo la última producción de fotos. La próxima se calcula sola (' + (F.meses === 1 ? '1 mes' : F.meses + ' meses') + ' después).</p>' +
+      '<label class="field"><span>¿Cuándo fue?</span><input type="date" id="ftF" value="' + hoy + '" max="' + hoy + '"></label>' +
+      '<label class="field"><span>Nota (opcional)</span><input id="ftN" maxlength="300" placeholder="Qué se fotografió, quién fue…"></label>' +
+      '<label class="check"><input type="checkbox" id="ftNo"' + (m.no ? ' checked' : '') + '> Esta marca no lleva fotografía (no avisar)</label>' +
+      (hist.length ? '<div class="field"><span>Ya anotadas</span><div class="ft-h">' + hist.map(h => '<div><b>' + dm(ymdD(h.f)) + '/' + h.f.slice(0, 4) + '</b><small>' + esc(h.por || '') + (h.nota ? ' · ' + esc(h.nota) : '') + '</small><button type="button" data-ft-b="' + esc(h.f) + '" title="Borrar esta fecha (si se anotó mal)">borrar</button></div>').join('') + '</div></div>' : '') +
+      '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Guardar</button></div>', async x => {
+      const no = $('#ftNo', x).checked, fecha = $('#ftF', x).value, nota = $('#ftN', x).value.trim();
+      if (!no && !fecha) throw new Error('Poné la fecha de la producción.');
+      if (!no && fecha > hoy) throw new Error('Esa fecha todavía no pasó: anotala cuando la producción ya esté hecha.');
+      await fotoGuardar(m, no ? { accion: 'noAplica', no: true } : { fecha, nota });
+      toast(no ? '✓ ' + esc(m.nombre) + ': marcada como "no lleva fotografía".' : '✓ ' + esc(m.nombre) + ': producción del ' + dm(ymdD(fecha)) + ' anotada. La próxima toca antes del ' + dm(fotoEstado({ ultima: fecha }, F.meses).prox) + '.');
+    });
+    mm.querySelectorAll('[data-ft-b]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'borrando…';
+      try { await fotoGuardar(m, { accion: 'borrar', fecha: b.dataset.ftB }); b.parentNode.remove(); toast('✓ Fecha borrada.'); } catch (e) { $('.err', mm).textContent = e.message; b.disabled = false; b.textContent = 'borrar'; }
+    });
+  }
+  async function fotoGuardar(m, cuerpo) {
+    const F = fotosData();
+    if (DEMO) {
+      if (cuerpo.accion === 'noAplica') m.no = cuerpo.no;
+      else if (cuerpo.accion === 'borrar') m.hist = (m.hist || []).filter(h => h.f !== cuerpo.fecha);
+      else { m.no = false; m.hist = (m.hist || []).filter(h => h.f !== cuerpo.fecha).concat([{ f: cuerpo.fecha, por: 'Vos', nota: cuerpo.nota }]); }
+      m.hist = (m.hist || []).sort((a, b) => b.f.localeCompare(a.f)); m.ultima = m.hist.length ? m.hist[0].f : ''; m.por = m.hist.length ? m.hist[0].por : ''; m.nota = m.hist.length ? m.hist[0].nota : '';
+    } else {
+      const r = await post(Object.assign({ action: 'fotoMarca', marca: m.slug, persona: S.data ? S.data.yo.clave : 'project' }, cuerpo));
+      if (r.error) throw new Error(r.mensaje || r.error);
+      if (r.fotos) { if (S.data) S.data.fotos = r.fotos; else if (S.proj) S.proj.fotos = r.fotos; }
+    }
+    render();
+  }
+
   /* ---------------- AGENDA PRIVADA (project y dirección) ----------------
      El calendario de ideamia.contacto, que solo ven Joaquín e Ivo. Pide la clave del project (no la del equipo).
      Muestra las reuniones de los próximos 45 días y deja agendar una nueva, que se crea sola en ese calendario. */
@@ -1507,9 +1586,10 @@
     // la misma navegación que el resto: pestañas arriba en la compu, barra abajo en el celular
     const sinTocar = (S.proj.personas || []).reduce((s, p) => s + ((p.inputs || {}).sinTocar || 0), 0);
     const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
-    const NAV = [['mio', 'Mi día', I.check, n], ['agenda', 'Agenda', I.cal, nAgp], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
+    const NAV = [['mio', 'Mi día', I.check, n], ['agenda', 'Agenda', I.cal, nAgp], ['fotos', 'Fotos', I.cam, fotosPend()], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
     const seg = S.movil ? '' : '<div class="seg proj-seg">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<em>' + x[3] + '</em>' : '') + '</button>').join('') + '</div>';
     const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
+    if (tab === 'fotos') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Fotografía <em>· por marca</em></h1><p>Cuándo fue la última producción de fotos de cada marca y cuándo toca la próxima.</p></div></section>' + seg + '<div class="view">' + vFotos() + '</div>' + bnav;
     if (tab === 'agenda') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Agenda <em>· privada</em></h1><p>Reuniones del calendario ideamia.contacto. Solo vos e Ivo.</p></div></section>' + seg + '<div class="view">' + vAgendaPriv() + '</div>' + bnav;
     if (tab === 'equipo' || tab === 'registro') return vistaEquipo(tab === 'registro').replace('</section>', '</section>' + seg) + bnav;
     const resumen = !D ? 'Tu tablero Project de Trello, en un vistazo.' : n ? 'Tenés <b>' + D.bandeja.length + '</b> en Bandeja para procesar y <b>' + D.hoy.length + '</b> que ' + (D.hoy.length === 1 ? 'vence' : 'vencen') + ' hoy o ya ' + (D.hoy.length === 1 ? 'venció' : 'vencieron') + '.' : 'Bandeja vacía y nada vence hoy. Bien ahí.';
@@ -1709,6 +1789,7 @@
   /* ---------------- interacción ---------------- */
   function bind(root) {
     agpBind(root);
+    root.querySelectorAll('[data-foto]').forEach(b => b.onclick = () => fotoAnotar(b.dataset.foto));
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
     // lista de marcas: se abre con el botón y se cierra al elegir o al tocar afuera

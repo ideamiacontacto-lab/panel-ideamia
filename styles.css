@@ -724,7 +724,7 @@ body{background:
 .revbox i{margin-left:auto;font-style:normal;color:var(--y)}
 @media(max-width:700px){.revbox{flex-wrap:wrap;gap:4px 10px}.revbox b{font-size:22px}}
 .rapidos.tres{grid-template-columns:repeat(3,1fr)}
-.ivo .bnav{grid-template-columns:repeat(4,1fr)}
+.ivo .bnav{grid-template-columns:repeat(5,1fr)}
 
 .rojo{color:var(--bad)!important}
 
@@ -1172,7 +1172,7 @@ select{color-scheme:dark}
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 /* ---- vista Project: barra de abajo en el celular, secciones y personas como carpetas ---- */
-.proj-bnav{grid-template-columns:repeat(4,1fr)!important}
+.proj-bnav{grid-template-columns:repeat(5,1fr)!important}
 .ppl{display:block}
 .eq-p{margin-bottom:10px}
 .eq-p .person{border:0;background:none;box-shadow:none;padding:2px 16px 16px;margin:0;border-top:1px solid var(--line)}
@@ -1360,3 +1360,28 @@ select{color-scheme:dark}
   .pz-za{width:38px;height:54px}
 }
 @media(max-width:900px){.pz-wide .dw{max-height:94vh}}
+
+/* ---------- fotografía: última producción de fotos por marca y cuándo toca la próxima ---------- */
+.ft-sts{grid-template-columns:repeat(4,1fr);margin-bottom:14px}
+.ft-sts .mio-st{cursor:default}
+.ft-l{display:flex;flex-direction:column;gap:8px}
+.ft-r{display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.ft-r.venc{border-color:rgba(255,107,107,.45)}
+.ft-r .dotm{flex:none}
+.ft-t{flex:1;min-width:0}
+.ft-t>b{font-family:var(--f-t);font-size:15px}
+.ft-m{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:4px;font-size:12.5px;color:var(--muted)}
+.ft-m b{color:var(--text);font-weight:600}
+.ft-n{font-size:12px;color:var(--dim);margin-top:3px}
+.ft-r .btn{flex:none}
+.mcar .ft-l{padding:10px 12px 12px}
+.ft-h div{display:flex;align-items:baseline;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:13.5px}
+.ft-h small{flex:1;min-width:0;color:var(--dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-transform:none;letter-spacing:0;font-size:12px}
+.ft-h button{color:var(--muted);font-size:12px;text-decoration:underline}
+@media(max-width:700px){
+  .ft-sts{display:grid!important;gap:6px}
+  .ft-sts .mio-st{padding:9px 4px 8px;align-items:center;text-align:center;border-radius:12px;min-width:0;flex:none}
+  .ft-sts .mio-st b{font-size:26px}.ft-sts .mio-st span{font-size:10.5px;font-weight:600}
+  .ft-r{align-items:flex-start;padding:12px}
+  .ivo .bnav span,.proj-bnav span{font-size:10px}
+}
