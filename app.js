@@ -727,8 +727,9 @@
       (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
       chks.map(k => '<div class="dw-l">Checklist · ' + esc(k.n) + ' <b>' + k.items.filter(x => x.ok).length + '/' + k.items.length + '</b></div><div class="pz-chk">' + k.items.map(x => '<div class="' + (x.ok ? 'ok' : '') + '"><i>' + (x.ok ? '✓' : '') + '</i><span>' + esc(x.n) + '</span></div>').join('') + '</div>').join('') +
       PZ_PIE_() + '</div><div class="pz-gal">' +
+      '<div class="pz-sub"><button class="btn ghost" id="pzsubir">＋ Subir imagen</button><input type="file" id="pzfile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><span id="pzsubq">Se sube a la tarjeta de Trello. PNG, JPG, GIF o WEBP, hasta 9 MB.</span></div>' +
       (adj.length ? '<div class="dw-l">Lo que cargaron</div><div class="pz-adj">' + adj.map((a, i) => {
-        const pie = '<div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span>' + (a.video ? '' : '<button class="pz-ver" data-pz-ver>Ver completa</button>') + '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" title="Abrir el archivo original en otra pestaña">original ↗</a></div>';
+        const pie = '<div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span>' + (a.video ? '' : '<button class="pz-ver" data-pz-ver>Ver completa</button>') + '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" title="Abrir el archivo original en otra pestaña">original ↗</a>' + (a.subido && a.id && a.card ? '<button class="pz-borrar" data-pz-borrar="' + esc(a.id) + '" data-card="' + esc(a.card) + '" data-nombre="' + esc(a.n) + '" title="Borrar este archivo de la tarjeta de Trello">Borrar</button>' : '') + '</div>';
         // con el puente de Cloudflare el archivo llega directo (sin login en Trello): video que se reproduce acá, imagen que se agranda al tocar
         if (a.src && a.video) return '<div class="pz-prev grande vid"><video controls playsinline preload="metadata" src="' + esc(a.src) + '"></video>' + pie + '</div>';
         if (a.src && (a.ver || /^image\//.test(a.mime))) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + ' directa"><img src="' + esc(a.src) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'sin\')">' + pie + '</div>';
@@ -782,6 +783,35 @@
       botones(true);
     };
     // vistas previas: el servidor baja cada archivo de Trello y lo devuelve como imagen; tocándola se ve en grande
+    // borrar un archivo de la tarjeta (pide confirmación: en Trello no se puede deshacer) y subir imágenes nuevas
+    b.querySelectorAll('[data-pz-borrar]').forEach(x => x.onclick = () => {
+      modal('<h3>¿Borrar "' + esc(x.dataset.nombre) + '"?</h3><p>Se borra de la tarjeta de Trello y <b>no se puede deshacer</b>. Si lo que querés es reemplazarla, subí primero la nueva.</p><div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Borrar de la tarjeta</button></div>', async () => {
+        if (!DEMO) await post({ action: 'borrarAdjunto', cardId: x.dataset.card, attId: x.dataset.pzBorrar, marca: c.m[0], nombre: c.n });
+        toast('✓ Archivo borrado de la tarjeta de Trello.');
+        if (DEMO) { const p = x.closest('.pz-prev'); if (p) p.remove(); } else abrirPieza(id);
+      });
+    });
+    const subir = $('#pzsubir'), archivo = $('#pzfile');
+    if (subir && archivo) {
+      subir.onclick = () => archivo.click();
+      archivo.onchange = async () => {
+        const files = [...archivo.files]; if (!files.length) return;
+        const q = $('#pzsubq'); subir.disabled = true; let ok = 0; const mal = [];
+        for (const f of files) {
+          if (!/^image\/(png|jpe?g|gif|webp)$/i.test(f.type)) { mal.push(f.name + ': solo imágenes PNG, JPG, GIF o WEBP'); continue; }
+          if (f.size > 9 * 1024 * 1024) { mal.push(f.name + ': pesa más de 9 MB, subila desde Trello'); continue; }
+          if (q) q.textContent = 'Subiendo ' + f.name + '… no cierres esta ventana.';
+          try {
+            const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('no pude leer el archivo')); fr.readAsDataURL(f); });
+            if (!DEMO) await post({ action: 'subirAdjunto', cardId: c.id, archivo: f.name, mime: f.type, data: data, marca: c.m[0], nombre: c.n });
+            ok++;
+          } catch (e) { mal.push(f.name + ': ' + e.message); }
+        }
+        subir.disabled = false; archivo.value = '';
+        toast((ok ? '✓ ' + ok + (ok === 1 ? ' imagen subida' : ' imágenes subidas') + ' a la tarjeta de Trello.' : '') + mal.map((m, i) => (ok || i ? '<br>' : '') + '✗ ' + esc(m)).join(''));
+        if (ok && !DEMO) abrirPieza(id); else if (q) q.textContent = DEMO && ok ? 'Modo demo: no se subió nada de verdad.' : 'Se sube a la tarjeta de Trello. PNG, JPG, GIF o WEBP, hasta 9 MB.';
+      };
+    }
     // tocar una imagen (o "Ver completa") la abre acá mismo, entera; adentro se pasa a la siguiente y se puede ver a tamaño real
     b.addEventListener('click', e => {
       const im = e.target.closest('.pz-prev img'), bt = e.target.closest('[data-pz-ver]');
