@@ -2927,6 +2927,32 @@ function doPost(e) {
         const orig = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(String(b.origUrl || ''));
         return json_({ ok: true, pieza: ver(b.cardId), original: orig ? ver(orig[1]) : null });
       }
+      case 'borrarAdjunto': { // quien revisa borra un archivo de la tarjeta (en Trello no se puede deshacer)
+        const yoA = catalogo_().equipo.filter(p => p.clave === norm_(quien))[0];
+        if (!yoA || !/project|direcc|creativ/i.test(yoA.rol)) return json_({ error: 'permiso', mensaje: 'Solo dirección y el project pueden borrar archivos de una tarjeta' });
+        if (!b.cardId || !b.attId) return json_({ error: 'datos', mensaje: 'Falta la tarjeta o el archivo' });
+        // se comprueba que el archivo sea de esa tarjeta antes de borrarlo
+        const a = trello_('/cards/' + b.cardId + '/attachments/' + b.attId, { fields: 'name,isUpload' });
+        if (!a || !a.id) return json_({ error: 'datos', mensaje: 'Ese archivo ya no está en la tarjeta' });
+        trello_('/cards/' + b.cardId + '/attachments/' + b.attId, null, 'delete');
+        registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, 'borró archivo', String(b.nombre || '').slice(0, 80) + ' · ' + String(a.name || '').slice(0, 120), '');
+        return json_({ ok: true, pasos: ['Archivo "' + String(a.name || '').slice(0, 60) + '" borrado de la tarjeta de Trello'] });
+      }
+      case 'subirAdjunto': { // quien revisa sube una imagen a la tarjeta (a la original si la de Diseño/Producción es un espejo, que es la que se ve en Trello)
+        const yoS = catalogo_().equipo.filter(p => p.clave === norm_(quien))[0];
+        if (!yoS || !/project|direcc|creativ/i.test(yoS.rol)) return json_({ error: 'permiso', mensaje: 'Solo dirección y el project pueden subir archivos a una tarjeta' });
+        const mime = String(b.mime || ''), nombreA = String(b.archivo || 'imagen').replace(/[\/:*?"<>|]+/g, ' ').slice(0, 120);
+        if (!b.cardId || !b.data) return json_({ error: 'datos', mensaje: 'Falta la tarjeta o el archivo' });
+        if (!/^image\/(png|jpe?g|gif|webp)$/i.test(mime)) return json_({ error: 'datos', mensaje: 'Solo se pueden subir imágenes (PNG, JPG, GIF o WEBP)' });
+        const bytes = Utilities.base64Decode(String(b.data));
+        if (bytes.length > 9.5 * 1024 * 1024) return json_({ error: 'datos', mensaje: 'La imagen pesa más de 9 MB: subila desde Trello' });
+        const destino = tarjetaQueSeVe_(b.cardId), kT = P.getProperty('TRELLO_KEY'), tkT = P.getProperty('TRELLO_TOKEN');
+        PEDIDOS_++;
+        const r = UrlFetchApp.fetch('https://api.trello.com/1/cards/' + destino + '/attachments?key=' + encodeURIComponent(kT) + '&token=' + encodeURIComponent(tkT), { method: 'post', payload: { name: nombreA, file: Utilities.newBlob(bytes, mime, nombreA) }, muteHttpExceptions: true });
+        if (r.getResponseCode() >= 300) return json_({ error: 'trello', mensaje: 'Trello no aceptó la imagen (' + r.getResponseCode() + '): ' + r.getContentText().replace(/[A-Za-z0-9]{28,}/g, '…').slice(0, 150) });
+        registrar_(quien, 'revision', 'card:' + b.cardId, b.marca, 'subió archivo', String(b.nombre || '').slice(0, 80) + ' · ' + nombreA, '');
+        return json_({ ok: true, pasos: ['Imagen "' + nombreA.slice(0, 60) + '" subida a la tarjeta de Trello'] });
+      }
       case 'adjunto': { // previsualización de un archivo subido a Trello (Trello no lo muestra sin estar logueado): se baja con la clave y va como imagen
         const k = P.getProperty('TRELLO_KEY'), tk = P.getProperty('TRELLO_TOKEN');
         const a = trello_('/cards/' + b.cardId + '/attachments/' + b.attId, { fields: 'name,url,mimeType,isUpload,bytes,previews' });
