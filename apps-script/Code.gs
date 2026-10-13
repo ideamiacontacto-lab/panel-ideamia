@@ -131,6 +131,7 @@ const TABS = {
     ['IA_MAX_POR_CORRIDA', '6', 'Cuántas tarjetas nuevas lee la IA por actualización (cada lectura ~US$ 0,003)'],
     ['IA_MAX_POR_MES', '150', 'Tope de lecturas automáticas por mes (150 ≈ US$ 0,50)'],
     ['CAL_EXCLUIR', 'finanzas,cobro,factura,ipc,ajuste,propiedad', 'Eventos del calendario que no ve el equipo'],
+    ['DISENO_FUERA', 'upper', 'Marcas cuyo diseño no lo revisa el estudio: su tablero de Diseño no aparece en el panel (separadas por coma)'],
     ['CAL_EQUIPO', 'reporte,entrega quincenal,reels,guion,guiones,revision,reunion ideamia,brainstorming', 'Eventos generales que ve todo el equipo (lo que no nombra persona ni marca y no está acá, solo lo ve el project)'],
     ['CAL_OTROS_NOMBRES', 'zaira,fede,lu,bauti,luisi,juan', 'Otros colaboradores: los eventos que los nombran (y no a vos) no aparecen'],
     ['LINK_REPORTES', 'https://ideamiacontacto-lab.github.io/reportes-ideamia/', ''],
@@ -387,12 +388,16 @@ function catLista_(nombre) {
 function leerTrello_(cat) {
   const boards = trello_('/members/me/boards', { filter: 'open', fields: 'name,shortUrl' });
   const elegidos = [];
+  // marcas cuyo diseño no lo hace ni lo revisa el estudio: su tablero de Diseño existe en Trello pero el panel no lo mira
+  // (no aparece en la revisión de dirección ni en los avisos). Config DISENO_FUERA, separadas por coma; por defecto Upper.
+  const cfgT = config_(), fuera = marcasEn_(String(cfgT.DISENO_FUERA == null || cfgT.DISENO_FUERA === '' ? 'upper' : cfgT.DISENO_FUERA).replace(/,/g, ' '), cat.marcas);
   boards.forEach(b => {
     const tipo = tipoTablero_(b.name);
     const esProject = norm_(b.name) === 'project';
     if (!tipo && !esProject) return;
     const marcas = esProject ? [] : marcasEn_(b.name.replace(/^\S+\s*/, ''), cat.marcas);
     if (!esProject && !marcas.length) return;
+    if (tipo === 'diseno' && fuera.indexOf(marcas[0]) >= 0) return;
     elegidos.push({ id: b.id, nombre: b.name, url: b.shortUrl, tipo: esProject ? 'project' : tipo, marca: marcas[0] || '' });
   });
   // Lectura unida: un solo pedido por tablero (listas, etiquetas y tarjetas juntas) en vez de dos. Se enciende sola cuando
