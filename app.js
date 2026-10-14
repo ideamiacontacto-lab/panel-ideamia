@@ -237,9 +237,11 @@
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa(), film = esFilm();
     // filmmaker: solo Mi semana y Discord
-    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'anual', 'discord'];
+    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
-    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord' && S.tab !== 'anual') S.tab = 'hoy';
+    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
+    // el calendario anual es solo de social media, dirección y project: si no llegó, la pestaña no existe
+    if (S.tab === 'anual' && !S.data.anual) S.tab = film ? 'film' : 'hoy';
     // la agenda privada (ideamia.contacto) y Fotos son solo del project y dirección: a nadie más se le abren, aunque la pestaña haya quedado guardada en este navegador
     if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
     if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual'].indexOf(S.tab) < 0) S.tab = 'revision';
@@ -250,7 +252,7 @@
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
-    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
@@ -632,7 +634,7 @@
       if (!c.due || !pasa(c.m) || c.cat === 'efem') return;
       if (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project') items.push({ d: new Date(c.due), h: 'vence', x: '<button class="lnk" data-card-det="' + esc(c.id) + '">' + esc(c.n) + '</button> <span class="k">· ' + esc(c.cat === 'corr' ? 'corrección' : c.lista) + '</span>', k: tagM(c.m[0]), cl: 'card', tipo: 'card' });
     });
-    proximasFechas(dias || 14).forEach(f => items.push({ d: f.d, h: f.tipo === 'feriado' ? '★' : '✦', x: '<button class="lnk" data-fecha="' + esc(fkey(f)) + '">' + esc(f.n) + '</button>' + (f.tipo === 'sugerida' ? ' <span class="pill">sugerida</span>' : f.tipo === 'trello' && !f.enCalendario ? ' <span class="pill warn">no está en el calendario</span>' : ''), k: f.marcas.length ? (f.marcas.length > 2 ? '<span class="k">' + f.marcas.length + ' marcas</span>' : f.marcas.map(tagM).join(' ')) : '<span class="k">feriado</span>', cl: f.tipo === 'feriado' ? 'fer' : f.tipo === 'sugerida' ? 'sug' : 'efem', tipo: 'fecha' }));
+    proximasFechas(dias || 14).forEach(f => items.push({ d: f.d, h: f.tipo === 'feriado' ? '★' : '✦', x: '<button class="lnk" data-fecha="' + esc(fkey(f)) + '">' + esc(f.n) + '</button>' + (f.tipo === 'sugerida' ? ' <span class="pill">sugerida</span>' : f.tipo === 'trello' && !f.enCalendario ? ' <span class="pill warn">no está en el calendario</span>' : ''), k: f.marcas.length ? (f.marcas.length > 2 ? '<span class="k">' + f.marcas.length + ' marcas</span>' : f.marcas.map(tagM).join(' ')) : '<span class="k">feriado</span>', cl: f.tipo === 'feriado' ? 'fer' : f.tipo === 'sugerida' ? 'sugr' : 'efem', tipo: 'fecha' }));
     D.reuniones.forEach(r => { if (hecho(r) && r.estado.detalle && pasa(r.marca || S.marca)) { const det = r.estado.detalle; items.push({ d: ymdD(det.slice(0, 10)), h: det.slice(11, 16) || '—', x: esc(r.nombre), k: tagM(r.marca) || '<span class="k">reunión</span>', cl: '', tipo: 'reunion' }); } });
     return items;
   }
@@ -1243,7 +1245,7 @@
     for (let i = 0; i < 14; i++) dias.push(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + i));
     const items = itemsAgenda(14);
     const atras = items.filter(it => diasA(it.d) < 0 && it.cl === 'card');
-    return '<p class="leyenda"><span class="lg efem">✦ Fecha del calendario anual</span><span class="lg sug">✦ Fecha sugerida por rubro</span><span class="lg fer">★ Feriado</span><span class="lg">Tocá cualquier fecha o tarjeta para ver el detalle</span></p>' +
+    return '<p class="leyenda"><span class="lg efem">✦ Fecha del calendario anual</span><span class="lg sugr">✦ Fecha sugerida por rubro</span><span class="lg fer">★ Feriado</span><span class="lg">Tocá cualquier fecha o tarjeta para ver el detalle</span></p>' +
       (atras.length ? '<div class="day today"><div class="dd">!<small>vencidas</small></div><div>' + atras.map(it => '<div class="ag card"><span class="h">' + cuando(it.d) + '</span><span class="x">' + it.x + '</span>' + it.k + '</div>').join('') + '</div></div>' : '') +
       // hoy y mañana a la vista; el resto de la semana y lo de más adelante, en carpetas (para no tener que bajar tanto)
       (() => {
@@ -1915,7 +1917,7 @@
     });
     root.querySelectorAll('[data-fechas]').forEach(b => b.onclick = () => {
       const fs = proximasFechas(45);
-      panelLateral('Fechas que se vienen · 45 días', fs.length ? fs.map(f => '<div class="ag ' + (f.tipo === 'feriado' ? 'fer' : f.tipo === 'sugerida' ? 'sug' : 'efem') + '"><span class="h">' + corto(f.d) + '</span><span class="x"><button class="lnk" data-fecha="' + esc(fkey(f)) + '">' + esc(f.n) + '</button>' + (f.tipo === 'sugerida' ? ' <span class="pill">sugerida</span>' : '') + '</span>' + (f.marcas.length > 2 ? '<span class="k">' + f.marcas.length + ' marcas</span>' : f.marcas.map(tagM).join(' ')) + '</div>').join('') : '<div class="empty">No hay fechas en los próximos 45 días.</div>');
+      panelLateral('Fechas que se vienen · 45 días', fs.length ? fs.map(f => '<div class="ag ' + (f.tipo === 'feriado' ? 'fer' : f.tipo === 'sugerida' ? 'sugr' : 'efem') + '"><span class="h">' + corto(f.d) + '</span><span class="x"><button class="lnk" data-fecha="' + esc(fkey(f)) + '">' + esc(f.n) + '</button>' + (f.tipo === 'sugerida' ? ' <span class="pill">sugerida</span>' : '') + '</span>' + (f.marcas.length > 2 ? '<span class="k">' + f.marcas.length + ' marcas</span>' : f.marcas.map(tagM).join(' ')) + '</div>').join('') : '<div class="empty">No hay fechas en los próximos 45 días.</div>');
     });
   }
 
