@@ -158,7 +158,7 @@
       else if (g.gest === 'revisar') out.push(Object.assign(base, { t: 'Guion listo para revisar: ' + g.n, meta: ['verlo en la reunión del ' + dm(proxLunes()), 'Guiones · listos para revisión'], u: 2 }));
     });
     // piezas que están pendientes en Diseño o Producción y no tienen fecha de salida en SCL: hay que decidir qué se hace con ellas
-    D.cards.filter(c => c.cat === 'sinfecha').forEach(c => out.push({ k: 'sf:' + c.id, tipo: 'guion', sub: c.formato === 'reel' || c.formato === 'video' || c.formato === 'historia' ? 'sfvid' : 'sfdis', marca: c.m[0], obj: c, url: c.ourl || c.url, t: (c.formato === 'reel' || c.formato === 'video' ? 'Reel' : c.formato === 'historia' ? 'Historia' : 'Diseño') + ' sin fecha: ' + c.n, meta: ['<span class="pill warn">¿qué hacemos con esto?</span>', 'ponele fecha en SCL, pasalo a "Para más adelante" o archivalo'], u: 2 }));
+    D.cards.filter(c => c.cat === 'sinfecha').forEach(c => out.push({ k: 'card:' + c.id, tipo: 'guion', sub: c.formato === 'reel' || c.formato === 'video' || c.formato === 'historia' ? 'sfvid' : 'sfdis', marca: c.m[0], obj: c, url: c.ourl || c.url, t: (c.formato === 'reel' || c.formato === 'video' ? 'Reel' : c.formato === 'historia' ? 'Historia' : 'Diseño') + ' sin fecha: ' + c.n, meta: ['<span class="pill warn">¿qué hacemos con esto?</span>', 'ponele fecha en SCL, pasalo a "Para más adelante" o archivalo'], u: 2 }));
     // cumpleaños de hoy y de mañana (tarjeta "Cumpleaños" de la lista Datos de la marca)
     Object.keys((D.anual || {}).marcas || {}).forEach(s => (D.anual.marcas[s].items || []).filter(x => x.nivel === 5).forEach(x => {
       const n = diasA(new Date(NOW.getFullYear(), x.mes, x.dia));
@@ -390,7 +390,8 @@
     else if (x.tipo === 'input') accion = '<button class="btn" data-det-input="' + esc(x.obj.id) + '">Revisar</button>';
     else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
     else if (x.enlace) accion = botonEnlace(x.enlace, [x.marca]);
-    const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || x.tipo === 'guion')
+    // las piezas sin fecha se pueden tildar como resueltas (queda guardado como cualquier tarjeta); los guiones y cumpleaños solo informan
+    const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || (x.tipo === 'guion' && !/^sf/.test(x.sub || '')))
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : x.sub === 'sfvid' ? I.reel : x.sub === 'sfdis' ? I.grid : x.sub === 'cum' ? I.star : x.tipo === 'guion' ? I.pen : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
     return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div class="acc">' + (!done && x.k && !esRevisa() ? '<button class="star' + (esPrio(x.k) ? ' on' : '') + '" data-star="' + esc(x.k) + '" title="Prioridad de hoy">' + (esPrio(x.k) ? '★' : '☆') + '</button>' : '') + accion + '</div></div>';
