@@ -672,6 +672,7 @@ function actualizar(desdeWeb) {
     }
     // filtro de CM y privados de Discord (antes de guardar: así la foto ya refleja a qué lista fue cada pieza). Si falla, no corta la actualización.
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
+    try { adsPedidosAvisar_(cfg); } catch (e) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
     try { tareasDelMesEnviar_(cat, cfg, snap); } catch (e) {}
     // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
@@ -2818,6 +2819,58 @@ function fotoMarca_(b, quien) {
     guardarJson_('FOTOS_FILE_ID', 'panel-ideamia-fotos.json', g);
   } finally { lock.releaseLock(); }
   return { ok: true, fotos: fotosSalida_(cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre }))) };
+}
+
+/* ---------------- pedidos nuevos en el tablero ADS → privado a Juan Escalante (paid media) ----------------
+   En cada actualización (cada 10 min) se mira la lista "Pedidos / Solicitudes" del tablero ADS. Cada tarjeta que aparece ahí
+   (cargada, copiada o movida desde otro tablero) se le avisa a Juan por privado UNA sola vez. La primera vez solo toma nota de
+   lo que ya había. Fuera de horario (antes de las 8 o después de las 21) espera y lo manda a la mañana.
+   Config: ADS_LISTA (id de la lista, por defecto la de "Pedidos / Solicitudes") y DISCORD_ID_JUAN (si no está, lo busca en Discord). */
+const ADS_LISTA_ = '6a5163d017b9a3aed8e61fe7';
+function idJuanAds_(cfg) {
+  const c = String(cfg.DISCORD_ID_JUAN || P.getProperty('JUAN_ID') || '').trim();
+  if (/^\d{15,22}$/.test(c)) return c;
+  const puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE'), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  if (!puente || !clave || !guild) return '';
+  const vistos = [];
+  ['escalante', 'juan'].some(q => {
+    PEDIDOS_++;
+    const r = UrlFetchApp.fetch(puente + '/api/v10/guilds/' + guild + '/members/search?query=' + q + '&limit=25', { headers: { 'x-clave': clave }, muteHttpExceptions: true });
+    (r.getResponseCode() < 300 ? JSON.parse(r.getContentText()) : []).forEach(m => { if (m.user && !m.user.bot) vistos.push({ id: m.user.id, txt: [m.user.username, m.user.global_name, m.nick].join(' ').toLowerCase() }); });
+    return vistos.some(v => /escalante/.test(v.txt));
+  });
+  const juan = vistos.filter(v => /escalante/.test(v.txt))[0];
+  if (juan) P.setProperty('JUAN_ID', juan.id);
+  return juan ? juan.id : '';
+}
+function adsPedidosArmar_(cfg) {
+  const lista = String(cfg.ADS_LISTA || ADS_LISTA_).trim();
+  const cards = trello_('/lists/' + lista + '/cards', { fields: 'name,shortUrl,due,labels,desc' });
+  const prop = P.getProperty('ADS_AVISADOS'), ya = {}; (prop || '').split(',').forEach(x => { if (x) ya[x] = 1; });
+  const nuevos = prop == null ? [] : cards.filter(c => !ya[c.id]);
+  const lineas = nuevos.map(c => '• **' + String(c.name).slice(0, 100) + '**' + ((c.labels || []).filter(l => l.name).length ? ' · ' + c.labels.filter(l => l.name).map(l => l.name).join(', ') : '') + (c.due ? ' · para el ' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM') : '') + ' · ' + c.shortUrl);
+  const textos = nuevos.length ? trozos_('Hola Juan. ' + (nuevos.length === 1 ? 'Te cargaron un pedido nuevo' : 'Te cargaron ' + nuevos.length + ' pedidos nuevos') + ' en el tablero de ADS:', lineas) : [];
+  return { cards: cards, nuevos: nuevos, primera: prop == null, textos: textos };
+}
+function adsPedidosAvisar_(cfg) {
+  const h = hoyAR_().getHours();
+  if (/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) return;
+  const r = adsPedidosArmar_(cfg);
+  const guardar = ids => P.setProperty('ADS_AVISADOS', ids.join(',').slice(0, 8800));
+  if (r.primera) { guardar(r.cards.map(c => c.id)); return; }
+  if (!r.nuevos.length || h < 8 || h >= 21) return;
+  const id = idJuanAds_(cfg);
+  if (!id) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · no encuentro a Juan Escalante en Discord: cargá DISCORD_ID_JUAN en Config'); return; }
+  try { r.textos.forEach(t => discordPrivado_(id, t)); guardar(r.cards.map(c => c.id)); P.deleteProperty('ADS_NOTA'); }
+  catch (e) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · ' + String(e.message).replace(/[A-Za-z0-9_.-]{24,}/g, '…').slice(0, 200)); }
+}
+/* PRUEBA sin efectos: qué hay en la lista de pedidos de ADS, cuáles serían nuevos y si encuentra a Juan en Discord. No manda nada. */
+function probarAvisoAds() {
+  const cfg = config_(), r = adsPedidosArmar_(cfg);
+  console.log('Pedidos en la lista: ' + r.cards.length + (r.primera ? ' · es la PRIMERA vez: se toma nota de estos y se avisa solo de los que entren después' : ' · nuevos sin avisar: ' + r.nuevos.length));
+  r.cards.slice(0, 15).forEach(c => console.log('   ' + c.name + ' · ' + c.shortUrl));
+  console.log('Juan en Discord: ' + (idJuanAds_(cfg) ? 'encontrado' : 'NO encontrado (cargar DISCORD_ID_JUAN en Config)') + ' · nota: ' + (P.getProperty('ADS_NOTA') || 'ninguna'));
+  r.textos.forEach(t => console.log('→ ' + t));
 }
 
 function doGet(e) {
