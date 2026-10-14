@@ -951,7 +951,7 @@ function panel_(personaClave, ctx) {
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
-    anual: esFilm || (esRevisa && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy, snap),
+    anual: anualSalida_(ctx.anual, misMarcas, hoy, snap), // calendario anual de sus marcas: lo ven todos (social media, CM, filmmaker y dirección)
     film: esFilm ? Object.assign(filmSalida_(film, yo, hoy), { todas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) }) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: ((ctx.discord.porPersona || {})[yo.clave] || []).filter(m => (!m.marca || misMarcas.some(x => x.slug === m.marca)) && new Date(m.fecha).getTime() > Date.now() - 3 * 864e5) /* solo sus marcas y los canales generales, de los últimos 3 días */, conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
@@ -1139,7 +1139,8 @@ function vistaProject_() {
   // su propio tablero: si Trello falla, la vista del equipo se sigue viendo y "Mi día" muestra el motivo
   let mio; try { mio = miTablero_(); } catch (e) { mio = { error: String(e.message || e).slice(0, 200) }; }
   let fotos = null; try { fotos = fotosSalida_(marcas); } catch (e) {}
-  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas, mio, fotos };
+  let anual = null; try { anual = anualSalida_(leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), marcas, hoy, leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json')); } catch (e) {}
+  return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas, mio, fotos, anual };
 }
 
 /* ---------------- "Mi día" del project: su tablero Project de Trello, leído en vivo ----------------
