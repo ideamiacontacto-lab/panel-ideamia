@@ -1608,7 +1608,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     // que arma el aviso del canal): así el canal y el privado dicen lo mismo. Nada de pedidos extra, urgentes ni correcciones.
     if (typeof avisosDisenoArmar_ === 'function' && typeof AV_MARCAS !== 'undefined') {
       const hoyD = o.ahora || hoyAR_(), partesDe = {}, sumar = (id, bloque) => (partesDe[id] = partesDe[id] || []).push(bloque);
-      // a) el día después de cada entrega (martes y jueves, lo define Avisos.gs): RESUMEN por marca de lo que faltó, sin listar cada tarjeta
+      // a) el día después de cada entrega (martes y viernes, lo define Avisos.gs): RESUMEN por marca de lo que faltó, sin listar cada tarjeta
       //    ("TRITATO: 2 · 1 historia y 1 carrusel"). El detalle, tarjeta por tarjeta, ya sale en el canal de la marca.
       const tipoD = t => { const n = norm_(t); return /histori/.test(n) ? 'historia' : /carrusel/.test(n) ? 'carrusel' : /reel|video/.test(n) ? 'reel' : 'placa'; };
       const plD = { historia: 'historias', carrusel: 'carruseles', reel: 'reels', placa: 'placas' }, resumen = {};
@@ -1762,7 +1762,7 @@ function probarPrivados() {
   console.log('NOTAS: ' + (r.notas.join(' | ') || 'ninguna'));
   console.log('PRIVADOS QUE SALDRÍAN HOY (' + r.msgs.length + '):');
   r.msgs.forEach(m => console.log('→ ' + m.para + ' (' + m.texto.length + ' caracteres)\n' + m.texto));
-  [['martes', dia(2)], ['jueves', dia(4)]].forEach(p => {
+  [['martes', dia(2)], ['viernes', dia(5)]].forEach(p => {
     const d = privadosArmar_({ cards: snap.cards.filter(c => c.tipo !== 'cm' && c.cat !== 'input'), tableros: snap.tableros }, cat, cfg, { dry: true, diarios: true, ahora: p[1] });
     console.log('DIARIOS de un ' + p[0] + ' (' + ymd_(p[1]) + '): ' + d.msgs.map(m => m.para + ' ' + m.texto.length + ' car.').join(' · '));
   });
@@ -1977,17 +1977,17 @@ function pruebaMuestras() {
     suma('privado a ' + nombreDe_(k), 'En el momento en que le cargan un input con etiqueta Urgente. Una sola vez por input.' + (L.length ? '' : ' Hoy no tiene ninguno: va con datos de ejemplo.'),
       'Hola ' + nombreDe_(k) + '. Por favor mirá ' + (lineas.length === 1 ? 'este input que te cargaron' : 'estos ' + lineas.length + ' inputs que te cargaron') + ':\n' + lineas.join('\n') + '\nCuando lo veas, marcalo en el panel: ' + panel);
   });
-  // 3 y 4) diseñadoras: lo que faltó de la entrega de ayer (martes y jueves)
+  // 3 y 4) diseñadoras: lo que faltó de la entrega de ayer (martes y viernes)
   const sinCM = { cards: snap.cards.filter(c => c.tipo !== 'cm' && c.cat !== 'input'), tableros: snap.tableros };
-  [['martes', dia(2)], ['jueves', dia(4)]].forEach(p => {
+  [['martes', dia(2)], ['viernes', dia(5)]].forEach(p => {
     const d = privadosArmar_(sinCM, cat, cfg, { dry: true, diarios: true, ahora: p[1] }).msgs.filter(m => m.para === 'luisi' || m.para === 'zaira');
     ['luisi', 'zaira'].forEach(k => {
       if (M.some(x => x.indexOf('privado a ' + nombreDe_(k)) > 0)) return;
       const m = d.filter(x => x.para === k)[0];
-      if (m) suma('privado a ' + nombreDe_(k), 'Martes y jueves a la mañana (el día después de cada entrega), solo si le faltó entregar algo. Datos de un ' + p[0] + '.', m.texto);
+      if (m) suma('privado a ' + nombreDe_(k), 'Martes y viernes a la mañana (el día después de cada entrega), solo si le faltó entregar algo. Datos de un ' + p[0] + '.', m.texto);
     });
   });
-  ['luisi', 'zaira'].forEach(k => { if (!M.some(x => x.indexOf('privado a ' + nombreDe_(k)) > 0)) suma('privado a ' + nombreDe_(k), 'Martes y jueves a la mañana, solo si le faltó entregar algo. Hoy no le falta nada: va con datos de ejemplo.',
+  ['luisi', 'zaira'].forEach(k => { if (!M.some(x => x.indexOf('privado a ' + nombreDe_(k)) > 0)) suma('privado a ' + nombreDe_(k), 'Martes y viernes a la mañana, solo si le faltó entregar algo. Hoy no le falta nada: va con datos de ejemplo.',
     'Hola. Esto quedó sin entregar de la entrega de ayer (también está en el canal de cada marca):\n**(MARCA)**\n• **(nombre del diseño)** · sale el dd/mm · (link)'); });
   // 5 y 6) filmmaker: piezas atrasadas y recordatorio de la reunión a la que no fue
   const atr = atrasadasFilm_(snap, filmConfig_(cfg, cat)).slice(0, 4);
@@ -2457,10 +2457,10 @@ function probarCalendarioAnual() {
    No pide clave: solo devuelve tarjetas con fecha de publicación de esa marca (título, copy, adjuntos y estado), nunca comentarios
    ni otras marcas. Se guarda 10 minutos en caché para no pegarle a Trello en cada visita. */
 function entregaDiseno_(salida) {
-  // Las diseñadoras entregan en tandas: lunes (lo que sale lun–mié de la semana siguiente) y miércoles (lo que sale jue–dom).
+  // Las diseñadoras entregan en tandas: lunes (lo que sale lun–mié de la semana siguiente) y jueves (lo que sale jue–dom de la semana siguiente).
   const d = new Date(Utilities.formatDate(new Date(salida), TZ, "yyyy-MM-dd'T'12:00:00"));
   const dia = d.getDay() || 7, lunes = new Date(d.getTime() - (dia - 1) * 864e5);
-  return new Date(lunes.getTime() - 7 * 864e5 + (dia <= 3 ? 0 : 2) * 864e5);
+  return new Date(lunes.getTime() - 7 * 864e5 + (dia <= 3 ? 0 : 3) * 864e5);
 }
 function vistaCliente_(marca, dias) {
   marca = norm_(marca).replace(/[^a-z0-9]+/g, '-'); dias = Math.min(Math.max(Number(dias) || 15, 1), 31);
