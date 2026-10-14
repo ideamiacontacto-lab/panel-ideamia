@@ -237,12 +237,12 @@
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa(), film = esFilm();
     // filmmaker: solo Mi semana y Discord
-    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
+    const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'anual', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
-    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
+    if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord' && S.tab !== 'anual') S.tab = 'hoy';
     // la agenda privada (ideamia.contacto) y Fotos son solo del project y dirección: a nadie más se le abren, aunque la pestaña haya quedado guardada en este navegador
     if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
-    if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos'].indexOf(S.tab) < 0) S.tab = 'revision';
+    if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
@@ -250,8 +250,8 @@
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
-    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
-      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
+    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
     const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
@@ -1285,9 +1285,9 @@
   /* ---------------- CALENDARIO ANUAL por marca ----------------
      El calendario anual de cada marca (el documento que está en Recursos Corporativos del SCL), mes por mes desde hoy. */
   function vAnual() {
-    const A = (S.data.anual || {}).marcas || {};
+    const SD = S.data || S.proj || {}, A = (SD.anual || {}).marcas || {};
     const NIV = { 0: ['Reunión de equipo', ''], 1: ['Campaña mayor', 'bad'], 2: ['Campaña especial', 'warn'], 3: ['Publicación o historias', 'ok'], 4: ['Mención', ''], 5: ['🎂 Cumpleaños', 'y'] };
-    const slugs = S.data.marcas.map(m => m.slug).filter(s => pasa([s]));
+    const slugs = S.data ? S.data.marcas.map(m => m.slug).filter(s => pasa([s])) : (SD.marcas || []).map(m => m.slug);
     const mesHoy = NOW.getMonth(), dd = n => ('0' + n).slice(-2), MES = MESES.map(m => m.charAt(0).toUpperCase() + m.slice(1));
     const primera = slugs.filter(x => A[x] && A[x].items && A[x].items.length)[0];
     const bloque = s => {
@@ -1623,9 +1623,10 @@
     // la misma navegación que el resto: pestañas arriba en la compu, barra abajo en el celular
     const sinTocar = (S.proj.personas || []).reduce((s, p) => s + ((p.inputs || {}).sinTocar || 0), 0);
     const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
-    const NAV = [['mio', 'Mi día', I.check, n], ['agenda', 'Agenda', I.cal, nAgp], ['fotos', 'Fotos', I.cam, fotosPend()], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
+    const NAV = [['mio', 'Mi día', I.check, n], ['agenda', 'Agenda', I.cal, nAgp], ['fotos', 'Fotos', I.cam, fotosPend()], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
     const seg = S.movil ? '' : '<div class="seg proj-seg">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<em>' + x[3] + '</em>' : '') + '</button>').join('') + '</div>';
     const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
+    if (tab === 'anual') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Calendario <em>· anual</em></h1><p>Las fechas del calendario anual de cada marca, mes por mes desde hoy.</p></div></section>' + seg + '<div class="view">' + vAnual() + '</div>' + bnav;
     if (tab === 'fotos') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Fotografía <em>· por marca</em></h1><p>Cuándo fue la última producción de fotos de cada marca y cuándo toca la próxima.</p></div></section>' + seg + '<div class="view">' + vFotos() + '</div>' + bnav;
     if (tab === 'agenda') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Agenda <em>· privada</em></h1><p>Reuniones del calendario ideamia.contacto. Solo vos e Ivo.</p></div></section>' + seg + '<div class="view">' + vAgendaPriv() + '</div>' + bnav;
     if (tab === 'equipo' || tab === 'registro') return vistaEquipo(tab === 'registro').replace('</section>', '</section>' + seg) + bnav;
