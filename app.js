@@ -240,7 +240,8 @@
     const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
     if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
-    if (!esRevisa() && S.tab === 'fotos') S.tab = film ? 'film' : 'hoy';
+    // la agenda privada (ideamia.contacto) y Fotos son solo del project y dirección: a nadie más se le abren, aunque la pestaña haya quedado guardada en este navegador
+    if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
     if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
@@ -352,7 +353,7 @@
     if (D || S.proj) {
       const yo = D ? D.yo : { nombre: 'Project', rol: 'Project' };
       w.innerHTML = '<b>' + esc(yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · cambiar</span>'; w.classList.remove('hidden');
-      w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
+      w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; AGP.data = null; AGP.error = ''; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
     }
     const gen = (D && ((D.estadoDatos || {}).generado || D.generado)) || (!D && S.proj && S.proj.mio && S.proj.mio.leido) || null;
     $('#sync').innerHTML = (gen ? '<span class="txt' + (datosViejos() || S.falloCarga ? ' viejo' : '') + '">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Leer Trello ahora (tarda ~1 minuto)">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
@@ -1517,7 +1518,7 @@
     try {
       if (DEMO) AGP.data = agpDemo();
       else {
-        const j = await get({ action: 'agenda', k: S.pkey });
+        const j = await get({ action: 'agenda', k: S.pkey, p: S.data ? S.data.yo.clave : 'project' });
         if (j.error === 'clave') { S.pkey = ''; LS.set('pkey', ''); AGP.data = null; AGP.error = 'Esa no es la clave del project. Probá de nuevo.'; }
         else if (j.error) AGP.error = j.mensaje || j.error;
         else AGP.data = j;
@@ -1526,6 +1527,7 @@
     AGP.cargando = false; render();
   }
   function vAgendaPriv() {
+    if (!DEMO && S.data && !esRevisa()) { AGP.data = null; return '<div class="empty">Esta pantalla es solo para el project y dirección.</div>'; }
     const que = '<p class="mio-que">Calendario <b>ideamia.contacto</b>: solo lo ven Joaquín e Ivo (pide la clave del project). Lo que agendes acá se crea en Google Calendar y les llega la invitación a quienes elijas.</p>';
     if (!DEMO && !S.pkey) return que + '<div class="agp-key"><label class="field"><span>Clave del project</span><input type="password" id="agpK" autocomplete="off" placeholder="La misma con la que se entra a la vista Project"></label><button class="btn y" data-agp-key>Entrar a la agenda</button>' + (AGP.error ? '<div class="err">' + esc(AGP.error) + '</div>' : '') + '<p class="ayuda">Se pide una sola vez en este dispositivo.</p></div>';
     if (!AGP.data && !AGP.error) { if (!AGP.cargando) setTimeout(agpCargar, 0); return que + '<div class="loading"><b>Cargando</b>Leyendo el calendario…</div>'; }
@@ -2182,7 +2184,7 @@
       if (e.gate) { if (ck === '__project') { LS.set('pkey', ''); S.pkey = ''; } else { LS.set('key', ''); S.key = ''; } try { localStorage.removeItem('pi:cache:' + ck); } catch (x) {} S.data = null; S.proj = null; return gate(e.message); }
       if (previo) { S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); return; }
       $('#app').innerHTML = '<div class="loading"><b>Ups</b>' + esc(e.message || 'No pude conectar con el Apps Script') + '<br><br><button class="btn" id="re">Reintentar</button> <button class="btn ghost" id="ch">Cambiar de persona</button></div>';
-      $('#re').onclick = inicio; $('#ch').onclick = () => { S.persona = null; LS.set('persona', null); gate(); };
+      $('#re').onclick = inicio; $('#ch').onclick = () => { S.persona = null; LS.set('persona', null); AGP.data = null; AGP.error = ''; gate(); };
     }
   }
 
