@@ -951,7 +951,7 @@ function panel_(personaClave, ctx) {
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
-    anual: anualSalida_(ctx.anual, misMarcas, hoy, snap), // calendario anual de sus marcas: lo ven todos (social media, CM, filmmaker y dirección)
+    anual: esFilm || (esCM && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy, snap), // calendario anual: solo social media, dirección y project (no filmmaker ni CM)
     film: esFilm ? Object.assign(filmSalida_(film, yo, hoy), { todas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) }) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
     discord: ctx.discord && ctx.discord.generado ? { generado: ctx.discord.generado, menciones: ((ctx.discord.porPersona || {})[yo.clave] || []).filter(m => (!m.marca || misMarcas.some(x => x.slug === m.marca)) && new Date(m.fecha).getTime() > Date.now() - 3 * 864e5) /* solo sus marcas y los canales generales, de los últimos 3 días */, conUsuario: !!((cat.equipo.find(p => p.clave === yo.clave) || {}).discord || []).length } : null,
