@@ -2873,6 +2873,12 @@ function probarAvisoAds() {
   r.textos.forEach(t => console.log('→ ' + t));
 }
 
+/* Avisa a Juan TODOS los pedidos que están hoy en la lista de ADS (los marca como no avisados y manda). Manda de verdad. */
+function avisarAdsTodos() {
+  P.setProperty('ADS_AVISADOS', 'x');
+  adsPedidosAvisar_(config_());
+  console.log('Nota: ' + (P.getProperty('ADS_NOTA') || 'ninguna') + ' · avisados: ' + (P.getProperty('ADS_AVISADOS') || '').split(',').length);
+}
 function doGet(e) {
   const q = e.parameter || {};
   try {
