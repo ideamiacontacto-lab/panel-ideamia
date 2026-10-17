@@ -1094,9 +1094,11 @@ function tareasReportes_(clave, rol) {
       out.push({ k: 'rep:mensual:' + m.slug + ':' + idM, tipo: 'mensual', marca: m.slug, periodo: idM, label: 'Reporte mensual · ' + MESES_ES[mesAnt.getMonth()], vence: new Date(ahora.getFullYear(), ahora.getMonth(), cfg.mesDia, cfg.hora).toISOString(), resp: m.sm });
     }
     if ([0, 3, 6, 9].indexOf(ahora.getMonth()) >= 0) {
-      const ini = new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + '+3';
+      // a fin de año NO se entrega trimestral ni semestral: en enero se pide solo el ANUAL (enero a diciembre del año anterior)
+      const anual = ahora.getMonth() === 0;
+      const ini = anual ? new Date(ahora.getFullYear() - 1, 0, 1) : new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + (anual ? '+12' : '+3');
       if (ym_(ini) >= cfg.periodicoDesde && ym_(ini) >= desde.slice(0, 7) && !env['periodico|' + m.slug + '|' + idT]) {
-        out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
+        out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: anual ? 'Reporte anual · ' + ini.getFullYear() : 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
       }
     }
   });
@@ -1726,6 +1728,9 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     // 5) Plan: 2 días antes de cada entrega de calendario o de reels
     try { planRecordatorios_(snap, cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Plan · ' + String(e.message || e).slice(0, 120)); }
+    // 6) Fichas operativas aprobadas: pedidos de mañana, tópicos externos de hoy y (lunes) aprendizajes activos
+    try { fichaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    catch (e) { notas.push('Fichas · ' + String(e.message || e).slice(0, 120)); }
   }
   return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo, okrIntro: okrIntro };
 }
@@ -3336,7 +3341,8 @@ function okrFaltantes_(m, hoyS) {
       }
       if (o.metrica === 'manual' && !o.cumplido && !o.cerrado && (recien || dias(hoyS, p.hasta) <= 15)) falta.push('si cumpliste "' + o.objetivo.split('(')[0].trim() + '", marcalo');
     });
-    if (recien && !p.reportePeriodo) falta.push('el reporte ' + (p.tipo === 'anual' ? 'anual' : p.tipo) + ' (' + p.titulo.toLowerCase() + ')');
+    // a fin de año se entrega solo el anual: los trimestrales y semestrales que cierran en diciembre no piden reporte propio
+    if (recien && !p.reportePeriodo && !(p.hasta.slice(5, 7) === '12' && p.tipo !== 'anual')) falta.push('el reporte ' + (p.tipo === 'anual' ? 'anual' : p.tipo) + ' (' + p.titulo.toLowerCase() + ')');
     if (p.abierto) {
       const atr = p.objetivos.filter(o => !o.cumplido && (o.atrasado || (o.mesesBajos || []).length)).map(o => o.objetivo.split(':')[0].trim().toLowerCase());
       estado.push(p.titulo + ': ' + p.cumplidos + ' de ' + p.total + ' cumplidos' + (atr.length ? ' · atrasado en ' + atr.join(', ') : ''));
@@ -3564,7 +3570,7 @@ function planVista_(quien, esProject, mes) {
       }
       const ant = new Date(ini.getFullYear(), ini.getMonth() - 1, 1), idM = ym_(ant);
       if (idM >= (rcfg.mensualDesde || '')) reps.push({ tipo: 'mensual', per: idM, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['mensual|' + rs + '|' + idM] || null });
-      if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const t0 = new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + '+3'; reps.push({ tipo: 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
+      if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const an = ini.getMonth() === 0, t0 = an ? new Date(ini.getFullYear() - 1, 0, 1) : new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + (an ? '+12' : '+3'); reps.push({ tipo: an ? 'anual' : 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), 10, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
       // marcas que arrancaron más tarde (ej. Vice desde el 12/10): no se cuentan los reportes de antes
       const desdeM = REP_DESDE_MARCA[rs] || ''; for (let i = reps.length - 1; i >= 0; i--) if (desdeM && (reps[i].tipo === 'semanal' ? reps[i].per < desdeM : reps[i].per.slice(0, 7) < desdeM.slice(0, 7))) reps.splice(i, 1);
       reps.forEach(r => r.estado = r.env ? (r.env <= r.vence ? 'a tiempo' : 'tarde') : (r.vence < new Date().toISOString() ? 'falta' : 'proximo'));
@@ -3694,6 +3700,160 @@ function probarRecordatorios() {
   const g = recLeer_(); console.log('Recordatorios guardados: ' + g.l.length + ' · activos: ' + g.l.filter(r => r.activo).length + ' · nota: ' + (P.getProperty('REC_NOTA') || 'ninguna'));
 }
 
+/* ---------------- PLAN · Fase 2: ficha operativa de cada marca (solo social media; la aprueba el project) ----------------
+   · Tópicos fijos: nombre, días, cuántas veces por semana o por mes, mínimo 5 ángulos. Los de Instagram se cuentan solos por la
+     etiqueta de Trello del tópico (se crea en el SCL al aprobar la ficha). Los externos (canal de WhatsApp, comunicación interna,
+     área comercial…) se marcan "lo moví" en la página Plan; el canal social también sale del reporte semanal ("¿Se movió el canal?").
+   · Pedidos recurrentes: qué, a quién, cuándo (día de la semana o del mes) y por dónde si no responde → privado el día anterior.
+   · Aprendizajes activos: qué, cuántas veces y hasta cuándo. Se proponen solos con los "Cambios para la semana siguiente" del
+     reporte semanal; el social media los confirma. Los lunes, privado con lo que tiene que mover.
+   Archivo de Drive panel-ideamia-fichas.json. Los avisos salen solo con la ficha APROBADA. */
+const fichaLeer_ = () => { const g = leerJson_('FICHA_FILE_ID', 'panel-ideamia-fichas.json'); g.m = g.m || {}; g.sug = g.sug || {}; return g; };
+const fichaVacia_ = () => ({ estado: 'borrador', topicos: [], pedidos: [], aprendizajes: [], hechos: {} });
+const semanaId_ = d => ymd_(lunes_(d));
+const DIAS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+/* Valida y normaliza lo que manda la página. Devuelve { ficha } o { error }. */
+function fichaLimpiar_(b) {
+  const t = s => String(s == null ? '' : s).trim(), id = x => t(x) || Utilities.getUuid().slice(0, 6), num = (x, mn, mx, d) => Math.max(mn, Math.min(mx, Number(x) || d));
+  const topicos = (b.topicos || []).slice(0, 30).map(x => ({ id: id(x.id), nombre: t(x.nombre).slice(0, 80), dias: (x.dias || []).map(Number).filter(d => d >= 0 && d <= 6),
+    veces: num(x.veces, 1, 31, 1), por: x.por === 'mes' ? 'mes' : 'semana', angulos: (x.angulos || []).map(a => t(a).slice(0, 200)).filter(Boolean).slice(0, 20),
+    externo: !!x.externo, canal: t(x.canal).slice(0, 60), cm: !!x.cm }));
+  for (const x of topicos) {
+    if (!x.nombre) return { error: 'datos', mensaje: 'Hay un tópico sin nombre' };
+    if (x.angulos.length < 5) return { error: 'datos', mensaje: '"' + x.nombre + '" tiene ' + x.angulos.length + ' ángulos: hacen falta mínimo 5 formas distintas de moverlo' };
+    if (x.externo && !x.canal) return { error: 'datos', mensaje: '"' + x.nombre + '": decí por dónde se mueve (canal de WhatsApp, comunicación interna, área comercial…)' };
+  }
+  const pedidos = (b.pedidos || []).slice(0, 30).map(x => ({ id: id(x.id), que: t(x.que).slice(0, 160), aQuien: t(x.aQuien).slice(0, 80), tipo: x.tipo === 'mes' ? 'mes' : 'semana',
+    dia: x.tipo === 'mes' ? num(x.dia, 1, 28, 1) : num(x.dia, 0, 6, 1), siNo: t(x.siNo).slice(0, 160) }));
+  for (const x of pedidos) if (!x.que || !x.aQuien) return { error: 'datos', mensaje: 'Cada pedido necesita qué se pide y a quién' };
+  const aprendizajes = (b.aprendizajes || []).slice(0, 30).map(x => ({ id: id(x.id), que: t(x.que).slice(0, 200), veces: num(x.veces, 1, 31, 1), por: x.por === 'mes' ? 'mes' : 'semana',
+    desde: /^\d{4}-\d{2}-\d{2}$/.test(x.desde) ? x.desde : ymd_(new Date()), hasta: /^\d{4}-\d{2}-\d{2}$/.test(x.hasta) ? x.hasta : '', origen: t(x.origen).slice(0, 80) }));
+  for (const x of aprendizajes) { if (!x.que) return { error: 'datos', mensaje: 'Hay un aprendizaje sin texto' }; if (!x.hasta) return { error: 'datos', mensaje: '"' + x.que.slice(0, 40) + '": falta hasta cuándo se aplica' }; }
+  return { ficha: { topicos: topicos, pedidos: pedidos, aprendizajes: aprendizajes } };
+}
+function fichaPuede_(cat, quien, esProject, slug) { const m = cat.marcas.filter(x => x.slug === slug)[0]; return !!m && (esProject || m.sm === norm_(quien)) ? m : null; }
+/* Acciones de la página: guardar, enviar a aprobar, aprobar / pedir cambios, marcar un tópico externo, sumar o descartar un aprendizaje sugerido. */
+function fichaAccion_(b, quien, esProject) {
+  const cat = catalogo_(), m = fichaPuede_(cat, quien, esProject, String(b.marca || ''));
+  if (!m) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const g = fichaLeer_(), f = g.m[m.slug] = Object.assign(fichaVacia_(), g.m[m.slug] || {}), cfg = config_();
+    const avisar = (clave, txt) => { try { const id = clave === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, clave); if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) discordPrivado_(id, txt); } catch (e) {} };
+    const acc = String(b.accion || '');
+    if (acc === 'guardar' || acc === 'enviar') {
+      const r = fichaLimpiar_(b); if (r.error) return r;
+      Object.assign(f, r.ficha, { editada: new Date().toISOString(), editor: norm_(quien) });
+      if (acc === 'enviar') {
+        if (!f.topicos.length) return { error: 'datos', mensaje: 'Cargá al menos un tópico fijo antes de mandarla' };
+        f.estado = 'enviada'; f.enviada = new Date().toISOString();
+        avisar('project', '📋 ' + nombreDe_(m.sm) + ' mandó la **ficha operativa de ' + m.nombre + '** para aprobar (' + f.topicos.length + ' tópicos, ' + f.pedidos.length + ' pedidos, ' + f.aprendizajes.length + ' aprendizajes).\nRevisala en ' + PLAN_URL);
+      } else if (f.estado === 'aprobada') f.estado = 'cambiada';   // si edita una aprobada, vuelve a revisión cuando la mande
+    } else if (acc === 'aprobar' || acc === 'cambios') {
+      if (!esProject) return { error: 'permiso', mensaje: 'La aprueba el project' };
+      f.estado = acc === 'aprobar' ? 'aprobada' : 'cambios'; f.nota = String(b.nota || '').slice(0, 500); f.revisada = new Date().toISOString();
+      if (acc === 'aprobar') { f.aprobada = f.revisada; f.ok = JSON.parse(JSON.stringify({ topicos: f.topicos, pedidos: f.pedidos, aprendizajes: f.aprendizajes })); f.etiquetas = fichaEtiquetas_(m, f.topicos); }
+      avisar(m.sm, acc === 'aprobar' ? '✅ Joaquín **aprobó la ficha de ' + m.nombre + '**. Desde ahora te recuerdo los pedidos y los tópicos, y el panel cuenta lo que movés.' + (f.nota ? '\nNota: ' + f.nota : '')
+        : '✏️ Joaquín pidió **cambios en la ficha de ' + m.nombre + '**: ' + (f.nota || '(sin nota)') + '\nEditala en ' + PLAN_URL);
+    } else if (acc === 'movido') {
+      const tp = (f.ok || f).topicos.filter(x => x.id === b.topico)[0]; if (!tp) return { error: 'datos', mensaje: 'No encuentro ese tópico' };
+      const k = tp.id + '|' + semanaId_(new Date()); f.hechos = f.hechos || {};
+      if (b.deshacer) delete f.hechos[k]; else f.hechos[k] = { quien: norm_(quien), t: new Date().toISOString(), n: (f.hechos[k] ? f.hechos[k].n : 0) + 1 };
+    } else if (acc === 'sugerencia') {
+      const L = g.sug[m.slug] = g.sug[m.slug] || [], s = L.filter(x => x.id === b.id)[0]; if (!s) return { error: 'datos', mensaje: 'No encuentro esa sugerencia' };
+      s.estado = b.sumar ? 'sumada' : 'descartada';
+    } else return { error: 'datos', mensaje: 'Acción desconocida' };
+    guardarJson_('FICHA_FILE_ID', 'panel-ideamia-fichas.json', g);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/* Al aprobar: crea en el SCL de la marca la etiqueta de cada tópico de Instagram que no exista (celeste claro: el nombre es único, así no choca con las reglas de Butler). */
+function fichaEtiquetas_(m, topicos) {
+  const out = {};
+  try {
+    const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), b = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0]; if (!b) return out;
+    const ya = trello_('/boards/' + b.id + '/labels', { fields: 'name', limit: 200 });
+    topicos.filter(t => !t.externo).forEach(t => {
+      const nom = 'Tópico · ' + t.nombre, hay = ya.filter(l => norm_(l.name) === norm_(nom))[0];
+      out[t.id] = nom; if (!hay) trello_('/labels', { name: nom, color: 'sky_light', idBoard: b.id }, 'post');
+    });
+  } catch (e) { P.setProperty('FICHA_NOTA', new Date().toISOString() + ' · etiquetas ' + m.slug + ': ' + String(e.message).slice(0, 150)); }
+  return out;
+}
+/* Sugerencias de aprendizaje: "Cambios para la semana siguiente" de los últimos reportes semanales de la marca. */
+function fichaSugerencias_(g, rs, slug) {
+  if (!rs) return [];
+  const reps = okrReportesSemanalesCambios_(rs), L = g.sug[slug] = g.sug[slug] || [], ya = {}; L.forEach(s => ya[norm_(s.texto)] = 1);
+  let nuevo = false;
+  reps.forEach(r => r.cambios.forEach(c => { if (!ya[norm_(c)]) { L.push({ id: Utilities.getUuid().slice(0, 6), texto: c, fuente: 'reporte semanal ' + (/^\d{4}-\d{2}-\d{2}$/.test(r.per) ? 'de la semana del ' + r.per.slice(8) + '/' + r.per.slice(5, 7) : r.per), estado: 'nueva' }); ya[norm_(c)] = 1; nuevo = true; } }));
+  if (L.length > 60) g.sug[slug] = L.slice(-60);
+  return nuevo;
+}
+/* Los "Cambios para la semana siguiente" de los últimos 3 reportes semanales de cada marca (una sola lectura de la planilla para todas). */
+function okrReportesSemanalesCambios_(rs) {
+  const c = CacheService.getScriptCache(), hit = c.get('cambiosTodas');
+  let todas = hit ? JSON.parse(hit) : null;
+  if (!todas) {
+    todas = {};
+    const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
+    const txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+    if (/^enviado_en/.test(txt)) {
+      const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
+      rows.slice(1).filter(r => r[ix('tipo')] === 'sm').forEach(r => {
+        let d = {}; try { d = JSON.parse(r[ix('datos_json')] || '{}'); } catch (e) {}
+        const cambios = ['cambio1', 'cambio2', 'cambio3'].map(k => String(d[k] || '').trim().slice(0, 200)).filter(x => x.length > 6);
+        if (cambios.length) (todas[r[ix('marca_slug')]] = todas[r[ix('marca_slug')]] || []).push({ per: String(r[ix('periodo_id')] || '').slice(0, 10), cambios: cambios });
+      });
+      Object.keys(todas).forEach(k => todas[k] = todas[k].slice(-3));
+    }
+    try { c.put('cambiosTodas', JSON.stringify(todas), 900); } catch (e) {}
+  }
+  return todas[rs] || [];
+}
+/* Cuánto se movió cada tópico este mes (contra lo que fijó el social media). */
+function fichaAvance_(f, snap, slug, hoy) {
+  const fo = f.ok || f, mes = ym_(hoy), ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1), dias = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+  const semanas = Math.max(1, Math.ceil((hoy.getDate()) / 7)), semanasMes = dias / 7;
+  return (fo.topicos || []).map(t => {
+    const objMes = t.por === 'mes' ? t.veces : Math.round(t.veces * semanasMes), objHoy = t.por === 'mes' ? Math.ceil(t.veces * hoy.getDate() / dias) : t.veces * semanas;
+    let n = 0;
+    if (t.externo) Object.keys(f.hechos || {}).forEach(k => { const [tid, sem] = k.split('|'); if (tid === t.id && sem.slice(0, 7) === mes) n += (f.hechos[k].n || 1); });
+    else { const nom = norm_((f.etiquetas || {})[t.id] || 'Tópico · ' + t.nombre); n = (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl' && c.due && ym_(new Date(c.due)) === mes && (c.lab || []).some(l => norm_(l) === nom)).length; }
+    const semActual = semanaId_(hoy), estaSemana = t.externo ? !!(f.hechos || {})[t.id + '|' + semActual] : null;
+    return { id: t.id, nombre: t.nombre, externo: t.externo, canal: t.canal, n: n, objMes: objMes, objHoy: objHoy, ok: n >= objHoy, estaSemana: estaSemana, dias: t.dias, veces: t.veces, por: t.por };
+  });
+}
+function fichaVista_(quien, esProject) {
+  const cat = catalogo_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = fichaLeer_(), rc = reportesConfig_(), hoy = hoyAR_();
+  let cambio = false;
+  const out = cat.marcas.filter(m => m.sm && (esProject || m.sm === norm_(quien))).map(m => {
+    const f = Object.assign(fichaVacia_(), g.m[m.slug] || {}), rs = planRepSlug_(m, rc.marcas);
+    if (fichaSugerencias_(g, rs, m.slug)) cambio = true;
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, estado: f.estado, nota: f.nota || '', enviada: f.enviada || null, aprobada: f.aprobada || null,
+      topicos: f.topicos, pedidos: f.pedidos, aprendizajes: f.aprendizajes, avance: fichaAvance_(f, snap, m.slug, hoy),
+      sugerencias: (g.sug[m.slug] || []).filter(s => s.estado === 'nueva').slice(-8) };
+  });
+  if (cambio) guardarJson_('FICHA_FILE_ID', 'panel-ideamia-fichas.json', g);
+  return { ok: true, project: !!esProject, marcas: out };
+}
+/* Avisos diarios de las fichas aprobadas (los arma privadosArmar_): pedidos del día siguiente, tópicos externos del día y, los lunes, aprendizajes. */
+function fichaRecordatorios_(cat, cfg, ahora) {
+  const g = fichaLeer_(), porQuien = {}, man = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 12), hoyD = ahora.getDay(), hoyS = ymd_(ahora);
+  const sumar = (k, l) => (porQuien[k] = porQuien[k] || []).push(l);
+  cat.marcas.filter(m => m.sm && g.m[m.slug] && g.m[m.slug].ok).forEach(m => {
+    const f = g.m[m.slug], fo = f.ok;
+    (fo.pedidos || []).forEach(p => { if (p.tipo === 'semana' ? man.getDay() === p.dia : man.getDate() === p.dia) sumar(m.sm, '• **' + m.nombre + '**: mañana le pedís a **' + p.aQuien + '**: ' + p.que + (p.siNo ? ' (si no responde: ' + p.siNo + ')' : '') + '.'); });
+    (fo.topicos || []).filter(t => t.externo).forEach(t => {
+      const toca = t.dias.length ? t.dias.indexOf(hoyD) >= 0 : hoyD === 1, hecho = (f.hechos || {})[t.id + '|' + semanaId_(ahora)];
+      if (!toca || (hecho && t.por === 'semana' && t.veces <= (hecho.n || 1))) return;
+      const l = '• **' + m.nombre + '**: hoy toca mover **' + t.nombre + '** (' + t.canal + '). Cuando lo hagas, marcalo en Plan.';
+      sumar(m.sm, l); if (t.cm && m.cm) sumar(m.cm, l);
+    });
+    if (hoyD === 1) (fo.aprendizajes || []).filter(a => a.desde <= hoyS && a.hasta >= hoyS).forEach(a => sumar(m.sm, '• **' + m.nombre + '**: acordate de **' + a.que + '** (' + a.veces + ' por ' + a.por + '). Calendarizalo esta semana.'));
+  });
+  return Object.keys(porQuien).map(k => ({ clave: k, id: idDiscord_(cfg, k), textos: trozos_('Hola ' + nombreDe_(k) + '. De las fichas de tus marcas:', porQuien[k].concat(['Detalle: ' + PLAN_URL])) })).filter(x => x.id);
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -3740,6 +3900,7 @@ function doGet(e) {
       const cat = catalogo_(), yo = cat.equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
       if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
       if (!yo || (!esProj && !cat.marcas.some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'El plan es solo para las social media y el project' }, q.cb);
+      if (q.que === 'ficha') return json_(fichaVista_(yo.clave, esProj), q.cb);   // ficha operativa de cada marca (Fase 2)
       return json_(planVista_(yo.clave, esProj, q.mes), q.cb);
     }
     if (q.action === 'project') {
@@ -3763,6 +3924,13 @@ function doPost(e) {
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
+      case 'ficha': { // ficha operativa: el social media la arma y la manda; el project la aprueba o pide cambios
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(fichaAccion_(b, yo.clave, esProj));
+      }
       case 'recCrear': case 'recBorrar': case 'recVisto': { // recordatorios personales (cada uno los suyos; el project puede borrar cualquiera)
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
         if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
