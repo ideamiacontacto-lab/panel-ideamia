@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="robots" content="noindex">
+<title>Objetivos · Ideamia</title>
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--r:18px}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--y)}button,input,textarea{font:inherit;color:inherit}
+.wrap{max-width:980px;margin:0 auto;padding:22px 16px 80px}
+.kick{color:var(--mu);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+h1{font:400 44px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:6px 0 4px}h1 b{color:var(--y);font-weight:400}
+.sub{color:var(--mu);margin:0 0 18px}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;margin-bottom:18px}.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--ln);background:var(--c1);border-radius:999px;padding:8px 14px;white-space:nowrap;cursor:pointer;font-weight:600;font-size:13.5px;transition:all .15s}
+.chip:hover{border-color:#3a3a3a}.chip.on{background:var(--y);color:#0A0A0A;border-color:var(--y)}.chip em{font-style:normal;opacity:.7;margin-left:6px;font-weight:500}
+.card{background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);padding:18px;margin-bottom:14px;animation:fi .25s ease}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.ph{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.ph h2{margin:0;font-size:19px;font-weight:700}.ph .d{color:var(--mu);font-size:13px}
+.bono{text-align:right}.bono .n{font:400 34px/1 'Bebas Neue',sans-serif;color:var(--y)}.bono .n small{font-size:18px;color:var(--mu)}.bono .l{color:var(--mu);font-size:12.5px}
+.tbar{height:4px;background:var(--c2);border-radius:9px;margin:12px 0 4px;overflow:hidden}.tbar i{display:block;height:100%;background:#3d3d3d}
+.tlbl{color:var(--mu);font-size:12px}
+.obj{border-top:1px solid var(--ln);padding:14px 0 4px;margin-top:12px}
+.oh{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.ot{font-weight:600}.on{color:var(--mu);font-size:13px;margin-top:2px}
+.st{flex:none;font-size:12px;font-weight:700;border-radius:999px;padding:4px 10px;white-space:nowrap}
+.st.ok{background:rgba(92,227,138,.14);color:var(--ok)}.st.cam{background:rgba(255,242,0,.12);color:var(--y)}.st.at{background:rgba(255,107,107,.14);color:var(--bad)}.st.nd{background:var(--c2);color:var(--mu)}.st.va{background:rgba(255,180,84,.14);color:var(--warn)}
+.bar{height:10px;background:var(--c2);border-radius:9px;margin:10px 0 6px;position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:9px;background:var(--y);transition:width .4s ease}.bar i.ok{background:var(--ok)}.bar i.at{background:var(--bad)}
+.bar b{position:absolute;top:-2px;bottom:-2px;width:2px;background:#fff;opacity:.55}
+.nums{display:flex;justify-content:space-between;font-size:13px;color:var(--mu);gap:10px;flex-wrap:wrap}.nums strong{color:var(--tx)}
+.meses{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mes{font-size:12px;border:1px solid var(--ln);border-radius:10px;padding:4px 9px;color:var(--mu)}.mes b{color:var(--tx)}.mes.bajo{border-color:rgba(255,107,107,.5)}.mes.bajo b{color:var(--bad)}.mes.okm b{color:var(--ok)}
+.hint{margin-top:8px;font-size:13.5px;color:#cfcfcf;background:var(--c2);border-radius:12px;padding:9px 12px}
+.reels{margin-top:8px;font-size:13px;color:var(--mu)}.reels summary{cursor:pointer;color:var(--tx)}.reels li{margin:4px 0}
+.anot{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.anot input{background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:9px 12px;min-width:0}
+.anot input.n{width:150px}.anot input.t{flex:1;min-width:160px}
+.btn{background:var(--y);color:#0A0A0A;border:0;border-radius:12px;padding:9px 16px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.5}
+.btn.g{background:var(--c2);color:var(--tx);border:1px solid var(--ln)}
+.who{font-size:12px;color:var(--mu);margin-top:6px}
+.iter{border-color:rgba(255,242,0,.35)}.iter h3{margin:0 0 8px;font-size:15px}.iter ul{margin:0;padding-left:18px}.iter li{margin:6px 0;color:#d9d9d9}
+.empty{color:var(--mu);text-align:center;padding:40px 10px}
+.gate{max-width:380px;margin:40px auto;text-align:center}.gate input{width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:12px;margin:12px 0}
+.ps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.cerr{opacity:.75}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:9;animation:fi .2s}
+@media(max-width:600px){h1{font-size:36px}.bono{text-align:left}.ph{flex-direction:column}.anot input.n{width:120px}}
+</style>
+<script src="../config.js?v=2"></script>
+<script src="../ideamia-nav.js?v=2" defer></script>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Cargando objetivos…</div></div>
+<script>
+(function () {
+  const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
+  const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
+  const S = { persona: jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('okr:marca') };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = n => n == null ? '–' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1 });
+  const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const fecha = s => { const [y, m, d] = String(s).split('-').map(Number); return d + ' ' + MES[m - 1]; };
+  const mesN = s => MES[Number(String(s).slice(5, 7)) - 1];
+  const toast = t => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); };
+  const clave = () => S.persona === 'project' ? (S.pkey || S.key) : S.key;
+
+  function gate(msg) {
+    app.innerHTML = '<div class="gate"><div class="kick">Ideamia</div><h1>Obje<b>tivos</b></h1>' + (msg ? '<p class="sub">' + esc(msg) + '</p>' : '') +
+      (S.persona && PERMITIDAS[S.persona] ? '' : '<p class="sub">¿Quién sos?</p><div class="ps">' + Object.keys(PERMITIDAS).map(p => '<button class="chip' + (S.persona === p ? ' on' : '') + '" data-p="' + p + '">' + PERMITIDAS[p] + '</button>').join('') + '</div>') +
+      '<input id="k" type="password" placeholder="' + (S.persona === 'project' ? 'Clave del project' : 'Clave del equipo') + '" autocomplete="current-password"><button class="btn" id="ent">Entrar</button></div>';
+    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { S.persona = b.dataset.p; gate(msg); });
+    const ent = () => { const v = app.querySelector('#k').value.trim(); if (!v || !S.persona) return toast('Elegí quién sos y poné la clave'); if (S.persona === 'project') S.pkey = v; else { S.key = v; lsSet('ideamia:clave', v); } lsSet('ideamia:persona', S.persona); cargar(); };
+    app.querySelector('#ent').onclick = ent; app.querySelector('#k').onkeydown = e => { if (e.key === 'Enter') ent(); };
+  }
+
+  async function cargar() {
+    if (!S.persona || !PERMITIDAS[S.persona]) return gate(S.persona ? 'Esta sección es solo para las social media y el project.' : '');
+    if (!clave()) return gate('');
+    app.innerHTML = '<div class="empty">Cargando objetivos…</div>';
+    try {
+      const r = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'okr', k: clave(), p: S.persona }), { cache: 'no-store' }).then(r => r.json());
+      if (r.error) return gate(r.mensaje || r.error);
+      S.data = r; pintar();
+    } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '. Probá de nuevo en un rato.</div>'; }
+  }
+
+  function estado(o) {
+    if (o.cumplido) return ['ok', o.cerrado ? 'Cumplido' : 'Cumplido ✓'];
+    if (o.enCamino) return ['cam', 'Llegó a la meta · falta cerrar los meses'];
+    if (o.logrado == null) return o.manual ? ['nd', 'Falta anotar'] : ['nd', 'Sin datos todavía'];
+    if (o.mesesBajos && o.mesesBajos.length) return ['at', 'Mes bajo el mínimo'];
+    if (o.atrasado) return ['at', 'Atrasado'];
+    return ['va', 'En curso'];
+  }
+  function objetivo(o, p) {
+    const [cl, txt] = estado(o), pct = o.meta ? Math.min(100, Math.max(0, (o.logrado || 0) / o.meta * 100)) : 0;
+    const unidad = o.metrica === 'conversion' ? ' %' : '';
+    let h = '<div class="obj"><div class="oh"><div><div class="ot">' + esc(o.objetivo) + '</div>' + (o.nota ? '<div class="on">' + esc(o.nota) + '</div>' : '') + '</div><span class="st ' + cl + '">' + txt + '</span></div>';
+    if (o.meta != null && o.metrica !== 'manual') {
+      h += '<div class="bar"><i class="' + (o.cumplido ? 'ok' : o.atrasado ? 'at' : '') + '" style="width:' + pct + '%"></i>' + (p.abierto && !o.cumplido ? '<b style="left:' + Math.round(o.avanceTiempo * 100) + '%" title="Dónde deberías estar hoy"></b>' : '') + '</div>';
+      h += '<div class="nums"><span><strong>' + fmt(o.logrado) + unidad + '</strong> de ' + fmt(o.meta) + unidad + (o.base ? ' · incluye ' + fmt(o.base) + ' acumulados antes' : '') + '</span><span>' + Math.round(pct) + ' %</span></div>';
+    } else if (o.metrica === 'manual') {
+      h += '<div class="nums"><span>Cumplidas: <strong>' + fmt(o.logrado || 0) + '</strong> de ' + fmt(o.meta) + '</span></div>';
+    }
+    if (o.meses && o.meses.length) h += '<div class="meses">' + o.meses.map(m => '<span class="mes' + (m.v == null ? '' : o.minMes && !m.parcial && m.v < o.minMes ? ' bajo' : o.minMes && m.v >= o.minMes ? ' okm' : '') + '" title="' + esc(m.fuente) + '">' + mesN(m.mes) + ' <b>' + (m.v == null ? 'falta el reporte' : fmt(m.v)) + '</b>' + (m.parcial ? ' (parcial)' : '') + (o.minMes ? ' / mín. ' + fmt(o.minMes) : '') + '</span>').join('') + '</div>';
+    if (!o.cumplido && o.falta && p.abierto) h += '<div class="hint">Te faltan <b>' + fmt(o.falta) + '</b>' + (o.porMes && o.porMes !== o.falta ? ': unos <b>' + fmt(o.porMes) + ' por mes</b> en lo que queda' : '') + '.' + (o.atrasado ? ' Vas por debajo del ritmo: la pauta vale para este objetivo, coordinalo con Juan (ads).' : '') + '</div>';
+    if (o.reels) h += '<details class="reels"><summary>' + o.reels.length + ' reel' + (o.reels.length === 1 ? '' : 's') + ' con ' + fmt(o.umbral) + ' views o más</summary><ul>' + o.reels.map(r => '<li>' + (r.link ? '<a href="' + esc(r.link) + '" target="_blank" rel="noopener">' + esc(r.desc || 'reel') + '</a>' : esc(r.desc || 'reel')) + ' · ' + fmt(r.v) + ' views</li>').join('') + '</ul><div class="who">Se toman los reels cargados en los reportes semanales y mensuales (views orgánicas + pauta).</div></details>';
+    if (o.manual && !o.cerrado && !p.terminado) {
+      h += '<div class="anot"><input class="n" inputmode="decimal" placeholder="' + (o.metrica === 'alcance_esp' ? 'Espectadores' : 'Cuántas') + '" data-v="' + esc(o.id) + '" value="' + (o.logrado != null ? esc(o.logrado) : '') + '"><input class="t" placeholder="Nota (opcional: link, captura, campaña)" data-n="' + esc(o.id) + '" value="' + esc(o.anotado ? o.anotado.nota : '') + '"><button class="btn" data-g="' + esc(o.id) + '">Guardar</button></div>';
+      if (o.anotado) h += '<div class="who">Anotado por ' + esc(PERMITIDAS[o.anotado.quien] || o.anotado.quien) + ' el ' + new Date(o.anotado.cuando).toLocaleDateString('es-AR') + '</div>';
+    }
+    return h + '</div>';
+  }
+  function iterar(m) {
+    const items = [];
+    m.periodos.filter(p => p.abierto).forEach(p => p.objetivos.forEach(o => {
+      if (o.cumplido) return;
+      if (o.mesesBajos && o.mesesBajos.length) items.push('<b>' + esc(o.objetivo.split(':')[0]) + '</b>: ' + o.mesesBajos.map(mesN).join(', ') + ' quedó abajo del mínimo mensual (' + fmt(o.minMes) + '). Ese mes ya no se recupera: sostené el mínimo en los que quedan.');
+      else if (o.atrasado) items.push('<b>' + esc(o.objetivo.split(':')[0]) + '</b> (' + esc(p.titulo) + '): vas ' + fmt(o.logrado) + ' de ' + fmt(o.meta) + '. Para llegar necesitás ~' + fmt(o.porMes) + ' por mes. Revisá qué contenido trajo más en los reportes y sumá pauta si hace falta.');
+      if (o.manual && o.logrado == null && o.metrica === 'alcance_esp') items.push('<b>' + esc(o.objetivo.split(':')[0]) + '</b>: anotá los espectadores del período a la fecha (Meta Business Suite > Estadísticas > Resultados).');
+      if (o.faltanDatos && o.faltanDatos.filter(x => x < S.data.hoy.slice(0, 7)).length) items.push('Falta el reporte mensual de ' + o.faltanDatos.filter(x => x < S.data.hoy.slice(0, 7)).map(mesN).join(', ') + ' para medir <b>' + esc(o.objetivo.split(':')[0]) + '</b>.');
+    }));
+    const unicos = items.filter((x, i) => items.indexOf(x) === i);
+    return unicos.length ? '<div class="card iter"><h3>Para iterar en ' + esc(m.nombre) + '</h3><ul>' + unicos.map(x => '<li>' + x + '</li>').join('') + '</ul></div>' : '';
+  }
+  function pintar() {
+    const D = S.data, con = D.marcas.filter(m => m.periodos.length), sin = D.marcas.filter(m => !m.periodos.length);
+    if (!con.some(m => m.slug === S.marca)) S.marca = con.length ? con[0].slug : '';
+    const m = con.filter(x => x.slug === S.marca)[0];
+    let h = '<div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1>Obje<b>tivos</b></h1><p class="sub">Cómo venís con los OKR de cada marca. Lo que se puede calcular sale solo de los reportes que cargás; el resto lo anotás acá.</p>';
+    h += '<div class="chips">' + con.map(x => { const a = x.periodos.filter(p => p.abierto)[0]; return '<button class="chip' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '">' + esc(x.nombre) + (a ? '<em>' + a.cumplidos + '/' + a.total + '</em>' : '') + '</button>'; }).join('') + '</div>';
+    if (!m) h += '<div class="card empty">Todavía no hay objetivos cargados para tus marcas.</div>';
+    else {
+      h += iterar(m);
+      m.periodos.forEach(p => {
+        h += '<div class="card' + (p.terminado ? ' cerr' : '') + '"><div class="ph"><div><div class="kick">' + esc(p.tipo) + (p.terminado ? ' · cerrado' : p.abierto ? ' · en curso' : ' · todavía no empieza') + '</div><h2>' + esc(p.titulo) + '</h2><div class="d">' + fecha(p.desde) + ' al ' + fecha(p.hasta) + '</div></div>' +
+          '<div class="bono"><div class="n">' + fmt(p.logradoPct) + '<small> / ' + fmt(p.bono) + ' %</small></div><div class="l">' + p.cumplidos + ' de ' + p.total + ' objetivos · bono del salario de la marca</div></div></div>';
+        if (p.abierto) { const t = Math.round(p.objetivos[0].avanceTiempo * 100); h += '<div class="tbar"><i style="width:' + t + '%"></i></div><div class="tlbl">Pasó el ' + t + ' % del período</div>'; }
+        h += p.objetivos.map(o => objetivo(o, p)).join('') + '</div>';
+      });
+    }
+    if (sin.length && D.project) h += '<p class="sub">Sin objetivos cargados: ' + sin.map(x => esc(x.nombre)).join(', ') + '.</p>';
+    h += '<p class="sub" style="font-size:12.5px">Cada objetivo vale su parte del bono (trimestral 20 %, semestral 40 %, anual 70 % del salario de la marca). Último reporte mensual cargado: ' + (D.reportesHasta ? mesN(D.reportesHasta) : 'ninguno') + '.</p>';
+    app.innerHTML = h;
+    app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('okr:marca', S.marca); pintar(); });
+    app.querySelectorAll('[data-g]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.g, v = app.querySelector('[data-v="' + CSS.escape(id) + '"]').value, n = app.querySelector('[data-n="' + CSS.escape(id) + '"]').value;
+      if (!String(v).trim()) return toast('Poné el número');
+      b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'okrAnotar', k: clave(), persona: S.persona, id: id, valor: v, nota: n }) }).then(r => r.json());
+        if (r.error) throw new Error(r.mensaje || r.error);
+        toast('Guardado'); cargar();
+      } catch (e) { toast('No se guardó: ' + e.message); b.disabled = false; b.textContent = 'Guardar'; }
+    });
+  }
+  cargar();
+})();
+</script>
+</body>
+</html>
