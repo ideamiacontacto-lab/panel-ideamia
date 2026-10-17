@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
 <style>
 :root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--r:18px}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+:root{color-scheme:dark}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 button,input{font:inherit;color:inherit}button{cursor:pointer}a{color:var(--y)}
 .wrap{max-width:920px;margin:0 auto;padding:18px 16px 70px}
 .kick{color:var(--mu);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
@@ -74,6 +74,20 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 .modal input:not([type=checkbox]){width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:10px 12px;margin-bottom:6px}
 .modal .acc{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}.rowf{display:flex;gap:8px;align-items:center}.rowf input{flex:1}
 .seg2{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}.seg2 button{border:1px solid var(--ln);background:var(--c2);color:#cfcfcf;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600}.seg2 button.on{background:var(--y);color:#0A0A0A;border-color:var(--y)}
+/* plan del mes: asistente por pasos */
+.modal .box.wiz{max-width:640px;padding:0;display:flex;flex-direction:column}
+.wtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:16px 18px 6px}.wtop h3{margin:2px 0 0;font-size:18px}.wtop .m{color:var(--mu);font-weight:400;font-size:14px}
+.x{flex:none;background:var(--c3);border:0;border-radius:50%;width:30px;height:30px;color:var(--mu);font-size:13px}
+.steps{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:8px 18px 10px;border-bottom:1px solid var(--ln)}.steps::-webkit-scrollbar{display:none}
+.steps button{flex:none;display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--mu);font-size:12.5px;font-weight:600;padding:4px 8px 4px 4px;border-radius:999px}
+.steps i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--c3);font-size:11.5px}
+.steps button.on{color:var(--tx);background:var(--c2)}.steps button.on i{background:var(--y);color:#0A0A0A}.steps button.ok i{background:rgba(92,227,138,.18);color:var(--ok)}
+.wbody{padding:12px 18px 6px;overflow:auto}.wbody .s{color:var(--mu);font-size:13.5px;margin:0 0 10px}.wbody .m{color:var(--mu);font-size:12.5px}
+.wrow{position:relative;background:var(--c2);border:1px solid var(--ln);border-radius:14px;padding:10px 42px 8px 10px;margin-bottom:8px}.wrow .x{position:absolute;top:8px;right:8px;width:26px;height:26px}
+.wrow input:not([type=date]){width:100%;background:var(--c1);border:1px solid var(--ln);border-radius:10px;padding:9px 11px;margin-bottom:6px}.wrow textarea{background:var(--c1)}.wrow .seg2{margin:2px 0 6px}
+.wrow input[type=date]{background:var(--c1);border:1px solid var(--ln);border-radius:10px;padding:7px 9px;color-scheme:dark;width:auto;margin:0}
+.wpie{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--ln);background:var(--c1)}.wpie .m{margin-right:auto;font-size:12.5px;color:var(--mu)}
+@media(max-width:600px){.wpie{flex-wrap:wrap}.wpie .m{width:100%}}
 @media(max-width:600px){h1{font-size:34px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -86,7 +100,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '8';
+  const VER = '9';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -178,7 +192,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'campana', k: clave(), persona: S.persona, marca: S.marca }, body)) }).then(r => r.json());
     if (r.error) throw new Error(r.mensaje || r.error); return r;
   }
-  async function recargarCamp() { const c = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'campanas' }), { cache: 'no-store' }).then(r => r.json()); if (c && c.ok) { S.camp = c; pintar(); } }
+  async function recargarCamp() { if (/[?&]demo=1/.test(location.search)) return pintar(); const c = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'campanas' }), { cache: 'no-store' }).then(r => r.json()); if (c && c.ok) { S.camp = c; pintar(); } }
   function pintarCamp(m) {
     const K = campDe(m.slug), esProj = S.data.project;
     if (!K) return '<div class="empty">No se pudo leer el calendario anual.</div>';
@@ -187,7 +201,11 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
       const n = NIVC[x.nivel] || NIVC[4], d = x.dec, pasada = x.f < S.camp.hoy;
       let est = '';
       if (!d) est = pasada ? '<span class="st nd">Ya pasó</span>' : '<div class="bts"><button class="btn g" data-cno="' + esc(x.key) + '">No la atacamos</button><button class="btn" data-csi="' + esc(x.key) + '">La atacamos</button></div>';
-      else if (d.decision === 'atacar') est = '<div class="bts"><span class="st ok">' + (d.revision === 'rechazado' ? 'Joaquín pidió atacarla' : 'La atacamos') + '</span>' + (pasada ? '' : '<button class="btn g" data-creset="' + esc(x.key) + '">Cambiar</button>') + '</div>';
+      else if (d.decision === 'atacar') {
+        const pl = x.plan, listo = pl && pl.completo;
+        est = '<div class="bts"><span class="st ok">' + (d.revision === 'rechazado' ? 'Joaquín pidió atacarla' : 'La atacamos') + '</span>' + (pasada || listo ? '' : '<button class="btn g" data-creset="' + esc(x.key) + '">Cambiar</button>') +
+          (listo ? '<button class="btn g" data-plan="' + esc(x.key) + '">✓ Ver el plan</button>' : pasada ? '' : '<button class="btn" data-plan="' + esc(x.key) + '">' + (pl ? 'Seguir el plan' : 'Armar el plan') + '</button>') + '</div>';
+      }
       else est = '<div class="bts"><span class="st ' + (d.revision === 'aprobado' ? 'nd' : 'mid') + '">' + (d.revision === 'aprobado' ? 'No se ataca · aprobado' : 'No se ataca · espera a Joaquín') + '</span>' +
         (esProj && d.revision === 'pendiente' ? '<button class="btn g" data-crech="' + esc(x.key) + '">Rechazar</button><button class="btn" data-capr="' + esc(x.key) + '">Aprobar</button>' : (!pasada && d.revision === 'pendiente' ? '<button class="btn g" data-creset="' + esc(x.key) + '">Cambiar</button>' : '')) + '</div>';
       return '<div class="row crow"><div><span class="st ' + n[0] + '">' + n[1] + '</span> <b>' + esc(x.nombre) + '</b> <span class="m">· ' + diaDe(x.f) + ' ' + dm(x.f) + '</span>' + (x.accion ? '<div class="m">' + esc(x.accion) + '</div>' : '') +
@@ -195,8 +213,10 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     };
     const grupo = c => K.fechas.filter(x => x.cual === c);
     const mesN = c => MES[(new Date().getMonth() + (c === 'este' ? 0 : 1)) % 12];
-    let h = '<p class="sub">Del calendario anual de ' + esc(m.nombre) + '. Por cada fecha decidí si se ataca; si no, contá por qué (lo revisa Joaquín).</p>';
-    ['proximo', 'este'].forEach(c => { const L = grupo(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), L.filter(x => !x.dec && x.f >= S.camp.hoy).length ? L.filter(x => !x.dec && x.f >= S.camp.hoy).length + ' sin decidir' : L.length, '<div class="rows">' + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos.</div></div>') + '</div>', c === 'proximo'); });
+    let h = '<p class="sub">Del calendario anual de ' + esc(m.nombre) + '. Por cada fecha decidí si se ataca; si no, contá por qué (lo revisa Joaquín). En las que se atacan, tocá <b>Armar el plan</b>: son unos pasos cortos y al final se crean solas las tarjetas.</p>';
+    const sinPlan = c => grupo(c).filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).length;
+    if (S.camp.limites && sinPlan('proximo')) h += '<div class="aprob"><b>🧭 El plan de ' + mesN('proximo') + ' se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo) + '</b><span class="m">' + sinPlan('proximo') + ' campaña' + (sinPlan('proximo') === 1 ? '' : 's') + ' sin plan</span></div>';
+    ['proximo', 'este'].forEach(c => { const L = grupo(c), sd = L.filter(x => !x.dec && x.f >= S.camp.hoy).length, sp = sinPlan(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), sd ? sd + ' sin decidir' : sp ? sp + ' sin plan' : L.length, '<div class="rows">' + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos.</div></div>') + '</div>', c === 'proximo'); });
     return h;
   }
   function bindCamp() {
@@ -205,9 +225,136 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const nom = key => (K.fechas.find(x => x.key === key) || {}).nombre;
     app.querySelectorAll('[data-csi]').forEach(b => b.onclick = () => fx({ accion: 'decidir', key: b.dataset.csi, nombre: nom(b.dataset.csi), decision: 'atacar' }, b));
     app.querySelectorAll('[data-cno]').forEach(b => b.onclick = () => { const mo = prompt('¿Por qué no la atacamos? (ej.: el cliente dijo que no, no tiene relación con la marca)'); if (!mo || mo.trim().length < 4) return mo != null && toast('El motivo es obligatorio'); fx({ accion: 'decidir', key: b.dataset.cno, nombre: nom(b.dataset.cno), decision: 'descartar', motivo: mo }, b); });
+    app.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => abrirPlan(b.dataset.plan));
     app.querySelectorAll('[data-creset]').forEach(b => b.onclick = () => fx({ accion: 'decidir', key: b.dataset.creset, decision: '' }, b));
     app.querySelectorAll('[data-capr]').forEach(b => b.onclick = () => fx({ accion: 'revisar', key: b.dataset.capr, aprobar: true }, b));
     app.querySelectorAll('[data-crech]').forEach(b => b.onclick = () => { const no = prompt('¿Por qué sí la tienen que atacar? (le llega a la social media)'); if (no == null) return; fx({ accion: 'revisar', key: b.dataset.crech, aprobar: false, nota: no }, b); });
+  }
+  /* ---------- Plan del mes (Fase 4): asistente por pasos para cada campaña que se ataca ---------- */
+  const PASOS_FULL = [['comp', 'Competencia'], ['ant', 'Año pasado'], ['ideas', 'Ideas'], ['prod', 'Producción'], ['ped', 'Pedidos'], ['dist', 'Distribución']];
+  const PASOS_CORTO = [['ideas', 'Ideas'], ['dist', 'Distribución']];
+  const CUANDO = [['previa', 'Semana previa'], ['semana', 'Semana de la fecha'], ['despues', 'Después']];
+  const uid = () => Math.random().toString(36).slice(2, 8);
+  const sumaDias = (f, n) => { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const fechaSug = (f, c) => sumaDias(f, c === 'previa' ? -6 : c === 'despues' ? 2 : 0);
+  const planVacio = () => ({ competencia: [{ marca: '', que: '' }, { marca: '', que: '' }, { marca: '', que: '' }], anterior: { nada: false, que: '', funciono: '' }, ideas: [], produccion: { estetica: null, banners: null, carteleria: null, notas: '' }, pedidos: [], distribucion: [] });
+  const tx = s => String(s || '').trim();
+  /* Qué falta en un paso ('' si está completo). Es lo mismo que revisa el servidor. */
+  function faltaPaso(p, paso) {
+    if (paso === 'comp') { const n = p.competencia.filter(c => tx(c.marca) && tx(c.que)).length; return n < 3 ? 'Faltan ' + (3 - n) + ' referencia' + (3 - n === 1 ? '' : 's') + ' (mínimo 3, con qué hizo cada una)' : ''; }
+    if (paso === 'ant') return p.anterior.nada || tx(p.anterior.que) ? '' : 'Contá qué se hizo o marcá "No se hizo nada"';
+    if (paso === 'ideas') return p.ideas.filter(tx).length ? '' : 'Sumá al menos una idea';
+    if (paso === 'prod') return ['estetica', 'banners', 'carteleria'].some(k => p.produccion[k] !== true && p.produccion[k] !== false) ? 'Respondé sí o no a las tres' : '';
+    if (paso === 'ped') return p.pedidos.some(x => !tx(x.que) || !x.fecha) ? 'Cada pedido necesita qué y para cuándo (o borralo)' : '';
+    if (paso === 'dist') { const L = p.distribucion.filter(d => tx(d.idea)); return !L.length ? 'Repartí al menos una idea' : L.some(d => !d.fecha) ? 'Cada línea necesita su fecha' : ''; }
+    return '';
+  }
+  async function enviarPlanMes(body) {
+    if (/[?&]demo=1/.test(location.search)) return { ok: true, creadas: body.terminar ? 3 : 0, plan: Object.assign({}, body.plan, { completo: !!body.terminar || !!(campDe(S.marca).fechas.find(f => f.key === body.key).plan || {}).completo }) };   // prueba local: no habla con el servidor
+    const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'planmes', k: clave(), persona: S.persona, marca: S.marca }, body)) }).then(r => r.json());
+    if (r.error) throw new Error(r.mensaje || r.error); return r;
+  }
+  function promptClaude(m, x, p) {
+    const comp = p.competencia.filter(c => tx(c.marca)).map(c => '- ' + c.marca + ': ' + c.que).join('\n');
+    return 'Sos estratega de redes sociales de una agencia (Estudio Ideamia, Argentina). Necesito ideas de contenido para Instagram.\n\n' +
+      'Marca: ' + m.nombre + (m.rubro ? ' (' + m.rubro + ')' : '') + '\nFecha a atacar: ' + x.nombre + ', el ' + dm(x.f) + '. Nivel: ' + (NIVC[x.nivel] || NIVC[4])[1] + '.\n' +
+      (x.accion ? 'Qué dice nuestro calendario anual: ' + x.accion + '\n' : '') +
+      (comp ? '\nQué hizo la competencia o las referencias:\n' + comp + '\n' : '') +
+      (p.anterior.nada ? '\nEl año pasado no se hizo nada.\n' : tx(p.anterior.que) ? '\nQué se hizo el año pasado: ' + p.anterior.que + (tx(p.anterior.funciono) ? '\nQué funcionó y qué no: ' + p.anterior.funciono : '') + '\n' : '') +
+      '\nDame 8 ideas concretas y distintas entre sí (reels, carruseles, historias, sorteos o acciones en el local), pensadas para esta marca y no genéricas. ' +
+      'Escribí cada idea en una sola línea, sin numerar, empezando por el formato (por ejemplo "Reel: …"). Al final, en una línea aparte, sugerí qué conviene publicar la semana previa, la semana de la fecha y después.';
+  }
+  function abrirPlan(key) {
+    const K = campDe(S.marca), x = K && K.fechas.find(f => f.key === key), m = S.data.marcas.find(y => y.slug === S.marca) || K; if (!x) return;
+    const full = x.nivel <= 2, PASOS = full ? PASOS_FULL : PASOS_CORTO, prev = x.plan || {};
+    const p = Object.assign(planVacio(), JSON.parse(JSON.stringify({ competencia: prev.competencia, anterior: prev.anterior, ideas: prev.ideas, produccion: prev.produccion, pedidos: prev.pedidos, distribucion: prev.distribucion }, (k, v) => v == null ? undefined : v)));
+    while (full && p.competencia.length < 3) p.competencia.push({ marca: '', que: '' });
+    let paso = 0, cambios = false, guardando = false;
+    const lim = x.cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo, ya = !!prev.completo;
+    const o = document.createElement('div'); o.className = 'modal';
+    const leer = () => {   // pasa lo que está escrito en el formulario al plan
+      const q = s => o.querySelectorAll(s);
+      const id = PASOS[paso][0];
+      if (id === 'comp') p.competencia = [...q('[data-comp]')].map(r => ({ marca: r.querySelector('[data-k=marca]').value, que: r.querySelector('[data-k=que]').value }));
+      if (id === 'ant') { p.anterior.que = o.querySelector('#an-que').value; p.anterior.funciono = o.querySelector('#an-fun').value; }
+      if (id === 'ideas') p.ideas = o.querySelector('#ideas').value.split('\n').map(s => s.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+      if (id === 'prod') p.produccion.notas = o.querySelector('#pr-notas').value;
+      if (id === 'ped') p.pedidos = [...q('[data-ped]')].map(r => ({ id: r.dataset.ped, que: r.querySelector('[data-k=que]').value, aQuien: r.querySelector('.seg2 .on').dataset.v, fecha: r.querySelector('[type=date]').value }));
+      if (id === 'dist') p.distribucion = [...q('[data-dis]')].map(r => ({ id: r.dataset.dis, idea: r.querySelector('[data-k=idea]').value, cuando: r.querySelector('.seg2 .on').dataset.v, fecha: r.querySelector('[type=date]').value }));
+    };
+    const sel = (v, a) => '<div class="seg2">' + a.map(([k, n]) => '<button type="button" data-v="' + k + '" class="' + (v === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div>';
+    const cuerpo = () => {
+      const id = PASOS[paso][0];
+      if (id === 'comp') return '<p class="s">3 a 5 marcas (competencia directa o referencias de otros rubros) y qué hicieron para esta fecha. Mirá su Instagram o la biblioteca de anuncios de Meta.</p>' +
+        p.competencia.map((c, i) => '<div class="wrow" data-comp><input data-k="marca" placeholder="Marca" value="' + esc(c.marca) + '"><textarea data-k="que" rows="2" placeholder="Qué hizo (formato, idea, promo…)">' + esc(c.que) + '</textarea>' + (i >= 3 ? '<button class="x" data-del="comp|' + i + '" title="Quitar">✕</button>' : '') + '</div>').join('') +
+        (p.competencia.length < 5 ? '<button class="btn add" data-add="comp">+ Sumar otra</button>' : '');
+      if (id === 'ant') return '<p class="s">Qué hicimos el año pasado para esta fecha o, si la marca no estaba con nosotros, qué hizo la marca. Si no se hizo nada, marcalo.</p>' +
+        '<label class="ck"><input type="checkbox" id="an-nada"' + (p.anterior.nada ? ' checked' : '') + '> No se hizo nada</label>' +
+        '<label>Qué se hizo</label><textarea id="an-que" rows="3" placeholder="Ej.: un reel con el producto y un sorteo en historias"' + (p.anterior.nada ? ' disabled' : '') + '>' + esc(p.anterior.que) + '</textarea>' +
+        '<label>Qué funcionó y qué no (opcional)</label><textarea id="an-fun" rows="2" placeholder="Ej.: el reel anduvo bien, el sorteo tuvo poca participación"' + (p.anterior.nada ? ' disabled' : '') + '>' + esc(p.anterior.funciono) + '</textarea>';
+      if (id === 'ideas') return '<p class="s">Una idea por línea. Si querés ayuda, <b>Preguntale a Claude</b>: se abre con todo lo que cargaste ya escrito (no gasta créditos). Copiá las ideas que te sirvan y pegalas acá.</p>' +
+        '<div class="bts" style="margin-bottom:8px"><button class="btn g" data-claude><span style="color:var(--y)">✦</span> Preguntale a Claude</button><button class="btn g" data-copiar>Copiar la consulta</button></div>' +
+        '<textarea id="ideas" rows="8" placeholder="Reel: …&#10;Carrusel: …&#10;Historias: …">' + esc(p.ideas.join('\n')) + '</textarea><div class="m" id="ideas-n">' + p.ideas.length + ' idea' + (p.ideas.length === 1 ? '' : 's') + '</div>';
+      if (id === 'prod') return '<p class="s">¿La campaña necesita algo de Diseño? Cada "sí" se convierte en una tarjeta con la etiqueta <b>Diseño</b> que vence una semana antes de la fecha.</p>' +
+        [['estetica', 'Estética especial para la campaña'], ['banners', 'Banners para la web'], ['carteleria', 'Cartelería para el local']].map(([k, n]) => '<div class="pq" data-pr="' + k + '"><span>' + n + '</span>' + sel(p.produccion[k] === true ? 'si' : p.produccion[k] === false ? 'no' : '', [['si', 'Sí'], ['no', 'No']]) + '</div>').join('') +
+        '<label>Notas para Diseño (opcional)</label><textarea id="pr-notas" rows="2" placeholder="Ej.: usar la paleta de la campaña de verano">' + esc(p.produccion.notas) + '</textarea>';
+      if (id === 'ped') return '<p class="s">Lo que hay que pedirle al cliente (fotos, precios, productos) o consultarle al project. Cada uno queda como tarjeta con su fecha límite. Si no hace falta nada, seguí.</p>' +
+        p.pedidos.map(x => '<div class="wrow" data-ped="' + esc(x.id) + '"><input data-k="que" placeholder="Qué hay que pedir" value="' + esc(x.que) + '">' + sel(x.aQuien || 'cliente', [['cliente', 'Al cliente'], ['project', 'Al project']]) + '<div class="rowf"><span class="m">Para el</span><input type="date" value="' + esc(x.fecha) + '"></div><button class="x" data-del="ped|' + esc(x.id) + '" title="Quitar">✕</button></div>').join('') +
+        '<button class="btn add" data-add="ped">+ Sumar un pedido</button>';
+      if (id === 'dist') {
+        const opts = p.ideas.map(i => '<option value="' + esc(i) + '">').join('');
+        return '<p class="s">Qué ideas se hacen y cuándo. Cada línea es una tarjeta en <b>"Para mover en el mes"</b> con esa fecha. La campaña es el <b>' + diaDe(x.f) + ' ' + dm(x.f) + '</b>.</p>' +
+          '<datalist id="dl-ideas">' + opts + '</datalist>' +
+          (p.distribucion.length ? '' : '<button class="btn g" data-auto style="width:100%;margin-bottom:8px">Repartir todas las ideas (después ajustás)</button>') +
+          p.distribucion.map(d => '<div class="wrow" data-dis="' + esc(d.id) + '"><input data-k="idea" list="dl-ideas" placeholder="Idea" value="' + esc(d.idea) + '">' + sel(d.cuando || 'semana', CUANDO) + '<div class="rowf"><span class="m">Fecha</span><input type="date" value="' + esc(d.fecha) + '"></div><button class="x" data-del="dis|' + esc(d.id) + '" title="Quitar">✕</button></div>').join('') +
+          '<button class="btn add" data-add="dis">+ Sumar una línea</button>';
+      }
+      return '';
+    };
+    const resumen = () => {
+      const n = (k, s, p2) => k + ' ' + (k === 1 ? s : p2), d = p.distribucion.filter(z => tx(z.idea)).length, pe = full ? p.pedidos.length : 0, pr = full ? ['estetica', 'banners', 'carteleria'].filter(k => p.produccion[k] === true).length : 0;
+      return n(d + pe + pr, 'tarjeta', 'tarjetas') + ': ' + [d ? '🎯 ' + n(d, 'pieza', 'piezas') : '', pe ? '📨 ' + n(pe, 'pedido', 'pedidos') : '', pr ? '🎨 ' + n(pr, 'de Diseño', 'de Diseño') : ''].filter(Boolean).join(', ');
+    };
+    const pintarW = () => {
+      const falta = faltaPaso(p, PASOS[paso][0]), ult = paso === PASOS.length - 1;
+      o.innerHTML = '<div class="box wiz"><div class="wtop"><div><div class="kick">Plan del mes · ' + esc(m.nombre) + '</div><h3>' + esc(x.nombre) + ' <span class="m">· ' + diaDe(x.f) + ' ' + dm(x.f) + '</span></h3></div><button class="x" data-cerrarw title="Cerrar">✕</button></div>' +
+        '<div class="steps">' + PASOS.map((s, i) => '<button data-paso="' + i + '" class="' + (i === paso ? 'on' : (i < paso || ya) && !faltaPaso(p, s[0]) ? 'ok' : '') + '"><i>' + ((i < paso || ya) && i !== paso && !faltaPaso(p, s[0]) ? '✓' : i + 1) + '</i><span>' + s[1] + '</span></button>').join('') + '</div>' +
+        '<div class="wbody">' + cuerpo() + '</div>' +
+        '<div class="wpie"><span class="m">' + (falta ? '⚠ ' + esc(falta) : ult ? 'Se crean ' + resumen() : 'Paso ' + (paso + 1) + ' de ' + PASOS.length + ' · cierra el ' + dm(lim)) + '</span>' +
+        (paso ? '<button class="btn g" data-atras>Atrás</button>' : '') +
+        (ult ? '<button class="btn" data-terminar' + (falta ? ' disabled' : '') + '>' + (ya ? 'Guardar y crear lo nuevo' : 'Terminar y crear tarjetas') + '</button>' : '<button class="btn" data-sig' + (falta ? ' disabled' : '') + '>Siguiente</button>') + '</div></div>';
+      bindW();
+    };
+    const guardar = async terminar => {
+      if (guardando) return; guardando = true;
+      try {
+        const r = await enviarPlanMes({ accion: 'campana', key: x.key, nombre: x.nombre, nivel: x.nivel, plan: p, terminar: !!terminar });
+        x.plan = r.plan; cambios = false;
+        if (terminar) { o.remove(); toast(r.creadas ? '¡Listo! Se crearon ' + r.creadas + ' tarjetas en "Para mover en el mes"' : 'Plan guardado. No había tarjetas nuevas para crear'); recargarCamp(); }
+        return true;
+      } catch (e) { toast(e.message); return false; } finally { guardando = false; }
+    };
+    const cerrar = async () => { leer(); if (cambios) await guardar(false); o.remove(); pintar(); };
+    function bindW() {
+      const q = s => o.querySelectorAll(s), en = (s, ev, f) => q(s).forEach(b => b['on' + ev] = f);
+      // cada cambio en un campo vuelve a calcular qué falta (sin redibujar, para no perder el foco)
+      const refrescar = () => { leer(); cambios = true; const falta = faltaPaso(p, PASOS[paso][0]), b = o.querySelector('[data-sig],[data-terminar]'), mm = o.querySelector('.wpie .m'); if (b) b.disabled = !!falta; if (mm) mm.textContent = falta ? '⚠ ' + falta : paso === PASOS.length - 1 ? 'Se crean ' + resumen() : 'Paso ' + (paso + 1) + ' de ' + PASOS.length + ' · cierra el ' + dm(lim); const n = o.querySelector('#ideas-n'); if (n) n.textContent = p.ideas.length + ' idea' + (p.ideas.length === 1 ? '' : 's'); };
+      q('.wbody input, .wbody textarea').forEach(i => i.oninput = refrescar);
+      en('.wbody .seg2 button', 'click', function () { const g = this.parentElement; g.querySelectorAll('button').forEach(z => z.classList.toggle('on', z === this)); const pr = this.closest('[data-pr]'); if (pr) p.produccion[pr.dataset.pr] = this.dataset.v === 'si'; const dr = this.closest('[data-dis]'); if (dr) { const fx = dr.querySelector('[type=date]'); fx.value = fechaSug(x.f, this.dataset.v); } refrescar(); });
+      const nada = o.querySelector('#an-nada'); if (nada) nada.onchange = () => { p.anterior.nada = nada.checked; leer(); cambios = true; pintarW(); };
+      en('[data-add]', 'click', function () { leer(); cambios = true; const k = this.dataset.add; if (k === 'comp') p.competencia.push({ marca: '', que: '' }); if (k === 'ped') p.pedidos.push({ id: uid(), que: '', aQuien: 'cliente', fecha: sumaDias(x.f, -10) }); if (k === 'dis') p.distribucion.push({ id: uid(), idea: '', cuando: 'semana', fecha: x.f }); pintarW(); });
+      en('[data-del]', 'click', function () { leer(); cambios = true; const [k, i] = this.dataset.del.split('|'); if (k === 'comp') p.competencia.splice(Number(i), 1); if (k === 'ped') p.pedidos = p.pedidos.filter(z => z.id !== i); if (k === 'dis') p.distribucion = p.distribucion.filter(z => z.id !== i); pintarW(); });
+      en('[data-auto]', 'click', () => { leer(); cambios = true; const n = p.ideas.length; p.distribucion = p.ideas.map((i, j) => { const c = n >= 3 ? (j === 0 ? 'previa' : j === n - 1 ? 'despues' : 'semana') : 'semana'; return { id: uid(), idea: i, cuando: c, fecha: fechaSug(x.f, c) }; }); pintarW(); });
+      en('[data-claude]', 'click', () => { leer(); window.open('https://claude.ai/new?q=' + encodeURIComponent(promptClaude(m, x, p).slice(0, 6000)), '_blank', 'noopener'); });
+      en('[data-copiar]', 'click', () => { leer(); const t = promptClaude(m, x, p); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Consulta copiada: pegala en tu Claude'), () => prompt('Copiá la consulta:', t)); });
+      en('[data-paso]', 'click', function () { leer(); const i = Number(this.dataset.paso); if (i > paso && PASOS.slice(0, i).some(s => faltaPaso(p, s[0]))) return toast('Completá los pasos anteriores primero'); paso = i; pintarW(); });
+      en('[data-atras]', 'click', () => { leer(); paso--; pintarW(); });
+      en('[data-sig]', 'click', async () => { leer(); if (faltaPaso(p, PASOS[paso][0])) return; if (cambios) await guardar(false); paso++; pintarW(); o.querySelector('.box').scrollTop = 0; });
+      en('[data-terminar]', 'click', async function () { leer(); if (faltaPaso(p, PASOS[paso][0])) return; if (!confirm('Se van a crear ' + resumen() + ' en "Para mover en el mes" del SCL de ' + m.nombre + '. ¿Seguimos?')) return; this.disabled = true; this.textContent = 'Creando…'; if (!(await guardar(true))) { this.disabled = false; this.textContent = 'Terminar y crear tarjetas'; } });
+      en('[data-cerrarw]', 'click', cerrar);
+    }
+    o.onclick = e => { if (e.target === o) cerrar(); };
+    document.body.appendChild(o); pintarW();
   }
   /* ---------- ficha operativa (Fase 2) ---------- */
   const DSEM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'], ORDEN = [1, 2, 3, 4, 5, 6, 0];
@@ -329,6 +476,8 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   }
   const cls = p => p == null ? 'nd' : p >= 90 ? 'ok' : p >= 70 ? 'mid' : 'bad';
   const kpi = (v, l, d, pronto) => '<div class="kpi' + (pronto ? ' pronto' : '') + '"><div class="v ' + (pronto ? 'nd' : cls(v)) + '">' + (pronto ? '—' : v == null ? '—' : v + ' %') + '</div><div class="l">' + l + '</div><div class="d">' + d + '</div></div>';
+  const kpiPlan = m => { const e = m.planMes; if (D_mes() < '2026-11') return kpi(null, 'Plan del mes', 'se mide desde noviembre', true); if (!e || !e.campanas.length) return kpi(null, 'Plan del mes', 'sin campañas atacadas', true); const n = e.campanas.filter(c => c.completo).length; return kpi(m.ind.planMes, 'Plan del mes', e.aTiempo ? 'completo a tiempo' : e.completo ? 'completo después del ' + dm(e.limite) : n + ' de ' + e.campanas.length + ' · cierra el ' + dm(e.limite)); };
+  const D_mes = () => (S.data && S.data.mes) || '';
   const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
   const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
   const fold = (id, cl, t, n, cuerpo, abierto) => { const open = S.folds[id] != null ? S.folds[id] : abierto; return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
@@ -341,6 +490,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
       else if (e.estado === 'proxima' && e.f <= en7) it(2, (e.tipo === 'calendario' ? 'Entrega de calendario de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': dejalo cargado hasta el ' + dm(e.obj) + (e.hasta ? ' (hoy llega al ' + dm(e.hasta) + ')' : '') : 'Entrega de reels de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': ' + e.obj + ' reels del mes que viene' + (e.n != null ? ' (hoy hay ' + e.n + ')' : '')), m.slug, 'cumple');
     }));
     if (S.pauta) S.pauta.marcas.forEach(a => { if (!a.esta) it(1, 'Revisar la pauta de esta semana de ' + a.nombre, a.slug, 'ads'); else if (!a.esta.ok && !a.esta.avisado) it(0, 'Avisarle a Juan lo que hay que cambiar en la pauta de ' + a.nombre, a.slug, 'ads'); });
+    if (S.camp && !D.project) S.camp.marcas.forEach(k => k.fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).forEach(x => { const lim = x.cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo; it(lim <= en7 ? 1 : 2, 'Armar el plan de ' + x.nombre + ' (' + k.nombre + ', ' + dm(x.f) + ')' + (lim >= hoy ? ': se cierra el ' + diaDe(lim) + ' ' + dm(lim) : ''), k.slug, 'camp'); }));
     if (S.camp) S.camp.marcas.forEach(k => { if (D.project) { if (k.revisar) it(1, 'Revisar ' + k.revisar + ' descarte' + (k.revisar === 1 ? '' : 's') + ' de campañas de ' + k.nombre, k.slug, 'camp'); } else if (k.pendientes) it(2, 'Decidir ' + k.pendientes + ' fecha' + (k.pendientes === 1 ? '' : 's') + ' de campañas de ' + k.nombre + ' (¿la atacamos o no?)', k.slug, 'camp'); });
     if (S.ficha) S.ficha.marcas.forEach(f => {
       if (D.project) { if (f.estado === 'enviada' || f.estado === 'cambiada') it(1, 'Aprobar la ficha de ' + f.nombre, f.slug, 'ficha'); return; }
@@ -352,10 +502,11 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   }
   const GUIA = '<h3>Cómo funciona Plan</h3><p class="s">Es tu tablero para organizar el mes. Arriba tenés <b>Para hacer</b> con lo que te toca, de todas tus marcas: tocá <b>Ir</b> y te lleva directo.</p>' +
     '<div class="gsec"><b>📊 Cumplimiento</b><p>Lo mide el panel solo: entregas de calendario (los viernes de entrega tiene que quedar cargado hasta la misma fecha del mes siguiente), entregas de reels, reportes a tiempo e inputs procesados en 24 h. No cargás nada acá: solo mirás cómo venís.</p></div>' +
-    '<div class="gsec"><b>🗓️ Campañas</b><p>Las fechas del calendario anual de este mes y del siguiente. En cada una elegís <b>La atacamos</b> o <b>No la atacamos</b> (con el motivo). Joaquín aprueba o rechaza los descartes. Las que se atacan aparecen solas como tarjeta en <b>"Para mover en el mes"</b> del SCL.</p></div>' +
+    '<div class="gsec"><b>🗓️ Campañas</b><p>Las fechas del calendario anual de este mes y del siguiente. En cada una elegís <b>La atacamos</b> o <b>No la atacamos</b> (con el motivo). Joaquín aprueba o rechaza los descartes.</p></div>' +
+    '<div class="gsec"><b>🧭 Plan del mes</b><p>En cada campaña que se ataca tocás <b>Armar el plan</b>. Las N1 y N2 llevan 6 pasos: <b>competencia</b> (3 a 5 marcas y qué hicieron), <b>año pasado</b>, <b>ideas</b> (con <b>Preguntale a Claude</b>), <b>producción</b> (estética, banners, cartelería), <b>pedidos</b> al cliente o al project y <b>distribución</b> (qué idea y qué día). Las N3 y N4, solo ideas y distribución. Se guarda en cada paso, así podés cortarlo y seguir después. Al terminar se crean las tarjetas solas. El plan de un mes se cierra en la <b>última entrega de calendario antes de que empiece</b> (para noviembre, el viernes 30/10).</p></div>' +
     '<div class="gsec"><b>📣 Ads</b><p>Una vez por semana, en cada marca con pauta: ¿corre bien?, ¿se pauta la pieza que corresponde?, ¿hay que cambiar algo? Si hay que cambiar, escribís qué y tocás <b>Avisale a Juan</b>: se copia el mensaje y se abre el canal ads de la marca para pegarlo.</p></div>' +
     '<div class="gsec"><b>📋 Ficha</b><p>Se arma una vez por marca: <b>tópicos fijos</b> (lo que se mueve sí o sí, con 5 ángulos), <b>pedidos recurrentes</b> (qué pedir, a quién y cuándo) y <b>aprendizajes</b> (lo que sale de tus reportes). La mandás a Joaquín; cuando la aprueba, el panel te recuerda los pedidos el día anterior, te avisa los tópicos de afuera de Instagram y cuenta lo que movés.</p></div>' +
-    '<div class="gsec"><b>🗂️ ¿Qué pasa con las tarjetas?</b><p>Al principio de cada mes (y cuando decidís o se aprueba algo) el panel crea tarjetas en la lista <b>"Para mover en el mes"</b> del SCL: 🎯 campañas a atacar, 📌 tópicos del mes (con sus ángulos y la etiqueta "Tópico · …"), 📨 pedidos del mes y 💡 aprendizajes. Desde ahí las pasás a tu calendario como siempre. Las piezas de un tópico llevan su etiqueta "Tópico · …" para que el panel las cuente.</p></div>' +
+    '<div class="gsec"><b>🗂️ ¿Qué pasa con las tarjetas?</b><p>Al principio de cada mes (y cuando decidís o se aprueba algo) el panel crea tarjetas en la lista <b>"Para mover en el mes"</b> del SCL: 🎯 campañas a atacar y cada pieza de su plan (con su fecha), 🎨 lo de Diseño (con la etiqueta Diseño: al aprobarla sigue el flujo de siempre), 📌 tópicos del mes (con sus ángulos y la etiqueta "Tópico · …"), 📨 pedidos del mes y 💡 aprendizajes. Desde ahí las pasás a tu calendario como siempre. Las piezas de un tópico llevan su etiqueta "Tópico · …" para que el panel las cuente.</p></div>' +
     '<div class="gsec"><b>🔔 Avisos por Discord</b><p>Lunes: pauta y aprendizajes. Dos días antes de cada entrega: qué tenés que entregar. La noche de la entrega: si quedó incumplida. El día 1: campañas del mes. Y tus recordatorios propios con la campanita 🔔 (abajo a la derecha).</p></div>' +
     '<div class="acc"><button class="btn" data-cerrar>Entendido</button></div>';
   function guia() { const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box guia">' + GUIA + '</div>'; o.onclick = e => { if (e.target === o || e.target.closest('[data-cerrar]')) o.remove(); }; document.body.appendChild(o); lsSet('plan:guia', '1'); }
@@ -381,7 +532,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const topPct = Fm && Fm.aprobada && Fm.avance.length ? Math.round(Fm.avance.filter(a => a.ok).length / Fm.avance.length * 100) : null;
     const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
     h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
-      kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpi(null, 'Plan del mes', 'llega en la fase 4', true) + (topPct != null ? kpi(topPct, 'Tópicos fijos', Fm.avance.filter(a => a.ok).length + ' de ' + Fm.avance.length + ' al día') : kpi(null, 'Tópicos fijos', Fm && Fm.estado !== 'aprobada' ? 'falta aprobar la ficha' : 'armá la ficha de la marca', true)) + '</div>';
+      kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpiPlan(m) + (topPct != null ? kpi(topPct, 'Tópicos fijos', Fm.avance.filter(a => a.ok).length + ' de ' + Fm.avance.length + ' al día') : kpi(null, 'Tópicos fijos', Fm && Fm.estado !== 'aprobada' ? 'falta aprobar la ficha' : 'armá la ficha de la marca', true)) + '</div>';
     // alertas en rojo
     const al = [];
     ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? 'Entrega de calendario del ' + diaDe(e.f) + ' ' + dm(e.f) + ': quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : 'Entrega de reels del ' + diaDe(e.f) + ' ' + dm(e.f) + ': había ' + e.n + ' de ' + e.obj + '.'));
