@@ -52,6 +52,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .pie{color:var(--mu);font-size:12px;margin-top:14px}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30}
 /* ficha operativa */
+.crow .bts{flex-wrap:wrap;justify-content:flex-end}@media(max-width:600px){.crow{grid-template-columns:1fr}.crow .bts{justify-content:flex-start}}
 .vseg{display:flex;width:100%}.vseg button{flex:1}.bdg{font-style:normal;background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;margin-left:4px}
 .fold.amar{border-color:rgba(255,242,0,.3)}.fold.amar .cnt{background:var(--y);color:#0A0A0A}
 .fhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:2px 0 12px}.fhead .nota{color:#ffd0d0;font-size:13.5px}
@@ -78,7 +79,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '4';
+  const VER = '6';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -107,9 +108,9 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     app.innerHTML = '<div class="empty">Cargando…</div>';
     try {
       const q = x => fetch(C.API_URL + '?' + new URLSearchParams(Object.assign({ action: 'plan', k: clave(), p: S.persona }, x)), { cache: 'no-store' }).then(r => r.json());
-      const [r, f] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' })]);
+      const [r, f, c] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' }), q({ que: 'campanas' })]);
       if (r.error) return gate(r.mensaje || r.error);
-      S.data = r; S.ficha = f && f.ok ? f : null; S.draft = {}; pintar();
+      S.data = r; S.ficha = f && f.ok ? f : null; S.camp = c && c.ok ? c : null; S.draft = {}; pintar();
     } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '.</div>'; }
   }
   async function recargarFicha() {
@@ -120,6 +121,44 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'ficha', k: clave(), persona: S.persona, marca: S.marca }, body)) }).then(r => r.json());
     if (r.error) throw new Error(r.mensaje || r.error); return r;
   }
+  /* ---------- campañas del mes (Fase 3) ---------- */
+  const campDe = slug => S.camp && S.camp.marcas.find(x => x.slug === slug);
+  const NIVC = { 1: ['bad', 'N1 · mayor'], 2: ['mid', 'N2 · especial'], 3: ['ok', 'N3 · publicación'], 4: ['nd', 'N4 · mención'] };
+  async function enviarCamp(body) {
+    const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'campana', k: clave(), persona: S.persona, marca: S.marca }, body)) }).then(r => r.json());
+    if (r.error) throw new Error(r.mensaje || r.error); return r;
+  }
+  async function recargarCamp() { const c = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'campanas' }), { cache: 'no-store' }).then(r => r.json()); if (c && c.ok) { S.camp = c; pintar(); } }
+  function pintarCamp(m) {
+    const K = campDe(m.slug), esProj = S.data.project;
+    if (!K) return '<div class="empty">No se pudo leer el calendario anual.</div>';
+    if (!K.tieneCalendario) return '<div class="fold"><div class="empty">' + esc(m.nombre) + ' no tiene calendario anual cargado: las campañas salen de ahí.</div></div>';
+    const fila = x => {
+      const n = NIVC[x.nivel] || NIVC[4], d = x.dec, pasada = x.f < S.camp.hoy;
+      let est = '';
+      if (!d) est = pasada ? '<span class="st nd">Ya pasó</span>' : '<div class="bts"><button class="btn g" data-cno="' + esc(x.key) + '">No la atacamos</button><button class="btn" data-csi="' + esc(x.key) + '">La atacamos</button></div>';
+      else if (d.decision === 'atacar') est = '<div class="bts"><span class="st ok">' + (d.revision === 'rechazado' ? 'Joaquín pidió atacarla' : 'La atacamos') + '</span>' + (pasada ? '' : '<button class="btn g" data-creset="' + esc(x.key) + '">Cambiar</button>') + '</div>';
+      else est = '<div class="bts"><span class="st ' + (d.revision === 'aprobado' ? 'nd' : 'mid') + '">' + (d.revision === 'aprobado' ? 'No se ataca · aprobado' : 'No se ataca · espera a Joaquín') + '</span>' +
+        (esProj && d.revision === 'pendiente' ? '<button class="btn g" data-crech="' + esc(x.key) + '">Rechazar</button><button class="btn" data-capr="' + esc(x.key) + '">Aprobar</button>' : (!pasada && d.revision === 'pendiente' ? '<button class="btn g" data-creset="' + esc(x.key) + '">Cambiar</button>' : '')) + '</div>';
+      return '<div class="row crow"><div><span class="st ' + n[0] + '">' + n[1] + '</span> <b>' + esc(x.nombre) + '</b> <span class="m">· ' + diaDe(x.f) + ' ' + dm(x.f) + '</span>' + (x.accion ? '<div class="m">' + esc(x.accion) + '</div>' : '') +
+        (d && d.motivo ? '<div class="m">Motivo: ' + esc(d.motivo) + '</div>' : '') + (d && d.notaP ? '<div class="m">Joaquín: ' + esc(d.notaP) + '</div>' : '') + (d && d.motivoPrevio ? '<div class="m">(se había propuesto no atacarla: ' + esc(d.motivoPrevio) + ')</div>' : '') + '</div>' + est + '</div>';
+    };
+    const grupo = c => K.fechas.filter(x => x.cual === c);
+    const mesN = c => MES[(new Date().getMonth() + (c === 'este' ? 0 : 1)) % 12];
+    let h = '<p class="sub">Del calendario anual de ' + esc(m.nombre) + '. Por cada fecha decidí si se ataca; si no, contá por qué (lo revisa Joaquín).</p>';
+    ['proximo', 'este'].forEach(c => { const L = grupo(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), L.filter(x => !x.dec && x.f >= S.camp.hoy).length ? L.filter(x => !x.dec && x.f >= S.camp.hoy).length + ' sin decidir' : L.length, '<div class="rows">' + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos.</div></div>') + '</div>', c === 'proximo'); });
+    return h;
+  }
+  function bindCamp() {
+    const K = campDe(S.marca); if (!K) return;
+    const fx = async (body, b) => { if (b) b.disabled = true; try { await enviarCamp(body); recargarCamp(); } catch (e) { toast(e.message); if (b) b.disabled = false; } };
+    const nom = key => (K.fechas.find(x => x.key === key) || {}).nombre;
+    app.querySelectorAll('[data-csi]').forEach(b => b.onclick = () => fx({ accion: 'decidir', key: b.dataset.csi, nombre: nom(b.dataset.csi), decision: 'atacar' }, b));
+    app.querySelectorAll('[data-cno]').forEach(b => b.onclick = () => { const mo = prompt('¿Por qué no la atacamos? (ej.: el cliente dijo que no, no tiene relación con la marca)'); if (!mo || mo.trim().length < 4) return mo != null && toast('El motivo es obligatorio'); fx({ accion: 'decidir', key: b.dataset.cno, nombre: nom(b.dataset.cno), decision: 'descartar', motivo: mo }, b); });
+    app.querySelectorAll('[data-creset]').forEach(b => b.onclick = () => fx({ accion: 'decidir', key: b.dataset.creset, decision: '' }, b));
+    app.querySelectorAll('[data-capr]').forEach(b => b.onclick = () => fx({ accion: 'revisar', key: b.dataset.capr, aprobar: true }, b));
+    app.querySelectorAll('[data-crech]').forEach(b => b.onclick = () => { const no = prompt('¿Por qué sí la tienen que atacar? (le llega a la social media)'); if (no == null) return; fx({ accion: 'revisar', key: b.dataset.crech, aprobar: false, nota: no }, b); });
+  }
   /* ---------- ficha operativa (Fase 2) ---------- */
   const DSEM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'], ORDEN = [1, 2, 3, 4, 5, 6, 0];
   const EST_F = { borrador: ['nd', 'Borrador'], enviada: ['prox', 'Esperando a Joaquín'], aprobada: ['ok', 'Aprobada'], cambios: ['bad', 'Joaquín pidió cambios'], cambiada: ['mid', 'Editada: mandala de nuevo'] };
@@ -127,7 +166,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
   /* Recomendaciones por marca (lo que Joaquín pidió tener en cuenta): se suman con un toque y se editan; los ángulos son ideas para arrancar. */
   const RECOS = [
     { m: /dyb/, t: 'topicos', v: { nombre: 'Activaciones de Uruguay', dias: [], veces: 1, por: 'semana', externo: false, canal: '', angulos: ['Propiedad destacada en Uruguay con precio y ubicación', 'Por qué invertir en Uruguay (datos simples)', 'Recorrido en video por una propiedad de Uruguay', 'Preguntas frecuentes de quien compra desde Argentina', 'Comparativa Argentina / Uruguay: qué conviene'] } },
-    { m: /quality(?!.*mayorista)|^quality$/, t: 'topicos', v: { nombre: 'Canal social de WhatsApp', dias: [1], veces: 1, por: 'semana', externo: true, canal: 'Canal de WhatsApp', cm: true, angulos: ['Promo de la semana con precio final', 'Receta corta con productos de la tienda', 'Lanzamiento o ingreso de producto', 'Encuesta: qué querés que traigamos', 'Recordatorio de envíos y horarios'] } },
+    { m: /quality(?!.*mayorista)|^quality$/, t: 'topicos', v: { nombre: 'Canal social de WhatsApp', dias: [1], veces: 1, por: 'semana', externo: true, canal: 'Canal de WhatsApp', cm: false, angulos: ['Promo de la semana con precio final', 'Receta corta con productos de la tienda', 'Lanzamiento o ingreso de producto', 'Encuesta: qué querés que traigamos', 'Recordatorio de envíos y horarios'] } },
     { m: /quality(?!.*mayorista)|^quality$/, t: 'topicos', v: { nombre: 'Promo del día', dias: [3, 5], veces: 2, por: 'semana', externo: false, canal: '', angulos: ['Producto con descuento y precio final ("salía X, te queda Y")', 'Medios de pago que entran', 'La promo directa en placa', 'Video de alguien contando la promo', 'Clientes aprovechando la promo'] } },
     { m: /isco/, t: 'topicos', v: { nombre: 'Promo del día', dias: [3, 6], veces: 2, por: 'semana', externo: false, canal: '', angulos: ['Producto con descuento y precio final ("salía 10.000, te queda 9.000")', 'Medios de pago que entran', 'La promo directa en placa', 'Video de alguien contando la promo', 'Clientes aprovechando la promo / local lleno'] } },
     { m: /isco/, t: 'topicos', v: { nombre: 'Maquinarias', dias: [2], veces: 1, por: 'semana', externo: false, canal: '', angulos: ['Máquina en uso con resultado', 'Ficha técnica simple', 'Testimonio de un cliente que la compró', 'Comparativa entre modelos', 'Mantenimiento y consejos de uso'] } },
@@ -253,8 +292,10 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     h += '<div class="marcas">' + M.map(x => { const p = prom(x); return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + (p || 0) + '"><i>' + (p == null ? '–' : p) + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (D.project ? esc(PERMITIDAS[x.sm] || x.sm) + ' · ' : '') + (p == null ? 'sin datos todavía' : 'cumplimiento ' + p + ' %') + '</span></span></button>'; }).join('') + '</div>';
     if (!m) { app.innerHTML = h + '<div class="empty">No hay marcas para mostrar.</div>'; return bind(); }
     const Fm = fichaDe(m.slug), pend = S.ficha ? S.ficha.marcas.filter(x => x.estado === 'enviada' || x.estado === 'cambiada').length : 0;
-    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (S.vista !== 'ficha' ? 'on' : '') + '">Cumplimiento</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha de la marca' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
+    const Km = campDe(m.slug), cPend = D.project ? (S.camp ? S.camp.marcas.reduce((a, x) => a + x.revisar, 0) : 0) : (Km ? Km.pendientes : 0);
+    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (S.vista !== 'ficha' && S.vista !== 'camp' ? 'on' : '') + '">Cumplimiento</button><button data-vista="camp" class="' + (S.vista === 'camp' ? 'on' : '') + '">Campañas' + (cPend ? ' <em class="bdg">' + cPend + '</em>' : '') + '</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
     if (S.vista === 'ficha') { app.innerHTML = h + pintarFicha(m); bind(); bindFicha(); return; }
+    if (S.vista === 'camp') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
     const topPct = Fm && Fm.aprobada && Fm.avance.length ? Math.round(Fm.avance.filter(a => a.ok).length / Fm.avance.length * 100) : null;
     const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
     h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
