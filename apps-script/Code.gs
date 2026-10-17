@@ -1710,7 +1710,13 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       FILM_MOTIVOS.forEach(k => G[k].forEach(c => filmInfo.nuevos[k][c.id] = p.clave));
     });
   }
-  return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo };
+  // 4) OKR: los lunes, a cada social media con objetivos cargados, qué le falta cargar para medir y cómo viene (la primera vez, con la explicación)
+  const okrIntro = [];
+  if (o.diarios) {
+    try { const ok = okrPrivados_(cfg, o.ahora || hoyAR_()); ok.msgs.forEach(m => { para(m.clave, m.id, m.textos); if (m.intro) okrIntro.push(m.clave); }); ok.notas.forEach(n => notas.push(n)); }
+    catch (e) { notas.push('OKR · ' + String(e.message || e).slice(0, 120)); }
+  }
+  return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo, okrIntro: okrIntro };
 }
 /* Lo llama cada actualización. Mueve lo del filtro de CM y manda los privados; si un envío falla, queda anotado y se reintenta en la próxima. */
 function privadosEnviar_(snap, cat, cfg) {
@@ -1729,6 +1735,8 @@ function privadosEnviar_(snap, cat, cfg) {
     const sigue = {}; r.film.pendientes.forEach(id => sigue[id] = 1);
     FILM_MOTIVOS.forEach(k => { const ya = r.film.ya[k], nuevos = r.film.nuevos[k]; P.setProperty('FILM_' + k.toUpperCase(), Object.keys(sigue).filter(id => ya[id] || (nuevos[id] && (!activos || !fallaron[nuevos[id]]))).join(',').slice(0, 8800)); });
   }
+  // la explicación de la solapa Objetivos sale una sola vez por persona (si el envío falló, se reintenta el día siguiente)
+  if (diarios && activos) (r.okrIntro || []).forEach(k => { if (!fallaron[k]) P.setProperty('OKR_INTRO_' + k.toUpperCase(), 'ya'); });
   if (diarios) P.setProperty('PRIVADOS_DIA', hoyId);
   if (error) P.setProperty('DISCORD_DM_ERROR', new Date().toISOString() + ' · ' + error); else if (r.msgs.length) P.deleteProperty('DISCORD_DM_ERROR');
   if (r.notas.length) P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ' + r.notas.join(' | ')).slice(0, 900)); else P.deleteProperty('PRIVADOS_NOTAS');
@@ -3112,7 +3120,7 @@ function okrReportes_() {
   rows.slice(1).forEach(r => { if (r[iM] && r[iN] && r[iT] !== 'baja' && r[iT] !== 'prueba') nombres[r[iM]] = r[iN]; });
   rows.slice(1).forEach(r => { if (r[iT] === 'baja') { try { const d = JSON.parse(r[iD] || '{}'); bajas[d.ref_tipo + '|' + r[iM] + '|' + d.ref_enviado_en] = 1; } catch (e) {} } });
   rows.slice(1).forEach(r => {
-    const tipo = r[iT]; if (['mensual', 'sm'].indexOf(tipo) < 0 || bajas[tipo + '|' + r[iM] + '|' + r[iE]]) return;
+    const tipo = r[iT]; if (['mensual', 'sm', 'periodico'].indexOf(tipo) < 0 || bajas[tipo + '|' + r[iM] + '|' + r[iE]]) return;
     let p = String(r[iP] || '').trim(); const dm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(p);
     if (dm) p = dm[3] + '-' + ('0' + dm[2]).slice(-2) + '-' + ('0' + dm[1]).slice(-2);
     if (tipo === 'mensual') p = p.slice(0, 7);
@@ -3146,7 +3154,7 @@ function okrReels_(reps, marca, desde, hasta) {
   return Object.keys(vistos).map(k => vistos[k]);
 }
 /* Valor por mes (yyyy-MM) de una métrica: el mensual si existe; si no, la suma de los semanales de ese mes (solo seguidores). */
-function okrPorMes_(reps, marca, metrica, desde, hasta) {
+function okrPorMes_(reps, marca, metrica, desde, hasta, manMes) {
   const meses = []; let d = new Date(desde.slice(0, 7) + '-01T12:00:00');
   while (Utilities.formatDate(d, TZ, 'yyyy-MM') <= hasta.slice(0, 7)) { meses.push(Utilities.formatDate(d, TZ, 'yyyy-MM')); d = new Date(d.getFullYear(), d.getMonth() + 1, 1, 12); }
   const mias = reps.filter(r => r.marca === marca);
@@ -3155,6 +3163,8 @@ function okrPorMes_(reps, marca, metrica, desde, hasta) {
     const val = r => metrica === 'seg_netos' ? (okrNum_(r.d.seg_sumados) || 0) - (okrNum_(r.d.seg_perdidos) || 0)
       : metrica === 'contactos' ? okrNum_(r.d.m_contactos) : /^alcance/.test(metrica) ? okrNum_(r.d.m_alc_total) : null;
     if (men) return { mes: mes, v: val(men), fuente: 'mensual' };
+    const am = (manMes || {})[marca + '|' + (/^alcance/.test(metrica) ? 'alcance' : metrica) + '|' + mes];
+    if (am) return { mes: mes, v: am.v, fuente: 'cargado a mano por ' + am.quien, aMano: true };
     if (metrica === 'seg_netos') {
       const sem = mias.filter(r => r.tipo === 'sm' && r.periodo.slice(0, 7) === mes);
       if (sem.length) return { mes: mes, v: sem.reduce((a, r) => a + val(r), 0), fuente: sem.length + ' semanal' + (sem.length > 1 ? 'es' : ''), parcial: true };
@@ -3162,13 +3172,13 @@ function okrPorMes_(reps, marca, metrica, desde, hasta) {
     return { mes: mes, v: null, fuente: 'falta' };
   });
 }
-function okrCalcular_(o, reps, man, hoyS) {
+function okrCalcular_(o, reps, man, hoyS, manMes) {
   const r = { id: o.id, objetivo: o.objetivo, metrica: o.metrica, meta: o.meta, minMes: o.minMes, umbral: o.umbral, nota: o.nota, manual: false };
   const anot = man[o.id] || null;
   const desdeAuto = o.baseHasta && o.baseHasta >= o.desde ? Utilities.formatDate(new Date(new Date(o.baseHasta + 'T12:00:00').getTime() + 864e5), TZ, 'yyyy-MM-dd') : o.desde;
   if (o.cerrado) { r.logrado = o.meta; r.cumplido = true; r.cerrado = true; }
   else if (o.metrica === 'seg_netos' || o.metrica === 'contactos' || o.metrica === 'alcance_suma') {
-    const meses = okrPorMes_(reps, o.marca, o.metrica, desdeAuto, o.hasta).filter(m => m.mes <= hoyS.slice(0, 7));
+    const meses = okrPorMes_(reps, o.marca, o.metrica, desdeAuto, o.hasta, manMes).filter(m => m.mes <= hoyS.slice(0, 7));
     r.meses = meses; r.logrado = o.base + meses.reduce((a, m) => a + (m.v || 0), 0); r.base = o.base || 0;
     r.faltanDatos = meses.filter(m => m.v == null).map(m => m.mes);
     if (o.minMes) r.mesesBajos = meses.filter(m => m.v != null && !m.parcial && m.v < o.minMes).map(m => m.mes);
@@ -3180,7 +3190,7 @@ function okrCalcular_(o, reps, man, hoyS) {
     const lista = okrReels_(reps, o.marca, o.desde, o.hasta).filter(x => x.v >= (o.umbral || 0)).sort((a, b) => b.v - a.v);
     r.reels = lista.slice(0, 12); r.logrado = lista.length; r.cumplido = r.logrado >= o.meta;
   } else if (o.metrica === 'conversion') {
-    const s = okrPorMes_(reps, o.marca, 'seg_netos', o.desde, o.hasta), a = okrPorMes_(reps, o.marca, 'alcance_suma', o.desde, o.hasta);
+    const s = okrPorMes_(reps, o.marca, 'seg_netos', o.desde, o.hasta, manMes), a = okrPorMes_(reps, o.marca, 'alcance_suma', o.desde, o.hasta, manMes);
     const ss = s.reduce((x, m) => x + (m.v || 0), 0), aa = a.reduce((x, m) => x + (m.v || 0), 0);
     r.logrado = aa ? Math.round(ss / aa * 1000) / 10 : null; r.cumplido = r.logrado != null && r.logrado >= o.meta;
   } else {   // alcance_esp y manual: lo anota la social media
@@ -3207,7 +3217,7 @@ function okrCalcular_(o, reps, man, hoyS) {
   return r;
 }
 function okrVista_(quien, esProject) {
-  const cfgR = reportesConfig_(), cfg = config_(), defs = okrDefs_(), reps = okrReportes_(), man = leerJson_('OKR_FILE_ID', 'panel-ideamia-okr.json').v || {};
+  const cfgR = reportesConfig_(), cfg = config_(), defs = okrDefs_(), reps = okrReportes_(), G = leerJson_('OKR_FILE_ID', 'panel-ideamia-okr.json'), man = G.v || {}, manMes = G.mes || {};
   const hoyS = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
   const bono = { trimestral: okrNum_(cfg.OKR_BONO_TRIMESTRAL) || 20, semestral: okrNum_(cfg.OKR_BONO_SEMESTRAL) || 40, anual: okrNum_(cfg.OKR_BONO_ANUAL) || 70 };
   const marcas = (cfgR.marcas || []).filter(m => esProject || m.sm === norm_(quien));
@@ -3218,10 +3228,12 @@ function okrVista_(quien, esProject) {
     mias.forEach(o => { const k = o.periodo + '|' + o.desde; (pers[k] = pers[k] || { titulo: o.periodo, tipo: o.tipo, desde: o.desde, hasta: o.hasta, objs: [] }).objs.push(o); });
     const periodos = Object.keys(pers).map(k => {
       const p = pers[k], total = bono[p.tipo] || bono.trimestral, pesos = p.objs.map(o => o.peso), conPeso = pesos.every(x => x != null);
-      const objetivos = p.objs.map((o, i) => Object.assign(okrCalcular_(o, reps, man, hoyS), { vale: Math.round((conPeso ? pesos[i] : total / p.objs.length) * 100) / 100 }));
+      const objetivos = p.objs.map((o, i) => Object.assign(okrCalcular_(o, reps, man, hoyS, manMes), { vale: Math.round((conPeso ? pesos[i] : total / p.objs.length) * 100) / 100 }));
       const cumplidos = objetivos.filter(o => o.cumplido);
+      // reporte del período (trimestral / semestral / anual de Reportes): su período es "2026-10+3" (mes de inicio + cantidad de meses); vale el que termina el mismo mes
+      const repPer = reps.some(r => r.tipo === 'periodico' && r.marca === m.slug && (() => { const x = /^(\d{4})-(\d{2})\+(\d+)$/.exec(r.periodo); if (!x) return false; const fin = new Date(+x[1], +x[2] - 1 + +x[3] - 1, 1); return Utilities.formatDate(fin, TZ, 'yyyy-MM') === p.hasta.slice(0, 7); })());
       return { titulo: p.titulo, tipo: p.tipo, desde: p.desde, hasta: p.hasta, terminado: p.hasta < hoyS, abierto: p.desde <= hoyS && p.hasta >= hoyS, bono: total,
-        cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
+        reportePeriodo: repPer, cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
     }).sort((a, b) => (a.terminado - b.terminado) || a.hasta.localeCompare(b.hasta));
     return { slug: m.slug, nombre: lindo(m.slug), sm: m.sm, periodos: periodos };
   });
@@ -3233,12 +3245,21 @@ function okrAnotar_(b, quien, esProject) {
   if (!o) return { error: 'datos', mensaje: 'No encuentro ese objetivo' };
   const m = (reportesConfig_().marcas || []).filter(x => x.slug === o.marca)[0];
   if (!esProject && (!m || m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Solo la social media de la marca puede anotar sus objetivos' };
-  if (['alcance_esp', 'manual'].indexOf(o.metrica) < 0) return { error: 'datos', mensaje: 'Este objetivo se calcula solo con los reportes' };
+  // dato de un mes sin reporte mensual (seguidores netos, contactos, alcance): lo carga la social media y vale hasta que llegue el reporte
+  const porMes = /^\d{4}-\d{2}$/.test(String(b.mes || ''));
+  if (porMes ? ['seg_netos', 'contactos', 'alcance_suma'].indexOf(o.metrica) < 0 : ['alcance_esp', 'manual'].indexOf(o.metrica) < 0) return { error: 'datos', mensaje: 'Este objetivo se calcula solo con los reportes' };
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
-    const g = leerJson_('OKR_FILE_ID', 'panel-ideamia-okr.json'); g.v = g.v || {}; g.hist = g.hist || [];
+    const g = leerJson_('OKR_FILE_ID', 'panel-ideamia-okr.json'); g.v = g.v || {}; g.mes = g.mes || {}; g.hist = g.hist || [];
     const v = b.borrar ? null : okrNum_(b.valor);
     if (!b.borrar && v == null) return { error: 'datos', mensaje: 'Falta el número' };
+    if (porMes) {
+      const k = o.marca + '|' + (o.metrica === 'alcance_suma' ? 'alcance' : o.metrica) + '|' + b.mes;
+      if (b.borrar) delete g.mes[k]; else g.mes[k] = { v: v, quien: norm_(quien), cuando: new Date().toISOString() };
+      g.hist.push({ id: k, v: v, quien: norm_(quien), cuando: new Date().toISOString() }); g.hist = g.hist.slice(-500);
+      guardarJson_('OKR_FILE_ID', 'panel-ideamia-okr.json', g);
+      return { ok: true };
+    }
     if (b.borrar) delete g.v[o.id]; else g.v[o.id] = { v: v, quien: norm_(quien), cuando: new Date().toISOString(), nota: String(b.nota || '').slice(0, 300) };
     g.hist.push({ id: o.id, v: v, quien: norm_(quien), cuando: new Date().toISOString() }); g.hist = g.hist.slice(-500);
     guardarJson_('OKR_FILE_ID', 'panel-ideamia-okr.json', g);
@@ -3253,6 +3274,69 @@ function probarOKR() {
     p.objetivos.forEach(o => console.log('   ' + (o.cumplido ? '✔' : '·') + ' ' + o.objetivo + ' · logrado ' + o.logrado + ' de ' + o.meta + (o.faltanDatos && o.faltanDatos.length ? ' · faltan reportes de ' + o.faltanDatos.join(', ') : '') + (o.mesesBajos && o.mesesBajos.length ? ' · meses bajo el mínimo: ' + o.mesesBajos.join(', ') : '')));
   }));
   console.log('Marcas sin objetivos cargados: ' + v.marcas.filter(m => !m.periodos.length).map(m => m.nombre).join(', ') + ' · último mensual: ' + v.reportesHasta);
+}
+
+/* Privado de OKR a cada social media con marcas que tienen objetivos cargados: los lunes (Config OKR_AVISO_DIAS, por defecto "1")
+   dice qué le falta cargar para poder medir (reportes mensuales, espectadores del período, reporte trimestral/semestral al cierre,
+   campañas) y cómo viene cada período. La primera vez suma una explicación breve de la solapa Objetivos (propiedad OKR_INTRO_<CLAVE>). */
+const OKR_URL = 'https://ideamiacontacto-lab.github.io/panel-ideamia/objetivos/';
+function okrFaltantes_(m, hoyS) {
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const nomMes = s => MESES[Number(s.slice(5, 7)) - 1], falta = [], estado = [], mesesFalt = {};
+  const dias = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+  m.periodos.forEach(p => {
+    const recien = p.terminado && dias(p.hasta, hoyS) <= 30;
+    if (!p.abierto && !recien) return;
+    p.objetivos.forEach(o => {
+      (o.faltanDatos || []).filter(x => x < hoyS.slice(0, 7)).forEach(x => (mesesFalt[x] = mesesFalt[x] || {})[o.metrica === 'seg_netos' ? 'seguidores' : o.metrica === 'contactos' ? 'contactos' : 'alcance'] = 1);
+      if (o.metrica === 'alcance_esp' && !o.cerrado && !o.cumplido) {
+        const viejo = !o.anotado || dias(o.anotado.cuando.slice(0, 10), hoyS) > 10;
+        if (p.terminado && (!o.anotado || o.anotado.cuando.slice(0, 10) <= p.hasta)) falta.push('los espectadores del período completo (' + p.titulo.toLowerCase() + ')');
+        else if (p.abierto && viejo) falta.push('los espectadores ' + (p.tipo === 'trimestral' ? 'del trimestre' : p.tipo === 'semestral' ? 'del semestre' : 'del año') + ' a la fecha (Meta > Estadísticas > Resultados)');
+      }
+      if (o.metrica === 'manual' && !o.cumplido && !o.cerrado && (recien || dias(hoyS, p.hasta) <= 15)) falta.push('si cumpliste "' + o.objetivo.split('(')[0].trim() + '", marcalo');
+    });
+    if (recien && !p.reportePeriodo) falta.push('el reporte ' + (p.tipo === 'anual' ? 'anual' : p.tipo) + ' (' + p.titulo.toLowerCase() + ')');
+    if (p.abierto) {
+      const atr = p.objetivos.filter(o => !o.cumplido && (o.atrasado || (o.mesesBajos || []).length)).map(o => o.objetivo.split(':')[0].trim().toLowerCase());
+      estado.push(p.titulo + ': ' + p.cumplidos + ' de ' + p.total + ' cumplidos' + (atr.length ? ' · atrasado en ' + atr.join(', ') : ''));
+    }
+  });
+  Object.keys(mesesFalt).sort().forEach(x => falta.unshift('el reporte mensual de ' + nomMes(x) + ' (' + Object.keys(mesesFalt[x]).join(', ') + ')'));
+  return { falta: falta.filter((x, i, a) => a.indexOf(x) === i), estado: estado };
+}
+function okrPrivados_(cfg, ahora, forzar) {
+  const out = [], notas = [], hoyS = ymd_(ahora), diasAviso = String(cfg.OKR_AVISO_DIAS || '1').split(/[,\s]+/).map(Number);
+  const cfgR = reportesConfig_(), sms = (cfgR.marcas || []).map(m => m.sm).filter((x, i, a) => x && a.indexOf(x) === i);
+  sms.forEach(k => {
+    const intro = P.getProperty('OKR_INTRO_' + k.toUpperCase()) !== 'ya', toca = forzar || intro || diasAviso.indexOf(ahora.getDay()) >= 0;
+    if (!toca) return;
+    const v = okrVista_(k, false), con = v.marcas.filter(m => m.periodos.length);
+    if (!con.length) return;   // sin objetivos cargados todavía: no se le manda nada
+    const id = idDiscord_(cfg, k); if (!id) { notas.push('OKR · falta DISCORD_ID_' + k.toUpperCase() + ' en Config'); return; }
+    const L = [], F = con.map(m => Object.assign({ nombre: m.nombre }, okrFaltantes_(m, hoyS)));
+    if (intro) L.push('Te cuento una novedad: en la barra de arriba del panel (al lado de Panel diario, Reportes y Brainstormings) hay una solapa nueva, **Objetivos**: ' + OKR_URL,
+      'Ahí ves marca por marca los OKR trimestrales, semestrales y anuales: cuánto llevás de cada objetivo, si vas al ritmo, cuánto te falta por mes y qué parte del bono tenés cumplida.',
+      '• Los números salen solos de los reportes semanales y mensuales que cargás.',
+      '• Lo que no está en los reportes lo cargás ahí mismo: los espectadores del período en Meta, las campañas cumplidas y los meses que todavía no tienen reporte.',
+      '• Arriba de cada marca hay un recuadro "Para iterar" con lo que viene atrasado. La pauta vale para cualquier objetivo: coordinala con Juan.',
+      'Entrás con la misma clave del panel.', '');
+    const conFalta = F.filter(x => x.falta.length);
+    if (conFalta.length) { L.push('**OKR: esto te falta cargar para poder medir tus objetivos**'); conFalta.forEach(x => L.push('• **' + x.nombre + '**: ' + x.falta.join(' · '))); }
+    else L.push('**OKR:** tenés todo cargado para medir tus objetivos. 👏');
+    const est = F.filter(x => x.estado.length);
+    if (est.length) { L.push('', '**Cómo venís**'); est.forEach(x => x.estado.forEach(e => L.push('• **' + x.nombre + '** · ' + e))); }
+    L.push('', 'Todo el detalle y dónde cargar: ' + OKR_URL);
+    out.push({ clave: k, id: id, textos: trozos_('Hola ' + nombreDe_(k) + '.', L), intro: intro });
+  });
+  return { msgs: out, notas: notas };
+}
+/* PRUEBA sin efectos: el privado de OKR que le llegaría hoy a cada social media (como si fuera lunes). No manda nada. */
+function probarAvisoOKR() {
+  const r = okrPrivados_(config_(), hoyAR_(), true);
+  if (!r.msgs.length) console.log('Nadie tiene marcas con objetivos cargados (o falta su DISCORD_ID).');
+  r.msgs.forEach(m => { console.log('→ ' + m.clave + (m.intro ? ' (con la explicación de la primera vez)' : '')); m.textos.forEach(t => console.log(t)); });
+  if (r.notas.length) console.log('Notas: ' + r.notas.join(' | '));
 }
 
 function doGet(e) {
