@@ -8,10 +8,11 @@
     { id: 'reportes', n: 'Reportes', u: 'https://ideamiacontacto-lab.github.io/reportes-ideamia/' },
     { id: 'brain', n: 'Brainstormings', u: 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/' },
     // OKR por marca: solo para las social media y el project (el servidor igual lo cierra para el resto)
-    { id: 'okr', n: 'Objetivos', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/objetivos/', solo: ['orne', 'rama', 'project'] }
+    { id: 'okr', n: 'Objetivos', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/objetivos/', solo: ['orne', 'rama', 'project'] },
+    { id: 'plan', n: 'Plan', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/plan/', solo: ['orne', 'rama', 'project'] }
   ];
   const p = location.pathname + ' ' + location.host;
-  const actual = /objetivos/.test(location.pathname) ? 'okr' : /panel-ideamia|localhost:5190/.test(p) ? 'panel' : /reportes-ideamia/.test(p) ? 'reportes' : /brainstormings-ideamia/.test(p) ? 'brain' : '';
+  const actual = /objetivos/.test(location.pathname) ? 'okr' : /\/plan\//.test(location.pathname) ? 'plan' : /panel-ideamia|localhost:5190/.test(p) ? 'panel' : /reportes-ideamia/.test(p) ? 'reportes' : /brainstormings-ideamia/.test(p) ? 'brain' : '';
   const ls = { get: k => { try { return localStorage.getItem('ideamia:' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { v ? localStorage.setItem('ideamia:' + k, v) : localStorage.removeItem('ideamia:' + k); } catch (e) {} } };
   window.IdeamiaSesion = { clave: () => ls.get('clave'), persona: () => ls.get('persona'), nombre: () => ls.get('nombre'), guardar: o => Object.keys(o).forEach(k => ls.set(k, o[k])) };
 
