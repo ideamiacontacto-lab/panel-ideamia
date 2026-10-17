@@ -3192,7 +3192,11 @@ function okrCalcular_(o, reps, man, hoyS, manMes) {
   } else if (o.metrica === 'conversion') {
     const s = okrPorMes_(reps, o.marca, 'seg_netos', o.desde, o.hasta, manMes), a = okrPorMes_(reps, o.marca, 'alcance_suma', o.desde, o.hasta, manMes);
     const ss = s.reduce((x, m) => x + (m.v || 0), 0), aa = a.reduce((x, m) => x + (m.v || 0), 0);
-    r.logrado = aa ? Math.round(ss / aa * 1000) / 10 : null; r.cumplido = r.logrado != null && r.logrado >= o.meta;
+    // con meses sin datos la conversión es parcial: se muestra, pero se da por cumplida recién con todos los meses y el período cerrado
+    r.faltanDatos = s.concat(a).filter(m => m.v == null && m.mes < hoyS.slice(0, 7)).map(m => m.mes).filter((x, i, l) => l.indexOf(x) === i).sort();
+    r.logrado = aa ? Math.round(ss / aa * 1000) / 10 : null;
+    const llegoC = r.logrado != null && r.logrado >= o.meta;
+    r.cumplido = llegoC && !r.faltanDatos.length && o.hasta < hoyS; r.enCamino = llegoC && !r.cumplido;
   } else {   // alcance_esp y manual: lo anota la social media
     r.manual = true;
     if (anot) { r.logrado = anot.v; r.anotado = { quien: anot.quien, cuando: anot.cuando, nota: anot.nota || '' }; }
@@ -3212,7 +3216,9 @@ function okrCalcular_(o, reps, man, hoyS, manMes) {
       else if (!ult.parcial) { const fin = new Date(Number(ult.mes.slice(0, 4)), Number(ult.mes.slice(5, 7)), 0, 23, 59).getTime(); avance = Math.max(0, Math.min(1, (Math.min(fin, ahora) - t0) / (t1 - t0))); }
     }
     const esperado = o.meta * avance * 0.9;
-    r.atrasado = avance > 0 && r.logrado < (o.metrica === 'reels' ? Math.floor(esperado) : esperado);
+    // si falta algún mes ya cerrado, no se puede decir que va atrasado: primero hay que cargar ese mes
+    const huecos = (r.faltanDatos || []).some(x => x < hoyS.slice(0, 7));
+    r.atrasado = !huecos && avance > 0 && r.logrado < (o.metrica === 'reels' ? Math.floor(esperado) : esperado);
   }
   return r;
 }
