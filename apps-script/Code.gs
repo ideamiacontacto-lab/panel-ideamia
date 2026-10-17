@@ -3108,7 +3108,8 @@ function okrReportes_() {
   if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
   if (!/^enviado_en/.test(txt)) return [];
   const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
-  const iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), iD = ix('datos_json'), bajas = {}, ult = {};
+  const iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), iD = ix('datos_json'), iN = ix('marca'), bajas = {}, ult = {}, nombres = {};
+  rows.slice(1).forEach(r => { if (r[iM] && r[iN] && r[iT] !== 'baja' && r[iT] !== 'prueba') nombres[r[iM]] = r[iN]; });
   rows.slice(1).forEach(r => { if (r[iT] === 'baja') { try { const d = JSON.parse(r[iD] || '{}'); bajas[d.ref_tipo + '|' + r[iM] + '|' + d.ref_enviado_en] = 1; } catch (e) {} } });
   rows.slice(1).forEach(r => {
     const tipo = r[iT]; if (['mensual', 'sm'].indexOf(tipo) < 0 || bajas[tipo + '|' + r[iM] + '|' + r[iE]]) return;
@@ -3122,6 +3123,8 @@ function okrReportes_() {
     if (!ult[key] || String(r[iE]) > ult[key].enviado) ult[key] = { tipo: tipo, marca: r[iM], periodo: p, enviado: String(r[iE]), d: k };
   });
   const out = Object.keys(ult).map(x => ult[x]);
+  out.nombres = nombres;   // nombre lindo de cada marca, tal como se carga en Reportes
+  try { c.put('okrnom', JSON.stringify(nombres), 600); } catch (e) {}
   try { c.put('okrrep', JSON.stringify(out), 600); } catch (e) {}
   return out;
 }
@@ -3191,7 +3194,15 @@ function okrCalcular_(o, reps, man, hoyS) {
   if (!r.cumplido && o.meta && r.logrado != null && ['seg_netos', 'contactos', 'alcance_suma', 'reels', 'alcance_esp'].indexOf(o.metrica) >= 0) {
     const mesesRest = Math.max(0, (new Date(t1).getFullYear() - new Date(ahora).getFullYear()) * 12 + new Date(t1).getMonth() - new Date(ahora).getMonth()) + 1;
     r.falta = Math.max(0, o.meta - r.logrado); r.porMes = mesesRest ? Math.ceil(r.falta / mesesRest) : r.falta;
-    r.atrasado = r.logrado < o.meta * r.avanceTiempo * 0.9;
+    // el ritmo se compara hasta donde hay datos: si falta el reporte del mes, ese mes no cuenta como atraso
+    let avance = r.avanceTiempo;
+    if (r.meses) {
+      const conDatos = r.meses.filter(m => m.v != null), ult = conDatos[conDatos.length - 1];
+      if (!ult) avance = 0;
+      else if (!ult.parcial) { const fin = new Date(Number(ult.mes.slice(0, 4)), Number(ult.mes.slice(5, 7)), 0, 23, 59).getTime(); avance = Math.max(0, Math.min(1, (Math.min(fin, ahora) - t0) / (t1 - t0))); }
+    }
+    const esperado = o.meta * avance * 0.9;
+    r.atrasado = avance > 0 && r.logrado < (o.metrica === 'reels' ? Math.floor(esperado) : esperado);
   }
   return r;
 }
@@ -3200,7 +3211,8 @@ function okrVista_(quien, esProject) {
   const hoyS = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
   const bono = { trimestral: okrNum_(cfg.OKR_BONO_TRIMESTRAL) || 20, semestral: okrNum_(cfg.OKR_BONO_SEMESTRAL) || 40, anual: okrNum_(cfg.OKR_BONO_ANUAL) || 70 };
   const marcas = (cfgR.marcas || []).filter(m => esProject || m.sm === norm_(quien));
-  const nombres = {}; (cfgR.marcas || []).forEach(m => nombres[m.slug] = m.nombre || m.slug);
+  const nombres = reps.nombres || JSON.parse(CacheService.getScriptCache().get('okrnom') || '{}');
+  const lindo = s => nombres[s] || String(s).split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   const out = marcas.map(m => {
     const mias = defs.filter(o => o.marca === m.slug), pers = {};
     mias.forEach(o => { const k = o.periodo + '|' + o.desde; (pers[k] = pers[k] || { titulo: o.periodo, tipo: o.tipo, desde: o.desde, hasta: o.hasta, objs: [] }).objs.push(o); });
@@ -3211,7 +3223,7 @@ function okrVista_(quien, esProject) {
       return { titulo: p.titulo, tipo: p.tipo, desde: p.desde, hasta: p.hasta, terminado: p.hasta < hoyS, abierto: p.desde <= hoyS && p.hasta >= hoyS, bono: total,
         cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
     }).sort((a, b) => (a.terminado - b.terminado) || a.hasta.localeCompare(b.hasta));
-    return { slug: m.slug, nombre: m.nombre || m.slug, sm: m.sm, periodos: periodos };
+    return { slug: m.slug, nombre: lindo(m.slug), sm: m.sm, periodos: periodos };
   });
   return { ok: true, hoy: hoyS, quien: quien, project: !!esProject, marcas: out, reportesHasta: reps.reduce((a, r) => r.tipo === 'mensual' && r.periodo > a ? r.periodo : a, '') };
 }
