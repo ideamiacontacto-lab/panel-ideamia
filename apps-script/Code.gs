@@ -4080,9 +4080,8 @@ function planGeneralAccion_(b, m, quien) {
 function planMesAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
   if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
-  const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|  if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
   if (b.accion === 'general') return planGeneralAccion_(b, m, quien);
-  const key = String(b.key || ''); if (!/^d{4}-d{2}-d{2}|/.test(key)) return { error: 'datos', mensaje: 'Falta la campaña' };
+  const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|/.test(key)) return { error: 'datos', mensaje: 'Falta la campaña' };
   const lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
     const dec = (leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json')[m.slug] || {})[key];
