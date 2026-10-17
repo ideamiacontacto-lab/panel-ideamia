@@ -27,6 +27,9 @@ function onOpen() {
     .addSeparator()
     .addItem('Cargar el token del bot de Discord', 'cargarClaveDiscord')
     .addItem('Cargar la clave del puente de Discord', 'cargarClavePuente')
+    .addSeparator()
+    .addItem('Cargar la clave de Gemini (reuniones)', 'cargarClaveGemini')
+    .addItem('Cargar el webhook de reuniones', 'cargarWebhookReuniones')
     .addToUi();
 }
 
@@ -2879,6 +2882,134 @@ function avisarAdsTodos() {
   adsPedidosAvisar_(config_());
   console.log('Nota: ' + (P.getProperty('ADS_NOTA') || 'ninguna') + ' · avisados: ' + (P.getProperty('ADS_AVISADOS') || '').split(',').length);
 }
+/* ---------------- resúmenes de reuniones (Discord "sala de reuniones" → Craig → Drive → Gemini → canal) ----------------
+   1. Se graba la reunión con el bot Craig (/join y /stop) y se baja el audio mezclado en un solo archivo (mp3, ogg, flac o m4a).
+   2. Se sube ese audio a la carpeta de Drive "Reuniones · audios" (la crea instalarReuniones; el link queda en el registro).
+   3. Cada 10 minutos reunionesProcesar() toma los audios nuevos, Gemini transcribe y resume, y el resumen se publica en el
+      canal de Discord del webhook. El resumen y la transcripción completa quedan como .txt en "Reuniones · resúmenes".
+   Claves (NUNCA en el código): menú del Sheet "Cargar la clave de Gemini" y "Cargar el webhook de reuniones".
+   Config opcional: GEMINI_MODELO (por defecto gemini-2.5-flash). Cada audio se procesa una sola vez (propiedad REUNIONES_HECHOS);
+   si falla, se reintenta hasta 3 veces y el motivo queda en REUNIONES_NOTA. */
+function cargarClaveGemini() { cambiarClave_('GEMINI_KEY', 'Gemini · clave de la API (la de aistudio.google.com)'); }
+function cargarWebhookReuniones() { cambiarClave_('REUNIONES_WEBHOOK', 'Discord · URL del webhook del canal de resúmenes de reuniones'); }
+function carpetaReuniones_(prop, nombre) {
+  let f = null; const id = P.getProperty(prop);
+  if (id) { try { f = DriveApp.getFolderById(id); if (f.isTrashed()) f = null; } catch (e) { f = null; } }
+  if (!f) { f = DriveApp.createFolder(nombre); P.setProperty(prop, f.getId()); }
+  return f;
+}
+/* Instala el disparador cada 10 minutos y crea las carpetas. Se corre UNA vez desde el editor. */
+function instalarReuniones() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'reunionesProcesar').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('reunionesProcesar').timeBased().everyMinutes(10).create();
+  const a = carpetaReuniones_('REUNIONES_AUDIOS', 'Reuniones · audios'), r = carpetaReuniones_('REUNIONES_RESUMENES', 'Reuniones · resúmenes');
+  console.log('Listo. Subí los audios acá: ' + a.getUrl() + '\nLos resúmenes quedan acá: ' + r.getUrl() +
+    '\nClave de Gemini: ' + (P.getProperty('GEMINI_KEY') ? 'cargada' : 'FALTA') + ' · webhook: ' + (P.getProperty('REUNIONES_WEBHOOK') ? 'cargado' : 'FALTA'));
+}
+const REUNION_MIME_ = { mp3: 'audio/mp3', ogg: 'audio/ogg', oga: 'audio/ogg', flac: 'audio/flac', wav: 'audio/wav', m4a: 'audio/aac', aac: 'audio/aac', aiff: 'audio/aiff', mp4: 'video/mp4' };
+function geminiAudio_(blob, mime, nombre) {
+  const key = P.getProperty('GEMINI_KEY'), modelo = String(config_().GEMINI_MODELO || 'gemini-2.5-flash').trim();
+  const base = 'https://generativelanguage.googleapis.com';
+  const bytes = blob.getBytes();
+  // 1) subida resumible del audio a la Files API de Gemini
+  const ini = UrlFetchApp.fetch(base + '/upload/v1beta/files', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': key, 'X-Goog-Upload-Protocol': 'resumable', 'X-Goog-Upload-Command': 'start', 'X-Goog-Upload-Header-Content-Length': String(bytes.length), 'X-Goog-Upload-Header-Content-Type': mime },
+    payload: JSON.stringify({ file: { display_name: nombre.slice(0, 100) } }) });
+  const h = ini.getAllHeaders(), url = h['x-goog-upload-url'] || h['X-Goog-Upload-URL'];
+  if (!url) throw new Error('Gemini no aceptó la subida (' + ini.getResponseCode() + '): ' + ini.getContentText().slice(0, 150));
+  const sub = UrlFetchApp.fetch(url, { method: 'post', muteHttpExceptions: true, contentType: mime,
+    headers: { 'X-Goog-Upload-Offset': '0', 'X-Goog-Upload-Command': 'upload, finalize' }, payload: bytes });
+  let file = (JSON.parse(sub.getContentText() || '{}') || {}).file;
+  if (!file) throw new Error('Gemini no guardó el audio (' + sub.getResponseCode() + ')');
+  // 2) esperar a que termine de procesarlo
+  for (let i = 0; i < 30 && file.state === 'PROCESSING'; i++) {
+    Utilities.sleep(4000);
+    file = JSON.parse(UrlFetchApp.fetch(base + '/v1beta/' + file.name, { headers: { 'x-goog-api-key': key }, muteHttpExceptions: true }).getContentText());
+  }
+  if (file.state !== 'ACTIVE') throw new Error('Gemini no terminó de procesar el audio (estado ' + file.state + ')');
+  const gen = (texto, json, maxTok) => {
+    const cfgGen = { temperature: 0.2, maxOutputTokens: maxTok };
+    if (json) cfgGen.responseMimeType = 'application/json';
+    if (/2\.5/.test(modelo)) cfgGen.thinkingConfig = { thinkingBudget: json ? 1024 : 0 };
+    const r = UrlFetchApp.fetch(base + '/v1beta/models/' + modelo + ':generateContent', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-goog-api-key': key },
+      payload: JSON.stringify({ contents: [{ parts: [{ file_data: { mime_type: file.mimeType || mime, file_uri: file.uri } }, { text: texto }] }], generationConfig: cfgGen }) });
+    if (r.getResponseCode() !== 200) throw new Error('Gemini respondió ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200));
+    return ((((JSON.parse(r.getContentText()).candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('');
+  };
+  try {
+    const equipo = 'Joaquín (director), Ivo (director creativo), Orne y Rama (social media), Fede (guiones), Bauti (filmmaker), Ale (community manager), Zaira y Luisi (diseño), Juan (ads)';
+    const intro = 'Es la grabación de una reunión del Estudio Ideamia, una agencia de redes sociales de Argentina. Integrantes posibles: ' + equipo + '. ';
+    const reglas = ' Español rioplatense con voseo. No uses el guion largo; usá punto, coma o dos puntos. No inventes nada que no se haya dicho.';
+    // 1) resumen (respuesta corta: llega rápido aunque la reunión sea larga)
+    const txt = gen(intro + 'Respondé SOLO un JSON con estas claves: "titulo" (corto, de qué se habló), "resumen" (4 a 8 líneas), "decisiones" (lista de textos), ' +
+      '"tareas" (lista de objetos {"quien","que","cuando"}; cuando vacío si no se dijo), "marcas" (lista de marcas o clientes mencionados).' + reglas, true, 8000);
+    let res;
+    try { res = JSON.parse(txt.replace(/^```(json)?|```$/g, '').trim()); }
+    catch (e) { res = { titulo: 'Reunión', resumen: txt.slice(0, 1500), decisiones: [], tareas: [], marcas: [] }; }
+    // 2) transcripción aparte: si falla o tarda demasiado, el resumen se publica igual
+    try { res.transcripcion = gen(intro + 'Transcribí todo lo que se dice, en orden, con el nombre de quien habla cuando se pueda deducir (si no, "Persona 1", "Persona 2"). Solo la transcripción, sin comentarios.' + reglas, false, 60000); }
+    catch (e) { res.transcripcion = '(no se pudo transcribir: ' + String(e.message || e).slice(0, 150) + ')'; }
+    return res;
+  } finally {
+    UrlFetchApp.fetch(base + '/v1beta/' + file.name, { method: 'delete', headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
+  }
+}
+function reunionTexto_(res, fecha) {
+  const lista = (a, f) => (Array.isArray(a) ? a : []).filter(Boolean).map(f);
+  const lineas = [];
+  String(res.resumen || '').split(/\n+/).filter(Boolean).forEach(l => lineas.push(l));
+  const dec = lista(res.decisiones, d => '• ' + d);
+  if (dec.length) { lineas.push('', '**Decisiones**'); dec.forEach(l => lineas.push(l)); }
+  const tar = lista(res.tareas, t => '• ' + (t.quien ? '**' + t.quien + '**: ' : '') + (t.que || '') + (t.cuando ? ' (' + t.cuando + ')' : ''));
+  if (tar.length) { lineas.push('', '**Tareas**'); tar.forEach(l => lineas.push(l)); }
+  const mar = lista(res.marcas, m => m);
+  if (mar.length) lineas.push('', 'Marcas: ' + mar.join(', '));
+  return { encabezado: '📋 **' + String(res.titulo || 'Reunión').slice(0, 120) + '** · ' + fecha, lineas: lineas };
+}
+function reunionesProcesar() {
+  const lock = LockService.getScriptLock(); if (!lock.tryLock(1000)) return;
+  try {
+    if (!P.getProperty('GEMINI_KEY') || !P.getProperty('REUNIONES_WEBHOOK')) return;
+    const audios = carpetaReuniones_('REUNIONES_AUDIOS', 'Reuniones · audios'), salida = carpetaReuniones_('REUNIONES_RESUMENES', 'Reuniones · resúmenes');
+    const hechos = JSON.parse(P.getProperty('REUNIONES_HECHOS') || '{}'), it = audios.getFiles(), pend = [];
+    while (it.hasNext()) { const f = it.next(); const v = hechos[f.getId()]; if (v === 'ok' || Number(v) >= 3) continue; pend.push(f); }
+    pend.sort((a, b) => a.getDateCreated() - b.getDateCreated());
+    const f = pend[0]; if (!f) return;   // uno por vez: cada audio puede llevar varios minutos
+    const ext = (String(f.getName()).match(/\.([a-z0-9]+)$/i) || [])[1] || '', mime = REUNION_MIME_[ext.toLowerCase()] || f.getMimeType();
+    try {
+      if (!/^(audio|video)\//.test(mime)) throw new Error('"' + f.getName() + '" no es un audio');
+      if (f.getSize() > 45 * 1024 * 1024) throw new Error('"' + f.getName() + '" pesa más de 45 MB: bajalo de Craig en mp3 u ogg (más liviano)');
+      const res = geminiAudio_(f.getBlob(), mime, f.getName());
+      const fecha = Utilities.formatDate(f.getDateCreated(), TZ, 'dd/MM/yyyy HH:mm');
+      const t = reunionTexto_(res, fecha);
+      const doc = salida.createFile(fecha.replace(/[\/: ]/g, '-') + ' · ' + String(res.titulo || 'Reunión').replace(/[\\\/:*?"<>|]/g, '').slice(0, 80) + '.txt',
+        t.encabezado.replace(/\*\*/g, '') + '\n\n' + t.lineas.join('\n').replace(/\*\*/g, '') + '\n\n──── Transcripción ────\n\n' + String(res.transcripcion || ''), 'text/plain');
+      t.lineas.push('', 'Transcripción completa: ' + doc.getUrl());
+      trozos_(t.encabezado, t.lineas).forEach((m, i) => {
+        const r = UrlFetchApp.fetch(P.getProperty('REUNIONES_WEBHOOK'), { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+          payload: JSON.stringify({ content: m, allowed_mentions: { parse: [] } }) });
+        if (r.getResponseCode() >= 300) throw new Error('Discord no aceptó el mensaje ' + (i + 1) + ' (' + r.getResponseCode() + ')');
+        Utilities.sleep(800);
+      });
+      hechos[f.getId()] = 'ok'; P.deleteProperty('REUNIONES_NOTA');
+    } catch (e) {
+      hechos[f.getId()] = (Number(hechos[f.getId()]) || 0) + 1;
+      P.setProperty('REUNIONES_NOTA', new Date().toISOString() + ' · ' + String(e.message || e).replace(/key=[\w-]+/g, 'key=…').slice(0, 300));
+    }
+    P.setProperty('REUNIONES_HECHOS', JSON.stringify(hechos));
+  } finally { lock.releaseLock(); }
+}
+/* PRUEBA sin efectos: qué audios están esperando, si están las claves y el último error. No llama a Gemini ni publica. */
+function probarReuniones() {
+  const a = carpetaReuniones_('REUNIONES_AUDIOS', 'Reuniones · audios'), hechos = JSON.parse(P.getProperty('REUNIONES_HECHOS') || '{}'), it = a.getFiles();
+  console.log('Carpeta de audios: ' + a.getUrl());
+  console.log('Clave de Gemini: ' + (P.getProperty('GEMINI_KEY') ? 'cargada' : 'FALTA') + ' · webhook: ' + (P.getProperty('REUNIONES_WEBHOOK') ? 'cargado' : 'FALTA') +
+    ' · disparador: ' + (ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'reunionesProcesar') ? 'instalado' : 'FALTA (correr instalarReuniones)'));
+  while (it.hasNext()) { const f = it.next(); console.log('   ' + f.getName() + ' · ' + Math.round(f.getSize() / 1048576) + ' MB · ' + (hechos[f.getId()] === 'ok' ? 'resumido' : hechos[f.getId()] ? 'falló ' + hechos[f.getId()] + ' vez/veces' : 'pendiente')); }
+  console.log('Último error: ' + (P.getProperty('REUNIONES_NOTA') || 'ninguno'));
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
