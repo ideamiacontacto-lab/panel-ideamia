@@ -51,6 +51,21 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .ps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid var(--ln);background:var(--c1);border-radius:999px;padding:8px 14px;font-weight:600}.chip.on{background:var(--y);color:#0A0A0A}
 .pie{color:var(--mu);font-size:12px;margin-top:14px}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30}
+/* ficha operativa */
+.vseg{display:flex;width:100%}.vseg button{flex:1}.bdg{font-style:normal;background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;margin-left:4px}
+.fold.amar{border-color:rgba(255,242,0,.3)}.fold.amar .cnt{background:var(--y);color:#0A0A0A}
+.fhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:2px 0 12px}.fhead .nota{color:#ffd0d0;font-size:13.5px}
+.aprob{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(255,242,0,.08);border:1px solid rgba(255,242,0,.35);border-radius:16px;padding:12px 14px;margin-bottom:10px}.aprob div{display:flex;gap:8px}
+.pbar{height:6px;background:var(--c2);border-radius:9px;margin:6px 0 4px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--warn);border-radius:9px}.pbar i.ok{background:var(--ok)}
+.bts{display:flex;gap:6px}.btn.g{background:var(--c3);color:var(--tx)}.btn:disabled{opacity:.45;cursor:default}.btn.add{margin-top:10px;background:none;border:1px dashed #3a3a3a;color:var(--y);width:100%}
+.pill{font-size:11px;border-radius:999px;padding:2px 8px;background:var(--c3);color:var(--mu);font-weight:600}
+.pie-f{position:sticky;bottom:10px;display:flex;gap:8px;justify-content:flex-end;align-items:center;background:rgba(10,10,10,.92);border:1px solid var(--ln);border-radius:16px;padding:10px;margin-top:12px;backdrop-filter:blur(6px)}.pie-f .m{color:var(--warn);font-size:12.5px;margin-right:auto}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:end center;z-index:40}@media(min-width:700px){.modal{place-items:center}}
+.modal .box{background:var(--c1);border:1px solid var(--ln);border-radius:20px 20px 0 0;padding:18px;width:100%;max-width:560px;max-height:90vh;overflow:auto}@media(min-width:700px){.modal .box{border-radius:20px}}
+.modal h3{margin:0 0 6px}.modal label{display:block;font-size:11.5px;color:var(--mu);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 6px}.modal label.ck{text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--tx);display:flex;gap:8px;align-items:center}
+.modal input:not([type=checkbox]){width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:10px 12px;margin-bottom:6px}
+.modal .acc{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}.rowf{display:flex;gap:8px;align-items:center}.rowf input{flex:1}
+.seg2{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}.seg2 button{border:1px solid var(--ln);background:var(--c2);color:#cfcfcf;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600}.seg2 button.on{background:var(--y);color:#0A0A0A;border-color:var(--y)}
 @media(max-width:600px){h1{font-size:34px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -63,12 +78,12 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '2';
+  const VER = '3';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
-  const S = { persona: jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {} };
+  const S = { persona: jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {}, vista: lsGet('plan:vista') || 'cumple', ficha: null, draft: {} };
   const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'], DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -91,10 +106,121 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     if (!clave()) return gate('');
     app.innerHTML = '<div class="empty">Cargando…</div>';
     try {
-      const r = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, mes: mesPedido() }), { cache: 'no-store' }).then(r => r.json());
+      const q = x => fetch(C.API_URL + '?' + new URLSearchParams(Object.assign({ action: 'plan', k: clave(), p: S.persona }, x)), { cache: 'no-store' }).then(r => r.json());
+      const [r, f] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' })]);
       if (r.error) return gate(r.mensaje || r.error);
-      S.data = r; pintar();
+      S.data = r; S.ficha = f && f.ok ? f : null; S.draft = {}; pintar();
     } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '.</div>'; }
+  }
+  async function recargarFicha() {
+    const f = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'ficha' }), { cache: 'no-store' }).then(r => r.json());
+    if (f && f.ok) { S.ficha = f; S.draft = {}; pintar(); }
+  }
+  async function enviarFicha(body) {
+    const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'ficha', k: clave(), persona: S.persona, marca: S.marca }, body)) }).then(r => r.json());
+    if (r.error) throw new Error(r.mensaje || r.error); return r;
+  }
+  /* ---------- ficha operativa (Fase 2) ---------- */
+  const DSEM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'], ORDEN = [1, 2, 3, 4, 5, 6, 0];
+  const EST_F = { borrador: ['nd', 'Borrador'], enviada: ['prox', 'Esperando a Joaquín'], aprobada: ['ok', 'Aprobada'], cambios: ['bad', 'Joaquín pidió cambios'], cambiada: ['mid', 'Editada: mandala de nuevo'] };
+  const fichaDe = slug => S.ficha && S.ficha.marcas.find(x => x.slug === slug);
+  const borrador = slug => { if (!S.draft[slug]) { const f = fichaDe(slug) || {}; S.draft[slug] = JSON.parse(JSON.stringify({ topicos: f.topicos || [], pedidos: f.pedidos || [], aprendizajes: f.aprendizajes || [] })); } return S.draft[slug]; };
+  const sucio = slug => { const f = fichaDe(slug) || {}; return !!S.draft[slug] && JSON.stringify(S.draft[slug]) !== JSON.stringify({ topicos: f.topicos || [], pedidos: f.pedidos || [], aprendizajes: f.aprendizajes || [] }); };
+  function pintarFicha(m) {
+    const F = fichaDe(m.slug); if (!F) return '<div class="empty">No se pudo leer la ficha.</div>';
+    const D = borrador(m.slug), e = EST_F[F.estado] || EST_F.borrador, esProj = S.data.project;
+    let h = '<div class="fhead"><span class="st ' + e[0] + '">' + e[1] + '</span>' + (F.nota && F.estado === 'cambios' ? '<span class="nota">' + esc(F.nota) + '</span>' : '') + '</div>';
+    if (esProj && (F.estado === 'enviada' || F.estado === 'cambiada')) h += '<div class="aprob"><b>Revisá la ficha de ' + esc(m.nombre) + '</b><div><button class="btn g" data-fx="cambios">Pedir cambios</button><button class="btn" data-fx="aprobar">Aprobar</button></div></div>';
+    // avance del mes (solo con la ficha aprobada)
+    if (F.aprobada && F.avance.length) h += fold('av:' + m.slug, '', 'Tópicos de este mes', F.avance.filter(a => a.ok).length + '/' + F.avance.length, '<div class="rows">' + F.avance.map(a => '<div class="row"><div>' + esc(a.nombre) + (a.externo ? ' <span class="m">· ' + esc(a.canal) + '</span>' : '') +
+      '<div class="pbar"><i class="' + (a.ok ? 'ok' : '') + '" style="width:' + Math.min(100, a.objMes ? a.n / a.objMes * 100 : 0) + '%"></i></div><div class="m">' + a.n + ' de ' + a.objMes + ' en el mes · a esta altura tendrían que ser ' + a.objHoy + (a.externo ? '' : ' (tarjetas con la etiqueta "Tópico · ' + esc(a.nombre) + '")') + '</div></div>' +
+      (a.externo ? '<button class="btn' + (a.estaSemana ? ' g' : '') + '" data-movi="' + esc(a.id) + '"' + (a.estaSemana ? ' data-des="1"' : '') + '>' + (a.estaSemana ? '✓ Movido esta semana' : 'Lo moví esta semana') + '</button>' : '<span class="st ' + (a.ok ? 'ok' : 'mid') + '">' + (a.ok ? 'Al día' : 'Abajo') + '</span>') + '</div>').join('') + '</div>', true);
+    if (F.sugerencias.length) h += fold('sg:' + m.slug, 'amar', 'Aprendizajes sugeridos por tus reportes', F.sugerencias.length, '<div class="rows">' + F.sugerencias.map(s => '<div class="row"><div>' + esc(s.texto) + '<div class="m">' + esc(s.fuente) + '</div></div><div class="bts"><button class="btn g" data-sug="' + esc(s.id) + '" data-no="1">Descartar</button><button class="btn" data-sug="' + esc(s.id) + '">Sumar</button></div></div>').join('') + '</div>', true);
+    const lista = (tipo, arr, fila, vacio) => '<div class="rows">' + (arr.length ? arr.map((x, i) => '<div class="row"><div>' + fila(x) + '</div><div class="bts"><button class="btn g" data-ed="' + tipo + ':' + i + '">Editar</button><button class="btn g" data-del="' + tipo + ':' + i + '" aria-label="Borrar">✕</button></div></div>').join('') : '<div class="row"><div class="m">' + vacio + '</div></div>') + '<button class="btn add" data-nuevo="' + tipo + '">＋ Agregar</button></div>';
+    h += fold('tp:' + m.slug, '', 'Tópicos fijos', D.topicos.length, lista('topicos', D.topicos, t => '<b>' + esc(t.nombre) + '</b>' + (t.externo ? ' <span class="pill">' + esc(t.canal || 'externo') + '</span>' : '') + '<div class="m">' + t.veces + ' por ' + t.por + (t.dias.length ? ' · ' + ORDEN.filter(d => t.dias.indexOf(d) >= 0).map(d => DSEM[d]).join(', ') : '') + ' · ' + t.angulos.length + ' ángulos' + (t.cm ? ' · también al CM' : '') + '</div>', 'Lo que hay que mover sí o sí todas las semanas o todos los meses (promo del día, envíos, canal de WhatsApp, comunicación interna…).'), true);
+    h += fold('pd:' + m.slug, '', 'Pedidos recurrentes', D.pedidos.length, lista('pedidos', D.pedidos, p => '<b>' + esc(p.que) + '</b><div class="m">A ' + esc(p.aQuien) + ' · ' + (p.tipo === 'mes' ? 'el día ' + p.dia + ' de cada mes' : 'cada ' + DSEM[p.dia].toLowerCase()) + (p.siNo ? ' · si no responde: ' + esc(p.siNo) : '') + '</div>', 'Lo que hay que pedir siempre (la promo del miércoles, la promo del mes, la carta…). Te lo recuerdo el día anterior.'), false);
+    h += fold('ap:' + m.slug, '', 'Aprendizajes activos', D.aprendizajes.length, lista('aprendizajes', D.aprendizajes, a => '<b>' + esc(a.que) + '</b><div class="m">' + a.veces + ' por ' + a.por + ' · hasta el ' + dm(a.hasta) + (a.origen ? ' · ' + esc(a.origen) : '') + '</div>', 'Lo que aprendiste de los reportes: hacer más, hacer menos o dejar de hacer.'), false);
+    const dirty = sucio(m.slug);
+    h += '<div class="pie-f">' + (dirty ? '<span class="m">Tenés cambios sin guardar</span>' : '') + '<button class="btn g" data-fx="guardar"' + (dirty ? '' : ' disabled') + '>Guardar</button><button class="btn" data-fx="enviar"' + (F.estado === 'enviada' && !dirty ? ' disabled' : '') + '>' + (F.estado === 'aprobada' && !dirty ? 'Aprobada ✓' : 'Mandar a Joaquín') + '</button></div>';
+    return h;
+  }
+  function editor(slug, tipo, i) {
+    const D = borrador(slug), arr = D[tipo], x = i == null ? null : arr[i];
+    const v = x ? JSON.parse(JSON.stringify(x)) : tipo === 'topicos' ? { nombre: '', dias: [], veces: 1, por: 'semana', angulos: ['', '', '', '', ''], externo: false, canal: '', cm: false } : tipo === 'pedidos' ? { que: '', aQuien: '', tipo: 'semana', dia: 1, siNo: '' } : { que: '', veces: 1, por: 'semana', desde: '', hasta: '', origen: '' };
+    if (tipo === 'topicos') while (v.angulos.length < 5) v.angulos.push('');
+    const o = document.createElement('div'); o.className = 'modal';
+    const seg = (id, ops, val) => '<div class="seg2" data-g="' + id + '">' + ops.map(([k, t]) => '<button data-v="' + k + '" class="' + (String(val) === String(k) ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+    const pint = () => {
+      let h = '<h3>' + (x ? 'Editar' : 'Nuevo') + ' ' + ({ topicos: 'tópico fijo', pedidos: 'pedido recurrente', aprendizajes: 'aprendizaje' }[tipo]) + '</h3>';
+      if (tipo === 'topicos') {
+        h += '<label>Nombre</label><input id="eN" value="' + esc(v.nombre) + '" placeholder="Ej.: promo del día, envíos, canal de WhatsApp">' +
+          '<label>¿Dónde se mueve?</label>' + seg('externo', [['false', 'Instagram'], ['true', 'Afuera de Instagram']], v.externo) +
+          (v.externo ? '<label>Por dónde</label><input id="eC" value="' + esc(v.canal) + '" placeholder="Canal de WhatsApp, comunicación interna, área comercial…"><label class="ck"><input type="checkbox" id="eCM"' + (v.cm ? ' checked' : '') + '> Recordárselo también al CM</label>' : '') +
+          '<label>Qué días</label><div class="seg2 multi" data-g="dias">' + ORDEN.map(d => '<button data-v="' + d + '" class="' + (v.dias.indexOf(d) >= 0 ? 'on' : '') + '">' + DSEM[d] + '</button>').join('') + '</div>' +
+          '<label>Cuántas veces</label><div class="rowf"><input id="eV" type="number" min="1" max="31" value="' + v.veces + '">' + seg('por', [['semana', 'por semana'], ['mes', 'por mes']], v.por) + '</div>' +
+          '<label>Formas de moverlo (mínimo 5 ángulos) · <span id="eCnt"></span></label>' + v.angulos.map((a, k) => '<div class="rowf"><input data-ang="' + k + '" value="' + esc(a) + '" placeholder="Ángulo ' + (k + 1) + '">' + (k >= 5 ? '<button class="btn g" data-qa="' + k + '">✕</button>' : '') + '</div>').join('') + '<button class="btn g" data-masang>＋ Otro ángulo</button>';
+      } else if (tipo === 'pedidos') {
+        h += '<label>Qué se pide</label><input id="eQ" value="' + esc(v.que) + '" placeholder="Ej.: la promo fija del miércoles">' +
+          '<label>A quién</label><input id="eA" value="' + esc(v.aQuien) + '" placeholder="Ej.: Maxi (cliente), el project">' +
+          '<label>Cuándo se pide</label>' + seg('tipo', [['semana', 'Un día de la semana'], ['mes', 'Un día del mes']], v.tipo) +
+          (v.tipo === 'semana' ? seg('dia', ORDEN.map(d => [d, DSEM[d]]), v.dia) : '<input id="eD" type="number" min="1" max="28" value="' + v.dia + '">') +
+          '<label>Si no responde, por dónde</label><input id="eS" value="' + esc(v.siNo) + '" placeholder="Ej.: pedirla en el canal de la marca">';
+      } else {
+        h += '<label>Qué hay que hacer</label><input id="eQ" value="' + esc(v.que) + '" placeholder="Ej.: mover más juegos en historias">' +
+          '<label>Cuántas veces</label><div class="rowf"><input id="eV" type="number" min="1" max="31" value="' + v.veces + '">' + seg('por', [['semana', 'por semana'], ['mes', 'por mes']], v.por) + '</div>' +
+          '<label>Hasta cuándo</label><input id="eH" type="date" value="' + esc(v.hasta) + '"><label>De dónde sale (opcional)</label><input id="eO" value="' + esc(v.origen) + '" placeholder="Ej.: reporte semanal del 12/10">';
+      }
+      h += '<div class="acc"><button class="btn g" data-x>Cancelar</button><button class="btn" data-ok>Listo</button></div>';
+      o.innerHTML = '<div class="box">' + h + '</div>';
+      const leer = () => {
+        const g = id => (o.querySelector(id) || {}).value;
+        if (tipo === 'topicos') { v.nombre = g('#eN') || ''; if (o.querySelector('#eC')) { v.canal = g('#eC'); v.cm = o.querySelector('#eCM').checked; } v.veces = Number(g('#eV')) || 1; o.querySelectorAll('[data-ang]').forEach(inp => v.angulos[+inp.dataset.ang] = inp.value); }
+        else if (tipo === 'pedidos') { v.que = g('#eQ') || ''; v.aQuien = g('#eA') || ''; v.siNo = g('#eS') || ''; if (o.querySelector('#eD')) v.dia = Number(g('#eD')) || 1; }
+        else { v.que = g('#eQ') || ''; v.veces = Number(g('#eV')) || 1; v.hasta = g('#eH') || ''; v.origen = g('#eO') || ''; }
+      };
+      const cnt = () => { const c = o.querySelector('#eCnt'); if (c) { const n = [...o.querySelectorAll('[data-ang]')].filter(i => i.value.trim()).length; c.textContent = n + ' de 5'; c.style.color = n >= 5 ? '#5CE38A' : '#FFB454'; } };
+      cnt(); o.querySelectorAll('[data-ang]').forEach(inp => inp.oninput = cnt);
+      o.querySelectorAll('.seg2').forEach(sg => sg.querySelectorAll('button').forEach(b => b.onclick = () => {
+        leer(); const g = sg.dataset.g, val = b.dataset.v;
+        if (g === 'dias') { const d = Number(val), k = v.dias.indexOf(d); k >= 0 ? v.dias.splice(k, 1) : v.dias.push(d); }
+        else if (g === 'externo') v.externo = val === 'true'; else if (g === 'dia') v.dia = Number(val); else v[g] = val;
+        pint();
+      }));
+      const mas = o.querySelector('[data-masang]'); if (mas) mas.onclick = () => { leer(); v.angulos.push(''); pint(); };
+      o.querySelectorAll('[data-qa]').forEach(b => b.onclick = () => { leer(); v.angulos.splice(+b.dataset.qa, 1); pint(); });
+      o.querySelector('[data-x]').onclick = () => o.remove();
+      o.querySelector('[data-ok]').onclick = () => {
+        leer();
+        if (tipo === 'topicos') { v.angulos = v.angulos.map(a => a.trim()).filter(Boolean); if (!v.nombre.trim()) return toast('Poné el nombre del tópico'); if (v.angulos.length < 5) { while (v.angulos.length < 5) v.angulos.push(''); return toast('Hacen falta mínimo 5 formas distintas de moverlo'); } if (v.externo && !v.canal.trim()) return toast('Decí por dónde se mueve'); }
+        if (tipo === 'pedidos' && (!v.que.trim() || !v.aQuien.trim())) return toast('Completá qué se pide y a quién');
+        if (tipo === 'aprendizajes' && (!v.que.trim() || !v.hasta)) return toast('Completá qué hay que hacer y hasta cuándo');
+        if (x) arr[i] = v; else arr.push(v);
+        o.remove(); pintar(); toast('Listo. Acordate de guardar la ficha');
+      };
+    };
+    pint(); o.onclick = ev => { if (ev.target === o) o.remove(); }; document.body.appendChild(o);
+  }
+  function bindFicha() {
+    const slug = S.marca, D = S.draft[slug] || borrador(slug);
+    app.querySelectorAll('[data-nuevo]').forEach(b => b.onclick = () => editor(slug, b.dataset.nuevo, null));
+    app.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { const [t, i] = b.dataset.ed.split(':'); editor(slug, t, Number(i)); });
+    app.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const [t, i] = b.dataset.del.split(':'); if (!confirm('¿Lo saco de la ficha?')) return; D[t].splice(Number(i), 1); pintar(); });
+    app.querySelectorAll('[data-sug]').forEach(b => b.onclick = async () => {
+      const s = (fichaDe(slug).sugerencias || []).find(x => x.id === b.dataset.sug);
+      if (!b.dataset.no) { const d = new Date(); d.setDate(d.getDate() + 28); D.aprendizajes.push({ que: s.texto, veces: 1, por: 'semana', hasta: d.toISOString().slice(0, 10), origen: s.fuente }); editor(slug, 'aprendizajes', D.aprendizajes.length - 1); }
+      try { await enviarFicha({ accion: 'sugerencia', id: s.id, sumar: !b.dataset.no }); fichaDe(slug).sugerencias = fichaDe(slug).sugerencias.filter(x => x.id !== s.id); pintar(); } catch (e) { toast(e.message); }
+    });
+    app.querySelectorAll('[data-movi]').forEach(b => b.onclick = async () => { b.disabled = true; try { await enviarFicha({ accion: 'movido', topico: b.dataset.movi, deshacer: !!b.dataset.des }); toast(b.dataset.des ? 'Desmarcado' : 'Anotado'); recargarFicha(); } catch (e) { toast(e.message); b.disabled = false; } });
+    app.querySelectorAll('[data-fx]').forEach(b => b.onclick = async () => {
+      const fx = b.dataset.fx; let nota = '';
+      if (fx === 'cambios') { nota = prompt('¿Qué tiene que cambiar?'); if (!nota) return; }
+      if (fx === 'enviar' && !confirm('¿Mandás la ficha a Joaquín para que la apruebe?')) return;
+      b.disabled = true; const txt = b.textContent; b.textContent = 'Guardando…';
+      try {
+        const body = fx === 'guardar' || fx === 'enviar' ? Object.assign({ accion: fx }, D) : { accion: fx, nota: nota };
+        await enviarFicha(body); toast(fx === 'enviar' ? 'Mandada a Joaquín' : fx === 'aprobar' ? 'Aprobada: se crean las etiquetas en Trello' : fx === 'cambios' ? 'Se le avisó' : 'Guardada'); recargarFicha();
+      } catch (e) { toast(e.message); b.disabled = false; b.textContent = txt; }
+    });
   }
   const cls = p => p == null ? 'nd' : p >= 90 ? 'ok' : p >= 70 ? 'mid' : 'bad';
   const kpi = (v, l, d, pronto) => '<div class="kpi' + (pronto ? ' pronto' : '') + '"><div class="v ' + (pronto ? 'nd' : cls(v)) + '">' + (pronto ? '—' : v == null ? '—' : v + ' %') + '</div><div class="l">' + l + '</div><div class="d">' + d + '</div></div>';
@@ -110,9 +236,13 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     h += '<div class="seg"><button data-mes="actual" class="' + (S.mes === 'actual' ? 'on' : '') + '">Este mes</button><button data-mes="anterior" class="' + (S.mes === 'anterior' ? 'on' : '') + '">Mes pasado</button></div>';
     h += '<div class="marcas">' + M.map(x => { const p = prom(x); return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + (p || 0) + '"><i>' + (p == null ? '–' : p) + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (D.project ? esc(PERMITIDAS[x.sm] || x.sm) + ' · ' : '') + (p == null ? 'sin datos todavía' : 'cumplimiento ' + p + ' %') + '</span></span></button>'; }).join('') + '</div>';
     if (!m) { app.innerHTML = h + '<div class="empty">No hay marcas para mostrar.</div>'; return bind(); }
+    const Fm = fichaDe(m.slug), pend = S.ficha ? S.ficha.marcas.filter(x => x.estado === 'enviada' || x.estado === 'cambiada').length : 0;
+    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (S.vista !== 'ficha' ? 'on' : '') + '">Cumplimiento</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha de la marca' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
+    if (S.vista === 'ficha') { app.innerHTML = h + pintarFicha(m); bind(); bindFicha(); return; }
+    const topPct = Fm && Fm.aprobada && Fm.avance.length ? Math.round(Fm.avance.filter(a => a.ok).length / Fm.avance.length * 100) : null;
     const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
     h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
-      kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpi(null, 'Plan del mes', 'llega en la fase 4', true) + kpi(null, 'Tópicos fijos', 'llega en la fase 2', true) + '</div>';
+      kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpi(null, 'Plan del mes', 'llega en la fase 4', true) + (topPct != null ? kpi(topPct, 'Tópicos fijos', Fm.avance.filter(a => a.ok).length + ' de ' + Fm.avance.length + ' al día') : kpi(null, 'Tópicos fijos', Fm && Fm.estado !== 'aprobada' ? 'falta aprobar la ficha' : 'armá la ficha de la marca', true)) + '</div>';
     // alertas en rojo
     const al = [];
     ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? 'Entrega de calendario del ' + diaDe(e.f) + ' ' + dm(e.f) + ': quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : 'Entrega de reels del ' + diaDe(e.f) + ' ' + dm(e.f) + ': había ' + e.n + ' de ' + e.obj + '.'));
@@ -130,6 +260,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
   function bind() {
     app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('plan:marca', S.marca); pintar(); });
     app.querySelectorAll('[data-mes]').forEach(b => b.onclick = () => { if (S.mes === b.dataset.mes) return; S.mes = b.dataset.mes; cargar(); });
+    app.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { if (S.vista === b.dataset.vista) return; if (S.vista === 'ficha' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; S.vista = b.dataset.vista; lsSet('plan:vista', S.vista); pintar(); });
     app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement; f.classList.toggle('open'); S.folds[b.dataset.fold] = f.classList.contains('open'); lsSet('plan:folds', JSON.stringify(S.folds)); });
   }
   cargar();
