@@ -611,7 +611,13 @@ const RUTINAS_NUEVAS = [
   ['trimestral-check', '¿Este mes toca reporte trimestral? Organizalo con tiempo', 'mes:1-7', 'no', 'SM', 'Los trimestrales se entregan en enero, abril, julio y octubre.', 'LINK_REPORTES'],
   ['pautables', 'Definir con Ads qué contenidos se pautan el mes que viene', 'mes:ultima-semana', 'no', 'SM', 'Llevalo a la reunión con Ads: qué piezas se pautan y con qué objetivo cada una.', ''],
   ['produccion-trimestre', '¿Ya fuiste a una producción este trimestre?', 'meses:3,6,9,12/1-20', 'no', 'SM', 'Es obligatoria una por trimestre, para conocer el espacio y acompañar la producción. Coordinala con Bauti.', ''],
-  ['reunion-guiones', 'Reunión de guiones: presentar ideas nuevas y ver los que entregó Fede', 'semana:lun', 'isco, quality tienda, quality mayorista, gabriel varisco, tritato, dyb, 1talquecocina, vice burger', 'SM', 'Cada idea que aprueben va a Aprobado en SCL CON fecha de inicio = entrega del guion (7 días después, el lunes siguiente). Sin esa fecha Fede no sabe cuándo entregar.', '']
+  // acciones externas a Instagram (pedido de Joaquín, 17/10/2026): canal de WhatsApp de Quality todas las semanas (SM y CM),
+  // comunicación interna de GV y Quality Mayorista, y al principio de cada mes la pregunta por activaciones externas en todas las marcas
+  ['canal-wsp-quality', 'Mover el canal social de WhatsApp de Quality', 'semana:lun', 'quality tienda', 'SM', 'Es externo a Instagram y va SÍ O SÍ todas las semanas: novedades, promos, recetas o lanzamientos en el canal de WhatsApp.', ''],
+  ['canal-wsp-quality-cm', 'Mover el canal social de WhatsApp de Quality', 'semana:lun', 'quality tienda', 'CM', 'Es externo a Instagram y va SÍ O SÍ todas las semanas. Coordiná con el social media qué se publica.', ''],
+  ['comunicacion-interna', 'Comunicación interna del mes', 'mes:1-10', 'gabriel varisco, quality mayorista', 'SM', 'Pedí qué hay que comunicar internamente (material para el área comercial, promos para vendedores, novedades del equipo) y armalo.', ''],
+  ['activaciones-externas', '¿Este mes hay alguna activación externa o comunicación interna?', 'mes:1-5', 'sí', 'SM', 'Preguntale al cliente o al project: canal social, material para el área comercial, promos para vendedores, eventos o activaciones. Lo que haya, cargalo como input en el SCL con fecha.', ''],
+  ['reunion-guiones','Reunión de guiones: presentar ideas nuevas y ver los que entregó Fede', 'semana:lun', 'isco, quality tienda, quality mayorista, gabriel varisco, tritato, dyb, 1talquecocina, vice burger', 'SM', 'Cada idea que aprueben va a Aprobado en SCL CON fecha de inicio = entrega del guion (7 días después, el lunes siguiente). Sin esa fecha Fede no sabe cuándo entregar.', '']
 ];
 function asegurarRutinas_() {
   const sh = SpreadsheetApp.getActive().getSheetByName('Rutinas'); if (!sh) return;
@@ -677,6 +683,7 @@ function actualizar(desdeWeb) {
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
     try { adsPedidosAvisar_(cfg); } catch (e) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     try { planEvaluar_(snap, cat, cfg); } catch (e) { P.setProperty('PLAN_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
+    try { recProcesar_(cfg); } catch (e) { P.setProperty('REC_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
     try { tareasDelMesEnviar_(cat, cfg, snap); } catch (e) {}
     // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
@@ -3377,7 +3384,7 @@ function probarAvisoOKR() {
    · Entrega de calendario (eventos "Entrega … calendario" del calendario del equipo, viernes): esa noche (desde las 21 h) se revisa
      cada marca: tiene que haber contenido con fecha hasta la MISMA fecha del mes siguiente. Incumplida → privado al social media;
      si al día siguiente (desde las 10 h) sigue igual → privado al project.
-   · Entrega de reels (eventos "Entrega … reels", lunes): el PRIMER lunes de entrega de cada mes son los 4 reels del mes siguiente
+   · Entrega de reels (eventos "Entrega … reels", lunes): el PRIMER lunes de entrega de cada mes son los reels del mes siguiente (3 o 2 según la marca, planReelsReq_)
      (el segundo es el de plan B, Fase 5). Esa noche se cuentan los reels con fecha del mes siguiente en el SCL de cada marca con guiones.
    · Inputs procesados en 24 h: hora en que el social media lo marca en el panel (Registro) contra la hora en que se creó la tarjeta.
    · Reportes a tiempo: primera carga de cada reporte (Sheet de Reportes) contra su vencimiento.
@@ -3433,9 +3440,18 @@ function planReelsMes_(snap, slug, f) {
     ['trabajo', 'hecho', 'corr', 'urgente', 'espera', 'mover'].indexOf(c.cat) >= 0 &&
     /reel/.test(norm_((c.lab || []).join(' ') + ' ' + c.n))).length;
 }
+/* Reels guionados que tiene que presentar el social media por mes (dato de Joaquín, 17/10/2026). DyB hace más videos de propiedades,
+   pero guionados son 2. Config PLAN_REELS_<SLUG> (ej. PLAN_REELS_DYB = 2) pisa este número; 0 = la marca no tiene entrega de reels. */
+function planReelsReq_(m) {
+  const c = config_()['PLAN_REELS_' + String(m.slug).toUpperCase()]; if (c != null && c !== '' && isFinite(Number(c))) return Number(c);
+  const n = norm_(m.nombre + ' ' + m.slug);
+  if (/mayorista|gabriel|varisco|sfb|skilful|dyb/.test(n)) return 2;
+  if (/vice|tritato|isco|quality|1tal/.test(n)) return 3;
+  return 0;
+}
 function planMarcasSM_(cat, snap) {
   const conGuiones = {}; (snap.tableros || []).filter(b => b.tipo === 'guiones' && b.marca).forEach(b => conGuiones[b.marca] = 1);
-  return cat.marcas.filter(m => m.sm).map(m => ({ slug: m.slug, nombre: m.nombre, sm: m.sm, reels: !!conGuiones[m.slug] }));
+  return cat.marcas.filter(m => m.sm).map(m => ({ slug: m.slug, nombre: m.nombre, sm: m.sm, reels: planReelsReq_(m) }));
 }
 /* Lo llama cada actualización (cada 10 min): evalúa las entregas de esa noche, escala al project al día siguiente y anota los inputs que ve. */
 function planEvaluar_(snap, cat, cfg) {
@@ -3453,17 +3469,17 @@ function planEvaluar_(snap, cat, cfg) {
     if (e.f === hoyS && h >= 21) marcas.filter(m => e.tipo === 'calendario' || m.reels).forEach(m => {
       const k = e.f + '|' + e.tipo + '|' + m.slug; if (g.ent[k]) return;
       const r = e.tipo === 'calendario' ? (() => { const obj = planMasUnMes_(e.f), hasta = planCobertura_(snap, m.slug); return { ok: !!hasta && hasta >= obj, hasta: hasta, obj: obj }; })()
-        : (() => { const n = planReelsMes_(snap, m.slug, e.f); return { ok: n >= 4, n: n, obj: 4 }; })();
+        : (() => { const n = planReelsMes_(snap, m.slug, e.f); return { ok: n >= m.reels, n: n, obj: m.reels }; })();
       g.ent[k] = Object.assign(r, { f: e.f, tipo: e.tipo, marca: m.slug, sm: m.sm, t: new Date().toISOString() }); cambio = true;
       if (!r.ok) sumar(m.sm, e.tipo === 'calendario' ? '• **' + m.nombre + '**: el calendario tenía que quedar cargado hasta el ' + r.obj.slice(8) + '/' + r.obj.slice(5, 7) + ' y llega hasta el ' + (r.hasta ? r.hasta.slice(8) + '/' + r.hasta.slice(5, 7) : '(nada cargado)') + '.'
-        : '• **' + m.nombre + '**: tenían que estar los 4 reels del mes que viene y hay ' + r.n + '.');
+        : '• **' + m.nombre + '**: tenían que estar los ' + r.obj + ' reels del mes que viene y hay ' + r.n + '.');
     });
     // 2) al día siguiente, desde las 10: si sigue incumplida, se avisa al project
     if (e.f === ayerS && h >= 10) marcas.forEach(m => {
       const k = e.f + '|' + e.tipo + '|' + m.slug, x = g.ent[k]; if (!x || x.ok || x.escalada) return;
-      const sigue = e.tipo === 'calendario' ? !(planCobertura_(snap, m.slug) >= x.obj) : planReelsMes_(snap, m.slug, e.f) < 4;
+      const sigue = e.tipo === 'calendario' ? !(planCobertura_(snap, m.slug) >= x.obj) : planReelsMes_(snap, m.slug, e.f) < x.obj;
       x.escalada = true; x.corregida = !sigue; cambio = true;
-      if (sigue) sumar('project', '• **' + m.nombre + '** (' + nombreDe_(m.sm) + '): ' + (e.tipo === 'calendario' ? 'calendario cargado solo hasta el ' + (planCobertura_(snap, m.slug) || '-').slice(5).split('-').reverse().join('/') + ' (tenía que llegar al ' + x.obj.slice(5).split('-').reverse().join('/') + ')' : 'reels del mes que viene: ' + planReelsMes_(snap, m.slug, e.f) + ' de 4') + '.');
+      if (sigue) sumar('project', '• **' + m.nombre + '** (' + nombreDe_(m.sm) + '): ' + (e.tipo === 'calendario' ? 'calendario cargado solo hasta el ' + (planCobertura_(snap, m.slug) || '-').slice(5).split('-').reverse().join('/') + ' (tenía que llegar al ' + x.obj.slice(5).split('-').reverse().join('/') + ')' : 'reels del mes que viene: ' + planReelsMes_(snap, m.slug, e.f) + ' de ' + x.obj) + '.');
     });
   });
   if (cambio) guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
@@ -3487,7 +3503,7 @@ function planRecordatorios_(snap, cat, cfg, ahora) {
     const dia = DIA[new Date(e.f + 'T12:00:00').getDay()];
     let l;
     if (e.tipo === 'calendario') { const obj = planMasUnMes_(e.f), hasta = planCobertura_(snap, m.slug); l = '• **' + m.nombre + '**: el ' + dia + ' entregás el calendario hasta el **' + dm(obj) + '**. Hoy está cargado hasta el ' + (hasta ? dm(hasta) : '(nada)') + (hasta >= obj ? ' ✅' : '.'); }
-    else { const n = planReelsMes_(snap, m.slug, e.f), mes = MESES_ES[(new Date(e.f + 'T12:00:00').getMonth() + 1) % 12]; l = '• **' + m.nombre + '**: el ' + dia + ' entregás los **4 reels de ' + mes + '**. Hoy hay ' + n + ' cargado' + (n === 1 ? '' : 's') + (n >= 4 ? ' ✅' : '.'); }
+    else { const n = planReelsMes_(snap, m.slug, e.f), mes = MESES_ES[(new Date(e.f + 'T12:00:00').getMonth() + 1) % 12]; l = '• **' + m.nombre + '**: el ' + dia + ' entregás los **' + m.reels + ' reels de ' + mes + '**. Hoy hay ' + n + ' cargado' + (n === 1 ? '' : 's') + (n >= m.reels ? ' ✅' : '.'); }
     (porSM[m.sm] = porSM[m.sm] || []).push(l);
   }));
   Object.keys(porSM).forEach(k => { const id = idDiscord_(cfg, k); if (id) out.push({ clave: k, id: id, textos: trozos_('Hola ' + nombreDe_(k) + '. Recordatorio de entregas:', porSM[k].concat(['Detalle: ' + PLAN_URL])) }); });
@@ -3528,7 +3544,7 @@ function planVista_(quien, esProject, mes) {
       const estado = e.f > hoyS || (e.f === hoyS && ahora.getHours() < 21) ? 'proxima' : e.f < PLAN_DESDE ? 'sin medir' : x ? (x.ok ? 'cumplida' : x.corregida ? 'tarde' : 'incumplida') : 'sin medir';
       const r = { f: e.f, tipo: e.tipo, estado: estado };
       if (e.tipo === 'calendario') { r.obj = x ? x.obj : planMasUnMes_(e.f); r.hasta = x ? x.hasta : (estado === 'proxima' ? planCobertura_(snap, m.slug) : ''); }
-      else { r.obj = 4; r.n = x ? x.n : (estado === 'proxima' ? planReelsMes_(snap, m.slug, e.f) : null); }
+      else { r.obj = m.reels; r.n = x ? x.n : (estado === 'proxima' ? planReelsMes_(snap, m.slug, e.f) : null); }
       return r;
     });
     // 3) inputs procesados en 24 h (creados en el mes)
@@ -3569,6 +3585,115 @@ function probarPlan() {
   const v = planVista_('project', true); v.marcas.forEach(m => console.log(m.nombre + ' · entregas ' + m.ind.entregas + ' % · inputs 24 h ' + m.ind.inputs + ' % · reportes ' + m.ind.reportes + ' % · ' + m.reportes.map(x => x.tipo + ' ' + x.per + ': ' + x.estado).join(', ')));
 }
 
+/* ---------------- Recordatorios personales (pedido de Joaquín, 17/10/2026) ----------------
+   Cada persona del equipo se arma sus recordatorios desde el panel: de una tarjeta (campanita en la fila) o sueltos.
+   Cuándo: "fecha" (un día y hora), "antes" (N días antes del vencimiento de la tarjeta), "semana" (días de la semana que elija),
+   "dias" (cada N días desde una fecha) o "mes" (un día de cada mes). Cómo: privado de Discord, alerta en el panel o las dos.
+   Se revisan en cada actualización (cada 10 min). Archivo de Drive panel-ideamia-recordatorios.json. Gratis: usa el bot del panel. */
+const REC_MAX = 60;
+const recLeer_ = () => { const g = leerJson_('REC_FILE_ID', 'panel-ideamia-recordatorios.json'); g.l = g.l || []; return g; };
+const recHM_ = s => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '9:00')); return m ? [Math.min(23, +m[1]), Math.min(59, +m[2])] : [9, 0]; };
+/* Próxima vez que tiene que sonar, a partir de "desde" (ms). null = ya no vuelve a sonar. */
+function recProximo_(r, desde) {
+  const [hh, mi] = recHM_(r.hora), d0 = new Date(desde);
+  const en = (y, m, d) => new Date(y, m, d, hh, mi, 0).getTime();
+  if (r.tipo === 'fecha') { const [y, m, d] = String(r.fecha).split('-').map(Number); const t = en(y, m - 1, d); return t > desde ? t : null; }
+  if (r.tipo === 'antes') { if (!r.due) return null; const v = new Date(r.due); const t = en(v.getFullYear(), v.getMonth(), v.getDate() - (Number(r.dias) || 1)); return t > desde ? t : null; }
+  if (r.tipo === 'semana') {
+    const dias = (r.dias || []).map(Number); if (!dias.length) return null;
+    for (let i = 0; i < 8; i++) { const t = en(d0.getFullYear(), d0.getMonth(), d0.getDate() + i); if (t > desde && dias.indexOf(new Date(t).getDay()) >= 0) return t; }
+    return null;
+  }
+  if (r.tipo === 'dias') {
+    const n = Math.max(1, Number(r.n) || 7), [y, m, d] = String(r.fecha).split('-').map(Number);
+    let t = en(y, m - 1, d); while (t <= desde) t = en(new Date(t).getFullYear(), new Date(t).getMonth(), new Date(t).getDate() + n);
+    return t;
+  }
+  if (r.tipo === 'mes') {
+    const dia = Math.min(28, Math.max(1, Number(r.dia) || 1));
+    for (let i = 0; i < 3; i++) { const t = en(d0.getFullYear(), d0.getMonth() + i, dia); if (t > desde) return t; }
+    return null;
+  }
+  return null;
+}
+function recDescribir_(r) {
+  const DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'], h = r.hora || '9:00';
+  if (r.tipo === 'fecha') return 'el ' + String(r.fecha).split('-').reverse().slice(0, 2).join('/') + ' a las ' + h;
+  if (r.tipo === 'antes') return (Number(r.dias) === 1 ? 'un día' : r.dias + ' días') + ' antes del vencimiento, a las ' + h;
+  if (r.tipo === 'semana') return 'cada ' + (r.dias || []).map(d => DIA[d]).join(' y ') + ' a las ' + h;
+  if (r.tipo === 'dias') return 'cada ' + r.n + ' días a las ' + h;
+  if (r.tipo === 'mes') return 'el día ' + r.dia + ' de cada mes a las ' + h;
+  return '';
+}
+function recCrear_(b, quien) {
+  const tipo = String(b.tipo || ''), canal = /^(discord|panel|ambos)$/.test(b.canal) ? b.canal : 'ambos', texto = String(b.texto || '').trim().slice(0, 300);
+  if (!texto) return { error: 'datos', mensaje: 'Escribí qué te tengo que recordar' };
+  if (['fecha', 'antes', 'semana', 'dias', 'mes'].indexOf(tipo) < 0) return { error: 'datos', mensaje: 'Elegí cuándo' };
+  const r = { id: Utilities.getUuid().slice(0, 8), quien: norm_(quien), texto: texto, tipo: tipo, canal: canal, hora: String(b.hora || '9:00'), creado: new Date().toISOString(), activo: true };
+  if (b.cardId) { r.card = { id: String(b.cardId), n: String(b.cardNombre || '').slice(0, 150), url: String(b.cardUrl || ''), marca: String(b.marca || '') }; }
+  if (b.due) r.due = String(b.due);
+  if (tipo === 'fecha' || tipo === 'dias') { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || ''))) return { error: 'datos', mensaje: 'Falta la fecha' }; r.fecha = b.fecha; }
+  if (tipo === 'antes') { if (!r.due) return { error: 'datos', mensaje: 'Esta tarjeta no tiene vencimiento: elegí un día puntual' }; r.dias = Math.max(0, Math.min(30, Number(b.dias) || 1)); }
+  if (tipo === 'semana') { r.dias = (b.dias || []).map(Number).filter(d => d >= 0 && d <= 6); if (!r.dias.length) return { error: 'datos', mensaje: 'Elegí al menos un día de la semana' }; }
+  if (tipo === 'dias') r.n = Math.max(1, Math.min(90, Number(b.n) || 7));
+  if (tipo === 'mes') r.dia = Math.max(1, Math.min(28, Number(b.dia) || 1));
+  r.prox = recProximo_(r, Date.now());
+  if (!r.prox) return { error: 'datos', mensaje: 'Esa fecha ya pasó: elegí una que venga' };
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = recLeer_();
+    if (g.l.filter(x => x.quien === r.quien && x.activo).length >= REC_MAX) return { error: 'tope', mensaje: 'Tenés muchos recordatorios activos: borrá alguno' };
+    g.l.push(r); guardarJson_('REC_FILE_ID', 'panel-ideamia-recordatorios.json', g);
+    return { ok: true, rec: recPublico_(r) };
+  } finally { lock.releaseLock(); }
+}
+function recCambiar_(b, quien, esProject, accion) {
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = recLeer_(), r = g.l.filter(x => x.id === String(b.id || ''))[0];
+    if (!r) return { error: 'datos', mensaje: 'No encuentro ese recordatorio' };
+    if (r.quien !== norm_(quien) && !esProject) return { error: 'permiso', mensaje: 'Ese recordatorio no es tuyo' };
+    if (accion === 'borrar') g.l = g.l.filter(x => x !== r); else r.pend = false;   // "visto": se saca la alerta del panel
+    guardarJson_('REC_FILE_ID', 'panel-ideamia-recordatorios.json', g);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+const recPublico_ = r => ({ id: r.id, texto: r.texto, tipo: r.tipo, canal: r.canal, cuando: recDescribir_(r), prox: r.prox ? new Date(r.prox).toISOString() : null, activo: r.activo, pend: !!r.pend, ult: r.ult || null, card: r.card || null });
+function recDe_(quien) {
+  const k = norm_(quien);
+  return recLeer_().l.filter(r => r.quien === k && (r.activo || r.pend)).sort((a, b) => (b.pend - a.pend) || ((a.prox || 9e15) - (b.prox || 9e15))).map(recPublico_);
+}
+/* Lo llama cada actualización: hace sonar lo que ya tocó. */
+function recProcesar_(cfg) {
+  const ahora = Date.now(), activos = !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim());
+  const g = recLeer_(); let cambio = false;
+  g.l.forEach(r => {
+    if (!r.activo || !r.prox || r.prox > ahora) return;
+    if (r.canal !== 'panel' && activos) {
+      const id = idDiscord_(cfg, r.quien);
+      if (id) {
+        const txt = '🔔 **Recordatorio:** ' + r.texto + (r.card ? '\nTarjeta: ' + r.card.n + (r.due ? ' · vence el ' + Utilities.formatDate(new Date(r.due), TZ, 'dd/MM') : '') + (r.card.url ? '\n' + r.card.url : '') : '') +
+          (['semana', 'dias', 'mes'].indexOf(r.tipo) >= 0 ? '\n_(Se repite ' + recDescribir_(r) + '. Lo cambiás o lo borrás en el panel.)_' : '');
+        try { discordPrivado_(id, txt); } catch (e) { P.setProperty('REC_NOTA', new Date().toISOString() + ' · ' + String(e.message).slice(0, 150)); return; }   // si falló, se reintenta en 10 min
+      } else P.setProperty('REC_NOTA', new Date().toISOString() + ' · falta DISCORD_ID_' + r.quien.toUpperCase() + ' en Config');
+    }
+    if (r.canal !== 'discord') r.pend = true;
+    r.ult = new Date(ahora).toISOString(); r.prox = recProximo_(r, ahora + 6e4); if (!r.prox) r.activo = false;
+    cambio = true;
+  });
+  // los que ya sonaron y no se repiten se limpian a la semana
+  const antes = g.l.length; g.l = g.l.filter(r => r.activo || r.pend || !r.ult || Date.parse(r.ult) > ahora - 7 * 864e5);
+  if (cambio || g.l.length !== antes) guardarJson_('REC_FILE_ID', 'panel-ideamia-recordatorios.json', g);
+}
+/* PRUEBA sin efectos: cuándo sonaría cada tipo de recordatorio, y los activos de cada persona. */
+function probarRecordatorios() {
+  const ahora = Date.now(), f = t => t ? Utilities.formatDate(new Date(t), TZ, 'EEE dd/MM HH:mm') : 'nunca';
+  const hoy = Utilities.formatDate(new Date(ahora + 864e5), TZ, 'yyyy-MM-dd');
+  [{ tipo: 'fecha', fecha: hoy, hora: '9:30' }, { tipo: 'antes', due: new Date(ahora + 5 * 864e5).toISOString(), dias: 1, hora: '10:00' }, { tipo: 'semana', dias: [2, 4], hora: '9:00' }, { tipo: 'dias', fecha: hoy, n: 7, hora: '18:00' }, { tipo: 'mes', dia: 1, hora: '9:00' }]
+    .forEach(r => console.log(r.tipo + ' · ' + recDescribir_(r) + ' → ' + f(recProximo_(r, ahora))));
+  const g = recLeer_(); console.log('Recordatorios guardados: ' + g.l.length + ' · activos: ' + g.l.filter(r => r.activo).length + ' · nota: ' + (P.getProperty('REC_NOTA') || 'ninguna'));
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -3606,6 +3731,11 @@ function doGet(e) {
       if (!yo || (!esProj && !(reportesConfig_().marcas || []).some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'Los objetivos son solo para las social media y el project' }, q.cb);
       return json_(okrVista_(yo.clave, esProj), q.cb);
     }
+    if (q.action === 'recordatorios') { // los recordatorios de la persona (y las alertas que le sonaron en el panel)
+      if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
+      if (!catalogo_().equipo.some(x => x.clave === norm_(q.p || ''))) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' }, q.cb);
+      return json_({ ok: true, lista: recDe_(q.p) }, q.cb);
+    }
     if (q.action === 'plan') { // indicadores de planificación: cada social media ve sus marcas; el project, todas (con su clave)
       const cat = catalogo_(), yo = cat.equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
       if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
@@ -3633,6 +3763,12 @@ function doPost(e) {
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
+      case 'recCrear': case 'recBorrar': case 'recVisto': { // recordatorios personales (cada uno los suyos; el project puede borrar cualquiera)
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol) && claveOk_(b.k, true);
+        return json_(b.action === 'recCrear' ? recCrear_(b, yo.clave) : recCambiar_(b, yo.clave, esProj, b.action === 'recBorrar' ? 'borrar' : 'visto'));
+      }
       case 'okrAnotar': { // la social media anota un valor de sus objetivos (espectadores del período, campaña cumplida)
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0], esProj = !!yo && /project/i.test(yo.rol);
         if (!yo || (esProj && !claveOk_(b.k, true))) return json_({ error: 'permiso', mensaje: 'Sin permiso' });
