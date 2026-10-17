@@ -80,6 +80,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .btn.g{background:var(--c3);color:var(--tx)}
 .who{font-size:11.5px;color:var(--mu);margin-top:6px}
 .todo{display:flex;justify-content:flex-end;gap:6px;margin-bottom:6px}.todo button{background:none;border:0;color:var(--mu);font-size:12.5px;padding:4px 6px}.todo button:hover{color:var(--tx)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}.ayuda{font-size:13px;padding:8px 12px;flex:none}.modal .box p{font-size:14px;color:#d6d6d6;line-height:1.5;margin:8px 0}
 .empty{color:var(--mu);text-align:center;padding:40px 10px}
 .gate{max-width:380px;margin:40px auto;text-align:center}.gate input{width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:12px;margin:12px 0}
 .ps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid var(--ln);background:var(--c1);border-radius:999px;padding:8px 14px;font-weight:600}.chip.on{background:var(--y);color:#0A0A0A}
@@ -95,7 +96,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 </style>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=2" defer></script>
+<script src="../ideamia-nav.js?v=4" defer></script>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Cargando objetivos…</div></div>
@@ -103,7 +104,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
   // si el navegador mostró una copia vieja de la página, se pide la nueva una sola vez (cambiar VER en cada versión)
-  const VER = '4';
+  const VER = '6';
   try {
     fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
       const m = /const VER = '(\d+)'/.exec(t);
@@ -185,8 +186,8 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
   function avisos(m) {
     const iter = [], falta = [], hoyM = S.data.hoy.slice(0, 7);
     m.periodos.forEach(p => {
-      if (!p.abierto && !(p.terminado && !p.reportePeriodo)) return;
-      if (p.terminado && !p.reportePeriodo) falta.push('El reporte ' + p.tipo + ' de ' + esc(p.titulo.toLowerCase()) + ' (en Reportes).');
+      if (!p.abierto && !(p.terminado && !p.reportePeriodo && p.pideReporte)) return;
+      if (p.terminado && !p.reportePeriodo && p.pideReporte) falta.push('El reporte ' + p.tipo + ' de ' + esc(p.titulo.toLowerCase()) + ' (en Reportes).');
       p.objetivos.forEach(o => {
         if (o.cumplido) return;
         if (o.mesesBajos && o.mesesBajos.length) iter.push('<b>' + esc(corto(o.objetivo)) + '</b>: ' + o.mesesBajos.map(mesL).join(', ') + ' quedó abajo del mínimo (' + fmt(o.minMes) + '). Sostené el mínimo en los meses que quedan.');
@@ -203,7 +204,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     const D = S.data, con = D.marcas.filter(m => m.periodos.length), sin = D.marcas.filter(m => !m.periodos.length);
     if (!con.some(m => m.slug === S.marca)) S.marca = con.length ? con[0].slug : '';
     const m = con.filter(x => x.slug === S.marca)[0];
-    let h = '<div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1>Obje<b>tivos</b></h1><p class="sub">Cómo venís con los OKR de cada marca. Tocá un objetivo para ver el detalle.</p>';
+    let h = '<div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><div class="top"><h1>Obje<b>tivos</b></h1><button class="btn g ayuda" data-guia>¿Cómo se lee?</button></div><p class="sub">Cómo venís con los OKR de cada marca. Tocá un objetivo para ver el detalle.</p>';
     h += '<div class="marcas">' + con.map(x => { const a = x.periodos.filter(p => p.abierto)[0] || x.periodos[0], pc = a ? Math.round(a.cumplidos / a.total * 100) : 0; return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + pc + '"><i>' + (a ? a.cumplidos + '/' + a.total : '') + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (a ? esc(a.tipo) + ' · ' + fmt(a.logradoPct) + ' de ' + fmt(a.bono) + ' %' : '') + '</span></span></button>'; }).join('') + '</div>';
     if (!m) h += '<div class="fold"><div class="empty">Todavía no hay objetivos cargados para tus marcas.</div></div>';
     else {
@@ -226,6 +227,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     bind(m);
   }
   function bind(m) {
+    app.querySelectorAll('[data-guia]').forEach(b => b.onclick = () => { const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box"><h3>Cómo se leen tus objetivos</h3>' +      '<p><b>Arriba</b>, tus marcas: el circulito dice cuántos objetivos del período en curso ya cumpliste. <b>Abajo</b>, cada período (trimestral, semestral, anual) en su solapa: deslizá o tocá para cambiar.</p>' +      '<p><b>El número amarillo</b> es la parte del bono que ya tenés asegurada en ese período (cada objetivo vale su parte; trimestral 20 %, semestral 40 %, anual 70 % del salario de la marca).</p>' +      '<p><b>Cada objetivo</b> es una línea: punto verde cumplido, amarillo en curso, rojo atrasado, gris sin datos. Tocalo para ver el detalle: la barra, la rayita blanca (dónde deberías estar hoy), los meses y cuánto te falta por mes.</p>' +      '<p><b>De dónde salen los números:</b> solos, de tus reportes semanales, mensuales y trimestrales. Si a un mes le falta el reporte, tocá <b>Cargar</b> y ponés el número a mano. Los espectadores del período (Meta) y las campañas cumplidas los cargás vos en el objetivo.</p>' +      '<p><b>Falta cargar</b> y <b>Para iterar</b> te dicen qué te falta para medir y qué viene atrasado. La pauta vale para cualquier objetivo: coordinala con Juan.</p>' +      '<div class="acc"><button class="btn" data-x>Entendido</button></div></div>'; o.onclick = e => { if (e.target === o || e.target.closest('[data-x]')) o.remove(); }; document.body.appendChild(o); });
     app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('okr:marca', S.marca); pintar(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement, k = b.dataset.fold; f.classList.toggle('open'); S.folds[k] = f.classList.contains('open'); guardarUI(); });
     app.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => { const o = b.parentElement, k = b.dataset.abrir; o.classList.toggle('open'); S.abiertos[k] = o.classList.contains('open'); b.setAttribute('aria-expanded', S.abiertos[k]); guardarUI(); });
