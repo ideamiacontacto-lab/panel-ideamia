@@ -84,7 +84,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 .steps button{flex:none;display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--mu);font-size:12.5px;font-weight:600;padding:4px 8px 4px 4px;border-radius:999px}
 .steps i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--c3);font-size:11.5px}
 .steps button.on{color:var(--tx);background:var(--c2)}.steps button.on i{background:var(--y);color:#0A0A0A}.steps button.ok i{background:rgba(92,227,138,.18);color:var(--ok)}
-.wbody{padding:12px 18px 6px;overflow:auto}.wbody .s{color:var(--mu);font-size:13.5px;margin:0 0 10px}.wbody .m{color:var(--mu);font-size:12.5px}
+.wbody{padding:12px 18px 6px;overflow:auto;overflow-x:hidden}.wbody .rowf input{min-width:0;width:auto;flex:1}.wbody .s{color:var(--mu);font-size:13.5px;margin:0 0 10px}.wbody .m{color:var(--mu);font-size:12.5px}
 .wrow{position:relative;background:var(--c2);border:1px solid var(--ln);border-radius:14px;padding:10px 42px 8px 10px;margin-bottom:8px}.wrow .x{position:absolute;top:8px;right:8px;width:26px;height:26px}
 .wrow input:not([type=date]){width:100%;background:var(--c1);border:1px solid var(--ln);border-radius:10px;padding:9px 11px;margin-bottom:6px}.wrow textarea{background:var(--c1)}.wrow .seg2{margin:2px 0 6px}
 .wrow input[type=date]{background:var(--c1);border:1px solid var(--ln);border-radius:10px;padding:7px 9px;color-scheme:dark;width:auto;margin:0}
@@ -102,7 +102,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '11';
+  const VER = '12';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -216,9 +216,11 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const grupo = c => K.fechas.filter(x => x.cual === c);
     const mesN = c => MES[(new Date().getMonth() + (c === 'este' ? 0 : 1)) % 12];
     let h = '<p class="sub">Del calendario anual de ' + esc(m.nombre) + '. Por cada fecha decidí si se ataca; si no, contá por qué (lo revisa Joaquín). En las que se atacan, tocá <b>Armar el plan</b>: son unos pasos cortos y al final se crean solas las tarjetas.</p>';
-    const sinPlan = c => grupo(c).filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).length;
-    if (S.camp.limites && sinPlan('proximo')) h += '<div class="aprob"><b>🧭 El plan de ' + mesN('proximo') + ' se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo) + '</b><span class="m">' + sinPlan('proximo') + ' campaña' + (sinPlan('proximo') === 1 ? '' : 's') + ' sin plan</span></div>';
-    ['proximo', 'este'].forEach(c => { const L = grupo(c), sd = L.filter(x => !x.dec && x.f >= S.camp.hoy).length, sp = sinPlan(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), sd ? sd + ' sin decidir' : sp ? sp + ' sin plan' : L.length, '<div class="rows">' + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos.</div></div>') + '</div>', c === 'proximo'); });
+    const G = K.general, genFalta1 = c => !!(G && G.topicos.length && !(G[c].plan && G[c].plan.completo) && (c === 'proximo' || S.camp.hoy <= G[c].semanas[G[c].semanas.length - 1]));
+    const sinPlan = c => grupo(c).filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).length + (genFalta1(c) ? 1 : 0);
+    const genRow = c => { if (!G) return ''; if (!G.topicos.length) return '<div class="row"><div><b>🗓️ Plan general (tópicos fijos)</b><div class="m">Se arma cuando Joaquín aprueba la ficha de la marca.</div></div></div>'; const pl = G[c].plan, ok = pl && pl.completo; return '<div class="row crow"><div><b>🗓️ Plan general de ' + mesN(c) + '</b><div class="m">Tus tópicos fijos, semana por semana: qué ángulo va cada semana y qué pedir ese mes.</div><div style="margin-top:4px"><span class="st ' + (ok ? 'ok' : pl ? 'mid' : 'bad') + '">' + (ok ? 'Armado' : pl ? 'A medias' : 'Sin armar') + '</span></div></div><div class="bts"><button class="btn' + (ok ? ' g' : '') + '" data-gen="' + c + '">' + (ok ? '✓ Ver' : pl ? 'Seguir' : 'Armar') + '</button></div></div>'; };
+    if (S.camp.limites && sinPlan('proximo')) h += '<div class="aprob"><b>🧭 El plan de ' + mesN('proximo') + ' se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo) + '</b><span class="m">' + sinPlan('proximo') + ' campaña' + (sinPlan('proximo') === 1 ? '' : 's') + ' sin plan (campañas o plan general)</span></div>';
+    ['proximo', 'este'].forEach(c => { const L = grupo(c), sd = L.filter(x => !x.dec && x.f >= S.camp.hoy).length, sp = sinPlan(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), sd ? sd + ' sin decidir' : sp ? sp + ' sin plan' : L.length, '<div class="rows">' + genRow(c) + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos.</div></div>') + '</div>', c === 'proximo'); });
     return h;
   }
   function bindCamp() {
@@ -228,6 +230,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     app.querySelectorAll('[data-csi]').forEach(b => b.onclick = () => fx({ accion: 'decidir', key: b.dataset.csi, nombre: nom(b.dataset.csi), decision: 'atacar' }, b));
     app.querySelectorAll('[data-cno]').forEach(b => b.onclick = () => { const mo = prompt('¿Por qué no la atacamos? (ej.: el cliente dijo que no, no tiene relación con la marca)'); if (!mo || mo.trim().length < 4) return mo != null && toast('El motivo es obligatorio'); fx({ accion: 'decidir', key: b.dataset.cno, nombre: nom(b.dataset.cno), decision: 'descartar', motivo: mo }, b); });
     app.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => abrirPlan(b.dataset.plan));
+    app.querySelectorAll('[data-gen]').forEach(b => b.onclick = () => abrirGeneral(b.dataset.gen));
     app.querySelectorAll('[data-creset]').forEach(b => b.onclick = () => fx({ accion: 'decidir', key: b.dataset.creset, decision: '' }, b));
     app.querySelectorAll('[data-capr]').forEach(b => b.onclick = () => fx({ accion: 'revisar', key: b.dataset.capr, aprobar: true }, b));
     app.querySelectorAll('[data-crech]').forEach(b => b.onclick = () => { const no = prompt('¿Por qué sí la tienen que atacar? (le llega a la social media)'); if (no == null) return; fx({ accion: 'revisar', key: b.dataset.crech, aprobar: false, nota: no }, b); });
@@ -357,6 +360,52 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     }
     o.onclick = e => { if (e.target === o) cerrar(); };
     document.body.appendChild(o); pintarW();
+  }
+  /* ---------- Plan general del mes: los tópicos fijos, semana por semana ---------- */
+  const genReq = (t, n) => t.por === 'semana' ? n : Math.min(t.veces || 1, n);
+  function genFalta(p, G, sem) {
+    for (const t of G.topicos) { const s = (p.topicos[t.id] || {}).semanas || {}, n = sem.filter(w => tx(s[w])).length, req = genReq(t, sem.length); if (n < req) return '"' + t.nombre + '": ' + (t.por === 'semana' ? 'falta el ángulo de ' + (req - n) + ' semana' + (req - n === 1 ? '' : 's') : 'elegí el ángulo de ' + req + ' semana' + (req === 1 ? '' : 's')); }
+    if (p.pedidos.some(x => !tx(x.que) || !x.fecha)) return 'Cada pedido necesita qué y para cuándo (o borralo)';
+    return '';
+  }
+  function abrirGeneral(cual) {
+    const K = campDe(S.marca), G = K && K.general; if (!G || !G.topicos.length) return toast('Primero tiene que estar aprobada la ficha con sus tópicos fijos');
+    const M = G[cual], sem = M.semanas, prev = M.plan || {}, ya = !!prev.completo, mesN = MES[Number(M.mes.slice(5)) - 1];
+    const p = { topicos: JSON.parse(JSON.stringify(prev.topicos || {})), pedidos: JSON.parse(JSON.stringify(prev.pedidos || [])) };
+    G.topicos.forEach(t => { p.topicos[t.id] = p.topicos[t.id] || { semanas: {} }; });
+    const lim = cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo;
+    const o = document.createElement('div'); o.className = 'modal';
+    const leer = () => {
+      o.querySelectorAll('[data-sem]').forEach(i => { const [tid, w] = i.dataset.sem.split('|'); p.topicos[tid].semanas[w] = i.value; });
+      p.pedidos = [...o.querySelectorAll('[data-gped]')].map(r => ({ id: r.dataset.gped, que: r.querySelector('[data-k=que]').value, aQuien: r.querySelector('.seg2 .on').dataset.v, fecha: r.querySelector('[type=date]').value }));
+    };
+    const pie = () => { const f = genFalta(p, G, sem), b = o.querySelector('[data-gter]'), mm = o.querySelector('.wpie .m'); if (b) b.disabled = !!f; if (mm) mm.textContent = f ? '⚠ ' + f : 'Se crean ' + G.topicos.length + ' tarjeta' + (G.topicos.length === 1 ? '' : 's') + ' de tópicos' + (p.pedidos.length ? ' y ' + p.pedidos.length + ' de pedidos' : ''); };
+    const pintarG = () => {
+      o.innerHTML = '<div class="box wiz"><div class="wtop"><div><div class="kick">Plan general · ' + esc(K.nombre) + '</div><h3>Tópicos fijos de ' + mesN + '</h3></div><button class="x" data-gx title="Cerrar">✕</button></div>' +
+        '<div class="wbody"><p class="s">Por cada tópico de la ficha, elegí qué ángulo usás cada semana (escribilo o elegí uno de la ficha). Abajo, lo que tenés que pedir este mes en particular. Se cierra el <b>' + diaDe(lim) + ' ' + dm(lim) + '</b>, junto con el plan de las campañas.</p>' +
+        G.topicos.map(t => '<datalist id="dl-' + esc(t.id) + '">' + t.angulos.map(a => '<option value="' + esc(a) + '">').join('') + '</datalist><div class="wrow" style="padding-right:10px"><b>' + esc(t.nombre) + '</b> <span class="m">· ' + t.veces + ' por ' + t.por + (t.externo ? ' · ' + esc(t.canal) : '') + (t.por === 'mes' ? ' · elegí ' + genReq(t, sem.length) + ' semana' + (genReq(t, sem.length) === 1 ? '' : 's') : '') + '</span>' +
+          sem.map(w => '<div class="rowf" style="margin-top:6px"><span class="m" style="flex:none;width:92px">Sem. del ' + dm(w) + '</span><input data-sem="' + esc(t.id) + '|' + w + '" list="dl-' + esc(t.id) + '" placeholder="' + (t.por === 'mes' ? 'Ángulo (o vacío si no va esta semana)' : 'Ángulo de esta semana') + '" value="' + esc((p.topicos[t.id].semanas || {})[w] || '') + '" style="margin:0"></div>').join('') + '</div>').join('') +
+        '<label class="lt">Pedidos de este mes</label>' + p.pedidos.map(x => '<div class="wrow" data-gped="' + esc(x.id) + '"><input data-k="que" placeholder="Qué hay que pedir (ej.: qué maquinarias de pastelería mostrar)" value="' + esc(x.que) + '"><div class="seg2"><button type="button" data-v="cliente" class="' + (x.aQuien !== 'project' ? 'on' : '') + '">Al cliente</button><button type="button" data-v="project" class="' + (x.aQuien === 'project' ? 'on' : '') + '">Al project</button></div><div class="rowf"><span class="m">Para el</span><input type="date" value="' + esc(x.fecha) + '"></div><button class="x" data-gdel="' + esc(x.id) + '" title="Quitar">✕</button></div>').join('') +
+        '<button class="btn add" data-gadd>+ Sumar un pedido</button></div>' +
+        '<div class="wpie"><span class="m"></span><button class="btn g" data-gsave>Guardar</button><button class="btn" data-gter>' + (ya ? 'Guardar y actualizar tarjetas' : 'Terminar y crear tarjetas') + '</button></div></div>';
+      o.querySelectorAll('[data-sem], [data-gped] input').forEach(i => i.oninput = () => { leer(); pie(); });
+      o.querySelectorAll('[data-gped] .seg2 button').forEach(b => b.onclick = function () { this.parentElement.querySelectorAll('button').forEach(z => z.classList.toggle('on', z === this)); leer(); });
+      o.querySelector('[data-gadd]').onclick = () => { leer(); p.pedidos.push({ id: uid(), que: '', aQuien: 'cliente', fecha: sem[0] }); pintarG(); };
+      o.querySelectorAll('[data-gdel]').forEach(b => b.onclick = () => { leer(); p.pedidos = p.pedidos.filter(z => z.id !== b.dataset.gdel); pintarG(); });
+      const enviar = async (terminar, b) => {
+        leer(); b.disabled = true;
+        try {
+          const r = /[?&]demo=1/.test(location.search) ? { ok: true, creadas: terminar ? G.topicos.length : 0, plan: Object.assign({}, p, { completo: terminar || ya }) } : await enviarPlanMes({ accion: 'general', mes: M.mes, plan: p, terminar: !!terminar });
+          M.plan = r.plan; o.remove(); toast(terminar ? (r.creadas ? 'Listo: se crearon ' + r.creadas + ' tarjetas en "Para mover en el mes"' : 'Plan guardado y tarjetas actualizadas') : 'Guardado'); recargarCamp();
+        } catch (e) { toast(e.message); b.disabled = false; }
+      };
+      o.querySelector('[data-gsave]').onclick = function () { enviar(false, this); };
+      o.querySelector('[data-gter]').onclick = function () { leer(); if (genFalta(p, G, sem)) return; if (!confirm('Se crean (o se actualizan) las tarjetas de los tópicos y de los pedidos en "Para mover en el mes" del SCL de ' + K.nombre + '. ¿Seguimos?')) return; enviar(true, this); };
+      o.querySelector('[data-gx]').onclick = () => o.remove();
+      pie();
+    };
+    o.onclick = e => { if (e.target === o) o.remove(); };
+    document.body.appendChild(o); pintarG();
   }
   /* ---------- Plan B de cada reel (Fase 5) ---------- */
   const pbDe = slug => S.pb && S.pb.marcas.find(x => x.slug === slug);
@@ -567,7 +616,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   }
   const cls = p => p == null ? 'nd' : p >= 90 ? 'ok' : p >= 70 ? 'mid' : 'bad';
   const kpi = (v, l, d, pronto) => '<div class="kpi' + (pronto ? ' pronto' : '') + '"><div class="v ' + (pronto ? 'nd' : cls(v)) + '">' + (pronto ? '—' : v == null ? '—' : v + ' %') + '</div><div class="l">' + l + '</div><div class="d">' + d + '</div></div>';
-  const kpiPlan = m => { const e = m.planMes; if (D_mes() < '2026-11') return kpi(null, 'Plan del mes', 'se mide desde noviembre', true); if (!e || !e.campanas.length) return kpi(null, 'Plan del mes', 'sin campañas atacadas', true); const n = e.campanas.filter(c => c.completo).length; return kpi(m.ind.planMes, 'Plan del mes', e.aTiempo ? 'completo a tiempo' : e.completo ? 'completo después del ' + dm(e.limite) : n + ' de ' + e.campanas.length + ' · cierra el ' + dm(e.limite)); };
+  const kpiPlan = m => { const e = m.planMes; if (D_mes() < '2026-11') return kpi(null, 'Plan del mes', 'se mide desde noviembre', true); if (!e || !e.items) return kpi(null, 'Plan del mes', 'sin campañas ni ficha aprobada', true); return kpi(m.ind.planMes, 'Plan del mes', e.aTiempo ? 'completo a tiempo' : e.completo ? 'completo después del ' + dm(e.limite) : e.hechos + ' de ' + e.items + ' · cierra el ' + dm(e.limite)); };
   const D_mes = () => (S.data && S.data.mes) || '';
   const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
   const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
@@ -582,6 +631,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     }));
     if (S.pb && !D.project) S.pb.marcas.forEach(k => { const n = pbFaltan(k); if (n) it(S.pb.entrega && S.pb.entrega <= en7 ? 1 : 3, 'Armar el plan B de ' + n + ' reel' + (n === 1 ? '' : 'es') + ' de ' + k.nombre + (S.pb.entrega ? ' (entrega el ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + ')' : ''), k.slug, 'planb'); });
     if (S.pauta) S.pauta.marcas.forEach(a => { if (!a.esta) it(1, 'Revisar la pauta de esta semana de ' + a.nombre, a.slug, 'ads'); else if (!a.esta.ok && !a.esta.avisado) it(0, 'Avisarle a Juan lo que hay que cambiar en la pauta de ' + a.nombre, a.slug, 'ads'); });
+    if (S.camp && !D.project) S.camp.marcas.forEach(k => { const G = k.general; if (G && G.topicos.length && !(G.proximo.plan && G.proximo.plan.completo)) it(S.camp.limites.proximo <= en7 ? 1 : 2, 'Armar el plan general de ' + MES[Number(G.proximo.mes.slice(5)) - 1] + ' de ' + k.nombre + ' (tópicos semana por semana): se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo), k.slug, 'camp'); });
     if (S.camp && !D.project) S.camp.marcas.forEach(k => k.fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).forEach(x => { const lim = x.cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo; it(lim <= en7 ? 1 : 2, 'Armar el plan de ' + x.nombre + ' (' + k.nombre + ', ' + dm(x.f) + ')' + (lim >= hoy ? ': se cierra el ' + diaDe(lim) + ' ' + dm(lim) : ''), k.slug, 'camp'); }));
     if (S.camp) S.camp.marcas.forEach(k => { if (D.project) { if (k.revisar) it(1, 'Revisar ' + k.revisar + ' descarte' + (k.revisar === 1 ? '' : 's') + ' de campañas de ' + k.nombre, k.slug, 'camp'); } else if (k.pendientes) it(2, 'Decidir ' + k.pendientes + ' fecha' + (k.pendientes === 1 ? '' : 's') + ' de campañas de ' + k.nombre + ' (¿la atacamos o no?)', k.slug, 'camp'); });
     if (S.ficha) S.ficha.marcas.forEach(f => {
@@ -595,7 +645,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   const GUIA = '<h3>Cómo funciona Plan</h3><p class="s"><a href="recorrido/">▶ Mirá el recorrido animado</a>: cómo se arma un mes, paso a paso, con el ejemplo de Isco y el Día del Dulce de Leche.</p><p class="s">Es tu tablero para organizar el mes. Arriba tenés <b>Para hacer</b> con lo que te toca, de todas tus marcas: tocá <b>Ir</b> y te lleva directo.</p>' +
     '<div class="gsec"><b>📊 Cumplimiento</b><p>Lo mide el panel solo: entregas de calendario (los viernes de entrega tiene que quedar cargado hasta la misma fecha del mes siguiente), entregas de reels, reportes a tiempo e inputs procesados en 24 h. No cargás nada acá: solo mirás cómo venís.</p></div>' +
     '<div class="gsec"><b>🗓️ Campañas</b><p>Las fechas del calendario anual de este mes y del siguiente. En cada una elegís <b>La atacamos</b> o <b>No la atacamos</b> (con el motivo). Joaquín aprueba o rechaza los descartes.</p></div>' +
-    '<div class="gsec"><b>🧭 Plan del mes</b><p>En cada campaña que se ataca tocás <b>Armar el plan</b>. Las N1 y N2 llevan 6 pasos: <b>competencia</b> (3 a 5 marcas y qué hicieron), <b>año pasado</b>, <b>ideas</b> (con <b>Preguntale a Claude</b>), <b>producción</b> (estética, banners, cartelería), <b>pedidos</b> al cliente o al project y <b>distribución</b> (qué idea y qué día). Las N3 y N4, solo ideas y distribución. Se guarda en cada paso, así podés cortarlo y seguir después. Al terminar se crean las tarjetas solas. El plan de un mes se cierra en la <b>última entrega de calendario antes de que empiece</b> (para noviembre, el viernes 30/10).</p></div>' +
+    '<div class="gsec"><b>🧭 Plan del mes</b><p>Tiene dos partes. <b>El plan general</b>: por cada tópico fijo de la ficha, qué ángulo va cada semana y qué hay que pedir ese mes (genera una tarjeta por tópico con las semanas adentro). Y <b>el plan de cada campaña</b>: en cada una que se ataca tocás <b>Armar el plan</b>. Las N1 y N2 llevan 6 pasos: <b>competencia</b> (3 a 5 marcas y qué hicieron), <b>año pasado</b>, <b>ideas</b> (con <b>Preguntale a Claude</b>), <b>producción</b> (estética, banners, cartelería), <b>pedidos</b> al cliente o al project y <b>distribución</b> (qué idea y qué día). Las N3 y N4, solo ideas y distribución. Se guarda en cada paso, así podés cortarlo y seguir después. Al terminar se crean las tarjetas solas. El plan de un mes se cierra en la <b>última entrega de calendario antes de que empiece</b> (para noviembre, el viernes 30/10).</p></div>' +
     '<div class="gsec"><b>🛟 Plan B</b><p>Cada reel tiene su plan B: qué se publica en su lugar, qué día y con qué. <b>No puede depender de lo mismo que el reel</b> (promo, colaboración, influencer o pedido del cliente): va con Bauti, diseño o material ya grabado. Se arma acá o en Trello, en la lista <b>"Plan B"</b> del SCL (si la creás en Trello, acá la vinculás con un toque). Si el reel se cae, tocá <b>Activar</b>: la tarjeta pasa a la lista del reel con su fecha y sigue el flujo de siempre. Se entrega el segundo lunes de reels del mes.</p></div>' +
     '<div class="gsec"><b>📣 Ads</b><p>Una vez por semana, en cada marca con pauta: ¿corre bien?, ¿se pauta la pieza que corresponde?, ¿hay que cambiar algo? Si hay que cambiar, escribís qué y tocás <b>Avisale a Juan</b>: se copia el mensaje y se abre el canal ads de la marca para pegarlo.</p></div>' +
     '<div class="gsec"><b>📋 Ficha</b><p>Se arma una vez por marca: <b>tópicos fijos</b> (lo que se mueve sí o sí, con 5 ángulos), <b>pedidos recurrentes</b> (qué pedir, a quién y cuándo) y <b>aprendizajes</b> (lo que sale de tus reportes). La mandás a Joaquín; cuando la aprueba, el panel te recuerda los pedidos el día anterior, te avisa los tópicos de afuera de Instagram y cuenta lo que movés.</p></div>' +
@@ -617,7 +667,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const Km = campDe(m.slug), cPend = D.project ? (S.camp ? S.camp.marcas.reduce((a, x) => a + x.revisar, 0) : 0) : (Km ? Km.pendientes : 0);
     const paPend = S.pauta ? S.pauta.marcas.filter(x => !x.esta).length : 0;
     const pbPend = D.project || !S.pb ? 0 : S.pb.marcas.reduce((a, x) => a + pbFaltan(x), 0);
-    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (['ficha', 'camp', 'ads', 'planb'].indexOf(S.vista) < 0 ? 'on' : '') + '"><span class="lg">Cumplimiento</span><span class="ct">Cumple</span></button><button data-vista="camp" class="' + (S.vista === 'camp' ? 'on' : '') + '">Campañas' + (cPend ? ' <em class="bdg">' + cPend + '</em>' : '') + '</button><button data-vista="ads" class="' + (S.vista === 'ads' ? 'on' : '') + '">Ads' + (paPend ? ' <em class="bdg">' + paPend + '</em>' : '') + '</button><button data-vista="planb" class="' + (S.vista === 'planb' ? 'on' : '') + '">Plan B' + (pbPend ? ' <em class="bdg">' + pbPend + '</em>' : '') + '</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
+    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (['ficha', 'camp', 'ads', 'planb'].indexOf(S.vista) < 0 ? 'on' : '') + '"><span class="lg">Cumplimiento</span><span class="ct">Cumple</span></button><button data-vista="camp" class="' + (S.vista === 'camp' ? 'on' : '') + '"><span class="lg">Plan del mes</span><span class="ct">Mes</span>' + (cPend ? ' <em class="bdg">' + cPend + '</em>' : '') + '</button><button data-vista="ads" class="' + (S.vista === 'ads' ? 'on' : '') + '">Ads' + (paPend ? ' <em class="bdg">' + paPend + '</em>' : '') + '</button><button data-vista="planb" class="' + (S.vista === 'planb' ? 'on' : '') + '">Plan B' + (pbPend ? ' <em class="bdg">' + pbPend + '</em>' : '') + '</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
     if (S.vista === 'ficha') { app.innerHTML = h + pintarFicha(m); bind(); bindFicha(); return; }
     if (S.vista === 'camp') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
     if (S.vista === 'ads') { app.innerHTML = h + pintarPauta(m); bind(); bindPauta(); return; }
