@@ -52,10 +52,13 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .pie{color:var(--mu);font-size:12px;margin-top:14px}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30}
 /* ficha operativa */
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}.ayuda{font-size:13px;padding:8px 12px;flex:none}
+.tarea>div:first-child{display:flex;gap:10px;align-items:flex-start}.pdot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px}.pdot.p0{background:var(--bad)}.pdot.p1{background:var(--warn)}.pdot.p2{background:var(--y)}.pdot.p3{background:#666}
+.guia .s{color:var(--mu);font-size:14px}.gsec{background:var(--c2);border-radius:14px;padding:10px 12px;margin:8px 0}.gsec p{margin:4px 0 0;font-size:13.5px;color:#d6d6d6;line-height:1.45}
 .pq{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--ln);font-size:14px}.pq .seg2{flex:none;margin:0}
 .lt{display:block;font-size:11.5px;color:var(--mu);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 6px}
 textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:10px 12px;color:var(--tx);font:inherit;resize:vertical}
-@media(max-width:600px){.vseg button{font-size:12px;padding:6px 4px}.pq{flex-direction:column;align-items:flex-start}}
+@media(max-width:600px){.row:has(.bts),.row:has([data-movi]),.row:has([data-reco]),.row:has([data-sug]){grid-template-columns:1fr}.row .bts{justify-content:flex-start}.pie-f{padding-right:72px}.vseg button{font-size:11.5px;padding:7px 3px;white-space:nowrap}.vseg .bdg{font-size:10px;padding:0 5px;margin-left:3px}.pq{flex-direction:column;align-items:flex-start}}
 .crow .bts{flex-wrap:wrap;justify-content:flex-end}@media(max-width:600px){.crow{grid-template-columns:1fr}.crow .bts{justify-content:flex-start}}
 .vseg{display:flex;width:100%}.vseg button{flex:1}.bdg{font-style:normal;background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;margin-left:4px}
 .fold.amar{border-color:rgba(255,242,0,.3)}.fold.amar .cnt{background:var(--y);color:#0A0A0A}
@@ -75,7 +78,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=3" defer></script>
+<script src="../ideamia-nav.js?v=4" defer></script>
 <script src="../recordatorios.js?v=1" defer></script>
 </head>
 <body>
@@ -83,7 +86,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '7';
+  const VER = '8';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -107,6 +110,8 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     app.querySelector('#ent').onclick = ent; app.querySelector('#k').onkeydown = e => { if (e.key === 'Enter') ent(); };
   }
   async function cargar() {
+    // modo de prueba local (?demo=1): datos de ejemplo de demo.json, no habla con el servidor
+    if (/[?&]demo=1/.test(location.search)) { const d = await fetch('demo.json', { cache: 'no-store' }).then(r => r.json()); S.data = d.plan; S.ficha = d.ficha; S.camp = d.camp; S.pauta = d.pauta; S.draft = {}; return pintar(); }
     if (!S.persona || !PERMITIDAS[S.persona]) return gate(S.persona ? 'Esta sección es solo para las social media y el project.' : '');
     if (!clave()) return gate('');
     app.innerHTML = '<div class="empty">Cargando…</div>';
@@ -226,7 +231,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   function pintarFicha(m) {
     const F = fichaDe(m.slug); if (!F) return '<div class="empty">No se pudo leer la ficha.</div>';
     const D = borrador(m.slug), e = EST_F[F.estado] || EST_F.borrador, esProj = S.data.project;
-    let h = '<div class="fhead"><span class="st ' + e[0] + '">' + e[1] + '</span>' + (F.nota && F.estado === 'cambios' ? '<span class="nota">' + esc(F.nota) + '</span>' : '') + '</div>';
+    let h = '<p class="sub">Se arma una vez por marca y la aprueba Joaquín. Con la ficha aprobada, el panel te recuerda los pedidos, te avisa los tópicos de afuera de Instagram y crea las tarjetas del mes en "Para mover en el mes".</p><div class="fhead"><span class="st ' + e[0] + '">' + e[1] + '</span>' + (F.nota && F.estado === 'cambios' ? '<span class="nota">' + esc(F.nota) + '</span>' : '') + '</div>';
     if (esProj && (F.estado === 'enviada' || F.estado === 'cambiada')) h += '<div class="aprob"><b>Revisá la ficha de ' + esc(m.nombre) + '</b><div><button class="btn g" data-fx="cambios">Pedir cambios</button><button class="btn" data-fx="aprobar">Aprobar</button></div></div>';
     // avance del mes (solo con la ficha aprobada)
     if (F.aprobada && F.avance.length) h += fold('av:' + m.slug, '', 'Tópicos de este mes', F.avance.filter(a => a.ok).length + '/' + F.avance.length, '<div class="rows">' + F.avance.map(a => '<div class="row"><div>' + esc(a.nombre) + (a.externo ? ' <span class="m">· ' + esc(a.canal) + '</span>' : '') +
@@ -240,7 +245,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     h += fold('pd:' + m.slug, '', 'Pedidos recurrentes', D.pedidos.length, lista('pedidos', D.pedidos, p => '<b>' + esc(p.que) + '</b><div class="m">A ' + esc(p.aQuien) + ' · ' + (p.tipo === 'mes' ? 'el día ' + p.dia + ' de cada mes' : 'cada ' + DSEM[p.dia].toLowerCase()) + (p.siNo ? ' · si no responde: ' + esc(p.siNo) : '') + '</div>', 'Lo que hay que pedir siempre (la promo del miércoles, la promo del mes, la carta…). Te lo recuerdo el día anterior.'), false);
     h += fold('ap:' + m.slug, '', 'Aprendizajes activos', D.aprendizajes.length, lista('aprendizajes', D.aprendizajes, a => '<b>' + esc(a.que) + '</b><div class="m">' + a.veces + ' por ' + a.por + ' · hasta el ' + dm(a.hasta) + (a.origen ? ' · ' + esc(a.origen) : '') + '</div>', 'Lo que aprendiste de los reportes: hacer más, hacer menos o dejar de hacer.'), false);
     const dirty = sucio(m.slug);
-    h += '<div class="pie-f">' + (dirty ? '<span class="m">Tenés cambios sin guardar</span>' : '') + '<button class="btn g" data-fx="guardar"' + (dirty ? '' : ' disabled') + '>Guardar</button><button class="btn" data-fx="enviar"' + (F.estado === 'enviada' && !dirty ? ' disabled' : '') + '>' + (F.estado === 'aprobada' && !dirty ? 'Aprobada ✓' : 'Mandar a Joaquín') + '</button></div>';
+    h += '<div class="pie-f">' + (dirty ? '<span class="m">Tenés cambios sin guardar</span>' : '') + '<button class="btn g" data-fx="guardar"' + (dirty ? '' : ' disabled') + '>Guardar</button><button class="btn" data-fx="enviar"' + ((F.estado === 'enviada' || F.estado === 'aprobada') && !dirty ? ' disabled' : '') + '>' + (F.estado === 'aprobada' && !dirty ? 'Aprobada ✓' : 'Mandar a Joaquín') + '</button></div>';
     return h;
   }
   function editor(slug, tipo, i) {
@@ -327,13 +332,41 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
   const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
   const fold = (id, cl, t, n, cuerpo, abierto) => { const open = S.folds[id] != null ? S.folds[id] : abierto; return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
+  /* ---------- "Para hacer": lo que le toca a la persona, de todas sus marcas, con un botón que lleva directo ---------- */
+  function paraHacer() {
+    const D = S.data, L = [], nom = slug => (D.marcas.find(x => x.slug === slug) || {}).nombre || slug, hoy = new Date().toISOString().slice(0, 10), en7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const it = (prio, txt, slug, vista) => L.push({ prio, txt, slug, vista });
+    D.marcas.forEach(m => (m.entregas || []).forEach(e => {
+      if (e.estado === 'incumplida') it(0, (e.tipo === 'calendario' ? 'Completar el calendario de ' : 'Cargar los reels del mes que viene de ') + m.nombre + ' (la entrega del ' + dm(e.f) + ' quedó incumplida)', m.slug, 'cumple');
+      else if (e.estado === 'proxima' && e.f <= en7) it(2, (e.tipo === 'calendario' ? 'Entrega de calendario de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': dejalo cargado hasta el ' + dm(e.obj) + (e.hasta ? ' (hoy llega al ' + dm(e.hasta) + ')' : '') : 'Entrega de reels de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': ' + e.obj + ' reels del mes que viene' + (e.n != null ? ' (hoy hay ' + e.n + ')' : '')), m.slug, 'cumple');
+    }));
+    if (S.pauta) S.pauta.marcas.forEach(a => { if (!a.esta) it(1, 'Revisar la pauta de esta semana de ' + a.nombre, a.slug, 'ads'); else if (!a.esta.ok && !a.esta.avisado) it(0, 'Avisarle a Juan lo que hay que cambiar en la pauta de ' + a.nombre, a.slug, 'ads'); });
+    if (S.camp) S.camp.marcas.forEach(k => { if (D.project) { if (k.revisar) it(1, 'Revisar ' + k.revisar + ' descarte' + (k.revisar === 1 ? '' : 's') + ' de campañas de ' + k.nombre, k.slug, 'camp'); } else if (k.pendientes) it(2, 'Decidir ' + k.pendientes + ' fecha' + (k.pendientes === 1 ? '' : 's') + ' de campañas de ' + k.nombre + ' (¿la atacamos o no?)', k.slug, 'camp'); });
+    if (S.ficha) S.ficha.marcas.forEach(f => {
+      if (D.project) { if (f.estado === 'enviada' || f.estado === 'cambiada') it(1, 'Aprobar la ficha de ' + f.nombre, f.slug, 'ficha'); return; }
+      if (f.estado === 'cambios') it(0, 'Corregir la ficha de ' + f.nombre + ': Joaquín pidió cambios', f.slug, 'ficha');
+      else if (!f.topicos.length && f.estado === 'borrador') it(3, 'Armar la ficha de ' + f.nombre + ' (tópicos fijos, pedidos y aprendizajes)', f.slug, 'ficha');
+      (f.avance || []).filter(a => a.externo && !a.estaSemana).forEach(a => it(2, 'Mover ' + a.nombre + ' de ' + f.nombre + ' esta semana (' + a.canal + ')', f.slug, 'ficha'));
+    });
+    return L.sort((a, b) => a.prio - b.prio);
+  }
+  const GUIA = '<h3>Cómo funciona Plan</h3><p class="s">Es tu tablero para organizar el mes. Arriba tenés <b>Para hacer</b> con lo que te toca, de todas tus marcas: tocá <b>Ir</b> y te lleva directo.</p>' +
+    '<div class="gsec"><b>📊 Cumplimiento</b><p>Lo mide el panel solo: entregas de calendario (los viernes de entrega tiene que quedar cargado hasta la misma fecha del mes siguiente), entregas de reels, reportes a tiempo e inputs procesados en 24 h. No cargás nada acá: solo mirás cómo venís.</p></div>' +
+    '<div class="gsec"><b>🗓️ Campañas</b><p>Las fechas del calendario anual de este mes y del siguiente. En cada una elegís <b>La atacamos</b> o <b>No la atacamos</b> (con el motivo). Joaquín aprueba o rechaza los descartes. Las que se atacan aparecen solas como tarjeta en <b>"Para mover en el mes"</b> del SCL.</p></div>' +
+    '<div class="gsec"><b>📣 Ads</b><p>Una vez por semana, en cada marca con pauta: ¿corre bien?, ¿se pauta la pieza que corresponde?, ¿hay que cambiar algo? Si hay que cambiar, escribís qué y tocás <b>Avisale a Juan</b>: se copia el mensaje y se abre el canal ads de la marca para pegarlo.</p></div>' +
+    '<div class="gsec"><b>📋 Ficha</b><p>Se arma una vez por marca: <b>tópicos fijos</b> (lo que se mueve sí o sí, con 5 ángulos), <b>pedidos recurrentes</b> (qué pedir, a quién y cuándo) y <b>aprendizajes</b> (lo que sale de tus reportes). La mandás a Joaquín; cuando la aprueba, el panel te recuerda los pedidos el día anterior, te avisa los tópicos de afuera de Instagram y cuenta lo que movés.</p></div>' +
+    '<div class="gsec"><b>🗂️ ¿Qué pasa con las tarjetas?</b><p>Al principio de cada mes (y cuando decidís o se aprueba algo) el panel crea tarjetas en la lista <b>"Para mover en el mes"</b> del SCL: 🎯 campañas a atacar, 📌 tópicos del mes (con sus ángulos y la etiqueta "Tópico · …"), 📨 pedidos del mes y 💡 aprendizajes. Desde ahí las pasás a tu calendario como siempre. Las piezas de un tópico llevan su etiqueta "Tópico · …" para que el panel las cuente.</p></div>' +
+    '<div class="gsec"><b>🔔 Avisos por Discord</b><p>Lunes: pauta y aprendizajes. Dos días antes de cada entrega: qué tenés que entregar. La noche de la entrega: si quedó incumplida. El día 1: campañas del mes. Y tus recordatorios propios con la campanita 🔔 (abajo a la derecha).</p></div>' +
+    '<div class="acc"><button class="btn" data-cerrar>Entendido</button></div>';
+  function guia() { const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box guia">' + GUIA + '</div>'; o.onclick = e => { if (e.target === o || e.target.closest('[data-cerrar]')) o.remove(); }; document.body.appendChild(o); lsSet('plan:guia', '1'); }
   function pintar() {
     const D = S.data, M = D.marcas;
     if (!M.some(m => m.slug === S.marca)) S.marca = M.length ? M[0].slug : '';
     const m = M.filter(x => x.slug === S.marca)[0];
     const prom = x => { const v = [x.ind.entregas, x.ind.inputs, x.ind.reportes].filter(y => y != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
-    let h = '<div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1><b>Plan</b></h1><p class="sub">Cumplimiento de ' + MES[Number(D.mes.slice(5)) - 1] + ': lo mide el panel solo con Trello, el calendario y los reportes.</p>';
-    h += '<div class="seg"><button data-mes="actual" class="' + (S.mes === 'actual' ? 'on' : '') + '">Este mes</button><button data-mes="anterior" class="' + (S.mes === 'anterior' ? 'on' : '') + '">Mes pasado</button></div>';
+    let h = '<div class="top"><div><div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1><b>Plan</b></h1></div><button class="btn g ayuda" data-guia>¿Cómo funciona?</button></div><p class="sub">Tu tablero para organizar el mes: qué te toca, cómo venís y qué se mide.</p>';
+    const PH = paraHacer();
+    h += fold('ph', PH.length ? (PH.some(x => x.prio === 0) ? 'roja' : 'amar') : '', PH.length ? 'Para hacer' : '✅ Estás al día', PH.length || null, PH.length ? '<div class="rows">' + (S.phAll ? PH : PH.slice(0, 5)).map(x => '<div class="row tarea"><div><span class="pdot p' + x.prio + '"></span>' + esc(x.txt) + '</div><button class="btn g" data-ir="' + esc(x.slug) + '|' + x.vista + '">Ir</button></div>').join('') + (PH.length > 5 ? '<button class="btn add" data-phall>' + (S.phAll ? 'Ver menos' : 'Ver las ' + (PH.length - 5) + ' que faltan') + '</button>' : '') + '</div>' : '<div class="rows"><div class="row"><div class="m">No tenés nada pendiente en Plan. Mirá igual cómo venís en Cumplimiento.</div></div></div>', true);
     h += '<div class="marcas">' + M.map(x => { const p = prom(x); return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + (p || 0) + '"><i>' + (p == null ? '–' : p) + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (D.project ? esc(PERMITIDAS[x.sm] || x.sm) + ' · ' : '') + (p == null ? 'sin datos todavía' : 'cumplimiento ' + p + ' %') + '</span></span></button>'; }).join('') + '</div>';
     if (!m) { app.innerHTML = h + '<div class="empty">No hay marcas para mostrar.</div>'; return bind(); }
     const Fm = fichaDe(m.slug), pend = S.ficha ? S.ficha.marcas.filter(x => x.estado === 'enviada' || x.estado === 'cambiada').length : 0;
@@ -343,6 +376,8 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     if (S.vista === 'ficha') { app.innerHTML = h + pintarFicha(m); bind(); bindFicha(); return; }
     if (S.vista === 'camp') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
     if (S.vista === 'ads') { app.innerHTML = h + pintarPauta(m); bind(); bindPauta(); return; }
+    // Cumplimiento: el mes que se mira (este o el pasado) se elige acá adentro
+    h += '<div class="seg"><button data-mes="actual" class="' + (S.mes === 'actual' ? 'on' : '') + '">Este mes</button><button data-mes="anterior" class="' + (S.mes === 'anterior' ? 'on' : '') + '">Mes pasado</button></div><p class="sub">Cumplimiento de ' + MES[Number(D.mes.slice(5)) - 1] + ': lo mide el panel solo con Trello, el calendario y los reportes. No tenés que cargar nada acá.</p>';
     const topPct = Fm && Fm.aprobada && Fm.avance.length ? Math.round(Fm.avance.filter(a => a.ok).length / Fm.avance.length * 100) : null;
     const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
     h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
@@ -364,6 +399,10 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   function bind() {
     app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('plan:marca', S.marca); pintar(); });
     app.querySelectorAll('[data-mes]').forEach(b => b.onclick = () => { if (S.mes === b.dataset.mes) return; S.mes = b.dataset.mes; cargar(); });
+    app.querySelectorAll('[data-guia]').forEach(b => b.onclick = guia);
+    app.querySelectorAll('[data-phall]').forEach(b => b.onclick = () => { S.phAll = !S.phAll; pintar(); });
+    app.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { const [slug, v] = b.dataset.ir.split('|'); S.marca = slug; S.vista = v; lsSet('plan:marca', slug); lsSet('plan:vista', v); pintar(); const vs = app.querySelector('.vseg'); if (vs) vs.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    if (!lsGet('plan:guia') && !document.querySelector('.modal')) setTimeout(guia, 400);
     app.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { if (S.vista === b.dataset.vista) return; if (S.vista === 'ficha' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; S.vista = b.dataset.vista; lsSet('plan:vista', S.vista); pintar(); });
     app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement; f.classList.toggle('open'); S.folds[b.dataset.fold] = f.classList.contains('open'); lsSet('plan:folds', JSON.stringify(S.folds)); });
   }
