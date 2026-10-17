@@ -52,6 +52,10 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .pie{color:var(--mu);font-size:12px;margin-top:14px}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30}
 /* ficha operativa */
+.pq{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--ln);font-size:14px}.pq .seg2{flex:none;margin:0}
+.lt{display:block;font-size:11.5px;color:var(--mu);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 6px}
+textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:10px 12px;color:var(--tx);font:inherit;resize:vertical}
+@media(max-width:600px){.vseg button{font-size:12px;padding:6px 4px}.pq{flex-direction:column;align-items:flex-start}}
 .crow .bts{flex-wrap:wrap;justify-content:flex-end}@media(max-width:600px){.crow{grid-template-columns:1fr}.crow .bts{justify-content:flex-start}}
 .vseg{display:flex;width:100%}.vseg button{flex:1}.bdg{font-style:normal;background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;margin-left:4px}
 .fold.amar{border-color:rgba(255,242,0,.3)}.fold.amar .cnt{background:var(--y);color:#0A0A0A}
@@ -79,7 +83,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '6';
+  const VER = '7';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -108,9 +112,9 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     app.innerHTML = '<div class="empty">Cargando…</div>';
     try {
       const q = x => fetch(C.API_URL + '?' + new URLSearchParams(Object.assign({ action: 'plan', k: clave(), p: S.persona }, x)), { cache: 'no-store' }).then(r => r.json());
-      const [r, f, c] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' }), q({ que: 'campanas' })]);
+      const [r, f, c, pa] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' }), q({ que: 'campanas' }), q({ que: 'pauta' })]);
       if (r.error) return gate(r.mensaje || r.error);
-      S.data = r; S.ficha = f && f.ok ? f : null; S.camp = c && c.ok ? c : null; S.draft = {}; pintar();
+      S.data = r; S.ficha = f && f.ok ? f : null; S.camp = c && c.ok ? c : null; S.pauta = pa && pa.ok ? pa : null; S.draft = {}; pintar();
     } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '.</div>'; }
   }
   async function recargarFicha() {
@@ -120,6 +124,47 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
   async function enviarFicha(body) {
     const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'ficha', k: clave(), persona: S.persona, marca: S.marca }, body)) }).then(r => r.json());
     if (r.error) throw new Error(r.mensaje || r.error); return r;
+  }
+  /* ---------- Ads: control semanal de la pauta ---------- */
+  const pautaDe = slug => S.pauta && S.pauta.marcas.find(x => x.slug === slug);
+  const PA = {};   // respuestas en edición por marca
+  function pintarPauta(m) {
+    const A = pautaDe(m.slug);
+    if (!S.pauta) return '<div class="empty">No se pudo leer la pauta.</div>';
+    if (!A) return '<div class="fold"><div class="empty">' + esc(m.nombre) + ' no tiene pauta publicitaria.</div></div>';
+    const r = PA[m.slug] = PA[m.slug] || Object.assign({ corre: '', pieza: '', cambio: '', texto: '' }, A.esta || {});
+    const preg = (k, t) => '<div class="pq"><div>' + t + '</div><div class="seg2" data-pq="' + k + '"><button data-v="si" class="' + (r[k] === 'si' ? 'on' : '') + '">Sí</button><button data-v="no" class="' + (r[k] === 'no' ? 'on' : '') + '">No</button></div></div>';
+    const malo = r.corre === 'no' || r.pieza === 'no' || r.cambio === 'si', resp = r.corre && r.pieza && r.cambio;
+    let h = '<p class="sub">Semana del ' + dm(S.pauta.semana) + '. Es obligatorio revisarla todas las semanas.</p>';
+    h += '<div class="fold open"><div class="rows" style="padding-top:12px">' + (A.esta ? '<div class="m" style="margin-bottom:8px">' + (A.esta.ok ? '✅ Revisada: todo bien' : '⚠️ Revisada: hay que cambiar algo' + (A.esta.avisado ? ' · Juan avisado' : ' · falta avisarle a Juan')) + '</div>' : '') +
+      preg('corre', '¿La pauta está corriendo bien?') + preg('pieza', '¿Se está pautando la pieza que corresponde esta semana?') + preg('cambio', '¿Hay que comunicar o cambiar algo (pieza, presupuesto, segmentación, fechas)?') +
+      (malo ? '<label class="lt">¿Qué hay que cambiar? Se lo pasás a Juan</label><textarea id="paTxt" rows="3" placeholder="Ej.: cambiar el video que se pauta por el reel de la promo del 20/10">' + esc(r.texto || '') + '</textarea>' : '') +
+      '<div class="bts" style="justify-content:flex-end;margin-top:12px">' + (malo ? '<button class="btn g" data-pg="1"' + (resp ? '' : ' disabled') + '>Guardar</button><button class="btn" data-juan="1"' + (resp ? '' : ' disabled') + '>Avisale a Juan ↗</button>' : '<button class="btn" data-pg="1"' + (resp ? '' : ' disabled') + '>Guardar: todo bien</button>') + '</div></div></div>';
+    h += fold('ph:' + m.slug, '', 'Últimas semanas', null, '<div class="rows">' + A.hist.map(x => '<div class="row"><div>Semana del ' + dm(x.sem) + (x.r && x.r.texto ? '<div class="m">' + esc(x.r.texto) + '</div>' : '') + '</div><span class="st ' + (!x.r ? 'bad' : x.r.ok ? 'ok' : 'mid') + '">' + (!x.r ? 'No se revisó' : x.r.ok ? 'Todo bien' : 'Con cambios' + (x.r.avisado ? ' · avisado' : '')) + '</span></div>').join('') + '</div>', false);
+    return h;
+  }
+  function bindPauta() {
+    const slug = S.marca, A = pautaDe(slug), r = PA[slug]; if (!A || !r) return;
+    const leerTxt = () => { const t = app.querySelector('#paTxt'); if (t) r.texto = t.value; };
+    app.querySelectorAll('[data-pq]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { leerTxt(); r[g.dataset.pq] = b.dataset.v; pintar(); }));
+    const guardar = async (avisado, b) => {
+      leerTxt(); b.disabled = true;
+      try {
+        const res = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'pauta', k: clave(), persona: S.persona, marca: slug, corre: r.corre, pieza: r.pieza, cambio: r.cambio, texto: r.texto, avisado: avisado }) }).then(x => x.json());
+        if (res.error) throw new Error(res.mensaje || res.error);
+        A.esta = Object.assign({}, r, { ok: r.corre === 'si' && r.pieza === 'si' && r.cambio === 'no', avisado: avisado || (A.esta && A.esta.avisado) });
+        A.hist[0].r = A.esta; toast(avisado ? 'Guardado: pegá el mensaje en el canal' : 'Guardado'); pintar(); return true;
+      } catch (e) { toast(e.message); b.disabled = false; return false; }
+    };
+    app.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => guardar(false, b));
+    app.querySelectorAll('[data-juan]').forEach(b => b.onclick = async () => {
+      leerTxt(); if (!r.texto || r.texto.trim().length < 5) return toast('Contá qué hay que cambiar');
+      const msg = (S.pauta.juan ? '<@' + S.pauta.juan + '> ' : '@Juan ') + 'Pauta de ' + A.nombre + ': ' + r.texto.trim();
+      try { await navigator.clipboard.writeText(msg); } catch (e) {}
+      const w = A.link ? window.open(A.link, '_blank', 'noopener') : null;
+      if (!A.link) toast('No encuentro el canal ads de la marca: mandale el mensaje a Juan por Discord');
+      await guardar(true, b);
+    });
   }
   /* ---------- campañas del mes (Fase 3) ---------- */
   const campDe = slug => S.camp && S.camp.marcas.find(x => x.slug === slug);
@@ -293,9 +338,11 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     if (!m) { app.innerHTML = h + '<div class="empty">No hay marcas para mostrar.</div>'; return bind(); }
     const Fm = fichaDe(m.slug), pend = S.ficha ? S.ficha.marcas.filter(x => x.estado === 'enviada' || x.estado === 'cambiada').length : 0;
     const Km = campDe(m.slug), cPend = D.project ? (S.camp ? S.camp.marcas.reduce((a, x) => a + x.revisar, 0) : 0) : (Km ? Km.pendientes : 0);
-    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (S.vista !== 'ficha' && S.vista !== 'camp' ? 'on' : '') + '">Cumplimiento</button><button data-vista="camp" class="' + (S.vista === 'camp' ? 'on' : '') + '">Campañas' + (cPend ? ' <em class="bdg">' + cPend + '</em>' : '') + '</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
+    const paPend = S.pauta ? S.pauta.marcas.filter(x => !x.esta).length : 0;
+    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (['ficha', 'camp', 'ads'].indexOf(S.vista) < 0 ? 'on' : '') + '">Cumplimiento</button><button data-vista="camp" class="' + (S.vista === 'camp' ? 'on' : '') + '">Campañas' + (cPend ? ' <em class="bdg">' + cPend + '</em>' : '') + '</button><button data-vista="ads" class="' + (S.vista === 'ads' ? 'on' : '') + '">Ads' + (paPend ? ' <em class="bdg">' + paPend + '</em>' : '') + '</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
     if (S.vista === 'ficha') { app.innerHTML = h + pintarFicha(m); bind(); bindFicha(); return; }
     if (S.vista === 'camp') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
+    if (S.vista === 'ads') { app.innerHTML = h + pintarPauta(m); bind(); bindPauta(); return; }
     const topPct = Fm && Fm.aprobada && Fm.avance.length ? Math.round(Fm.avance.filter(a => a.ok).length / Fm.avance.length * 100) : null;
     const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
     h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
