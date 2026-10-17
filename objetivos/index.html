@@ -42,7 +42,9 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;scroll-behavior:smooth;gap:16px}.track::-webkit-scrollbar{display:none}
 .panel{flex:0 0 100%;scroll-snap-align:start;min-width:0}
 .dots{display:flex;justify-content:center;gap:6px;margin:10px 0 0}.dots i{width:6px;height:6px;border-radius:9px;background:#333;transition:all .2s}.dots i.on{width:18px;background:var(--y)}
-.phead{background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);padding:15px 16px;margin-bottom:10px}
+.phead{display:block;width:100%;text-align:left;background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);padding:15px 16px;margin-bottom:10px;transition:border-color .2s}
+.phead:hover{border-color:#353535}.phead .row>.chev{align-self:center;color:var(--mu);transition:transform .25s;flex:none}.panel.min .phead .row>.chev{transform:rotate(-90deg)}
+.pbody{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s ease}.pbody>div{overflow:hidden}.panel.min .pbody{grid-template-rows:0fr}
 .phead .row{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
 .phead h2{margin:2px 0 0;font-size:17px;font-weight:700}.phead .d{color:var(--mu);font-size:12.5px}
 .bono{text-align:right;flex:none}.bono .n{font:400 32px/1 'Bebas Neue',sans-serif;color:var(--y)}.bono .n small{font-size:17px;color:var(--mu)}.bono .l{color:var(--mu);font-size:11.5px}
@@ -100,6 +102,14 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
+  // si el navegador mostró una copia vieja de la página, se pide la nueva una sola vez (cambiar VER en cada versión)
+  const VER = '4';
+  try {
+    fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
+      const m = /const VER = '(\d+)'/.exec(t);
+      if (m && m[1] !== VER && sessionStorage.getItem('okr:recargo') !== m[1]) { sessionStorage.setItem('okr:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); }
+    }).catch(() => {});
+  } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
@@ -200,12 +210,13 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
       h += avisos(m);
       const P = m.periodos, sel = Math.min(S.per[m.slug] || 0, P.length - 1);
       if (P.length > 1) h += '<div class="ptabs" role="tablist">' + P.map((p, i) => '<button class="pt' + (i === sel ? ' on' : '') + '" data-pt="' + i + '" role="tab">' + esc(p.tipo.charAt(0).toUpperCase() + p.tipo.slice(1)) + '<b>' + p.cumplidos + '/' + p.total + ' · ' + fmt(p.logradoPct) + ' %' + (p.terminado ? ' · cerrado' : '') + '</b></button>').join('') + '</div>';
-      h += '<div class="track" id="track">' + P.map(p => {
-        const t = p.abierto ? Math.round(p.objetivos[0].avanceTiempo * 100) : p.terminado ? 100 : 0;
-        return '<section class="panel"><div class="phead"><div class="row"><div><div class="kick">' + esc(p.tipo) + (p.terminado ? ' · cerrado' : p.abierto ? ' · en curso' : ' · todavía no empieza') + '</div><h2>' + esc(p.titulo) + '</h2><div class="d">' + fecha(p.desde) + ' al ' + fecha(p.hasta) + '</div></div>' +
-          '<div class="bono"><div class="n">' + fmt(p.logradoPct) + '<small> / ' + fmt(p.bono) + ' %</small></div><div class="l">' + p.cumplidos + ' de ' + p.total + ' cumplidos</div></div></div>' +
-          '<div class="tbar"><i style="width:' + t + '%"></i></div><div class="tlbl">' + (p.abierto ? 'Pasó el ' + t + ' % del período' : p.terminado ? 'Período cerrado' : 'Empieza el ' + fecha(p.desde)) + ' · el bono es del salario de la marca</div></div>' +
-          '<div class="todo"><button data-todos="1">Abrir todos</button><button data-todos="0">Cerrar todos</button></div>' + p.objetivos.map(o => objetivo(o, p)).join('') + '</section>';
+      h += '<div class="track" id="track">' + P.map((p, i) => {
+        const t = p.abierto ? Math.round(p.objetivos[0].avanceTiempo * 100) : p.terminado ? 100 : 0, kp = m.slug + ':per' + i, min = !!S.folds[kp];
+        // el encabezado del período se toca para minimizarlo (quedan solo el título y el bono) o volver a abrirlo
+        return '<section class="panel' + (min ? ' min' : '') + '"><button class="phead" data-per="' + kp + '" aria-expanded="' + !min + '"><div class="row"><div><div class="kick">' + esc(p.tipo) + (p.terminado ? ' · cerrado' : p.abierto ? ' · en curso' : ' · todavía no empieza') + '</div><h2>' + esc(p.titulo) + '</h2><div class="d">' + fecha(p.desde) + ' al ' + fecha(p.hasta) + '</div></div>' +
+          '<div class="bono"><div class="n">' + fmt(p.logradoPct) + '<small> / ' + fmt(p.bono) + ' %</small></div><div class="l">' + p.cumplidos + ' de ' + p.total + ' cumplidos</div></div>' + CHEV + '</div>' +
+          '<div class="tbar"><i style="width:' + t + '%"></i></div><div class="tlbl">' + (p.abierto ? 'Pasó el ' + t + ' % del período' : p.terminado ? 'Período cerrado' : 'Empieza el ' + fecha(p.desde)) + ' · ' + (min ? 'tocá para ver los objetivos' : 'tocá para minimizar') + '</div></button>' +
+          '<div class="pbody"><div><div class="todo"><button data-todos="1">Abrir todos</button><button data-todos="0">Cerrar todos</button></div>' + p.objetivos.map(o => objetivo(o, p)).join('') + '</div></div></section>';
       }).join('') + '</div>';
       if (P.length > 1) h += '<div class="dots">' + P.map((p, i) => '<i class="' + (i === sel ? 'on' : '') + '"></i>').join('') + '</div>';
     }
@@ -218,6 +229,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
     app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('okr:marca', S.marca); pintar(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement, k = b.dataset.fold; f.classList.toggle('open'); S.folds[k] = f.classList.contains('open'); guardarUI(); });
     app.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => { const o = b.parentElement, k = b.dataset.abrir; o.classList.toggle('open'); S.abiertos[k] = o.classList.contains('open'); b.setAttribute('aria-expanded', S.abiertos[k]); guardarUI(); });
+    app.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { const s = b.closest('.panel'), k = b.dataset.per; s.classList.toggle('min'); S.folds[k] = s.classList.contains('min'); b.setAttribute('aria-expanded', !S.folds[k]); b.querySelector('.tlbl').innerHTML = b.querySelector('.tlbl').innerHTML.replace(/tocá para (ver los objetivos|minimizar)/, S.folds[k] ? 'tocá para ver los objetivos' : 'tocá para minimizar'); guardarUI(); });
     app.querySelectorAll('[data-todos]').forEach(b => b.onclick = () => { const abrir = b.dataset.todos === '1'; b.closest('.panel').querySelectorAll('.obj').forEach(o => { o.classList.toggle('open', abrir); S.abiertos[o.dataset.o] = abrir; }); guardarUI(); });
     const track = app.querySelector('#track');
     if (track && m) {
