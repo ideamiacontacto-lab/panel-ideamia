@@ -374,6 +374,8 @@ function catLista_(nombre) {
   if (/mas adelante|stand ?by/.test(n)) return 'standby';
   // "Para mover en el mes": inputs que no se archivan porque se siguen usando durante el mes (salen de Inputs y dejan de pedir revisión).
   if (/mover en el mes/.test(n)) return 'mover';
+  // "Plan B": el plan B de cada reel (Fase 5). No es contenido del calendario hasta que se activa (ahí se mueve a la lista del reel).
+  if (/^plan ?b\b/.test(n)) return 'planb';
   if (/^datos\b/.test(n)) return 'datos';
   if (/anterior|publicad|terminad/.test(n)) return 'hecho';
   if (n.indexOf('efemer') >= 0) return 'efem';
@@ -448,7 +450,7 @@ function leerTrello_(cat) {
       // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
       if (catL === 'hecho' && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input' || catL === 'datos';
-      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby', 'mover'].indexOf(catL) >= 0 || b.tipo === 'project';
+      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby', 'mover', 'planb'].indexOf(catL) >= 0 || b.tipo === 'project';
       cards.push({
         id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, catL === 'datos' ? 4000 : 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
         lista: l.name, cat: catL, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity,
@@ -833,7 +835,9 @@ function panel_(personaClave, ctx) {
   const est = {};
 
   const ajustes = { inputDias: Number(cfg.INPUT_RECORDATORIO_DIAS || 3), porVencer: Number(cfg.POR_VENCER_DIAS || 3), efemDias: Number(cfg.EFEMERIDES_DIAS || 45) };
-  const todas = (snap.cards || []).filter(c => c.m.some(s => slugs.indexOf(s) >= 0) && (esProject || !esCM || c.tipo === 'cm' || c.tipo === 'project'));
+  // El tablero Project es de Joaquín: sus tarjetas solo le aparecen a él, aunque nombren una marca (pedido de Joaquín, 17/10/2026:
+  // "no deberían aparecerle cosas de otros tableros, solo de los propios"). Al resto, solo lo de los tableros de sus marcas.
+  const todas = (snap.cards || []).filter(c => c.m.some(s => slugs.indexOf(s) >= 0) && (c.tipo !== 'project' || esProject) && (esProject || !esCM || c.tipo === 'cm'));
 
   // Cobertura del calendario: fecha más lejana con contenido cargado (SCL + CM) contra el objetivo:
   // en cada entrega de calendario (evento "Entrega … calendario" del calendario del equipo) tiene que quedar cubierto un mes después de esa entrega.
@@ -874,6 +878,7 @@ function panel_(personaClave, ctx) {
     }
     // los inputs salen solo de los tableros SCL (en el Project y en los otros tableros quedan pedidos viejos)
     if (c.cat === 'input' && c.tipo !== 'scl') return false;
+    if (c.cat === 'planb') return false;   // los planes B se ven en Plan → Plan B, no como trabajo del día
     if (c.cat === 'guion') return true;
     // Ivo: solo lo que le dejan en revisión en Diseño y Producción (más los guiones, arriba)
     // lo que está en revisión se muestra SIEMPRE (aunque la de SCL figure programada o no se encuentre la original): esconderlo era perder piezas.
@@ -3494,7 +3499,8 @@ function planEvaluar_(snap, cat, cfg) {
   // inputs que se ven en el SCL: se anota cuándo se crearon (sale del ID de Trello) para medir las 24 h aunque después se muevan
   (snap.cards || []).filter(c => c.cat === 'input' && c.tipo === 'scl').forEach(c => { if (!g.inp[c.id]) { g.inp[c.id] = { m: c.m[0], c: parseInt(String(c.id).slice(0, 8), 16) * 1000 }; cambio = true; } });
   const marcas = planMarcasSM_(cat, snap), ayerS = ymd_(new Date(ahora.getTime() - 864e5));
-  const ents = planEntregas_(cfg, new Date(ahora.getTime() - 3 * 864e5), new Date(ahora.getTime() + 864e5)).filter(e => e.f >= PLAN_DESDE && (e.tipo === 'calendario' || e.tipo === 'reels'));
+  const ents = planEntregas_(cfg, new Date(ahora.getTime() - 3 * 864e5), new Date(ahora.getTime() + 864e5)).filter(e => e.f >= PLAN_DESDE && (e.tipo === 'calendario' || e.tipo === 'reels' || e.tipo === 'planb'));
+  let gB = null; const pbCuenta = (slug, f) => planbContar_(snap, gB = gB || leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]), slug, f);
   const aviso = {};   // clave persona → líneas
   const sumar = (k, l) => (aviso[k] = aviso[k] || []).push(l);
   ents.forEach(e => {
@@ -3502,17 +3508,18 @@ function planEvaluar_(snap, cat, cfg) {
     if (e.f === hoyS && h >= 21) marcas.filter(m => e.tipo === 'calendario' || m.reels).forEach(m => {
       const k = e.f + '|' + e.tipo + '|' + m.slug; if (g.ent[k]) return;
       const r = e.tipo === 'calendario' ? (() => { const obj = planMasUnMes_(e.f), hasta = planCobertura_(snap, m.slug); return { ok: !!hasta && hasta >= obj, hasta: hasta, obj: obj }; })()
+        : e.tipo === 'planb' ? (() => { const x = pbCuenta(m.slug, e.f); return { ok: x.n > 0 && x.c >= x.n, n: x.c, obj: x.n }; })()
         : (() => { const n = planReelsMes_(snap, m.slug, e.f); return { ok: n >= m.reels, n: n, obj: m.reels }; })();
       g.ent[k] = Object.assign(r, { f: e.f, tipo: e.tipo, marca: m.slug, sm: m.sm, t: new Date().toISOString() }); cambio = true;
-      if (!r.ok) sumar(m.sm, e.tipo === 'calendario' ? '• **' + m.nombre + '**: el calendario tenía que quedar cargado hasta el ' + r.obj.slice(8) + '/' + r.obj.slice(5, 7) + ' y llega hasta el ' + (r.hasta ? r.hasta.slice(8) + '/' + r.hasta.slice(5, 7) : '(nada cargado)') + '.'
+      if (!r.ok) sumar(m.sm, e.tipo === 'planb' ? '• **' + m.nombre + '**: ' + (r.obj ? 'de los ' + r.obj + ' reels del mes que viene, ' + r.n + ' tienen su plan B completo.' : 'no hay reels del mes que viene cargados, así que tampoco sus planes B.') : e.tipo === 'calendario' ? '• **' + m.nombre + '**: el calendario tenía que quedar cargado hasta el ' + r.obj.slice(8) + '/' + r.obj.slice(5, 7) + ' y llega hasta el ' + (r.hasta ? r.hasta.slice(8) + '/' + r.hasta.slice(5, 7) : '(nada cargado)') + '.'
         : '• **' + m.nombre + '**: tenían que estar los ' + r.obj + ' reels del mes que viene y hay ' + r.n + '.');
     });
     // 2) al día siguiente, desde las 10: si sigue incumplida, se avisa al project
     if (e.f === ayerS && h >= 10) marcas.forEach(m => {
       const k = e.f + '|' + e.tipo + '|' + m.slug, x = g.ent[k]; if (!x || x.ok || x.escalada) return;
-      const sigue = e.tipo === 'calendario' ? !(planCobertura_(snap, m.slug) >= x.obj) : planReelsMes_(snap, m.slug, e.f) < x.obj;
+      const sigue = e.tipo === 'calendario' ? !(planCobertura_(snap, m.slug) >= x.obj) : e.tipo === 'planb' ? (() => { const y = pbCuenta(m.slug, e.f); return !(y.n > 0 && y.c >= y.n); })() : planReelsMes_(snap, m.slug, e.f) < x.obj;
       x.escalada = true; x.corregida = !sigue; cambio = true;
-      if (sigue) sumar('project', '• **' + m.nombre + '** (' + nombreDe_(m.sm) + '): ' + (e.tipo === 'calendario' ? 'calendario cargado solo hasta el ' + (planCobertura_(snap, m.slug) || '-').slice(5).split('-').reverse().join('/') + ' (tenía que llegar al ' + x.obj.slice(5).split('-').reverse().join('/') + ')' : 'reels del mes que viene: ' + planReelsMes_(snap, m.slug, e.f) + ' de ' + x.obj) + '.');
+      if (sigue) sumar('project', '• **' + m.nombre + '** (' + nombreDe_(m.sm) + '): ' + (e.tipo === 'planb' ? 'planes B de los reels del mes que viene: ' + pbCuenta(m.slug, e.f).c + ' de ' + pbCuenta(m.slug, e.f).n : e.tipo === 'calendario' ? 'calendario cargado solo hasta el ' + (planCobertura_(snap, m.slug) || '-').slice(5).split('-').reverse().join('/') + ' (tenía que llegar al ' + x.obj.slice(5).split('-').reverse().join('/') + ')' : 'reels del mes que viene: ' + planReelsMes_(snap, m.slug, e.f) + ' de ' + x.obj) + '.');
     });
   });
   if (cambio) guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
@@ -3527,15 +3534,17 @@ function planEvaluar_(snap, cat, cfg) {
 /* Recordatorio 2 días antes de cada entrega (lo arma privadosArmar_ en el bloque diario). [{clave, id, textos}] */
 function planRecordatorios_(snap, cat, cfg, ahora) {
   const en2 = ymd_(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 2, 12)), out = [];
-  const ents = planEntregas_(cfg, new Date(ahora.getTime() - 864e5), new Date(ahora.getTime() + 4 * 864e5)).filter(e => e.f === en2 && (e.tipo === 'calendario' || e.tipo === 'reels'));
+  const ents = planEntregas_(cfg, new Date(ahora.getTime() - 864e5), new Date(ahora.getTime() + 4 * 864e5)).filter(e => e.f === en2 && (e.tipo === 'calendario' || e.tipo === 'reels' || e.tipo === 'planb'));
   if (!ents.length) return out;
+  let gB = null;
   const DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'], porSM = {};
   const dm = s => s ? s.slice(8) + '/' + s.slice(5, 7) : '';
   planMarcasSM_(cat, snap).forEach(m => ents.forEach(e => {
-    if (e.tipo === 'reels' && !m.reels) return;
+    if (e.tipo !== 'calendario' && !m.reels) return;
     const dia = DIA[new Date(e.f + 'T12:00:00').getDay()];
     let l;
     if (e.tipo === 'calendario') { const obj = planMasUnMes_(e.f), hasta = planCobertura_(snap, m.slug); l = '• **' + m.nombre + '**: el ' + dia + ' entregás el calendario hasta el **' + dm(obj) + '**. Hoy está cargado hasta el ' + (hasta ? dm(hasta) : '(nada)') + (hasta >= obj ? ' ✅' : '.'); }
+    else if (e.tipo === 'planb') { const x = planbContar_(snap, gB = gB || leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]), m.slug, e.f), mes = MESES_ES[(new Date(e.f + 'T12:00:00').getMonth() + 1) % 12]; l = '• **' + m.nombre + '**: el ' + dia + ' entregás el **plan B de cada reel de ' + mes + '** (no puede depender de lo mismo que el reel). Hoy: ' + x.c + ' de ' + x.n + (x.n && x.c >= x.n ? ' ✅' : '.'); }
     else { const n = planReelsMes_(snap, m.slug, e.f), mes = MESES_ES[(new Date(e.f + 'T12:00:00').getMonth() + 1) % 12]; l = '• **' + m.nombre + '**: el ' + dia + ' entregás los **' + m.reels + ' reels de ' + mes + '**. Hoy hay ' + n + ' cargado' + (n === 1 ? '' : 's') + (n >= m.reels ? ' ✅' : '.'); }
     (porSM[m.sm] = porSM[m.sm] || []).push(l);
   }));
@@ -3570,15 +3579,17 @@ function planVista_(quien, esProject, mes) {
   const marcas = planMarcasSM_(cat, snap).filter(m => esProject || m.sm === norm_(quien));
   const ents = planEntregas_(cfg, ini, fin), rcfg = reportesConfig_(), rep = planRepPrimeros_(), est = rows_('Registro');
   const marcasIn = {}; est.forEach(r => { if (r[2] === 'input' && /^inp:/.test(r[3])) { const id = r[3].slice(4); if (!marcasIn[id]) marcasIn[id] = r[0]; } });
+  const gPB = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]);
   // 5) plan del mes (Fase 4): el plan de las campañas atacadas de este mes, ¿se completó antes del cierre?
   const pmG = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), pmC = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), pmD = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
   const out = marcas.map(m => {
     // 1 y 2) entregas del mes
-    const entregas = ents.filter(e => e.tipo === 'calendario' || (e.tipo === 'reels' && m.reels)).map(e => {
+    const entregas = ents.filter(e => e.tipo === 'calendario' || ((e.tipo === 'reels' || e.tipo === 'planb') && m.reels)).map(e => {
       const x = g.ent[e.f + '|' + e.tipo + '|' + m.slug];
       const estado = e.f > hoyS || (e.f === hoyS && ahora.getHours() < 21) ? 'proxima' : e.f < PLAN_DESDE ? 'sin medir' : x ? (x.ok ? 'cumplida' : x.corregida ? 'tarde' : 'incumplida') : 'sin medir';
       const r = { f: e.f, tipo: e.tipo, estado: estado };
       if (e.tipo === 'calendario') { r.obj = x ? x.obj : planMasUnMes_(e.f); r.hasta = x ? x.hasta : (estado === 'proxima' ? planCobertura_(snap, m.slug) : ''); }
+      else if (e.tipo === 'planb') { const y = x ? null : estado === 'proxima' ? planbContar_(snap, gPB, m.slug, e.f) : null; r.obj = x ? x.obj : y ? y.n : null; r.n = x ? x.n : y ? y.c : null; }
       else { r.obj = m.reels; r.n = x ? x.n : (estado === 'proxima' ? planReelsMes_(snap, m.slug, e.f) : null); }
       return r;
     });
@@ -4078,6 +4089,145 @@ function planMesRecordatorios_(cat, cfg, ahora) {
     : '🧭 Hola ' + nombreDe_(k) + '. ' + (cuando === 'antes' ? 'El ' + limC + ' se cierra el **plan de ' + MES + '**. Te falta armar el plan de:' : 'Ayer se cerraba el **plan de ' + MES + '** y te falta el de:');
   return Object.keys(porQuien).map(k => ({ clave: k, id: k === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, k), textos: trozos_(titulo(k), porQuien[k].concat(['Se arma en Plan → Campañas → "Armar el plan": ' + PLAN_URL])) })).filter(x => x.id);
 }
+
+/* ---------------- PLAN · Fase 5: plan B de cada reel (solo social media) ----------------
+   Cada reel del SCL (tarjeta con "reel" en el nombre o en una etiqueta) tiene que tener su plan B específico: qué se publica en su lugar
+   (carrusel, otro reel o extender otro video), qué día y con qué material. Regla de Joaquín: el plan B NO puede depender de lo mismo que el
+   reel (promo, colaboración, influencer, pedido o material del cliente, proveedor): se hace con recursos propios (Bauti, diseño o material
+   ya grabado). Ej. Gabriel Varisco, Día del Pan: la panadería se bajó y el panadero se quemó la mano; sin plan B, el video no salió.
+   · El plan B es una tarjeta en la lista "Plan B" del SCL (vinculada al reel con un adjunto). Se arma desde el panel (Plan → Plan B) o
+     desde Trello: una tarjeta creada a mano en "Plan B" se vincula con un toque en el panel.
+   · Si el reel se cae: "Activar plan B" mueve la tarjeta a la lista del reel con su fecha y deja un comentario en el reel. Desde ahí sigue
+     el flujo de siempre (aprobado, espejo de Butler a Diseño si lleva la etiqueta).
+   · Entrega de plan B (el segundo lunes de reels del mes, o los eventos "Entrega de plan B"): esa noche cada reel del mes siguiente tiene
+     que tener su plan B completo. Mismo esquema que las otras entregas (recordatorio 2 días antes, aviso esa noche, al project al otro día).
+   Archivo de Drive panel-ideamia-planb.json: { marca: { idReel: { pb, url, que, formato, fecha, material, depReel[], t, quien, activado } } } */
+const PLANB_ARCH = ['PLANB_FILE_ID', 'panel-ideamia-planb.json'];
+const PLANB_FORMATOS = { carrusel: 'Carrusel', reel: 'Otro reel', extender: 'Extender otro video', historias: 'Historias' };
+const PLANB_MATERIAL = { bauti: 'Producción de Bauti', diseno: 'Diseño', grabado: 'Material ya grabado', propio: 'Otro recurso propio' };
+const PLANB_DEP = { colab: 'Colaboración o influencer', cliente: 'Pedido o material del cliente', promo: 'Una promo', proveedor: 'Un proveedor o tercero', nada: 'Nada de afuera' };
+const esReel_ = c => /\breels?\b/.test(norm_((c.lab || []).join(' ') + ' ' + c.n));
+/* Reels del SCL de una marca con fecha entre dos días (yyyy-MM-dd). */
+function planbReels_(snap, slug, desdeS, hastaS) {
+  return (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl' && c.due && ['trabajo', 'hecho', 'corr', 'urgente', 'espera', 'mover'].indexOf(c.cat) >= 0 && esReel_(c))
+    .map(c => ({ id: c.id, n: c.n, due: ymd_(new Date(c.due)), url: c.url, lista: c.lista, hecho: c.cat === 'hecho' && !!c.dc })).filter(c => c.due >= desdeS && c.due <= hastaS)
+    .sort((a, b) => a.due.localeCompare(b.due));
+}
+const planbCompleto_ = x => !!(x && x.pb && x.que && x.formato && x.fecha && x.material);
+/* Vincula solo las tarjetas de "Plan B" que nombran o enlazan un reel en la descripción (las creadas a mano con el link del reel). */
+function planbAuto_(snap, g, slug, reels) {
+  const pm = g[slug] = g[slug] || {}, usadas = {}; Object.keys(pm).forEach(k => usadas[pm[k].pb] = 1);
+  let cambio = false;
+  (snap.cards || []).filter(c => c.m[0] === slug && c.cat === 'planb' && !usadas[c.id]).forEach(c => {
+    const r = reels.filter(x => !pm[x.id] && x.url && String(c.d || '').indexOf(x.url) >= 0)[0];
+    if (r) { pm[r.id] = { pb: c.id, url: c.url, que: '', formato: '', fecha: c.due ? ymd_(new Date(c.due)) : '', material: '', depReel: [], t: new Date().toISOString(), quien: 'trello' }; cambio = true; }
+  });
+  return cambio;
+}
+/* ¿Cuántos reels del mes siguiente a f tienen plan B completo? */
+function planbContar_(snap, g, slug, f) {
+  const d = new Date(f + 'T12:00:00'), ini = new Date(d.getFullYear(), d.getMonth() + 1, 1, 12), fin = new Date(d.getFullYear(), d.getMonth() + 2, 0, 12);
+  const reels = planbReels_(snap, slug, ymd_(ini), ymd_(fin)), pm = (g || {})[slug] || {}, vivas = {};
+  (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl').forEach(c => vivas[c.id] = 1);
+  return { n: reels.length, c: reels.filter(r => planbCompleto_(pm[r.id]) && (vivas[pm[r.id].pb] || pm[r.id].activado)).length };
+}
+function planbVista_(quien, esProject) {
+  const cat = catalogo_(), cfg = config_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]);
+  const hoy = hoyAR_(), hoyS = ymd_(hoy), fin = ymd_(new Date(hoy.getFullYear(), hoy.getMonth() + 2, 0, 12));
+  const ents = planEntregas_(cfg, new Date(hoy.getTime() - 864e5), new Date(hoy.getTime() + 45 * 864e5)).filter(e => e.tipo === 'planb' && e.f >= hoyS);
+  let cambio = false;
+  const marcas = planMarcasSM_(cat, snap).filter(m => m.reels && (esProject || m.sm === norm_(quien))).map(m => {
+    const reels = planbReels_(snap, m.slug, hoyS, fin);
+    if (planbAuto_(snap, g, m.slug, reels)) cambio = true;
+    const pm = g[m.slug] || {}, cards = {}, usadas = {};
+    (snap.cards || []).filter(c => c.m[0] === m.slug && c.tipo === 'scl').forEach(c => cards[c.id] = c);
+    Object.keys(pm).forEach(k => usadas[pm[k].pb] = 1);
+    const b = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0];
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, req: m.reels, tieneLista: !!(b && (b.listas || []).some(l => l.cat === 'planb')),
+      reels: reels.map(r => { const x = pm[r.id] || null, c = x && cards[x.pb]; return Object.assign(r, { pb: x ? Object.assign({}, x, { lista: c ? c.lista : '', existe: !!c || !!x.activado }) : null, completo: planbCompleto_(x) && (!!c || !!(x && x.activado)) }); }),
+      sueltas: (snap.cards || []).filter(c => c.m[0] === m.slug && c.cat === 'planb' && !usadas[c.id]).map(c => ({ id: c.id, n: c.n, url: c.url, due: c.due ? ymd_(new Date(c.due)) : '' })) };
+  });
+  if (cambio) guardarJson_(PLANB_ARCH[0], PLANB_ARCH[1], g);
+  return { ok: true, project: !!esProject, hoy: hoyS, entrega: ents.length ? ents[0].f : '', formatos: PLANB_FORMATOS, material: PLANB_MATERIAL, dep: PLANB_DEP, marcas: marcas };
+}
+function planbAccion_(b, quien, esProject) {
+  const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
+  if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  const reelId = String(b.reel || ''); if (!/^[0-9a-f]{24}$/.test(reelId)) return { error: 'datos', mensaje: 'Falta el reel' };
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), reel = (snap.cards || []).filter(c => c.id === reelId && c.m[0] === m.slug)[0];
+  const lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    const g = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]), pm = g[m.slug] = g[m.slug] || {}, prev = pm[reelId];
+    if (b.accion === 'guardar') {
+      if (!reel) return { error: 'datos', mensaje: 'No encuentro ese reel en el SCL (actualizá el panel)' };
+      const t = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 300);
+      const x = { que: t(b.que, 300), formato: PLANB_FORMATOS[b.formato] ? b.formato : '', fecha: String(b.fecha || ''), material: PLANB_MATERIAL[b.material] ? b.material : '', materialTxt: t(b.materialTxt, 150),
+        depReel: (b.depReel || []).filter(k => PLANB_DEP[k]).slice(0, 5) };
+      if (!x.depReel.length) return { error: 'datos', mensaje: 'Marcá de qué depende el reel (o "Nada de afuera")' };
+      if (!x.que) return { error: 'datos', mensaje: 'Contá qué se publica en lugar del reel' };
+      if (!x.formato) return { error: 'datos', mensaje: 'Elegí el formato del plan B' };
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(x.fecha)) return { error: 'datos', mensaje: 'Poné la fecha del plan B' };
+      if (!x.material) return { error: 'datos', mensaje: 'Elegí con qué material se hace' };
+      if (b.dependeTercero) return { error: 'datos', mensaje: 'El plan B no puede depender de nadie de afuera (cliente, influencer, proveedor o una promo): hacelo con Bauti, diseño o material ya grabado' };
+      if (x.material === 'propio' && x.materialTxt.length < 3) return { error: 'datos', mensaje: 'Contá qué recurso propio usás' };
+      const tb = (snap.tableros || []).filter(z => z.tipo === 'scl' && z.marca === m.slug)[0], lista = tb && (tb.listas || []).filter(l => l.cat === 'planb')[0];
+      if (!lista) return { error: 'datos', mensaje: 'El SCL de ' + m.nombre + ' todavía no tiene la lista "Plan B". Avisale a Joaquín.' };
+      const desc = 'Reemplaza a: ' + reel.url + ' (' + reel.n + ', ' + (reel.due ? ymd_(new Date(reel.due)).split('-').reverse().slice(0, 2).join('/') : 'sin fecha') + ')\n' +
+        'Qué se publica: ' + x.que + '\nFormato: ' + PLANB_FORMATOS[x.formato] + '\nMaterial: ' + PLANB_MATERIAL[x.material] + (x.materialTxt ? ' (' + x.materialTxt + ')' : '') + '\n' +
+        'El reel depende de: ' + x.depReel.map(k => PLANB_DEP[k]).join(', ') + '\n\nSi el reel se cae, tocá "Activar plan B" en el panel (o mové esta tarjeta a la lista del reel): desde ahí sigue el flujo de siempre.\n' + PLAN_URL;
+      const nombre = '🛟 Plan B · ' + reel.n.replace(/^🛟\s*/, '').slice(0, 80) + ' → ' + x.que.slice(0, 90);
+      let etq = null; const ids = [];
+      try { etq = trello_('/boards/' + tb.id + '/labels', { fields: 'name', limit: 200 }); } catch (e) { etq = []; }
+      const lab = n => (etq.filter(l => norm_(l.name) === norm_(n))[0] || {}).id;
+      [x.formato === 'carrusel' ? 'Carrusel' : x.formato === 'historias' ? 'Historias' : 'Reel', x.material === 'diseno' ? 'Diseño' : ''].forEach(n => { const id = n && lab(n); if (id) ids.push(id); });
+      const cardId = String(b.card || (prev && prev.pb) || '');
+      let c;
+      if (cardId && (snap.cards || []).some(z => z.id === cardId && z.m[0] === m.slug && z.cat === 'planb')) {
+        c = trello_('/cards/' + cardId, { name: nombre, desc: desc, due: x.fecha + 'T12:00:00-03:00' }, 'put');
+        if (ids.length) ids.forEach(id => { try { trello_('/cards/' + cardId + '/idLabels', { value: id }, 'post'); } catch (e) {} });
+      } else {
+        const p = { idList: lista.id, name: nombre, desc: desc, due: x.fecha + 'T12:00:00-03:00', pos: 'bottom' }; if (ids.length) p.idLabels = ids.join(',');
+        c = trello_('/cards', p, 'post');
+      }
+      if (!prev || prev.pb !== c.id) { try { trello_('/cards/' + c.id + '/attachments', { url: reel.url, name: 'Reel que reemplaza' }, 'post'); } catch (e) {} }
+      pm[reelId] = Object.assign(x, { pb: c.id, url: c.shortUrl || (prev && prev.url) || '', t: new Date().toISOString(), quien: norm_(quien), activado: prev && prev.activado || null });
+    } else if (b.accion === 'activar') {
+      if (!planbCompleto_(prev)) return { error: 'datos', mensaje: 'Ese reel no tiene un plan B completo' };
+      if (prev.activado) return { error: 'datos', mensaje: 'El plan B ya está activado' };
+      const r = trello_('/cards/' + reelId, { fields: 'idList,due,shortUrl,name' });
+      trello_('/cards/' + prev.pb, { idList: r.idList, due: prev.fecha + 'T12:00:00-03:00', pos: 'top' }, 'put');
+      try { trello_('/cards/' + reelId + '/actions/comments', { text: '🛟 Se activó el plan B (' + nombreDe_(quien) + ', desde el panel): ' + prev.url + '\nMotivo: ' + String(b.motivo || 'sin detallar').slice(0, 300) }, 'post'); } catch (e) {}
+      prev.activado = new Date().toISOString(); prev.motivo = String(b.motivo || '').slice(0, 300);
+      try { const id = idJoaquin_(config_()); if (id && !esProject) discordPrivado_(id, '🛟 ' + nombreDe_(quien) + ' activó el **plan B** de "' + r.name + '" en **' + m.nombre + '**' + (b.motivo ? ': ' + String(b.motivo).slice(0, 200) : '') + '.\n' + prev.url); } catch (e) {}
+    } else if (b.accion === 'vincular') {
+      const cardId = String(b.card || ''); if (!(snap.cards || []).some(z => z.id === cardId && z.m[0] === m.slug && z.cat === 'planb')) return { error: 'datos', mensaje: 'Esa tarjeta no está en la lista "Plan B"' };
+      if (!reel) return { error: 'datos', mensaje: 'No encuentro ese reel' };
+      const c = (snap.cards || []).filter(z => z.id === cardId)[0];
+      pm[reelId] = { pb: cardId, url: c.url, que: '', formato: '', fecha: c.due ? ymd_(new Date(c.due)) : '', material: '', depReel: [], t: new Date().toISOString(), quien: norm_(quien) };
+      try { trello_('/cards/' + cardId + '/attachments', { url: reel.url, name: 'Reel que reemplaza' }, 'post'); } catch (e) {}
+    } else if (b.accion === 'desvincular') {
+      delete pm[reelId];   // la tarjeta de Trello no se toca
+    } else return { error: 'datos', mensaje: 'Acción desconocida' };
+    guardarJson_(PLANB_ARCH[0], PLANB_ARCH[1], g);
+    return { ok: true, plan: pm[reelId] || null };
+  } finally { lock.releaseLock(); }
+}
+/* Una sola vez (lo corre Joaquín o Claude desde el editor): crea la lista "Plan B" en cada SCL de marca con social media que no la tenga. */
+function crearListasPlanB() {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), conSM = {}; cat.marcas.filter(m => m.sm).forEach(m => conSM[m.slug] = 1);
+  (snap.tableros || []).filter(b => b.tipo === 'scl' && conSM[b.marca]).forEach(b => {
+    if ((b.listas || []).some(l => l.cat === 'planb')) { console.log(b.nombre + ': ya tiene "Plan B"'); return; }
+    const l = trello_('/lists', { name: 'Plan B', idBoard: b.id, pos: 'bottom' }, 'post');
+    console.log(b.nombre + ': lista "Plan B" creada (' + l.id + ')');
+  });
+  console.log('Listo. El panel la reconoce en la próxima actualización (o con "3 · Actualizar Trello e IA ahora").');
+}
+/* PRUEBA sin efectos: reels y planes B que ve el panel en cada marca. */
+function probarPlanB() {
+  const v = planbVista_('project', true);
+  console.log('Próxima entrega de plan B: ' + (v.entrega || '(no encontrada en el calendario)'));
+  v.marcas.forEach(m => console.log(m.nombre + ' · lista Plan B: ' + (m.tieneLista ? 'sí' : 'NO') + ' · reels: ' + m.reels.length + ' (con plan B completo: ' + m.reels.filter(r => r.completo).length + ') · sueltas: ' + m.sueltas.length));
+}
 /* ---------------- PLAN · Ads: control semanal de la pauta (pedido de Joaquín, 17/10/2026) ----------------
    Cada semana, por cada marca CON pauta, el social media responde: ¿la pauta está corriendo bien?, ¿se está pautando la pieza que
    corresponde esta semana? y ¿hay que cambiar algo? Si algo no está bien, escribe qué cambiar y el botón "Avisale a Juan" copia el
@@ -4246,6 +4396,7 @@ function doGet(e) {
       if (q.que === 'ficha') return json_(fichaVista_(yo.clave, esProj), q.cb);   // ficha operativa de cada marca (Fase 2)
       if (q.que === 'campanas') return json_(campVista_(yo.clave, esProj), q.cb);   // campañas de este mes y del siguiente (Fase 3)
       if (q.que === 'pauta') return json_(pautaVista_(yo.clave, esProj), q.cb);   // control semanal de la pauta (Ads)
+      if (q.que === 'planb') return json_(planbVista_(yo.clave, esProj), q.cb);   // plan B de cada reel (Fase 5)
       return json_(planVista_(yo.clave, esProj, q.mes), q.cb);
     }
     if (q.action === 'project') {
@@ -4282,6 +4433,13 @@ function doPost(e) {
         const esProj = /project/i.test(yo.rol);
         if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         return json_(campAccion_(b, yo.clave, esProj));
+      }
+      case 'planb': { // plan B de cada reel (Fase 5): armar, vincular una tarjeta de Trello, activar o desvincular
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(planbAccion_(b, yo.clave, esProj));
       }
       case 'planmes': { // plan del mes de una campaña atacada (Fase 4): guardar el borrador o terminarlo (crea las tarjetas)
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
