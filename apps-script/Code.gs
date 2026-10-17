@@ -611,10 +611,9 @@ const RUTINAS_NUEVAS = [
   ['trimestral-check', '¿Este mes toca reporte trimestral? Organizalo con tiempo', 'mes:1-7', 'no', 'SM', 'Los trimestrales se entregan en enero, abril, julio y octubre.', 'LINK_REPORTES'],
   ['pautables', 'Definir con Ads qué contenidos se pautan el mes que viene', 'mes:ultima-semana', 'no', 'SM', 'Llevalo a la reunión con Ads: qué piezas se pautan y con qué objetivo cada una.', ''],
   ['produccion-trimestre', '¿Ya fuiste a una producción este trimestre?', 'meses:3,6,9,12/1-20', 'no', 'SM', 'Es obligatoria una por trimestre, para conocer el espacio y acompañar la producción. Coordinala con Bauti.', ''],
-  // acciones externas a Instagram (pedido de Joaquín, 17/10/2026): canal de WhatsApp de Quality todas las semanas (SM y CM),
+  // acciones externas a Instagram (pedido de Joaquín, 17/10/2026): canal de WhatsApp de Quality todas las semanas (solo SM: el CM mueve el canal de Instagram, no el de WhatsApp),
   // comunicación interna de GV y Quality Mayorista, y al principio de cada mes la pregunta por activaciones externas en todas las marcas
   ['canal-wsp-quality', 'Mover el canal social de WhatsApp de Quality', 'semana:lun', 'quality tienda', 'SM', 'Es externo a Instagram y va SÍ O SÍ todas las semanas: novedades, promos, recetas o lanzamientos en el canal de WhatsApp.', ''],
-  ['canal-wsp-quality-cm', 'Mover el canal social de WhatsApp de Quality', 'semana:lun', 'quality tienda', 'CM', 'Es externo a Instagram y va SÍ O SÍ todas las semanas. Coordiná con el social media qué se publica.', ''],
   ['comunicacion-interna', 'Comunicación interna del mes', 'mes:1-10', 'gabriel varisco, quality mayorista', 'SM', 'Pedí qué hay que comunicar internamente (material para el área comercial, promos para vendedores, novedades del equipo) y armalo.', ''],
   ['activaciones-externas', '¿Este mes hay alguna activación externa o comunicación interna?', 'mes:1-5', 'sí', 'SM', 'Preguntale al cliente o al project: canal social, material para el área comercial, promos para vendedores, eventos o activaciones. Lo que haya, cargalo como input en el SCL con fecha.', ''],
   ['reunion-guiones','Reunión de guiones: presentar ideas nuevas y ver los que entregó Fede', 'semana:lun', 'isco, quality tienda, quality mayorista, gabriel varisco, tritato, dyb, 1talquecocina, vice burger', 'SM', 'Cada idea que aprueben va a Aprobado en SCL CON fecha de inicio = entrega del guion (7 días después, el lunes siguiente). Sin esa fecha Fede no sabe cuándo entregar.', '']
@@ -625,6 +624,12 @@ function asegurarRutinas_() {
   const ids = rows_('Rutinas').map(r => r[0]);
   let cambio = false;
   RUTINAS_NUEVAS.forEach(r => { if (ya.indexOf(r[0]) >= 0) return; if (ids.indexOf(r[0]) < 0) sh.appendRow(r); ya.push(r[0]); cambio = true; });
+  // rutinas que se agregaron por error y se sacan (17/10/2026: el CM no mueve el canal de WhatsApp de Quality, solo el de Instagram)
+  ['canal-wsp-quality-cm'].forEach(id => {
+    if (ids.indexOf(id) < 0) return;
+    const col = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(r => String(r[0]).trim()), i = col.indexOf(id);
+    if (i >= 1) sh.deleteRow(i + 1);
+  });
   if (cambio) P.setProperty('RUTINAS_AGREGADAS', ya.join(','));
   // fila de Config para la contraseña de brainstormings (la completa el project en el Sheet)
   const cf = SpreadsheetApp.getActive().getSheetByName('Config');
@@ -2141,7 +2146,7 @@ function tareasDelMesEnviar_(cat, cfg, snap) {
     if (!textos) return;
     try { textos.forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); }); hecho.a.push(p.clave); } catch (e) { P.setProperty('DISCORD_DM_ERROR', (new Date().toISOString() + ' · tareas del mes de ' + p.clave + ': ' + e.message).slice(0, 300)); }
     // y, por cada marca suya, lo que marca el calendario anual para este mes (si falla, las tareas igual salieron)
-    try { const datos = anualDatos_(snap || snapshot_(), cat); cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snap || snapshot_(), datos, hoy) || []).forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); })); } catch (e) {}
+    try { const datos = anualDatos_(snap || snapshot_(), cat); cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snap || snapshot_(), datos, hoy) || []).concat(trozos_('🗓️ **' + m.nombre + ' · campañas**', campResumen_(m, datos, hoy))).forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); })); } catch (e) {}
   });
   P.setProperty('TAREAS_MES', JSON.stringify(hecho));
 }
@@ -3854,6 +3859,72 @@ function fichaRecordatorios_(cat, cfg, ahora) {
   return Object.keys(porQuien).map(k => ({ clave: k, id: idDiscord_(cfg, k), textos: trozos_('Hola ' + nombreDe_(k) + '. De las fichas de tus marcas:', porQuien[k].concat(['Detalle: ' + PLAN_URL])) })).filter(x => x.id);
 }
 
+/* ---------------- PLAN · Fase 3: campañas del mes (solo social media; los descartes los revisa el project) ----------------
+   Del calendario anual de cada marca (el que ya lee el panel) salen las fechas de este mes y del siguiente. Por cada una, el social media
+   marca "la atacamos" o "no la atacamos" con motivo obligatorio. Los descartes le aparecen al project: los aprueba (queda anotado para el
+   año que viene) o los rechaza ("esta sí la tienen que atacar") y se le avisa al social media. El primer día hábil del mes, el privado
+   del calendario anual suma "Este mes tenés… / El mes que viene tenés…". Archivo de Drive panel-ideamia-campanas.json. */
+const CAMP_NIV = { 1: 'N1 · campaña mayor', 2: 'N2 · campaña especial', 3: 'N3 · publicación o historias', 4: 'N4 · mención' };
+const campKey_ = (anio, x) => anio + '-' + ('0' + (x.mes + 1)).slice(-2) + '-' + ('0' + x.dia).slice(-2) + '|' + norm_(x.nombre).slice(0, 60);
+function campFechas_(datos, slug, hoy) {
+  const o = ((datos || {}).marcas || {})[slug]; if (!o || !o.items) return [];
+  const out = [];
+  [0, 1].forEach(k => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() + k, 1), mes = d.getMonth(), anio = d.getFullYear();
+    o.items.filter(x => x.mes === mes && x.nivel >= 1 && x.nivel <= 4).sort((a, b) => a.dia - b.dia)
+      .forEach(x => out.push({ key: campKey_(anio, x), f: ymd_(new Date(anio, mes, x.dia, 12)), nombre: x.nombre, nivel: x.nivel, accion: x.accion || '', cual: k === 0 ? 'este' : 'proximo' }));
+  });
+  return out;
+}
+function campVista_(quien, esProject) {
+  const cat = catalogo_(), hoy = hoyAR_(), datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), g = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json');
+  const marcas = cat.marcas.filter(m => m.sm && (esProject || m.sm === norm_(quien))).map(m => {
+    const dec = g[m.slug] || {};
+    const fechas = campFechas_(datos, m.slug, hoy).map(x => Object.assign(x, { dec: dec[x.key] || null }));
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, tieneCalendario: !!(((datos || {}).marcas || {})[m.slug] || {}).items, fechas: fechas,
+      pendientes: fechas.filter(x => !x.dec && x.f >= ymd_(hoy)).length, revisar: fechas.filter(x => x.dec && x.dec.decision === 'descartar' && x.dec.revision === 'pendiente').length };
+  });
+  return { ok: true, project: !!esProject, hoy: ymd_(hoy), marcas: marcas };
+}
+function campAccion_(b, quien, esProject) {
+  const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
+  if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|/.test(key)) return { error: 'datos', mensaje: 'Falta la fecha' };
+  const cfg = config_(), avisar = (clave, txt) => { try { const id = clave === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, clave); if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) discordPrivado_(id, txt); } catch (e) {} };
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), dec = g[m.slug] = g[m.slug] || {}, nombre = String(b.nombre || key.split('|')[1]).slice(0, 120), fecha = key.slice(8, 10) + '/' + key.slice(5, 7);
+    if (b.accion === 'decidir') {
+      const d = b.decision === 'descartar' ? 'descartar' : b.decision === 'atacar' ? 'atacar' : '';
+      if (!d) { delete dec[key]; }
+      else {
+        const motivo = String(b.motivo || '').trim().slice(0, 300);
+        if (d === 'descartar' && motivo.length < 4) return { error: 'datos', mensaje: 'Contá por qué no se ataca (el motivo es obligatorio)' };
+        dec[key] = { decision: d, motivo: d === 'descartar' ? motivo : '', quien: norm_(quien), t: new Date().toISOString(), nombre: nombre, revision: d === 'descartar' ? 'pendiente' : '' };
+        if (d === 'descartar') avisar('project', '🗓️ ' + nombreDe_(m.sm) + ' propone **no atacar** "' + nombre + '" (' + fecha + ') en **' + m.nombre + '**.\nMotivo: ' + motivo + '\nAprobalo o rechazalo en ' + PLAN_URL);
+      }
+    } else if (b.accion === 'revisar') {
+      if (!esProject) return { error: 'permiso', mensaje: 'Los descartes los revisa el project' };
+      const x = dec[key]; if (!x || x.decision !== 'descartar') return { error: 'datos', mensaje: 'Esa fecha no está descartada' };
+      if (b.aprobar) { x.revision = 'aprobado'; x.notaP = String(b.nota || '').slice(0, 300); (g.historico = g.historico || []).push({ marca: m.slug, nombre: x.nombre, fecha: key.slice(0, 10), motivo: x.motivo, aprobado: new Date().toISOString() }); }
+      else {
+        dec[key] = { decision: 'atacar', motivo: '', quien: 'project', t: new Date().toISOString(), nombre: x.nombre, revision: 'rechazado', notaP: String(b.nota || '').slice(0, 300), motivoPrevio: x.motivo };
+        avisar(m.sm, '🗓️ Joaquín pide que **sí ataques "' + x.nombre + '"** (' + fecha + ') en **' + m.nombre + '**.' + (b.nota ? '\n' + String(b.nota).slice(0, 300) : '') + '\nSumala a tu plan del mes: ' + PLAN_URL);
+      }
+    } else return { error: 'datos', mensaje: 'Acción desconocida' };
+    guardarJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json', g);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/* Líneas para el privado del primer día hábil: campañas de este mes y del siguiente (N1 y N2) y cuántas fechas falta decidir. */
+function campResumen_(m, datos, hoy) {
+  const F = campFechas_(datos, m.slug, hoy), camp = c => c.filter(x => x.nivel <= 2).map(x => x.nombre + ' (' + x.f.slice(8) + '/' + x.f.slice(5, 7) + ', N' + x.nivel + ')');
+  const este = camp(F.filter(x => x.cual === 'este')), prox = camp(F.filter(x => x.cual === 'proximo'));
+  return ['', '**Campañas**', este.length ? 'Este mes tenés: ' + este.join(', ') + '.' : 'Este mes no hay campañas: organizá el mes con tus tópicos fijos.',
+    prox.length ? 'El mes que viene tenés: ' + prox.join(', ') + '.' : 'El mes que viene no hay campañas.',
+    'Marcá cuáles atacás (y por qué no las otras) en Plan → Campañas: ' + PLAN_URL];
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -3901,6 +3972,7 @@ function doGet(e) {
       if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
       if (!yo || (!esProj && !cat.marcas.some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'El plan es solo para las social media y el project' }, q.cb);
       if (q.que === 'ficha') return json_(fichaVista_(yo.clave, esProj), q.cb);   // ficha operativa de cada marca (Fase 2)
+      if (q.que === 'campanas') return json_(campVista_(yo.clave, esProj), q.cb);   // campañas de este mes y del siguiente (Fase 3)
       return json_(planVista_(yo.clave, esProj, q.mes), q.cb);
     }
     if (q.action === 'project') {
@@ -3924,6 +3996,13 @@ function doPost(e) {
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
+      case 'campana': { // campañas: el social media decide si la ataca; el project revisa los descartes
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(campAccion_(b, yo.clave, esProj));
+      }
       case 'ficha': { // ficha operativa: el social media la arma y la manda; el project la aprueba o pide cambios
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
         if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
