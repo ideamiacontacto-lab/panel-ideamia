@@ -56,13 +56,14 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 </style>
 <script src="../config.js?v=2"></script>
 <script src="../ideamia-nav.js?v=3" defer></script>
+<script src="../recordatorios.js?v=1" defer></script>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Cargando…</div></div>
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '1';
+  const VER = '2';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -114,12 +115,12 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
       kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpi(null, 'Plan del mes', 'llega en la fase 4', true) + kpi(null, 'Tópicos fijos', 'llega en la fase 2', true) + '</div>';
     // alertas en rojo
     const al = [];
-    ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? 'Entrega de calendario del ' + diaDe(e.f) + ' ' + dm(e.f) + ': quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : 'Entrega de reels del ' + diaDe(e.f) + ' ' + dm(e.f) + ': había ' + e.n + ' de 4.'));
+    ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? 'Entrega de calendario del ' + diaDe(e.f) + ' ' + dm(e.f) + ': quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : 'Entrega de reels del ' + diaDe(e.f) + ' ' + dm(e.f) + ': había ' + e.n + ' de ' + e.obj + '.'));
     m.reportes.filter(r => r.estado === 'falta').forEach(r => al.push('Falta el reporte ' + r.tipo + ' (' + (r.tipo === 'semanal' ? 'semana del ' + dm(r.per) : r.per) + '), vencía el ' + dm(r.vence.slice(0, 10)) + '.'));
     if (m.inputs.tarde.length) al.push(m.inputs.tarde.length + ' input' + (m.inputs.tarde.length === 1 ? '' : 's') + ' se marcaron después de 24 h (o todavía no se marcaron).');
     if (al.length) h += fold('al:' + m.slug, 'roja', 'Alertas', al.length, '<div class="al"><ul>' + al.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>', true);
     // entregas
-    const filaE = e => { const s = ESTE[e.estado] || ESTE['sin medir']; return '<div class="row"><div>' + (e.tipo === 'calendario' ? 'Calendario' : 'Reels del mes que viene') + ' · ' + diaDe(e.f) + ' ' + dm(e.f) + '<div class="m">' + (e.tipo === 'calendario' ? 'Cargado hasta el ' + dm(e.obj) + (e.hasta ? ' · ' + (e.estado === 'proxima' ? 'hoy llega al ' : 'llegaba al ') + dm(e.hasta) : '') : '4 reels' + (e.n != null ? ' · ' + (e.estado === 'proxima' ? 'hoy hay ' : 'había ') + e.n : '')) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
+    const filaE = e => { const s = ESTE[e.estado] || ESTE['sin medir']; return '<div class="row"><div>' + (e.tipo === 'calendario' ? 'Calendario' : 'Reels del mes que viene') + ' · ' + diaDe(e.f) + ' ' + dm(e.f) + '<div class="m">' + (e.tipo === 'calendario' ? 'Cargado hasta el ' + dm(e.obj) + (e.hasta ? ' · ' + (e.estado === 'proxima' ? 'hoy llega al ' : 'llegaba al ') + dm(e.hasta) : '') : e.obj + ' reels' + (e.n != null ? ' · ' + (e.estado === 'proxima' ? 'hoy hay ' : 'había ') + e.n : '')) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
     h += fold('en:' + m.slug, '', 'Entregas del mes', ent.length, '<div class="rows">' + (ent.length ? ent.map(filaE).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', false);
     // reportes
     h += fold('re:' + m.slug, '', 'Reportes', m.reportes.length, '<div class="rows">' + (m.reportes.length ? m.reportes.map(r => { const s = ESTR[r.estado]; return '<div class="row"><div>Reporte ' + r.tipo + (r.tipo === 'semanal' ? ' · semana del ' + dm(r.per) : ' · ' + esc(r.per)) + '<div class="m">Vence ' + diaDe(r.vence.slice(0, 10)) + ' ' + dm(r.vence.slice(0, 10)) + (r.env ? ' · cargado el ' + dm(r.env.slice(0, 10)) : '') + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; }).join('') : '<div class="row"><div class="m">Esta marca no tiene reportes en el sistema de Reportes.</div></div>') + '</div>', false);
