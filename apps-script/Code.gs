@@ -676,6 +676,7 @@ function actualizar(desdeWeb) {
     // filtro de CM y privados de Discord (antes de guardar: así la foto ya refleja a qué lista fue cada pieza). Si falla, no corta la actualización.
     try { privadosEnviar_(snap, cat, cfg); } catch (e) { P.setProperty('PRIVADOS_NOTAS', (new Date().toISOString() + ' · ERROR: ' + String(e.message || e)).slice(0, 900)); }
     try { adsPedidosAvisar_(cfg); } catch (e) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
+    try { planEvaluar_(snap, cat, cfg); } catch (e) { P.setProperty('PLAN_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
     try { tareasDelMesEnviar_(cat, cfg, snap); } catch (e) {}
     // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
@@ -1715,6 +1716,9 @@ function privadosArmar_(snap, cat, cfg, opciones) {
   if (o.diarios) {
     try { const ok = okrPrivados_(cfg, o.ahora || hoyAR_()); ok.msgs.forEach(m => { para(m.clave, m.id, m.textos); if (m.intro) okrIntro.push(m.clave); }); ok.notas.forEach(n => notas.push(n)); }
     catch (e) { notas.push('OKR · ' + String(e.message || e).slice(0, 120)); }
+    // 5) Plan: 2 días antes de cada entrega de calendario o de reels
+    try { planRecordatorios_(snap, cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    catch (e) { notas.push('Plan · ' + String(e.message || e).slice(0, 120)); }
   }
   return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo, okrIntro: okrIntro };
 }
@@ -3368,6 +3372,199 @@ function probarAvisoOKR() {
   if (r.notas.length) console.log('Notas: ' + r.notas.join(' | '));
 }
 
+/* ---------------- PLAN · Fase 1: indicadores que el panel mide solo + recordatorios de entregas ----------------
+   (Especificación "Sistema de planificación para Social Media", aprobada por Joaquín el 17/10/2026. NO toca el bono 2026 ni la pestaña OKR.)
+   · Entrega de calendario (eventos "Entrega … calendario" del calendario del equipo, viernes): esa noche (desde las 21 h) se revisa
+     cada marca: tiene que haber contenido con fecha hasta la MISMA fecha del mes siguiente. Incumplida → privado al social media;
+     si al día siguiente (desde las 10 h) sigue igual → privado al project.
+   · Entrega de reels (eventos "Entrega … reels", lunes): el PRIMER lunes de entrega de cada mes son los 4 reels del mes siguiente
+     (el segundo es el de plan B, Fase 5). Esa noche se cuentan los reels con fecha del mes siguiente en el SCL de cada marca con guiones.
+   · Inputs procesados en 24 h: hora en que el social media lo marca en el panel (Registro) contra la hora en que se creó la tarjeta.
+   · Reportes a tiempo: primera carga de cada reporte (Sheet de Reportes) contra su vencimiento.
+   · 2 días antes de cada entrega: recordatorio por privado (bloque diario de 9 a 12) con lo que hay cargado hoy.
+   Todo queda en el archivo de Drive panel-ideamia-plan.json. Las entregas anteriores al 17/10/2026 no se midieron (no hay foto de esa noche). */
+const PLAN_DESDE = '2026-10-17';
+const PLAN_URL = 'https://ideamiacontacto-lab.github.io/panel-ideamia/plan/';
+const PLAN_REP_SLUG = { quality: 'quality-tienda' };   // marca del panel → marca en Reportes, cuando el nombre no alcanza
+function planRepSlug_(m, repMarcas) {
+  if (PLAN_REP_SLUG[m.slug]) return PLAN_REP_SLUG[m.slug];
+  const tk = s => norm_(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(Boolean);
+  const mio = tk(m.nombre || m.slug);
+  const c = (repMarcas || []).filter(r => r.slug === m.slug || tk(r.slug.replace(/-/g, ' ')).join(' ') === mio.join(' ') || mio.every(t => tk(r.slug.replace(/-/g, ' ')).indexOf(t) >= 0))
+    .sort((a, b) => a.slug.length - b.slug.length)[0];
+  return c ? c.slug : '';
+}
+/* Entregas del calendario del equipo entre dos fechas: [{f:'yyyy-MM-dd', tipo:'calendario'|'reels'|'planb'}] */
+function planEntregas_(cfg, desde, hasta) {
+  const c = CacheService.getScriptCache(), key = 'planent' + ymd_(desde) + ymd_(hasta), hit = c.get(key);
+  if (hit) return JSON.parse(hit);
+  const cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'estudioideamia@gmail.com'), out = [];
+  (cal ? cal.getEvents(desde, hasta) : []).forEach(e => {
+    const t = norm_(e.getTitle()); if (!/entrega/.test(t)) return;
+    const f = ymd_(e.getStartTime());
+    if (/plan b/.test(t)) out.push({ f: f, tipo: 'planb' });
+    else if (/calendario/.test(t)) out.push({ f: f, tipo: 'calendario' });
+    else if (/reel/.test(t)) out.push({ f: f, tipo: 'reels' });
+  });
+  // de los lunes de reels, el primero de cada mes son los 4 reels del mes siguiente; el otro, el plan B (mientras no se renombre)
+  const visto = {};
+  out.filter(x => x.tipo === 'reels').sort((a, b) => a.f.localeCompare(b.f)).forEach(x => { const m = x.f.slice(0, 7); if (visto[m]) x.tipo = 'planb'; visto[m] = 1; });
+  out.sort((a, b) => a.f.localeCompare(b.f));
+  c.put(key, JSON.stringify(out), 3600);
+  return out;
+}
+const planMasUnMes_ = f => { const d = new Date(f + 'T12:00:00'); const x = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate(), 12); if (x.getDate() !== d.getDate()) x.setDate(0); return ymd_(x); };
+/* Hasta qué fecha hay contenido cargado de una marca (misma regla que la cobertura del panel). */
+function planCobertura_(snap, slug) {
+  let max = '';
+  (snap.cards || []).forEach(c => {
+    if (c.m[0] !== slug || !c.due || (c.tipo !== 'scl' && c.tipo !== 'cm')) return;
+    if (['trabajo', 'hecho', 'corr', 'urgente', 'espera'].indexOf(c.cat) < 0) return;
+    const d = ymd_(new Date(c.due)); if (d > max) max = d;
+  });
+  return max;
+}
+/* Reels con fecha en el mes siguiente a una fecha, en el SCL de la marca. */
+function planReelsMes_(snap, slug, f) {
+  const d = new Date(f + 'T12:00:00'), mes = ym_(new Date(d.getFullYear(), d.getMonth() + 1, 1, 12));
+  return (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl' && c.due && ym_(new Date(c.due)) === mes &&
+    ['trabajo', 'hecho', 'corr', 'urgente', 'espera', 'mover'].indexOf(c.cat) >= 0 &&
+    /reel/.test(norm_((c.lab || []).join(' ') + ' ' + c.n))).length;
+}
+function planMarcasSM_(cat, snap) {
+  const conGuiones = {}; (snap.tableros || []).filter(b => b.tipo === 'guiones' && b.marca).forEach(b => conGuiones[b.marca] = 1);
+  return cat.marcas.filter(m => m.sm).map(m => ({ slug: m.slug, nombre: m.nombre, sm: m.sm, reels: !!conGuiones[m.slug] }));
+}
+/* Lo llama cada actualización (cada 10 min): evalúa las entregas de esa noche, escala al project al día siguiente y anota los inputs que ve. */
+function planEvaluar_(snap, cat, cfg) {
+  const ahora = hoyAR_(), hoyS = ymd_(ahora), h = ahora.getHours(), activos = !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim());
+  const g = leerJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json'); g.ent = g.ent || {}; g.inp = g.inp || {};
+  let cambio = false;
+  // inputs que se ven en el SCL: se anota cuándo se crearon (sale del ID de Trello) para medir las 24 h aunque después se muevan
+  (snap.cards || []).filter(c => c.cat === 'input' && c.tipo === 'scl').forEach(c => { if (!g.inp[c.id]) { g.inp[c.id] = { m: c.m[0], c: parseInt(String(c.id).slice(0, 8), 16) * 1000 }; cambio = true; } });
+  const marcas = planMarcasSM_(cat, snap), ayerS = ymd_(new Date(ahora.getTime() - 864e5));
+  const ents = planEntregas_(cfg, new Date(ahora.getTime() - 3 * 864e5), new Date(ahora.getTime() + 864e5)).filter(e => e.f >= PLAN_DESDE && (e.tipo === 'calendario' || e.tipo === 'reels'));
+  const aviso = {};   // clave persona → líneas
+  const sumar = (k, l) => (aviso[k] = aviso[k] || []).push(l);
+  ents.forEach(e => {
+    // 1) la noche de la entrega
+    if (e.f === hoyS && h >= 21) marcas.filter(m => e.tipo === 'calendario' || m.reels).forEach(m => {
+      const k = e.f + '|' + e.tipo + '|' + m.slug; if (g.ent[k]) return;
+      const r = e.tipo === 'calendario' ? (() => { const obj = planMasUnMes_(e.f), hasta = planCobertura_(snap, m.slug); return { ok: !!hasta && hasta >= obj, hasta: hasta, obj: obj }; })()
+        : (() => { const n = planReelsMes_(snap, m.slug, e.f); return { ok: n >= 4, n: n, obj: 4 }; })();
+      g.ent[k] = Object.assign(r, { f: e.f, tipo: e.tipo, marca: m.slug, sm: m.sm, t: new Date().toISOString() }); cambio = true;
+      if (!r.ok) sumar(m.sm, e.tipo === 'calendario' ? '• **' + m.nombre + '**: el calendario tenía que quedar cargado hasta el ' + r.obj.slice(8) + '/' + r.obj.slice(5, 7) + ' y llega hasta el ' + (r.hasta ? r.hasta.slice(8) + '/' + r.hasta.slice(5, 7) : '(nada cargado)') + '.'
+        : '• **' + m.nombre + '**: tenían que estar los 4 reels del mes que viene y hay ' + r.n + '.');
+    });
+    // 2) al día siguiente, desde las 10: si sigue incumplida, se avisa al project
+    if (e.f === ayerS && h >= 10) marcas.forEach(m => {
+      const k = e.f + '|' + e.tipo + '|' + m.slug, x = g.ent[k]; if (!x || x.ok || x.escalada) return;
+      const sigue = e.tipo === 'calendario' ? !(planCobertura_(snap, m.slug) >= x.obj) : planReelsMes_(snap, m.slug, e.f) < 4;
+      x.escalada = true; x.corregida = !sigue; cambio = true;
+      if (sigue) sumar('project', '• **' + m.nombre + '** (' + nombreDe_(m.sm) + '): ' + (e.tipo === 'calendario' ? 'calendario cargado solo hasta el ' + (planCobertura_(snap, m.slug) || '-').slice(5).split('-').reverse().join('/') + ' (tenía que llegar al ' + x.obj.slice(5).split('-').reverse().join('/') + ')' : 'reels del mes que viene: ' + planReelsMes_(snap, m.slug, e.f) + ' de 4') + '.');
+    });
+  });
+  if (cambio) guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
+  if (!activos) return;
+  Object.keys(aviso).forEach(k => {
+    const id = k === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, k); if (!id) return;
+    const txt = k === 'project' ? trozos_('Hola Joaquín. Entregas de ayer que **siguen incumplidas**:', aviso[k].concat(['', 'Detalle: ' + PLAN_URL]))
+      : trozos_('Hola ' + nombreDe_(k) + '. Hoy era día de entrega y **quedó incumplida** en:', aviso[k].concat(['Completalo hoy, así mañana no le llega al project. Detalle: ' + PLAN_URL]));
+    try { txt.forEach(t => discordPrivado_(id, t)); } catch (e) { P.setProperty('PLAN_NOTA', new Date().toISOString() + ' · ' + String(e.message).slice(0, 150)); }
+  });
+}
+/* Recordatorio 2 días antes de cada entrega (lo arma privadosArmar_ en el bloque diario). [{clave, id, textos}] */
+function planRecordatorios_(snap, cat, cfg, ahora) {
+  const en2 = ymd_(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 2, 12)), out = [];
+  const ents = planEntregas_(cfg, new Date(ahora.getTime() - 864e5), new Date(ahora.getTime() + 4 * 864e5)).filter(e => e.f === en2 && (e.tipo === 'calendario' || e.tipo === 'reels'));
+  if (!ents.length) return out;
+  const DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'], porSM = {};
+  const dm = s => s ? s.slice(8) + '/' + s.slice(5, 7) : '';
+  planMarcasSM_(cat, snap).forEach(m => ents.forEach(e => {
+    if (e.tipo === 'reels' && !m.reels) return;
+    const dia = DIA[new Date(e.f + 'T12:00:00').getDay()];
+    let l;
+    if (e.tipo === 'calendario') { const obj = planMasUnMes_(e.f), hasta = planCobertura_(snap, m.slug); l = '• **' + m.nombre + '**: el ' + dia + ' entregás el calendario hasta el **' + dm(obj) + '**. Hoy está cargado hasta el ' + (hasta ? dm(hasta) : '(nada)') + (hasta >= obj ? ' ✅' : '.'); }
+    else { const n = planReelsMes_(snap, m.slug, e.f), mes = MESES_ES[(new Date(e.f + 'T12:00:00').getMonth() + 1) % 12]; l = '• **' + m.nombre + '**: el ' + dia + ' entregás los **4 reels de ' + mes + '**. Hoy hay ' + n + ' cargado' + (n === 1 ? '' : 's') + (n >= 4 ? ' ✅' : '.'); }
+    (porSM[m.sm] = porSM[m.sm] || []).push(l);
+  }));
+  Object.keys(porSM).forEach(k => { const id = idDiscord_(cfg, k); if (id) out.push({ clave: k, id: id, textos: trozos_('Hola ' + nombreDe_(k) + '. Recordatorio de entregas:', porSM[k].concat(['Detalle: ' + PLAN_URL])) }); });
+  return out;
+}
+/* Primera carga de cada reporte (para saber si llegó a tiempo): "tipo|marca|período" → fecha ISO */
+function planRepPrimeros_() {
+  const c = CacheService.getScriptCache(), hit = c.get('planrep'); if (hit) return JSON.parse(hit);
+  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
+  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  if (!/^enviado_en/.test(txt)) return {};
+  const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k), iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), out = {};
+  rows.slice(1).forEach(r => {
+    const t = r[iT]; if (['sm', 'mensual', 'periodico'].indexOf(t) < 0) return;
+    let p = String(r[iP] || '').trim(); const dm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(p);
+    if (dm) p = dm[3] + '-' + ('0' + dm[2]).slice(-2) + '-' + ('0' + dm[1]).slice(-2);
+    if (t === 'mensual') p = p.slice(0, 7);
+    if (t === 'sm' && /^\d{4}-\d{2}-\d{2}$/.test(p)) { const [y, mo, d] = p.split('-').map(Number); p = ymd_(lunes_(new Date(y, mo - 1, d))); }
+    const k = t + '|' + r[iM] + '|' + p, e = new Date(r[iE]).toISOString();
+    if (!out[k] || e < out[k]) out[k] = e;
+  });
+  try { c.put('planrep', JSON.stringify(out), 600); } catch (e) {}
+  return out;
+}
+/* Indicadores de un mes (yyyy-MM) para una persona (sus marcas) o para el project (todas). */
+function planVista_(quien, esProject, mes) {
+  const cfg = config_(), cat = catalogo_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = leerJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json');
+  const ahora = hoyAR_(), hoyS = ymd_(ahora), mesS = /^\d{4}-\d{2}$/.test(String(mes || '')) ? mes : hoyS.slice(0, 7);
+  const ini = new Date(mesS + '-01T00:00:00'), fin = new Date(ini.getFullYear(), ini.getMonth() + 1, 0, 23, 59);
+  const marcas = planMarcasSM_(cat, snap).filter(m => esProject || m.sm === norm_(quien));
+  const ents = planEntregas_(cfg, ini, fin), rcfg = reportesConfig_(), rep = planRepPrimeros_(), est = rows_('Registro');
+  const marcasIn = {}; est.forEach(r => { if (r[2] === 'input' && /^inp:/.test(r[3])) { const id = r[3].slice(4); if (!marcasIn[id]) marcasIn[id] = r[0]; } });
+  const out = marcas.map(m => {
+    // 1 y 2) entregas del mes
+    const entregas = ents.filter(e => e.tipo === 'calendario' || (e.tipo === 'reels' && m.reels)).map(e => {
+      const x = g.ent[e.f + '|' + e.tipo + '|' + m.slug];
+      const estado = e.f > hoyS || (e.f === hoyS && ahora.getHours() < 21) ? 'proxima' : e.f < PLAN_DESDE ? 'sin medir' : x ? (x.ok ? 'cumplida' : x.corregida ? 'tarde' : 'incumplida') : 'sin medir';
+      const r = { f: e.f, tipo: e.tipo, estado: estado };
+      if (e.tipo === 'calendario') { r.obj = x ? x.obj : planMasUnMes_(e.f); r.hasta = x ? x.hasta : (estado === 'proxima' ? planCobertura_(snap, m.slug) : ''); }
+      else { r.obj = 4; r.n = x ? x.n : (estado === 'proxima' ? planReelsMes_(snap, m.slug, e.f) : null); }
+      return r;
+    });
+    // 3) inputs procesados en 24 h (creados en el mes)
+    const ins = Object.keys(g.inp || {}).filter(id => g.inp[id].m === m.slug && ym_(new Date(g.inp[id].c)) === mesS).map(id => {
+      const c = g.inp[id].c, mk = marcasIn[id] ? new Date(marcasIn[id].replace(' ', 'T') + ':00').getTime() : null;
+      const horas = mk ? (mk - c) / 36e5 : (Date.now() - c) / 36e5;
+      return { id: id, horas: Math.round(horas), ok: !!mk && horas <= 24, pendiente: !mk && horas <= 24 };
+    });
+    // 4) reportes a tiempo (los que vencían en el mes)
+    const rs = planRepSlug_(m, rcfg.marcas), reps = [];
+    if (rs) {
+      const dl = (rcfg.deadline || {}).sm || { dia: 1, hora: 12 };
+      for (let w = lunes_(new Date(ini.getTime() - 7 * 864e5)); w <= fin; w = new Date(w.getTime() + 7 * 864e5)) {
+        const vence = new Date(w.getFullYear(), w.getMonth(), w.getDate() + 7 + (dl.dia - 1), dl.hora);
+        if (vence < ini || vence > fin || ymd_(w) < (rcfg.semanalDesde || '')) continue;
+        reps.push({ tipo: 'semanal', per: ymd_(w), vence: vence.toISOString(), env: rep['sm|' + rs + '|' + ymd_(w)] || null });
+      }
+      const ant = new Date(ini.getFullYear(), ini.getMonth() - 1, 1), idM = ym_(ant);
+      if (idM >= (rcfg.mensualDesde || '')) reps.push({ tipo: 'mensual', per: idM, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['mensual|' + rs + '|' + idM] || null });
+      if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const t0 = new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + '+3'; reps.push({ tipo: 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
+      reps.forEach(r => r.estado = r.env ? (r.env <= r.vence ? 'a tiempo' : 'tarde') : (r.vence < new Date().toISOString() ? 'falta' : 'proximo'));
+    }
+    const pct = (ok, tot) => tot ? Math.round(ok / tot * 100) : null;
+    const entMed = entregas.filter(e => ['cumplida', 'incumplida', 'tarde'].indexOf(e.estado) >= 0), insMed = ins.filter(x => !x.pendiente), repMed = reps.filter(r => r.estado !== 'proximo');
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, reels: m.reels, entregas: entregas, inputs: { total: insMed.length, ok: insMed.filter(x => x.ok).length, tarde: insMed.filter(x => !x.ok).map(x => x.horas) }, reportes: reps,
+      ind: { entregas: pct(entMed.filter(e => e.estado === 'cumplida').length, entMed.length), inputs: pct(insMed.filter(x => x.ok).length, insMed.length), reportes: pct(repMed.filter(r => r.estado === 'a tiempo').length, repMed.length) } };
+  });
+  return { ok: true, hoy: hoyS, mes: mesS, desde: PLAN_DESDE, project: !!esProject, marcas: out };
+}
+/* PRUEBA sin efectos: entregas que ve en el calendario y cómo daría hoy cada marca. No manda nada ni guarda nada. */
+function probarPlan() {
+  const cfg = config_(), cat = catalogo_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), hoy = hoyAR_();
+  console.log('Entregas próximas: ' + planEntregas_(cfg, hoy, new Date(hoy.getTime() + 40 * 864e5)).map(e => e.f + ' ' + e.tipo).join(' · '));
+  planMarcasSM_(cat, snap).forEach(m => console.log(m.nombre + ' (' + m.sm + ') · reportes: ' + (planRepSlug_(m, reportesConfig_().marcas) || 'SIN MARCA EN REPORTES') + ' · cargado hasta ' + planCobertura_(snap, m.slug) + (m.reels ? ' · reels del mes que viene: ' + planReelsMes_(snap, m.slug, ymd_(hoy)) : '')));
+  const r = planRecordatorios_(snap, cat, cfg, hoy); r.forEach(x => console.log('→ recordatorio de hoy a ' + x.clave + ':\n' + x.textos.join('\n')));
+  const v = planVista_('project', true); v.marcas.forEach(m => console.log(m.nombre + ' · entregas ' + m.ind.entregas + ' % · inputs 24 h ' + m.ind.inputs + ' % · reportes ' + m.ind.reportes + ' % · ' + m.reportes.map(x => x.tipo + ' ' + x.per + ': ' + x.estado).join(', ')));
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -3404,6 +3601,12 @@ function doGet(e) {
       if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
       if (!yo || (!esProj && !(reportesConfig_().marcas || []).some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'Los objetivos son solo para las social media y el project' }, q.cb);
       return json_(okrVista_(yo.clave, esProj), q.cb);
+    }
+    if (q.action === 'plan') { // indicadores de planificación: cada social media ve sus marcas; el project, todas (con su clave)
+      const cat = catalogo_(), yo = cat.equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
+      if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
+      if (!yo || (!esProj && !cat.marcas.some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'El plan es solo para las social media y el project' }, q.cb);
+      return json_(planVista_(yo.clave, esProj, q.mes), q.cb);
     }
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
