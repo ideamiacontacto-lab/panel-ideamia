@@ -689,6 +689,7 @@ function actualizar(desdeWeb) {
     try { adsPedidosAvisar_(cfg); } catch (e) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     try { planEvaluar_(snap, cat, cfg); } catch (e) { P.setProperty('PLAN_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     try { recProcesar_(cfg); } catch (e) { P.setProperty('REC_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
+    try { planMesTarjetas_(snap, cat, cfg); } catch (e) { P.setProperty('PLANMES_NOTA', new Date().toISOString() + ' · ERROR: ' + String(e.message || e).slice(0, 200)); }
     // lista de tareas del mes para cada social media (una vez por mes, el primer día hábil)
     try { tareasDelMesEnviar_(cat, cfg, snap); } catch (e) {}
     // segundo aviso de inputs urgentes, aviso al project y resumen de los lunes
@@ -3301,7 +3302,7 @@ function okrVista_(quien, esProject) {
       // reporte del período (trimestral / semestral / anual de Reportes): su período es "2026-10+3" (mes de inicio + cantidad de meses); vale el que termina el mismo mes
       const repPer = reps.some(r => r.tipo === 'periodico' && r.marca === m.slug && (() => { const x = /^(\d{4})-(\d{2})\+(\d+)$/.exec(r.periodo); if (!x) return false; const fin = new Date(+x[1], +x[2] - 1 + +x[3] - 1, 1); return Utilities.formatDate(fin, TZ, 'yyyy-MM') === p.hasta.slice(0, 7); })());
       return { titulo: p.titulo, tipo: p.tipo, desde: p.desde, hasta: p.hasta, terminado: p.hasta < hoyS, abierto: p.desde <= hoyS && p.hasta >= hoyS, bono: total,
-        reportePeriodo: repPer, pideReporte: p.hasta.slice(5, 7) !== '12' || ((+p.hasta.slice(0, 4)) * 12 + (+p.hasta.slice(5, 7)) - (+p.desde.slice(0, 4)) * 12 - (+p.desde.slice(5, 7)) + 1) === repFinAnio_(m.slug), cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
+        reportePeriodo: repPer, pideReporte: p.hasta.slice(5, 7) !== '12' || (p.tipo === 'anual' ? 12 : (+p.hasta.slice(0, 4)) * 12 + (+p.hasta.slice(5, 7)) - (+p.desde.slice(0, 4)) * 12 - (+p.desde.slice(5, 7)) + 1) === repFinAnio_(m.slug), cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
     }).sort((a, b) => (a.terminado - b.terminado) || a.hasta.localeCompare(b.hasta));
     return { slug: m.slug, nombre: lindo(m.slug), sm: m.sm, periodos: periodos };
   });
@@ -3991,6 +3992,75 @@ function pautaRecordatorios_(cat, cfg, ahora) {
   const g = leerJson_('PAUTA_FILE_ID', 'panel-ideamia-pauta.json'), sem = semanaId_(ahora), porSM = {};
   pautaMarcas_(cat, cfg).forEach(m => { if ((g[m.slug] || {})[sem]) return; (porSM[m.sm] = porSM[m.sm] || []).push(m.nombre); });
   return Object.keys(porSM).map(k => ({ clave: k, id: idDiscord_(cfg, k), textos: [(d === 1 ? '📣 Hola ' + nombreDe_(k) + '. Revisá la **pauta de esta semana** de ' : '📣 Hola ' + nombreDe_(k) + '. Todavía no revisaste la **pauta de esta semana** de ') + '**' + porSM[k].join(', ') + '**: ¿está corriendo bien?, ¿se está pautando la pieza que corresponde?, ¿hay que cambiar algo?\nSi hay que cambiar algo, avisale a Juan desde ahí mismo: ' + PLAN_URL] })).filter(x => x.id);
+}
+
+/* ---------------- PLAN · tarjetas del mes en "Para mover en el mes" (pedido de Joaquín, 17/10/2026) ----------------
+   Lo que cada social media tiene que manejar en el mes aparece solo como tarjeta en la lista "Para mover en el mes" del SCL de la marca,
+   así lo tiene a mano en Trello además de en el panel:
+   · 🎯 cada campaña del mes que se decidió ATACAR (con la fecha de la campaña como vencimiento),
+   · 📌 cada tópico fijo de la ficha aprobada (con sus ángulos y la etiqueta "Tópico · …"),
+   · 📨 una tarjeta con los pedidos recurrentes del mes,
+   · 💡 cada aprendizaje activo.
+   Cada tarjeta se crea UNA sola vez por mes (archivo panel-ideamia-planmes.json). Se revisa una vez por hora: lo que se decide o se
+   aprueba a mitad de mes aparece en la próxima vuelta. Config PLAN_TARJETAS = no lo apaga. No se mueven ni se borran tarjetas. */
+function planMesTarjetas_(snap, cat, cfg) {
+  if (/^no$/i.test(String(cfg.PLAN_TARJETAS || 'si').trim())) return;
+  const ahora = hoyAR_(), ult = Number(P.getProperty('PLANMES_ULT') || 0);
+  if (Date.now() - ult < 55 * 6e4) return;   // una vez por hora alcanza
+  P.setProperty('PLANMES_ULT', String(Date.now()));
+  const mes = ym_(ahora), anio = ahora.getFullYear(), m0 = ahora.getMonth();
+  const g = leerJson_('PLANMES_FILE_ID', 'panel-ideamia-planmes.json'), fichas = fichaLeer_(), camp = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json');
+  const datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  let creadas = 0, cambio = false;
+  cat.marcas.filter(m => m.sm).forEach(m => {
+    const b = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0]; if (!b) return;
+    const lista = (b.listas || []).filter(l => l.cat === 'mover')[0]; if (!lista) return;
+    const pend = [];   // [clave, nombre, desc, vence, etiquetaNombre]
+    // campañas que se atacan este mes
+    const dec = camp[m.slug] || {};
+    campFechas_(datos, m.slug, ahora).filter(x => x.cual === 'este').forEach(x => {
+      const d = dec[x.key]; if (!d || d.decision !== 'atacar') return;
+      pend.push(['camp|' + x.key, '🎯 Campaña: ' + x.nombre + ' (N' + x.nivel + ')', (x.accion ? 'Qué dice el calendario anual: ' + x.accion + '\n\n' : '') + 'Fecha: ' + x.f.split('-').reverse().join('/') + '. Se decidió atacarla en el panel (Plan → Campañas).\nArmá las piezas con fecha en el calendario y, si lleva diseño, guion o producción, con su etiqueta.\n\n' + PLAN_URL, x.f + 'T12:00:00-03:00', '']);
+    });
+    const f = fichas.m[m.slug], fo = f && f.ok;
+    if (fo) {
+      (fo.topicos || []).forEach(t => pend.push(['top|' + t.id, '📌 Tópico del mes: ' + t.nombre + ' · ' + t.veces + ' por ' + t.por,
+        (t.externo ? 'Se mueve afuera de Instagram: ' + t.canal + '.\n' : 'Las piezas de este tópico llevan la etiqueta "Tópico · ' + t.nombre + '": así el panel las cuenta.\n') +
+        (t.dias.length ? 'Días: ' + t.dias.map(d => DIAS[d]).join(', ') + '.\n' : '') + '\nÁngulos para moverlo:\n' + t.angulos.map(a => '• ' + a).join('\n') + '\n\n' + PLAN_URL, '', t.externo ? '' : 'Tópico · ' + t.nombre]));
+      if ((fo.pedidos || []).length) pend.push(['ped', '📨 Pedidos del mes', 'Lo que hay que pedir este mes (te lo recuerdo por Discord el día anterior):\n' + fo.pedidos.map(p => '• ' + p.que + ' → a ' + p.aQuien + ' (' + (p.tipo === 'mes' ? 'el día ' + p.dia : 'cada ' + DIAS[p.dia]) + ')' + (p.siNo ? '. Si no responde: ' + p.siNo : '')).join('\n') + '\n\n' + PLAN_URL, '', '']);
+      (fo.aprendizajes || []).filter(a => a.desde.slice(0, 7) <= mes && a.hasta.slice(0, 7) >= mes).forEach(a => pend.push(['apr|' + a.id, '💡 Aprendizaje: ' + a.que + ' · ' + a.veces + ' por ' + a.por, 'Sale de tus reportes. Aplicalo hasta el ' + a.hasta.split('-').reverse().join('/') + ': calendarizalo.\n\n' + PLAN_URL, '', '']));
+    }
+    let etiquetas = null;
+    pend.forEach(([k, nombre, desc, vence, etq]) => {
+      const key = mes + '|' + m.slug + '|' + k; if (g[key]) return;
+      if (creadas >= 25) return;   // tope por vuelta, para no pasar el tiempo de Google
+      try {
+        const p = { idList: lista.id, name: nombre.slice(0, 250), desc: desc.slice(0, 3500), pos: 'top' };
+        if (vence) p.due = vence;
+        if (etq) {
+          if (!etiquetas) etiquetas = trello_('/boards/' + b.id + '/labels', { fields: 'name', limit: 200 });
+          const l = etiquetas.filter(x => norm_(x.name) === norm_(etq))[0]; if (l) p.idLabels = l.id;
+        }
+        const c = trello_('/cards', p, 'post');
+        g[key] = { id: c.id, url: c.shortUrl, t: new Date().toISOString() }; creadas++; cambio = true;
+      } catch (e) { P.setProperty('PLANMES_NOTA', new Date().toISOString() + ' · ' + m.slug + ': ' + String(e.message).slice(0, 150)); }
+    });
+  });
+  // se limpia lo de meses viejos (más de 3)
+  const lim = ym_(new Date(anio, m0 - 3, 1)); Object.keys(g).forEach(k => { if (k.slice(0, 7) < lim) { delete g[k]; cambio = true; } });
+  if (cambio) guardarJson_('PLANMES_FILE_ID', 'panel-ideamia-planmes.json', g);
+}
+/* PRUEBA sin efectos: qué tarjetas crearía este mes en cada marca (no crea nada). */
+function probarTarjetasMes() {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), ahora = hoyAR_(), mes = ym_(ahora);
+  const g = leerJson_('PLANMES_FILE_ID', 'panel-ideamia-planmes.json'), fichas = fichaLeer_(), camp = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
+  cat.marcas.filter(m => m.sm).forEach(m => {
+    const b = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0], lista = b && (b.listas || []).filter(l => l.cat === 'mover')[0];
+    const dec = camp[m.slug] || {}, ca = campFechas_(datos, m.slug, ahora).filter(x => x.cual === 'este' && dec[x.key] && dec[x.key].decision === 'atacar').length;
+    const fo = (fichas.m[m.slug] || {}).ok;
+    console.log(m.nombre + ' · lista "Para mover en el mes": ' + (lista ? 'sí' : 'NO ESTÁ') + ' · campañas a atacar: ' + ca + ' · ficha aprobada: ' + (fo ? 'sí (' + fo.topicos.length + ' tópicos)' : 'no') + ' · ya creadas este mes: ' + Object.keys(g).filter(k => k.indexOf(mes + '|' + m.slug + '|') === 0).length);
+  });
 }
 
 function doGet(e) {
