@@ -1733,6 +1733,9 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     // 5) Plan: 2 días antes de cada entrega de calendario o de reels
     try { planRecordatorios_(snap, cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Plan · ' + String(e.message || e).slice(0, 120)); }
+    // 7) Ads: control semanal de la pauta (lunes, y miércoles si no respondió)
+    try { pautaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    catch (e) { notas.push('Pauta · ' + String(e.message || e).slice(0, 120)); }
     // 6) Fichas operativas aprobadas: pedidos de mañana, tópicos externos de hoy y (lunes) aprendizajes activos
     try { fichaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Fichas · ' + String(e.message || e).slice(0, 120)); }
@@ -3925,6 +3928,56 @@ function campResumen_(m, datos, hoy) {
     'Marcá cuáles atacás (y por qué no las otras) en Plan → Campañas: ' + PLAN_URL];
 }
 
+/* ---------------- PLAN · Ads: control semanal de la pauta (pedido de Joaquín, 17/10/2026) ----------------
+   Cada semana, por cada marca CON pauta, el social media responde: ¿la pauta está corriendo bien?, ¿se está pautando la pieza que
+   corresponde esta semana? y ¿hay que cambiar algo? Si algo no está bien, escribe qué cambiar y el botón "Avisale a Juan" copia el
+   mensaje y abre el canal ads de esa marca en Discord. Privado los lunes y, si no respondió, los miércoles.
+   Marcas con pauta: Config ADS_MARCAS (slugs separados por coma) o, si no está, Isco, Quality, GV, Upper, 1tal, Vice y Tritato.
+   Archivo de Drive panel-ideamia-pauta.json. */
+const PAUTA_CANALES = [   // canal ads de cada marca en el servidor de Ideamia (ID de Discord, no es secreto)
+  [/mayorista|^qm\b/, '1481664281534795796'], [/isco/, '1458861571097886833'], [/quality/, '1458861713163292685'], [/gabriel|varisco|^gv\b/, '1458892582607130815'],
+  [/upper/, '1511499613150904320'], [/1tal/, '1514708070905811034'], [/vice/, '1556773653130256485'], [/tritato/, '1509678111896109187'], [/dyb/, '1458861750446461046']];
+const PAUTA_DEFAULT = /isco|gabriel|varisco|upper|1tal|vice|tritato|quality(?!.*mayorista)/;
+function pautaMarcas_(cat, cfg) {
+  const lista = String(cfg.ADS_MARCAS || '').split(',').map(x => norm_(x)).filter(Boolean);
+  return cat.marcas.filter(m => m.sm && (lista.length ? lista.indexOf(m.slug) >= 0 : PAUTA_DEFAULT.test(norm_(m.slug + ' ' + m.nombre)))).map(m => {
+    const k = norm_(m.slug + ' ' + m.nombre), c = PAUTA_CANALES.filter(x => x[0].test(k))[0];
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, canal: c ? c[1] : '' };
+  });
+}
+function pautaVista_(quien, esProject) {
+  const cat = catalogo_(), cfg = config_(), g = leerJson_('PAUTA_FILE_ID', 'panel-ideamia-pauta.json'), hoy = hoyAR_(), sem = semanaId_(hoy), guild = String(cfg.DISCORD_SERVIDOR || '').trim();
+  const semanas = [0, 1, 2, 3].map(i => semanaId_(new Date(hoy.getTime() - i * 7 * 864e5)));
+  const marcas = pautaMarcas_(cat, cfg).filter(m => esProject || m.sm === norm_(quien)).map(m => {
+    const h = g[m.slug] || {};
+    return Object.assign(m, { link: guild && m.canal ? 'https://discord.com/channels/' + guild + '/' + m.canal : '', esta: h[sem] || null,
+      hist: semanas.map(s => ({ sem: s, r: h[s] || null })) });
+  });
+  return { ok: true, project: !!esProject, semana: sem, juan: String(cfg.DISCORD_ID_JUAN || P.getProperty('JUAN_ID') || ''), marcas: marcas };
+}
+function pautaAccion_(b, quien, esProject) {
+  const cat = catalogo_(), cfg = config_(), m = pautaMarcas_(cat, cfg).filter(x => x.slug === String(b.marca || ''))[0];
+  if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya o no tiene pauta' };
+  const corre = b.corre === 'si' ? 'si' : b.corre === 'no' ? 'no' : '', pieza = b.pieza === 'si' ? 'si' : b.pieza === 'no' ? 'no' : '', cambio = b.cambio === 'si' ? 'si' : b.cambio === 'no' ? 'no' : '';
+  if (!corre || !pieza || !cambio) return { error: 'datos', mensaje: 'Respondé las tres preguntas' };
+  const ok = corre === 'si' && pieza === 'si' && cambio === 'no', texto = String(b.texto || '').trim().slice(0, 600);
+  if (!ok && texto.length < 5) return { error: 'datos', mensaje: 'Contá qué hay que cambiar, así se lo pasás a Juan' };
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = leerJson_('PAUTA_FILE_ID', 'panel-ideamia-pauta.json'), sem = semanaId_(hoyAR_()), h = g[m.slug] = g[m.slug] || {};
+    h[sem] = { ok: ok, corre: corre, pieza: pieza, cambio: cambio, texto: ok ? '' : texto, quien: norm_(quien), t: new Date().toISOString(), avisado: !!b.avisado || (h[sem] && h[sem].avisado) || false };
+    guardarJson_('PAUTA_FILE_ID', 'panel-ideamia-pauta.json', g);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/* Privado del bloque diario: lunes (revisá la pauta de la semana) y miércoles (si todavía no la revisaste). */
+function pautaRecordatorios_(cat, cfg, ahora) {
+  const d = ahora.getDay(); if (d !== 1 && d !== 3) return [];
+  const g = leerJson_('PAUTA_FILE_ID', 'panel-ideamia-pauta.json'), sem = semanaId_(ahora), porSM = {};
+  pautaMarcas_(cat, cfg).forEach(m => { if ((g[m.slug] || {})[sem]) return; (porSM[m.sm] = porSM[m.sm] || []).push(m.nombre); });
+  return Object.keys(porSM).map(k => ({ clave: k, id: idDiscord_(cfg, k), textos: [(d === 1 ? '📣 Hola ' + nombreDe_(k) + '. Revisá la **pauta de esta semana** de ' : '📣 Hola ' + nombreDe_(k) + '. Todavía no revisaste la **pauta de esta semana** de ') + '**' + porSM[k].join(', ') + '**: ¿está corriendo bien?, ¿se está pautando la pieza que corresponde?, ¿hay que cambiar algo?\nSi hay que cambiar algo, avisale a Juan desde ahí mismo: ' + PLAN_URL] })).filter(x => x.id);
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -3973,6 +4026,7 @@ function doGet(e) {
       if (!yo || (!esProj && !cat.marcas.some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'El plan es solo para las social media y el project' }, q.cb);
       if (q.que === 'ficha') return json_(fichaVista_(yo.clave, esProj), q.cb);   // ficha operativa de cada marca (Fase 2)
       if (q.que === 'campanas') return json_(campVista_(yo.clave, esProj), q.cb);   // campañas de este mes y del siguiente (Fase 3)
+      if (q.que === 'pauta') return json_(pautaVista_(yo.clave, esProj), q.cb);   // control semanal de la pauta (Ads)
       return json_(planVista_(yo.clave, esProj, q.mes), q.cb);
     }
     if (q.action === 'project') {
@@ -3996,6 +4050,13 @@ function doPost(e) {
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
+      case 'pauta': { // control semanal de la pauta: lo responde el social media de la marca
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(pautaAccion_(b, yo.clave, esProj));
+      }
       case 'campana': { // campañas: el social media decide si la ataca; el project revisa los descartes
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
         if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
