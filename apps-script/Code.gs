@@ -1747,6 +1747,9 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     // 7) Ads: control semanal de la pauta (lunes, y miércoles si no respondió)
     try { pautaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Pauta · ' + String(e.message || e).slice(0, 120)); }
+    // 8) Plan del mes que viene: 2 días antes del cierre, el día después (social media) y al otro (project)
+    try { planMesRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    catch (e) { notas.push('Plan del mes · ' + String(e.message || e).slice(0, 120)); }
     // 6) Fichas operativas aprobadas: pedidos de mañana, tópicos externos de hoy y (lunes) aprendizajes activos
     try { fichaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Fichas · ' + String(e.message || e).slice(0, 120)); }
@@ -3567,6 +3570,8 @@ function planVista_(quien, esProject, mes) {
   const marcas = planMarcasSM_(cat, snap).filter(m => esProject || m.sm === norm_(quien));
   const ents = planEntregas_(cfg, ini, fin), rcfg = reportesConfig_(), rep = planRepPrimeros_(), est = rows_('Registro');
   const marcasIn = {}; est.forEach(r => { if (r[2] === 'input' && /^inp:/.test(r[3])) { const id = r[3].slice(4); if (!marcasIn[id]) marcasIn[id] = r[0]; } });
+  // 5) plan del mes (Fase 4): el plan de las campañas atacadas de este mes, ¿se completó antes del cierre?
+  const pmG = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), pmC = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), pmD = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
   const out = marcas.map(m => {
     // 1 y 2) entregas del mes
     const entregas = ents.filter(e => e.tipo === 'calendario' || (e.tipo === 'reels' && m.reels)).map(e => {
@@ -3601,8 +3606,11 @@ function planVista_(quien, esProject, mes) {
     }
     const pct = (ok, tot) => tot ? Math.round(ok / tot * 100) : null;
     const entMed = entregas.filter(e => ['cumplida', 'incumplida', 'tarde'].indexOf(e.estado) >= 0), insMed = ins.filter(x => !x.pendiente), repMed = reps.filter(r => r.estado !== 'proximo');
-    return { slug: m.slug, nombre: m.nombre, sm: m.sm, reels: m.reels, entregas: entregas, inputs: { total: insMed.length, ok: insMed.filter(x => x.ok).length, tarde: insMed.filter(x => !x.ok).map(x => x.horas) }, reportes: reps,
-      ind: { entregas: pct(entMed.filter(e => e.estado === 'cumplida').length, entMed.length), inputs: pct(insMed.filter(x => x.ok).length, insMed.length), reportes: pct(repMed.filter(r => r.estado === 'a tiempo').length, repMed.length) } };
+    let pmE = null; try { pmE = planMesEstado_(cfg, pmG, pmC[m.slug] || {}, pmD, m, mesS); } catch (e) {}
+    // se mide desde noviembre de 2026 (el primer mes que se planifica con el formulario)
+    const pmInd = !pmE || !pmE.campanas.length || mesS < '2026-11' ? null : pmE.aTiempo ? 100 : pmE.limite < hoyS || pmE.completo ? 0 : null;
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, reels: m.reels, entregas: entregas, inputs: { total: insMed.length, ok: insMed.filter(x => x.ok).length, tarde: insMed.filter(x => !x.ok).map(x => x.horas) }, reportes: reps, planMes: pmE,
+      ind: { entregas: pct(entMed.filter(e => e.estado === 'cumplida').length, entMed.length), inputs: pct(insMed.filter(x => x.ok).length, insMed.length), reportes: pct(repMed.filter(r => r.estado === 'a tiempo').length, repMed.length), planMes: pmInd } };
   });
   return { ok: true, hoy: hoyS, mes: mesS, desde: PLAN_DESDE, project: !!esProject, marcas: out };
 }
@@ -3897,13 +3905,16 @@ function campFechas_(datos, slug, hoy) {
 }
 function campVista_(quien, esProject) {
   const cat = catalogo_(), hoy = hoyAR_(), datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), g = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json');
+  const planes = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), cfg = config_(), mesEste = ym_(hoy), mesProx = ym_(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1));
+  const limites = { este: planLimite_(cfg, mesEste), proximo: planLimite_(cfg, mesProx) };
   const marcas = cat.marcas.filter(m => m.sm && (esProject || m.sm === norm_(quien))).map(m => {
-    const dec = g[m.slug] || {};
-    const fechas = campFechas_(datos, m.slug, hoy).map(x => Object.assign(x, { dec: dec[x.key] || null }));
-    return { slug: m.slug, nombre: m.nombre, sm: m.sm, tieneCalendario: !!(((datos || {}).marcas || {})[m.slug] || {}).items, fechas: fechas,
-      pendientes: fechas.filter(x => !x.dec && x.f >= ymd_(hoy)).length, revisar: fechas.filter(x => x.dec && x.dec.decision === 'descartar' && x.dec.revision === 'pendiente').length };
+    const dec = g[m.slug] || {}, pm = planes[m.slug] || {};
+    const fechas = campFechas_(datos, m.slug, hoy).map(x => Object.assign(x, { dec: dec[x.key] || null, plan: dec[x.key] && dec[x.key].decision === 'atacar' ? pm[x.key] || null : null }));
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, rubro: m.rubro || '', tieneCalendario: !!(((datos || {}).marcas || {})[m.slug] || {}).items, fechas: fechas,
+      pendientes: fechas.filter(x => !x.dec && x.f >= ymd_(hoy)).length, revisar: fechas.filter(x => x.dec && x.dec.decision === 'descartar' && x.dec.revision === 'pendiente').length,
+      sinPlan: fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= ymd_(hoy)).length };
   });
-  return { ok: true, project: !!esProject, hoy: ymd_(hoy), marcas: marcas };
+  return { ok: true, project: !!esProject, hoy: ymd_(hoy), limites: limites, marcas: marcas };
 }
 function campAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
@@ -3944,6 +3955,129 @@ function campResumen_(m, datos, hoy) {
     'Marcá cuáles atacás (y por qué no las otras) en Plan → Campañas: ' + PLAN_URL];
 }
 
+
+/* ---------------- PLAN · Fase 4: Plan del mes (solo social media) ----------------
+   Por cada campaña que se decidió ATACAR, el social media arma el plan por pasos (Plan → Campañas → "Armar el plan"):
+   N1 y N2: 1) 3 a 5 competencias o referencias con qué hizo cada una · 2) qué hicimos (o qué hizo la marca) el año pasado, o "no se
+   hizo nada" · 3) ideas (con "Preguntale a Claude", que abre claude.ai y no gasta créditos) · 4) producción: estética especial, banners
+   para la web y cartelería para el local (cada "sí" es una tarjeta con la etiqueta Diseño) · 5) pedidos al cliente o al project, con
+   fecha · 6) distribución: qué idea, en qué momento y qué día. N3 y N4: solo ideas y distribución.
+   Al terminar se crean las tarjetas en "Para mover en el mes" del SCL (una por línea de distribución, por pedido y por pieza de
+   producción). Si después se edita y se vuelve a terminar, solo se crean las líneas nuevas: las tarjetas ya creadas no se tocan.
+   Fecha límite del plan de un mes: la última entrega de calendario ANTES de que empiece ese mes. Dos días antes se le recuerda al
+   social media; el día siguiente al cierre, otra vez; y al otro, al project. Archivo de Drive panel-ideamia-planes.json. */
+const PLANES_ARCH = ['PLANES_FILE_ID', 'panel-ideamia-planes.json'];
+function planLimite_(cfg, mes) {
+  const ini = new Date(mes + '-01T12:00:00'), antes = new Date(ini.getFullYear(), ini.getMonth() - 1, 1, 12);
+  const L = planEntregas_(cfg, antes, new Date(ini.getTime() - 864e5)).filter(e => e.tipo === 'calendario' && e.f < mes + '-01');
+  return L.length ? L[L.length - 1].f : ymd_(new Date(ini.getTime() - 864e5));
+}
+const planNivelCompleto_ = n => Number(n) <= 2;
+const FECHA_RE_ = /^\d{4}-\d{2}-\d{2}$/;
+/* '' si el plan está completo; si no, qué falta (el primer paso incompleto). */
+function planFalta_(p, nivel) {
+  const t = s => String(s || '').trim(), full = planNivelCompleto_(nivel);
+  if (full) {
+    if ((p.competencia || []).filter(c => t(c.marca) && t(c.que)).length < 3) return 'Paso 1: hacen falta entre 3 y 5 competencias o referencias, con qué hizo cada una';
+    if (!(p.anterior && (p.anterior.nada || t(p.anterior.que)))) return 'Paso 2: contá qué se hizo el año pasado (o marcá "no se hizo nada")';
+  }
+  if (!(p.ideas || []).filter(t).length) return 'Paso ' + (full ? 3 : 1) + ': sumá al menos una idea';
+  if (full) {
+    const pr = p.produccion || {};
+    if (['estetica', 'banners', 'carteleria'].some(k => typeof pr[k] !== 'boolean')) return 'Paso 4: respondé sí o no a cada pieza de producción';
+    if ((p.pedidos || []).some(x => !t(x.que) || !FECHA_RE_.test(x.fecha || ''))) return 'Paso 5: cada pedido necesita qué y para cuándo';
+  }
+  const dist = (p.distribucion || []).filter(d => t(d.idea));
+  if (!dist.length) return 'Último paso: repartí al menos una idea en una fecha';
+  if (dist.some(d => !FECHA_RE_.test(d.fecha || ''))) return 'Último paso: cada línea necesita su fecha';
+  return '';
+}
+function planMesAccion_(b, quien, esProject) {
+  const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
+  if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|/.test(key)) return { error: 'datos', mensaje: 'Falta la campaña' };
+  const lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    const dec = (leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json')[m.slug] || {})[key];
+    if (!dec || dec.decision !== 'atacar') return { error: 'datos', mensaje: 'Primero marcá que esta campaña se ataca' };
+    const g = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), pm = g[m.slug] = g[m.slug] || {}, prev = pm[key] || {};
+    const nivel = Number(b.nivel) || 3, d = b.plan || {}, t = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 400);
+    const sn = v => v === true || v === false ? v : null, id6 = x => String(x || Utilities.getUuid().slice(0, 6)).slice(0, 12);
+    const plan = {
+      nombre: t(b.nombre || dec.nombre, 120), nivel: nivel, fecha: key.slice(0, 10),
+      competencia: (d.competencia || []).slice(0, 5).map(c => ({ marca: t(c.marca, 80), que: t(c.que) })),
+      anterior: { nada: !!(d.anterior || {}).nada, que: t((d.anterior || {}).que, 800), funciono: t((d.anterior || {}).funciono) },
+      ideas: (d.ideas || []).map(x => t(x, 300)).filter(Boolean).slice(0, 30),
+      produccion: { estetica: sn((d.produccion || {}).estetica), banners: sn((d.produccion || {}).banners), carteleria: sn((d.produccion || {}).carteleria), notas: t((d.produccion || {}).notas) },
+      pedidos: (d.pedidos || []).slice(0, 15).map(x => ({ id: id6(x.id), que: t(x.que, 200), aQuien: x.aQuien === 'project' ? 'project' : 'cliente', fecha: String(x.fecha || '') })),
+      distribucion: (d.distribucion || []).slice(0, 30).map(x => ({ id: id6(x.id), idea: t(x.idea, 200), cuando: ['previa', 'semana', 'despues'].indexOf(x.cuando) >= 0 ? x.cuando : 'semana', fecha: String(x.fecha || '') })),
+      tarjetas: prev.tarjetas || {}, completo: !!prev.completo, completado: prev.completado || null, editado: new Date().toISOString(), quien: norm_(quien)
+    };
+    let creadas = 0;
+    if (b.terminar) {
+      const falta = planFalta_(plan, nivel); if (falta) return { error: 'datos', mensaje: falta };
+      const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), tb = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0];
+      const lista = tb && (tb.listas || []).filter(l => l.cat === 'mover')[0];
+      if (!lista) return { error: 'datos', mensaje: 'El SCL de ' + m.nombre + ' no tiene la lista "Para mover en el mes". Pedile a Joaquín que la cree.' };
+      let etiquetas = null;
+      const fCorta = plan.fecha.slice(8) + '/' + plan.fecha.slice(5, 7), base = 'Campaña ' + plan.nombre + ' (N' + nivel + ', ' + fCorta + '). Sale del plan del mes armado en el panel.\n' + PLAN_URL;
+      const CUANDO = { previa: 'semana previa', semana: 'semana de la fecha', despues: 'después de la fecha' };
+      const crear = (k, nombre, desc, due, etq) => {
+        if (plan.tarjetas[k]) return;
+        const p = { idList: lista.id, name: nombre.slice(0, 250), desc: desc.slice(0, 3500), pos: 'bottom' };
+        if (due) p.due = due + 'T12:00:00-03:00';
+        if (etq) {
+          if (!etiquetas) etiquetas = trello_('/boards/' + tb.id + '/labels', { fields: 'name', limit: 200 });
+          const l = etiquetas.filter(x => norm_(x.name) === norm_(etq))[0]; if (l) p.idLabels = l.id;
+        }
+        const c = trello_('/cards', p, 'post'); plan.tarjetas[k] = { id: c.id, url: c.shortUrl }; creadas++;
+      };
+      try {
+        plan.distribucion.filter(x => x.idea).forEach(x => crear('d|' + x.id, '🎯 ' + plan.nombre + ' · ' + x.idea, 'Momento: ' + CUANDO[x.cuando] + '.\n\n' + base, x.fecha, ''));
+        if (planNivelCompleto_(nivel)) {
+          plan.pedidos.filter(x => x.que).forEach(x => crear('p|' + x.id, '📨 ' + plan.nombre + ' · pedir ' + (x.aQuien === 'project' ? 'al project' : 'al cliente') + ': ' + x.que, 'El vencimiento es la fecha límite para tenerlo.\n\n' + base, x.fecha, ''));
+          const semAntes = ymd_(new Date(new Date(plan.fecha + 'T12:00:00').getTime() - 7 * 864e5));
+          [['estetica', 'Estética especial de la campaña'], ['banners', 'Banners para la web'], ['carteleria', 'Cartelería para el local']].forEach(([k, n]) => {
+            if (plan.produccion[k] === true) crear('pr|' + k, '🎨 ' + plan.nombre + ' · ' + n, (plan.produccion.notas ? plan.produccion.notas + '\n\n' : '') + 'Lleva la etiqueta Diseño: cuando la apruebes, sigue el flujo de siempre a Diseño. Vence una semana antes de la campaña.\n\n' + base, semAntes, 'Diseño');
+          });
+        }
+      } catch (e) {   // lo que sí se creó queda anotado, así no se repite
+        pm[key] = plan; guardarJson_(PLANES_ARCH[0], PLANES_ARCH[1], g);
+        return { error: 'trello', mensaje: 'Se crearon ' + creadas + ' tarjetas y después Trello falló: ' + String(e.message).slice(0, 150) + '. Probá terminar de nuevo: no se repiten.' };
+      }
+      if (!plan.completo) { plan.completo = true; plan.completado = new Date().toISOString(); }
+    }
+    pm[key] = plan;
+    guardarJson_(PLANES_ARCH[0], PLANES_ARCH[1], g);
+    return { ok: true, creadas: creadas, plan: plan };
+  } finally { lock.releaseLock(); }
+}
+/* Estado del plan de un mes de una marca: campañas atacadas de ese mes, si cada una tiene plan, y si se completó a tiempo. */
+function planMesEstado_(cfg, g, decs, datos, m, mes) {
+  const pm = (g || {})[m.slug] || {}, ini = new Date(mes + '-01T12:00:00'), limite = planLimite_(cfg, mes);
+  const camp = campFechas_(datos, m.slug, ini).filter(x => x.cual === 'este' && (decs[x.key] || {}).decision === 'atacar').map(x => {
+    const p = pm[x.key]; return { key: x.key, nombre: x.nombre, nivel: x.nivel, f: x.f, completo: !!(p && p.completo), completado: p ? p.completado : null };
+  });
+  const ultimo = camp.reduce((a, c) => c.completado && c.completado > a ? c.completado : a, '');
+  const listo = camp.length > 0 && camp.every(c => c.completo);
+  return { mes: mes, limite: limite, campanas: camp, completo: listo, aTiempo: listo && Utilities.formatDate(new Date(ultimo), TZ, 'yyyy-MM-dd') <= limite };
+}
+/* Avisos del bloque diario sobre el plan del mes que viene: 2 días antes del cierre y el día siguiente (al social media); al otro día, al project. */
+function planMesRecordatorios_(cat, cfg, ahora) {
+  const hoyS = ymd_(ahora), prox = ym_(new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1)), lim = planLimite_(cfg, prox);
+  const dia = n => ymd_(new Date(new Date(lim + 'T12:00:00').getTime() + n * 864e5)), cuando = { [dia(-2)]: 'antes', [dia(1)]: 'sm', [dia(2)]: 'project' }[hoyS];
+  if (!cuando) return [];
+  const g = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), camp = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
+  const MES = MESES_ES[Number(prox.slice(5)) - 1], limC = lim.slice(8) + '/' + lim.slice(5, 7), porQuien = {};
+  cat.marcas.filter(m => m.sm).forEach(m => {
+    const falta = planMesEstado_(cfg, g, camp[m.slug] || {}, datos, m, prox).campanas.filter(c => !c.completo); if (!falta.length) return;
+    const k = cuando === 'project' ? 'project' : m.sm;
+    (porQuien[k] = porQuien[k] || []).push('• **' + m.nombre + '**: ' + falta.map(c => c.nombre).join(', ') + (k === 'project' ? ' (' + nombreDe_(m.sm) + ')' : ''));
+  });
+  const titulo = k => k === 'project' ? '🧭 Hola Joaquín. Estos **planes de ' + MES + '** siguen sin armarse (se cerraban el ' + limC + '):'
+    : '🧭 Hola ' + nombreDe_(k) + '. ' + (cuando === 'antes' ? 'El ' + limC + ' se cierra el **plan de ' + MES + '**. Te falta armar el plan de:' : 'Ayer se cerraba el **plan de ' + MES + '** y te falta el de:');
+  return Object.keys(porQuien).map(k => ({ clave: k, id: k === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, k), textos: trozos_(titulo(k), porQuien[k].concat(['Se arma en Plan → Campañas → "Armar el plan": ' + PLAN_URL])) })).filter(x => x.id);
+}
 /* ---------------- PLAN · Ads: control semanal de la pauta (pedido de Joaquín, 17/10/2026) ----------------
    Cada semana, por cada marca CON pauta, el social media responde: ¿la pauta está corriendo bien?, ¿se está pautando la pieza que
    corresponde esta semana? y ¿hay que cambiar algo? Si algo no está bien, escribe qué cambiar y el botón "Avisale a Juan" copia el
@@ -4021,7 +4155,7 @@ function planMesTarjetas_(snap, cat, cfg) {
     const dec = camp[m.slug] || {};
     campFechas_(datos, m.slug, ahora).filter(x => x.cual === 'este').forEach(x => {
       const d = dec[x.key]; if (!d || d.decision !== 'atacar') return;
-      pend.push(['camp|' + x.key, '🎯 Campaña: ' + x.nombre + ' (N' + x.nivel + ')', (x.accion ? 'Qué dice el calendario anual: ' + x.accion + '\n\n' : '') + 'Fecha: ' + x.f.split('-').reverse().join('/') + '. Se decidió atacarla en el panel (Plan → Campañas).\nArmá las piezas con fecha en el calendario y, si lleva diseño, guion o producción, con su etiqueta.\n\n' + PLAN_URL, x.f + 'T12:00:00-03:00', '']);
+      pend.push(['camp|' + x.key, '🎯 Campaña: ' + x.nombre + ' (N' + x.nivel + ')', (x.accion ? 'Qué dice el calendario anual: ' + x.accion + '\n\n' : '') + 'Fecha: ' + x.f.split('-').reverse().join('/') + '. Se decidió atacarla en el panel (Plan → Campañas). Las piezas del plan del mes ("Armar el plan") están en tarjetas aparte, con su fecha.\nSi lleva diseño, guion o producción, va con su etiqueta.\n\n' + PLAN_URL, x.f + 'T12:00:00-03:00', '']);
     });
     const f = fichas.m[m.slug], fo = f && f.ok;
     if (fo) {
@@ -4148,6 +4282,13 @@ function doPost(e) {
         const esProj = /project/i.test(yo.rol);
         if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         return json_(campAccion_(b, yo.clave, esProj));
+      }
+      case 'planmes': { // plan del mes de una campaña atacada (Fase 4): guardar el borrador o terminarlo (crea las tarjetas)
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(planMesAccion_(b, yo.clave, esProj));
       }
       case 'ficha': { // ficha operativa: el social media la arma y la manda; el project la aprueba o pide cambios
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
