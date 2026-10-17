@@ -3515,7 +3515,7 @@ function planRepPrimeros_() {
 }
 /* Indicadores de un mes (yyyy-MM) para una persona (sus marcas) o para el project (todas). */
 function planVista_(quien, esProject, mes) {
-  const cfg = config_(), cat = catalogo_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = leerJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json');
+  const cfg = config_(), cat = catalogo_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), g = leerJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json'); g.ent = g.ent || {}; g.inp = g.inp || {};
   const ahora = hoyAR_(), hoyS = ymd_(ahora), mesS = /^\d{4}-\d{2}$/.test(String(mes || '')) ? mes : hoyS.slice(0, 7);
   const ini = new Date(mesS + '-01T00:00:00'), fin = new Date(ini.getFullYear(), ini.getMonth() + 1, 0, 23, 59);
   const marcas = planMarcasSM_(cat, snap).filter(m => esProject || m.sm === norm_(quien));
@@ -3549,6 +3549,8 @@ function planVista_(quien, esProject, mes) {
       const ant = new Date(ini.getFullYear(), ini.getMonth() - 1, 1), idM = ym_(ant);
       if (idM >= (rcfg.mensualDesde || '')) reps.push({ tipo: 'mensual', per: idM, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['mensual|' + rs + '|' + idM] || null });
       if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const t0 = new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + '+3'; reps.push({ tipo: 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
+      // marcas que arrancaron más tarde (ej. Vice desde el 12/10): no se cuentan los reportes de antes
+      const desdeM = REP_DESDE_MARCA[rs] || ''; for (let i = reps.length - 1; i >= 0; i--) if (desdeM && (reps[i].tipo === 'semanal' ? reps[i].per < desdeM : reps[i].per.slice(0, 7) < desdeM.slice(0, 7))) reps.splice(i, 1);
       reps.forEach(r => r.estado = r.env ? (r.env <= r.vence ? 'a tiempo' : 'tarde') : (r.vence < new Date().toISOString() ? 'falta' : 'proximo'));
     }
     const pct = (ok, tot) => tot ? Math.round(ok / tot * 100) : null;
