@@ -1069,6 +1069,15 @@ function reportesEnviados_() {
   return env;
 }
 
+/* Qué reporte se entrega a fin de año (lo pide el panel en enero): por defecto el ANUAL (12 meses). Las marcas que manejamos desde
+   mitad de año entregan el semestral (julio a diciembre) y las que arrancaron en octubre, el trimestral (octubre a diciembre).
+   Dato de Joaquín, 17/10/2026. Config REPORTE_FIN_ANIO_<SLUG> (3, 6 o 12) pisa este número. */
+const REP_FIN_ANIO = { '1talquecocina': 6, 'tritato': 6, 'vice-burger': 3 };
+function repFinAnio_(slug) {
+  const c = Number((config_() || {})['REPORTE_FIN_ANIO_' + String(slug).toUpperCase().replace(/-/g, '_')]);
+  return [3, 6, 12].indexOf(c) >= 0 ? c : (REP_FIN_ANIO[slug] || 12);
+}
+const REP_FIN_NOMBRE = { 12: 'anual', 6: 'semestral', 3: 'trimestral' };
 /* Reportes que le faltan a una persona (o que vencen pronto). */
 function tareasReportes_(clave, rol) {
   const cfg = reportesConfig_(), env = reportesEnviados_();
@@ -1099,11 +1108,12 @@ function tareasReportes_(clave, rol) {
       out.push({ k: 'rep:mensual:' + m.slug + ':' + idM, tipo: 'mensual', marca: m.slug, periodo: idM, label: 'Reporte mensual · ' + MESES_ES[mesAnt.getMonth()], vence: new Date(ahora.getFullYear(), ahora.getMonth(), cfg.mesDia, cfg.hora).toISOString(), resp: m.sm });
     }
     if ([0, 3, 6, 9].indexOf(ahora.getMonth()) >= 0) {
-      // a fin de año NO se entrega trimestral ni semestral: en enero se pide solo el ANUAL (enero a diciembre del año anterior)
-      const anual = ahora.getMonth() === 0;
-      const ini = anual ? new Date(ahora.getFullYear() - 1, 0, 1) : new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + (anual ? '+12' : '+3');
-      if (ym_(ini) >= cfg.periodicoDesde && ym_(ini) >= desde.slice(0, 7) && !env['periodico|' + m.slug + '|' + idT]) {
-        out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: anual ? 'Reporte anual · ' + ini.getFullYear() : 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
+      // a fin de año se entrega UN solo reporte del período que cierra en diciembre: anual, salvo las marcas de REP_FIN_ANIO (semestral o trimestral)
+      const anual = ahora.getMonth() === 0, nF = anual ? repFinAnio_(m.slug) : 3;
+      const ini = anual ? new Date(ahora.getFullYear() - 1, 12 - nF, 1) : new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + '+' + nF;
+      const finP = ym_(new Date(ini.getFullYear(), ini.getMonth() + (anual ? nF : 3) - 1, 1));
+      if (finP >= cfg.periodicoDesde && finP >= desde.slice(0, 7) && !env['periodico|' + m.slug + '|' + idT]) {
+        out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: anual ? 'Reporte ' + REP_FIN_NOMBRE[nF] + ' · ' + (nF === 12 ? ini.getFullYear() : MESES_ES[ini.getMonth()].slice(0, 3) + ' a dic ' + ini.getFullYear()) : 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
       }
     }
   });
@@ -3216,6 +3226,11 @@ function okrCalcular_(o, reps, man, hoyS, manMes) {
   if (o.cerrado) { r.logrado = o.meta; r.cumplido = true; r.cerrado = true; }
   else if (o.metrica === 'seg_netos' || o.metrica === 'contactos' || o.metrica === 'alcance_suma') {
     const meses = okrPorMes_(reps, o.marca, o.metrica, desdeAuto, o.hasta, manMes).filter(m => m.mes <= hoyS.slice(0, 7));
+    // si lo acumulado ("base") llega hasta la mitad de un mes, de ese mes se cuenta solo la parte que falta (proporcional a los días)
+    if (o.baseHasta && meses.length && meses[0].mes === o.baseHasta.slice(0, 7) && meses[0].v != null) {
+      const dia = Number(o.baseHasta.slice(8, 10)), dim = new Date(Number(o.baseHasta.slice(0, 4)), Number(o.baseHasta.slice(5, 7)), 0).getDate();
+      if (dia < dim) { meses[0].v = Math.round(meses[0].v * (dim - dia) / dim); meses[0].fuente += ' · solo del ' + (dia + 1) + ' en adelante'; }
+    }
     r.meses = meses; r.logrado = o.base + meses.reduce((a, m) => a + (m.v || 0), 0); r.base = o.base || 0;
     r.faltanDatos = meses.filter(m => m.v == null).map(m => m.mes);
     if (o.minMes) r.mesesBajos = meses.filter(m => m.v != null && !m.parcial && m.v < o.minMes).map(m => m.mes);
@@ -3286,7 +3301,7 @@ function okrVista_(quien, esProject) {
       // reporte del período (trimestral / semestral / anual de Reportes): su período es "2026-10+3" (mes de inicio + cantidad de meses); vale el que termina el mismo mes
       const repPer = reps.some(r => r.tipo === 'periodico' && r.marca === m.slug && (() => { const x = /^(\d{4})-(\d{2})\+(\d+)$/.exec(r.periodo); if (!x) return false; const fin = new Date(+x[1], +x[2] - 1 + +x[3] - 1, 1); return Utilities.formatDate(fin, TZ, 'yyyy-MM') === p.hasta.slice(0, 7); })());
       return { titulo: p.titulo, tipo: p.tipo, desde: p.desde, hasta: p.hasta, terminado: p.hasta < hoyS, abierto: p.desde <= hoyS && p.hasta >= hoyS, bono: total,
-        reportePeriodo: repPer, cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
+        reportePeriodo: repPer, pideReporte: p.hasta.slice(5, 7) !== '12' || ((+p.hasta.slice(0, 4)) * 12 + (+p.hasta.slice(5, 7)) - (+p.desde.slice(0, 4)) * 12 - (+p.desde.slice(5, 7)) + 1) === repFinAnio_(m.slug), cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
     }).sort((a, b) => (a.terminado - b.terminado) || a.hasta.localeCompare(b.hasta));
     return { slug: m.slug, nombre: lindo(m.slug), sm: m.sm, periodos: periodos };
   });
@@ -3350,7 +3365,7 @@ function okrFaltantes_(m, hoyS) {
       if (o.metrica === 'manual' && !o.cumplido && !o.cerrado && (recien || dias(hoyS, p.hasta) <= 15)) falta.push('si cumpliste "' + o.objetivo.split('(')[0].trim() + '", marcalo');
     });
     // a fin de año se entrega solo el anual: los trimestrales y semestrales que cierran en diciembre no piden reporte propio
-    if (recien && !p.reportePeriodo && !(p.hasta.slice(5, 7) === '12' && p.tipo !== 'anual')) falta.push('el reporte ' + (p.tipo === 'anual' ? 'anual' : p.tipo) + ' (' + p.titulo.toLowerCase() + ')');
+    if (recien && !p.reportePeriodo && p.pideReporte) falta.push('el reporte ' + (p.tipo === 'anual' ? 'anual' : p.tipo) + ' (' + p.titulo.toLowerCase() + ')');
     if (p.abierto) {
       const atr = p.objetivos.filter(o => !o.cumplido && (o.atrasado || (o.mesesBajos || []).length)).map(o => o.objetivo.split(':')[0].trim().toLowerCase());
       estado.push(p.titulo + ': ' + p.cumplidos + ' de ' + p.total + ' cumplidos' + (atr.length ? ' · atrasado en ' + atr.join(', ') : ''));
@@ -3578,7 +3593,7 @@ function planVista_(quien, esProject, mes) {
       }
       const ant = new Date(ini.getFullYear(), ini.getMonth() - 1, 1), idM = ym_(ant);
       if (idM >= (rcfg.mensualDesde || '')) reps.push({ tipo: 'mensual', per: idM, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['mensual|' + rs + '|' + idM] || null });
-      if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const an = ini.getMonth() === 0, t0 = an ? new Date(ini.getFullYear() - 1, 0, 1) : new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + (an ? '+12' : '+3'); reps.push({ tipo: an ? 'anual' : 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), 10, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
+      if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const an = ini.getMonth() === 0, nF = an ? repFinAnio_(rs) : 3, t0 = an ? new Date(ini.getFullYear() - 1, 12 - nF, 1) : new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + '+' + nF; reps.push({ tipo: an ? REP_FIN_NOMBRE[nF] : 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), 10, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
       // marcas que arrancaron más tarde (ej. Vice desde el 12/10): no se cuentan los reportes de antes
       const desdeM = REP_DESDE_MARCA[rs] || ''; for (let i = reps.length - 1; i >= 0; i--) if (desdeM && (reps[i].tipo === 'semanal' ? reps[i].per < desdeM : reps[i].per.slice(0, 7) < desdeM.slice(0, 7))) reps.splice(i, 1);
       reps.forEach(r => r.estado = r.env ? (r.env <= r.vence ? 'a tiempo' : 'tarde') : (r.vence < new Date().toISOString() ? 'falta' : 'proximo'));
