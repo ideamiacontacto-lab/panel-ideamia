@@ -4,11 +4,11 @@
    Este archivo se sirve desde panel-ideamia y lo cargan los tres sitios con <script src=… defer>. */
 (function () {
   const SITIOS = [
-    { id: 'panel', n: 'Panel diario', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/' },
+    { id: 'panel', n: 'Panel diario', c: 'Panel', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/' },
     { id: 'reportes', n: 'Reportes', u: 'https://ideamiacontacto-lab.github.io/reportes-ideamia/' },
-    { id: 'brain', n: 'Brainstormings', u: 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/' },
+    { id: 'brain', n: 'Brainstormings', c: 'Ideas', u: 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/' },
     // OKR por marca: solo para las social media y el project (el servidor igual lo cierra para el resto)
-    { id: 'okr', n: 'Objetivos', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/objetivos/', solo: ['orne', 'rama', 'project'] },
+    { id: 'okr', n: 'Objetivos', c: 'OKR', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/objetivos/', solo: ['orne', 'rama', 'project'] },
     { id: 'plan', n: 'Plan', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/plan/', solo: ['orne', 'rama', 'project'] }
   ];
   const p = location.pathname + ' ' + location.host;
@@ -17,15 +17,15 @@
   window.IdeamiaSesion = { clave: () => ls.get('clave'), persona: () => ls.get('persona'), nombre: () => ls.get('nombre'), guardar: o => Object.keys(o).forEach(k => ls.set(k, o[k])) };
 
   const quien = (() => { try { const v = localStorage.getItem('pi:persona'); return (v ? JSON.parse(v) : '') || ls.get('persona'); } catch (e) { return ls.get('persona'); } })();
-  const css = '#ideamia-nav{font:600 12.5px/1 Outfit,system-ui,sans-serif;background:#0A0A0A;color:#8C8C8C;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px;padding:0 16px;height:40px;position:relative;z-index:60;-webkit-font-smoothing:antialiased}' +
+  const css = '#ideamia-nav .ct{display:none}#ideamia-nav{font:600 12.5px/1 Outfit,system-ui,sans-serif;background:#0A0A0A;color:#8C8C8C;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px;padding:0 16px;height:40px;position:relative;z-index:60;-webkit-font-smoothing:antialiased}' +
     '#ideamia-nav .w{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#F5F5F5;text-decoration:none;flex:none}#ideamia-nav .w b{color:#FFF200;font-weight:700}' +
     '#ideamia-nav .l{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}#ideamia-nav .l::-webkit-scrollbar{display:none}' +
     '#ideamia-nav a.s{color:#8C8C8C;text-decoration:none;padding:7px 12px;border-radius:999px;border:1px solid transparent;white-space:nowrap;transition:all .15s}' +
     '#ideamia-nav a.s:hover{color:#F5F5F5;border-color:#2E2E2E}#ideamia-nav a.s.on{background:#FFF200;color:#0A0A0A;font-weight:700}' +
-    '@media(max-width:700px){#ideamia-nav{padding:0 12px;gap:8px}#ideamia-nav .w{display:none}#ideamia-nav .l{margin-left:0;width:100%}#ideamia-nav a.s{flex:1;text-align:center;padding:7px 8px}}';
+    '@media(max-width:700px){#ideamia-nav{padding:0 12px;gap:8px}#ideamia-nav .w{display:none}#ideamia-nav .l{margin-left:0;width:100%}#ideamia-nav a.s{flex:1;text-align:center;padding:7px 4px;font-size:12px}#ideamia-nav .lg{display:none}#ideamia-nav .ct{display:inline}}';
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const bar = document.createElement('nav'); bar.id = 'ideamia-nav'; bar.setAttribute('aria-label', 'Webs de Ideamia');
-  bar.innerHTML = '<a class="w" href="' + SITIOS[0].u + '">Idea<b>mia</b></a><div class="l">' + SITIOS.filter(s => !s.solo || s.solo.indexOf(quien) >= 0 || s.id === actual).map(s => '<a class="s' + (s.id === actual ? ' on' : '') + '" href="' + s.u + '">' + s.n + '</a>').join('') + '</div>';
+  bar.innerHTML = '<a class="w" href="' + SITIOS[0].u + '">Idea<b>mia</b></a><div class="l">' + SITIOS.filter(s => !s.solo || s.solo.indexOf(quien) >= 0 || s.id === actual).map(s => '<a class="s' + (s.id === actual ? ' on' : '') + '" href="' + s.u + '"><span class="lg">' + s.n + '</span><span class="ct">' + (s.c || s.n) + '</span></a>').join('') + '</div>';
   const poner = () => document.body.prepend(bar);
   document.body ? poner() : document.addEventListener('DOMContentLoaded', poner);
 })();
