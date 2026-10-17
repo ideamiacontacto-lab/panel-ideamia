@@ -3126,7 +3126,8 @@ function okrReportes_() {
     if (tipo === 'mensual') p = p.slice(0, 7);
     let d = {}; try { d = JSON.parse(r[iD] || '{}'); } catch (e) {}
     // solo lo que se usa (el caché tiene un límite de 100 KB)
-    const k = {}; Object.keys(d).forEach(x => { if (/^(seg_sumados|seg_perdidos|m_contactos|m_alc_total|alcance_total)$/.test(x) || /^rk_reel_\d+_(views|views_pauta|link|desc|fecha)$/.test(x) || /^reel\d+_(res_views|link|nombre|dia)$/.test(x)) k[x] = d[x]; });
+    const k = {}; Object.keys(d).forEach(x => { if (/^(seg_sumados|seg_perdidos|m_contactos|m_alc_total|alcance_total)$/.test(x) || /^rk_reel_\d+_(views|views_pauta|link|desc|fecha)$/.test(x) || /^reel\d+_(res_views|link|nombre|dia)$/.test(x) ||
+      /^(p_alc_total|p_contactos|p_seg_sumados|p_seg_perdidos|mm_n)$/.test(x) || /^mm_\d+_(mes|alc|netos|cont)$/.test(x)) k[x] = d[x]; });
     const key = tipo + '|' + r[iM] + '|' + p;
     if (!ult[key] || String(r[iE]) > ult[key].enviado) ult[key] = { tipo: tipo, marca: r[iM], periodo: p, enviado: String(r[iE]), d: k };
   });
@@ -3165,6 +3166,18 @@ function okrPorMes_(reps, marca, metrica, desde, hasta, manMes) {
     if (men) return { mes: mes, v: val(men), fuente: 'mensual' };
     const am = (manMes || {})[marca + '|' + (/^alcance/.test(metrica) ? 'alcance' : metrica) + '|' + mes];
     if (am) return { mes: mes, v: am.v, fuente: 'cargado a mano por ' + am.quien, aMano: true };
+    // el reporte trimestral / semestral trae una fila por mes ("Julio 2026"): sirve si ese mes no tiene mensual ni dato a mano
+    const MESES_ = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    const col = metrica === 'seg_netos' ? 'netos' : metrica === 'contactos' ? 'cont' : 'alc';
+    for (const r of mias.filter(x => x.tipo === 'periodico')) {
+      const n = Number(okrNum_(r.d.mm_n) || 12);
+      for (let i = 1; i <= n; i++) {
+        const t = norm_(String(r.d['mm_' + i + '_mes'] || '')), mm = MESES_.findIndex(x => t.indexOf(x) >= 0), yy = (/(\d{4})/.exec(t) || [])[1];
+        if (mm < 0 || !yy || yy + '-' + ('0' + (mm + 1)).slice(-2) !== mes) continue;
+        const v = okrNum_(r.d['mm_' + i + '_' + col]);
+        if (v != null) return { mes: mes, v: v, fuente: 'reporte ' + (n >= 6 ? 'semestral' : 'trimestral'), deTrimestral: true };
+      }
+    }
     if (metrica === 'seg_netos') {
       const sem = mias.filter(r => r.tipo === 'sm' && r.periodo.slice(0, 7) === mes);
       if (sem.length) return { mes: mes, v: sem.reduce((a, r) => a + val(r), 0), fuente: sem.length + ' semanal' + (sem.length > 1 ? 'es' : ''), parcial: true };
@@ -3200,6 +3213,16 @@ function okrCalcular_(o, reps, man, hoyS, manMes) {
   } else {   // alcance_esp y manual: lo anota la social media
     r.manual = true;
     if (anot) { r.logrado = anot.v; r.anotado = { quien: anot.quien, cuando: anot.cuando, nota: anot.nota || '' }; }
+    // espectadores del período: si se cargó el reporte trimestral / semestral de ese mismo período, vale su "alcance total"
+    if (o.metrica === 'alcance_esp') {
+      const per = reps.filter(x => x.tipo === 'periodico' && x.marca === o.marca).filter(x => {
+        const m = /^(\d{4})-(\d{2})\+(\d+)$/.exec(x.periodo); if (!m) return false;
+        const fin = Utilities.formatDate(new Date(+m[1], +m[2] - 1 + +m[3] - 1, 1, 12), TZ, 'yyyy-MM');
+        return m[1] + '-' + m[2] === o.desde.slice(0, 7) && fin === o.hasta.slice(0, 7);
+      })[0];
+      const v = per ? okrNum_(per.d.p_alc_total) : null;
+      if (v != null) { r.logrado = v; r.manual = false; r.deReporte = 'reporte del período'; }
+    }
     r.cumplido = r.logrado != null && r.logrado >= o.meta;
   }
   // ritmo: cuánto debería llevar hoy si avanzara parejo
