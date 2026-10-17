@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="robots" content="noindex">
+<title>Plan · Ideamia</title>
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--r:18px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}button{cursor:pointer}a{color:var(--y)}
+.wrap{max-width:920px;margin:0 auto;padding:18px 16px 70px}
+.kick{color:var(--mu);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px}h1 b{color:var(--y);font-weight:400}
+.sub{color:var(--mu);margin:0 0 12px;font-size:14px}
+.seg{display:inline-flex;gap:4px;background:var(--c1);border:1px solid var(--ln);border-radius:12px;padding:3px;margin-bottom:12px}
+.seg button{border:0;background:none;border-radius:9px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--mu)}.seg button.on{background:var(--c3);color:var(--tx)}
+.marcas{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 -16px 12px;padding:2px 16px 6px}.marcas::-webkit-scrollbar{display:none}
+.mc{scroll-snap-align:start;flex:none;display:flex;align-items:center;gap:9px;border:1px solid var(--ln);background:var(--c1);border-radius:16px;padding:8px 14px 8px 8px;transition:all .18s;text-align:left}
+.mc.on{background:var(--y);color:#0A0A0A;border-color:var(--y)}.mc .n{font-weight:700;font-size:14px;white-space:nowrap}.mc .s{font-size:11.5px;opacity:.7;white-space:nowrap}
+.ring{--p:0;width:34px;height:34px;border-radius:50%;background:conic-gradient(var(--ok) calc(var(--p)*1%),#2c2c2c 0);display:grid;place-items:center;flex:none}
+.ring i{width:26px;height:26px;border-radius:50%;background:var(--c1);display:grid;place-items:center;font:700 10px Outfit;font-style:normal}
+.mc.on .ring i{background:var(--y);color:#0A0A0A}.mc.on .ring{background:conic-gradient(#0A0A0A calc(var(--p)*1%),rgba(0,0,0,.18) 0)}
+/* tarjetas de indicadores: carrusel en el celu, grilla en la compu */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+@media(max-width:760px){.kpis{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 -16px 12px;padding:0 16px 4px}.kpis::-webkit-scrollbar{display:none}.kpi{flex:0 0 42%;scroll-snap-align:start}}
+.kpi{background:var(--c1);border:1px solid var(--ln);border-radius:16px;padding:12px;text-align:left;transition:border-color .2s}
+.kpi:hover{border-color:#353535}.kpi .v{font:400 30px/1 'Bebas Neue',sans-serif}.kpi .v.ok{color:var(--ok)}.kpi .v.mid{color:var(--warn)}.kpi .v.bad{color:var(--bad)}.kpi .v.nd{color:#555}
+.kpi .l{font-size:12.5px;font-weight:600;margin-top:4px}.kpi .d{font-size:11px;color:var(--mu);margin-top:2px}
+.kpi.pronto{opacity:.55;border-style:dashed}
+.fold{background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.fold>.fh{width:100%;display:flex;align-items:center;gap:10px;background:none;border:0;padding:13px 16px;text-align:left}
+.fh .t{flex:1;font-weight:600}.fh .cnt{font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--c3)}
+.fh .chev{transition:transform .25s;color:var(--mu)}.fold.open>.fh .chev{transform:rotate(180deg)}
+.fb{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease}.fold.open>.fb{grid-template-rows:1fr}.fb>div{overflow:hidden}
+.fold.roja{border-color:rgba(255,107,107,.35)}.fold.roja .cnt{background:rgba(255,107,107,.18);color:var(--bad)}
+.rows{padding:0 16px 12px}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--ln);font-size:14px}.row:first-child{border-top:0}
+.row .m{color:var(--mu);font-size:12.5px}
+.st{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.st.ok{background:rgba(92,227,138,.14);color:var(--ok)}.st.bad{background:rgba(255,107,107,.14);color:var(--bad)}.st.mid{background:rgba(255,180,84,.14);color:var(--warn)}.st.nd{background:var(--c2);color:var(--mu)}.st.prox{background:rgba(255,242,0,.12);color:var(--y)}
+.al li{margin:6px 0;color:#e6e6e6;font-size:14px}.al ul{margin:0;padding:0 16px 12px 34px}
+.empty{color:var(--mu);text-align:center;padding:40px 10px}
+.gate{max-width:380px;margin:40px auto;text-align:center}.gate input{width:100%;background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:12px;margin:12px 0}
+.btn{background:var(--y);color:#0A0A0A;border:0;border-radius:12px;padding:9px 16px;font-weight:700}
+.ps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid var(--ln);background:var(--c1);border-radius:999px;padding:8px 14px;font-weight:600}.chip.on{background:var(--y);color:#0A0A0A}
+.pie{color:var(--mu);font-size:12px;margin-top:14px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30}
+@media(max-width:600px){h1{font-size:34px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script src="../config.js?v=2"></script>
+<script src="../ideamia-nav.js?v=3" defer></script>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Cargando…</div></div>
+<script>
+(function () {
+  const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
+  const VER = '1';
+  try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
+  const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
+  const S = { persona: jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {} };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'], DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  const dm = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '–', diaDe = s => DIA[new Date(s + 'T12:00:00').getDay()];
+  const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+  const clave = () => S.persona === 'project' ? (S.pkey || S.key) : S.key;
+  const toast = t => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3000); };
+  const mesPedido = () => { const d = new Date(); if (S.mes === 'anterior') d.setMonth(d.getMonth() - 1, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+
+  function gate(msg) {
+    app.innerHTML = '<div class="gate"><div class="kick">Ideamia</div><h1><b>Plan</b></h1>' + (msg ? '<p class="sub">' + esc(msg) + '</p>' : '') +
+      (S.persona && PERMITIDAS[S.persona] ? '' : '<p class="sub">¿Quién sos?</p><div class="ps">' + Object.keys(PERMITIDAS).map(p => '<button class="chip' + (S.persona === p ? ' on' : '') + '" data-p="' + p + '">' + PERMITIDAS[p] + '</button>').join('') + '</div>') +
+      '<input id="k" type="password" placeholder="' + (S.persona === 'project' ? 'Clave del project' : 'Clave del equipo') + '"><button class="btn" id="ent">Entrar</button></div>';
+    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { S.persona = b.dataset.p; gate(msg); });
+    const ent = () => { const v = app.querySelector('#k').value.trim(); if (!v || !S.persona) return toast('Elegí quién sos y poné la clave'); if (S.persona === 'project') S.pkey = v; else { S.key = v; lsSet('ideamia:clave', v); } lsSet('ideamia:persona', S.persona); cargar(); };
+    app.querySelector('#ent').onclick = ent; app.querySelector('#k').onkeydown = e => { if (e.key === 'Enter') ent(); };
+  }
+  async function cargar() {
+    if (!S.persona || !PERMITIDAS[S.persona]) return gate(S.persona ? 'Esta sección es solo para las social media y el project.' : '');
+    if (!clave()) return gate('');
+    app.innerHTML = '<div class="empty">Cargando…</div>';
+    try {
+      const r = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, mes: mesPedido() }), { cache: 'no-store' }).then(r => r.json());
+      if (r.error) return gate(r.mensaje || r.error);
+      S.data = r; pintar();
+    } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '.</div>'; }
+  }
+  const cls = p => p == null ? 'nd' : p >= 90 ? 'ok' : p >= 70 ? 'mid' : 'bad';
+  const kpi = (v, l, d, pronto) => '<div class="kpi' + (pronto ? ' pronto' : '') + '"><div class="v ' + (pronto ? 'nd' : cls(v)) + '">' + (pronto ? '—' : v == null ? '—' : v + ' %') + '</div><div class="l">' + l + '</div><div class="d">' + d + '</div></div>';
+  const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
+  const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
+  const fold = (id, cl, t, n, cuerpo, abierto) => { const open = S.folds[id] != null ? S.folds[id] : abierto; return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
+  function pintar() {
+    const D = S.data, M = D.marcas;
+    if (!M.some(m => m.slug === S.marca)) S.marca = M.length ? M[0].slug : '';
+    const m = M.filter(x => x.slug === S.marca)[0];
+    const prom = x => { const v = [x.ind.entregas, x.ind.inputs, x.ind.reportes].filter(y => y != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
+    let h = '<div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1><b>Plan</b></h1><p class="sub">Cumplimiento de ' + MES[Number(D.mes.slice(5)) - 1] + ': lo mide el panel solo con Trello, el calendario y los reportes.</p>';
+    h += '<div class="seg"><button data-mes="actual" class="' + (S.mes === 'actual' ? 'on' : '') + '">Este mes</button><button data-mes="anterior" class="' + (S.mes === 'anterior' ? 'on' : '') + '">Mes pasado</button></div>';
+    h += '<div class="marcas">' + M.map(x => { const p = prom(x); return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + (p || 0) + '"><i>' + (p == null ? '–' : p) + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (D.project ? esc(PERMITIDAS[x.sm] || x.sm) + ' · ' : '') + (p == null ? 'sin datos todavía' : 'cumplimiento ' + p + ' %') + '</span></span></button>'; }).join('') + '</div>';
+    if (!m) { app.innerHTML = h + '<div class="empty">No hay marcas para mostrar.</div>'; return bind(); }
+    const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
+    h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
+      kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpi(null, 'Plan del mes', 'llega en la fase 4', true) + kpi(null, 'Tópicos fijos', 'llega en la fase 2', true) + '</div>';
+    // alertas en rojo
+    const al = [];
+    ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? 'Entrega de calendario del ' + diaDe(e.f) + ' ' + dm(e.f) + ': quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : 'Entrega de reels del ' + diaDe(e.f) + ' ' + dm(e.f) + ': había ' + e.n + ' de 4.'));
+    m.reportes.filter(r => r.estado === 'falta').forEach(r => al.push('Falta el reporte ' + r.tipo + ' (' + (r.tipo === 'semanal' ? 'semana del ' + dm(r.per) : r.per) + '), vencía el ' + dm(r.vence.slice(0, 10)) + '.'));
+    if (m.inputs.tarde.length) al.push(m.inputs.tarde.length + ' input' + (m.inputs.tarde.length === 1 ? '' : 's') + ' se marcaron después de 24 h (o todavía no se marcaron).');
+    if (al.length) h += fold('al:' + m.slug, 'roja', 'Alertas', al.length, '<div class="al"><ul>' + al.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>', true);
+    // entregas
+    const filaE = e => { const s = ESTE[e.estado] || ESTE['sin medir']; return '<div class="row"><div>' + (e.tipo === 'calendario' ? 'Calendario' : 'Reels del mes que viene') + ' · ' + diaDe(e.f) + ' ' + dm(e.f) + '<div class="m">' + (e.tipo === 'calendario' ? 'Cargado hasta el ' + dm(e.obj) + (e.hasta ? ' · ' + (e.estado === 'proxima' ? 'hoy llega al ' : 'llegaba al ') + dm(e.hasta) : '') : '4 reels' + (e.n != null ? ' · ' + (e.estado === 'proxima' ? 'hoy hay ' : 'había ') + e.n : '')) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
+    h += fold('en:' + m.slug, '', 'Entregas del mes', ent.length, '<div class="rows">' + (ent.length ? ent.map(filaE).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', false);
+    // reportes
+    h += fold('re:' + m.slug, '', 'Reportes', m.reportes.length, '<div class="rows">' + (m.reportes.length ? m.reportes.map(r => { const s = ESTR[r.estado]; return '<div class="row"><div>Reporte ' + r.tipo + (r.tipo === 'semanal' ? ' · semana del ' + dm(r.per) : ' · ' + esc(r.per)) + '<div class="m">Vence ' + diaDe(r.vence.slice(0, 10)) + ' ' + dm(r.vence.slice(0, 10)) + (r.env ? ' · cargado el ' + dm(r.env.slice(0, 10)) : '') + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; }).join('') : '<div class="row"><div class="m">Esta marca no tiene reportes en el sistema de Reportes.</div></div>') + '</div>', false);
+    h += '<p class="pie">El panel mide desde el ' + dm(D.desde) + '/2026: las entregas anteriores figuran "sin medir". Estos números todavía no cuentan para el bono (eso arranca en enero de 2027).</p>';
+    app.innerHTML = h; bind();
+  }
+  function bind() {
+    app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('plan:marca', S.marca); pintar(); });
+    app.querySelectorAll('[data-mes]').forEach(b => b.onclick = () => { if (S.mes === b.dataset.mes) return; S.mes = b.dataset.mes; cargar(); });
+    app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement; f.classList.toggle('open'); S.folds[b.dataset.fold] = f.classList.contains('open'); lsSet('plan:folds', JSON.stringify(S.folds)); });
+  }
+  cargar();
+})();
+</script>
+</body>
+</html>
