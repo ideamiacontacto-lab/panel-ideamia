@@ -3441,7 +3441,7 @@ function planRepSlug_(m, repMarcas) {
 }
 /* Entregas del calendario del equipo entre dos fechas: [{f:'yyyy-MM-dd', tipo:'calendario'|'reels'|'planb'}] */
 function planEntregas_(cfg, desde, hasta) {
-  const c = CacheService.getScriptCache(), key = 'planent2' + ymd_(desde) + ymd_(hasta), hit = c.get(key);
+  const c = CacheService.getScriptCache(), key = 'planent3' + ymd_(desde) + ymd_(hasta), hit = c.get(key);
   if (hit) return JSON.parse(hit);
   const cal = CalendarApp.getCalendarById(cfg.CALENDAR_ID || 'estudioideamia@gmail.com'), out = [];
   // se lee desde el día 1 del mes: para saber si un lunes de reels es el primero o el segundo del mes hay que ver los anteriores
@@ -3453,9 +3453,8 @@ function planEntregas_(cfg, desde, hasta) {
     else if (/calendario/.test(t)) out.push({ f: f, tipo: 'calendario' });
     else if (/reel/.test(t)) out.push({ f: f, tipo: 'reels' });
   });
-  // de los lunes de reels, el primero de cada mes son los 4 reels del mes siguiente; el otro, el plan B (mientras no se renombre)
-  const visto = {};
-  out.filter(x => x.tipo === 'reels').sort((a, b) => a.f.localeCompare(b.f)).forEach(x => { const m = x.f.slice(0, 7); if (visto[m]) x.tipo = 'planb'; visto[m] = 1; });
+  // los lunes de plan B se llaman "Entrega de plan B" en el calendario (renombrados el 17/10/2026 hasta diciembre de 2027):
+  // antes se adivinaba el segundo lunes de reels del mes, pero los meses con tres lunes de entrega lo rompían.
   const res = out.filter(x => x.f >= desdeS).sort((a, b) => a.f.localeCompare(b.f));
   c.put(key, JSON.stringify(res), 3600);
   return res;
