@@ -3618,7 +3618,7 @@ function planVista_(quien, esProject, mes) {
     const entMed = entregas.filter(e => ['cumplida', 'incumplida', 'tarde'].indexOf(e.estado) >= 0), insMed = ins.filter(x => !x.pendiente), repMed = reps.filter(r => r.estado !== 'proximo');
     let pmE = null; try { pmE = planMesEstado_(cfg, pmG, pmC[m.slug] || {}, pmD, m, mesS); } catch (e) {}
     // se mide desde noviembre de 2026 (el primer mes que se planifica con el formulario)
-    const pmInd = !pmE || !pmE.campanas.length || mesS < '2026-11' ? null : pmE.aTiempo ? 100 : pmE.limite < hoyS || pmE.completo ? 0 : null;
+    const pmInd = !pmE || !pmE.items || mesS < '2026-11' ? null : pmE.aTiempo ? 100 : pmE.limite < hoyS || pmE.completo ? 0 : null;
     return { slug: m.slug, nombre: m.nombre, sm: m.sm, reels: m.reels, entregas: entregas, inputs: { total: insMed.length, ok: insMed.filter(x => x.ok).length, tarde: insMed.filter(x => !x.ok).map(x => x.horas) }, reportes: reps, planMes: pmE,
       ind: { entregas: pct(entMed.filter(e => e.estado === 'cumplida').length, entMed.length), inputs: pct(insMed.filter(x => x.ok).length, insMed.length), reportes: pct(repMed.filter(r => r.estado === 'a tiempo').length, repMed.length), planMes: pmInd } };
   });
@@ -3920,7 +3920,9 @@ function campVista_(quien, esProject) {
   const marcas = cat.marcas.filter(m => m.sm && (esProject || m.sm === norm_(quien))).map(m => {
     const dec = g[m.slug] || {}, pm = planes[m.slug] || {};
     const fechas = campFechas_(datos, m.slug, hoy).map(x => Object.assign(x, { dec: dec[x.key] || null, plan: dec[x.key] && dec[x.key].decision === 'atacar' ? pm[x.key] || null : null }));
-    return { slug: m.slug, nombre: m.nombre, sm: m.sm, rubro: m.rubro || '', tieneCalendario: !!(((datos || {}).marcas || {})[m.slug] || {}).items, fechas: fechas,
+    let topG = []; try { topG = planTopicosGen_(m.slug).map(t => ({ id: t.id, nombre: t.nombre, veces: t.veces, por: t.por, angulos: t.angulos, externo: t.externo, canal: t.canal })); } catch (e) {}
+    const general = { topicos: topG, este: { mes: mesEste, semanas: planSemanas_(mesEste), plan: pm['gen|' + mesEste] || null }, proximo: { mes: mesProx, semanas: planSemanas_(mesProx), plan: pm['gen|' + mesProx] || null } };
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, rubro: m.rubro || '', general: general, tieneCalendario: !!(((datos || {}).marcas || {})[m.slug] || {}).items, fechas: fechas,
       pendientes: fechas.filter(x => !x.dec && x.f >= ymd_(hoy)).length, revisar: fechas.filter(x => x.dec && x.dec.decision === 'descartar' && x.dec.revision === 'pendiente').length,
       sinPlan: fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= ymd_(hoy)).length };
   });
@@ -4002,10 +4004,85 @@ function planFalta_(p, nivel) {
   if (dist.some(d => !FECHA_RE_.test(d.fecha || ''))) return 'Último paso: cada línea necesita su fecha';
   return '';
 }
+/* ---------------- PLAN · Plan general del mes (pedido de Joaquín, 17/10/2026) ----------------
+   Además del plan de cada campaña, el social media baja los tópicos fijos de la ficha aprobada semana por semana: qué ángulo usa en cada
+   semana del mes (ej. Isco, Maquinarias: semana 1 panadería, semana 2 pastelería…) y qué tiene que pedir ese mes en particular.
+   Se arma junto con el plan de campañas y tiene la misma fecha de cierre. Al terminarlo: una tarjeta por tópico en "Para mover en el
+   mes" con el detalle de las semanas (si planMesTarjetas_ ya había creado la del tópico, se le completa la descripción) y una por pedido,
+   con su fecha. Se guarda en panel-ideamia-planes.json bajo la clave "gen|yyyy-MM" de cada marca. */
+/* Semanas de un mes: el día 1 y cada lunes siguiente dentro del mes (yyyy-MM-dd). */
+function planSemanas_(mes) {
+  const d = new Date(mes + '-01T12:00:00'), out = [ymd_(d)], fin = new Date(d.getFullYear(), d.getMonth() + 1, 0, 12);
+  for (let x = new Date(d.getTime() + 864e5); x <= fin; x = new Date(x.getTime() + 864e5)) if (x.getDay() === 1) out.push(ymd_(x));
+  if (out.length > 1 && new Date(out[1] + 'T12:00:00').getDate() <= 3) out.shift();   // si el mes arranca en el fin de semana, la primera semana es la del lunes
+  return out;
+}
+const planTopicosGen_ = slug => ((fichaLeer_().m[slug] || {}).ok || { topicos: [] }).topicos.filter(t => !t.cm);
+/* Cuántas semanas tiene que tener ángulo cada tópico: los semanales, todas; los mensuales, tantas como veces por mes (con tope en las semanas). */
+const planGenReq_ = (t, n) => t.por === 'semana' ? n : Math.min(t.veces || 1, n);
+function planGenFalta_(p, topicos, semanas) {
+  for (const t of topicos) {
+    const s = ((p.topicos || {})[t.id] || {}).semanas || {}, n = semanas.filter(w => String(s[w] || '').trim()).length, req = planGenReq_(t, semanas.length);
+    if (n < req) return '"' + t.nombre + '": ' + (t.por === 'semana' ? 'elegí el ángulo de cada semana' : 'elegí el ángulo de ' + req + ' semana' + (req === 1 ? '' : 's'));
+  }
+  if ((p.pedidos || []).some(x => !String(x.que || '').trim() || !/^\d{4}-\d{2}-\d{2}$/.test(x.fecha || ''))) return 'Cada pedido necesita qué y para cuándo (o borralo)';
+  return '';
+}
+function planGeneralAccion_(b, m, quien) {
+  const mes = String(b.mes || ''); if (!/^\d{4}-\d{2}$/.test(mes)) return { error: 'datos', mensaje: 'Falta el mes' };
+  const topicos = planTopicosGen_(m.slug); if (!topicos.length) return { error: 'datos', mensaje: 'Primero tiene que estar aprobada la ficha de la marca, con sus tópicos fijos' };
+  const semanas = planSemanas_(mes), t = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 200), d = b.plan || {};
+  const lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    const g = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), pm = g[m.slug] = g[m.slug] || {}, k = 'gen|' + mes, prev = pm[k] || {};
+    const plan = { mes: mes, topicos: {}, pedidos: (d.pedidos || []).slice(0, 20).map(x => ({ id: String(x.id || Utilities.getUuid().slice(0, 6)).slice(0, 12), que: t(x.que), aQuien: x.aQuien === 'project' ? 'project' : 'cliente', fecha: String(x.fecha || '') })),
+      tarjetas: prev.tarjetas || {}, completo: !!prev.completo, completado: prev.completado || null, editado: new Date().toISOString(), quien: norm_(quien) };
+    topicos.forEach(tp => { const s = (((d.topicos || {})[tp.id]) || {}).semanas || {}, o = {}; semanas.forEach(w => { if (t(s[w])) o[w] = t(s[w]); }); plan.topicos[tp.id] = { semanas: o }; });
+    let creadas = 0;
+    if (b.terminar) {
+      const falta = planGenFalta_(plan, topicos, semanas); if (falta) return { error: 'datos', mensaje: falta };
+      const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), tb = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0];
+      const lista = tb && (tb.listas || []).filter(l => l.cat === 'mover')[0];
+      if (!lista) return { error: 'datos', mensaje: 'El SCL de ' + m.nombre + ' no tiene la lista "Para mover en el mes". Pedile a Joaquín que la cree.' };
+      const MES = MESES_ES[Number(mes.slice(5)) - 1], gm = leerJson_('PLANMES_FILE_ID', 'panel-ideamia-planmes.json');
+      let etiquetas = null; const dm = s => s.slice(8) + '/' + s.slice(5, 7);
+      try {
+        topicos.forEach(tp => {
+          const s = plan.topicos[tp.id].semanas, lineas = semanas.filter(w => s[w]).map(w => '• Semana del ' + dm(w) + ': ' + s[w]);
+          const desc = 'Plan de ' + MES + ' (' + tp.veces + ' por ' + tp.por + (tp.externo ? ', se mueve en: ' + tp.canal : '') + '):\n' + lineas.join('\n') +
+            (tp.externo ? '' : '\n\nLas piezas de este tópico llevan la etiqueta "Tópico · ' + tp.nombre + '": así el panel las cuenta.') + '\n\nSale del plan general del mes armado en el panel.\n' + PLAN_URL;
+          const kk = mes + '|' + m.slug + '|top|' + tp.id, ya = plan.tarjetas['t|' + tp.id] || gm[kk];
+          if (ya && ya.id) { trello_('/cards/' + ya.id, { desc: desc.slice(0, 3500) }, 'put'); plan.tarjetas['t|' + tp.id] = { id: ya.id, url: ya.url }; return; }
+          const p = { idList: lista.id, name: '📌 ' + tp.nombre + ' · plan de ' + MES, desc: desc.slice(0, 3500), pos: 'bottom' };
+          if (!tp.externo) {
+            if (!etiquetas) etiquetas = trello_('/boards/' + tb.id + '/labels', { fields: 'name', limit: 200 });
+            const l = etiquetas.filter(x => norm_(x.name) === norm_('Tópico · ' + tp.nombre))[0]; if (l) p.idLabels = l.id;
+          }
+          const c = trello_('/cards', p, 'post'); plan.tarjetas['t|' + tp.id] = { id: c.id, url: c.shortUrl }; creadas++;
+          gm[kk] = { id: c.id, url: c.shortUrl, t: new Date().toISOString(), plan: true };   // así planMesTarjetas_ no la repite
+        });
+        plan.pedidos.forEach(x => {
+          if (plan.tarjetas['p|' + x.id]) return;
+          const c = trello_('/cards', { idList: lista.id, name: '📨 ' + MES + ' · pedir ' + (x.aQuien === 'project' ? 'al project' : 'al cliente') + ': ' + x.que, desc: 'El vencimiento es la fecha límite para tenerlo.\nSale del plan general del mes armado en el panel.\n' + PLAN_URL, due: x.fecha + 'T12:00:00-03:00', pos: 'bottom' }, 'post');
+          plan.tarjetas['p|' + x.id] = { id: c.id, url: c.shortUrl }; creadas++;
+        });
+      } catch (e) {
+        pm[k] = plan; guardarJson_(PLANES_ARCH[0], PLANES_ARCH[1], g); guardarJson_('PLANMES_FILE_ID', 'panel-ideamia-planmes.json', gm);
+        return { error: 'trello', mensaje: 'Se crearon ' + creadas + ' tarjetas y después Trello falló: ' + String(e.message).slice(0, 150) + '. Probá terminar de nuevo: no se repiten.' };
+      }
+      guardarJson_('PLANMES_FILE_ID', 'panel-ideamia-planmes.json', gm);
+      if (!plan.completo) { plan.completo = true; plan.completado = new Date().toISOString(); }
+    }
+    pm[k] = plan; guardarJson_(PLANES_ARCH[0], PLANES_ARCH[1], g);
+    return { ok: true, creadas: creadas, plan: plan };
+  } finally { lock.releaseLock(); }
+}
 function planMesAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
   if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
-  const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|/.test(key)) return { error: 'datos', mensaje: 'Falta la campaña' };
+  const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|  if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  if (b.accion === 'general') return planGeneralAccion_(b, m, quien);
+  const key = String(b.key || ''); if (!/^d{4}-d{2}-d{2}|/.test(key)) return { error: 'datos', mensaje: 'Falta la campaña' };
   const lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
     const dec = (leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json')[m.slug] || {})[key];
@@ -4068,9 +4145,13 @@ function planMesEstado_(cfg, g, decs, datos, m, mes) {
   const camp = campFechas_(datos, m.slug, ini).filter(x => x.cual === 'este' && (decs[x.key] || {}).decision === 'atacar').map(x => {
     const p = pm[x.key]; return { key: x.key, nombre: x.nombre, nivel: x.nivel, f: x.f, completo: !!(p && p.completo), completado: p ? p.completado : null };
   });
-  const ultimo = camp.reduce((a, c) => c.completado && c.completado > a ? c.completado : a, '');
-  const listo = camp.length > 0 && camp.every(c => c.completo);
-  return { mes: mes, limite: limite, campanas: camp, completo: listo, aTiempo: listo && Utilities.formatDate(new Date(ultimo), TZ, 'yyyy-MM-dd') <= limite };
+  // plan general (tópicos semana por semana): hace falta si la ficha aprobada tiene tópicos fijos del social media
+  let topG = []; try { topG = planTopicosGen_(m.slug); } catch (e) {}
+  const gp = pm['gen|' + mes], general = { req: topG.length > 0, completo: !!(gp && gp.completo), completado: gp ? gp.completado : null };
+  const items = camp.concat(general.req ? [{ nombre: 'plan general (tópicos)', completo: general.completo, completado: general.completado }] : []);
+  const ultimo = items.reduce((a, c) => c.completado && c.completado > a ? c.completado : a, '');
+  const listo = items.length > 0 && items.every(c => c.completo);
+  return { mes: mes, limite: limite, campanas: camp, general: general, items: items.length, hechos: items.filter(c => c.completo).length, completo: listo, aTiempo: listo && Utilities.formatDate(new Date(ultimo), TZ, 'yyyy-MM-dd') <= limite };
 }
 /* Avisos del bloque diario sobre el plan del mes que viene: 2 días antes del cierre y el día siguiente (al social media); al otro día, al project. */
 function planMesRecordatorios_(cat, cfg, ahora) {
@@ -4080,7 +4161,7 @@ function planMesRecordatorios_(cat, cfg, ahora) {
   const g = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), camp = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
   const MES = MESES_ES[Number(prox.slice(5)) - 1], limC = lim.slice(8) + '/' + lim.slice(5, 7), porQuien = {};
   cat.marcas.filter(m => m.sm).forEach(m => {
-    const falta = planMesEstado_(cfg, g, camp[m.slug] || {}, datos, m, prox).campanas.filter(c => !c.completo); if (!falta.length) return;
+    const est = planMesEstado_(cfg, g, camp[m.slug] || {}, datos, m, prox), falta = est.campanas.filter(c => !c.completo).concat(est.general.req && !est.general.completo ? [{ nombre: 'el plan general (tópicos semana por semana)' }] : []); if (!falta.length) return;
     const k = cuando === 'project' ? 'project' : m.sm;
     (porQuien[k] = porQuien[k] || []).push('• **' + m.nombre + '**: ' + falta.map(c => c.nombre).join(', ') + (k === 'project' ? ' (' + nombreDe_(m.sm) + ')' : ''));
   });
