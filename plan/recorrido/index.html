@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="robots" content="noindex">
+<title>Cómo se arma un mes · Ideamia</title>
+<link rel="icon" type="image/png" sizes="192x192" href="../../icon-192.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--sky:#6FC3FF;--pink:#FF8AD8;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.5 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+/* mapa de piezas (arriba, siempre visible) */
+.mapa{position:sticky;top:0;z-index:20;background:rgba(10,10,10,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--ln)}
+.mapa .in{max-width:1100px;margin:0 auto;padding:10px 16px 8px;display:flex;align-items:center;gap:12px}
+.nodos{flex:1;display:flex;align-items:center;overflow-x:auto;scrollbar-width:none;padding:4px 2px}.nodos::-webkit-scrollbar{display:none}
+.nodo{flex:none;display:flex;align-items:center;border:0;background:none;padding:0}
+.nodo i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:14px;background:var(--c2);border:1px solid var(--ln);transition:all .35s cubic-bezier(.2,.8,.2,1)}
+.nodo.hecho i{background:rgba(255,242,0,.14);border-color:rgba(255,242,0,.5)}
+.nodo.on i{background:var(--y);border-color:var(--y);transform:scale(1.18);box-shadow:0 0 0 6px rgba(255,242,0,.12)}
+.nodo b{display:block;width:16px;height:2px;background:var(--ln);transition:background .4s}.nodo.hecho b{background:rgba(255,242,0,.55)}.nodo:last-child b{display:none}
+.ej-sw{flex:none;display:flex;align-items:center;gap:8px;border:1px solid var(--ln);background:var(--c1);border-radius:999px;padding:6px 12px 6px 6px;font-size:12.5px;font-weight:600}
+.ej-sw .t{width:34px;height:20px;border-radius:999px;background:var(--c3);position:relative;transition:background .25s}.ej-sw .t:after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#777;transition:all .25s}
+.ej-sw.on .t{background:var(--y)}.ej-sw.on .t:after{left:17px;background:#0A0A0A}
+@media(max-width:640px){.ej-sw span.l{display:none}.ej-sw{padding:6px}}
+/* escena */
+.stage{max-width:1100px;margin:0 auto;padding:22px 16px 120px;min-height:calc(100vh - 60px)}
+.esc{display:grid;grid-template-columns:1.05fr 1fr;gap:28px;align-items:start}
+@media(max-width:860px){.esc{grid-template-columns:1fr;gap:18px}}
+.cuando{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--y);background:rgba(255,242,0,.08);border:1px solid rgba(255,242,0,.25);border-radius:999px;padding:5px 11px}
+h1,h2{font:400 54px/.95 'Bebas Neue',sans-serif;letter-spacing:.01em;margin:12px 0 10px}h1 b,h2 b{color:var(--y);font-weight:400}
+@media(max-width:600px){h1,h2{font-size:42px}}
+.bajada{color:#cfcfcf;font-size:16.5px;margin:0 0 16px;max-width:560px}
+.lista{list-style:none;margin:0;padding:0}.lista li{position:relative;padding:10px 0 10px 30px;border-top:1px solid var(--ln);font-size:15px}.lista li:first-child{border-top:0}
+.lista li:before{content:'';position:absolute;left:4px;top:17px;width:10px;height:10px;border-radius:3px;background:var(--y);transform:rotate(45deg)}
+.lista li small{display:block;color:var(--mu);font-size:13px}
+.regla{margin-top:14px;border-left:3px solid var(--bad);background:rgba(255,107,107,.07);border-radius:0 12px 12px 0;padding:10px 14px;font-size:14px}.regla b{color:var(--bad)}
+.panel-btn{margin-top:16px;display:inline-flex;align-items:center;gap:10px;background:var(--y);color:#0A0A0A;border:0;border-radius:14px;padding:12px 18px;font-weight:700;font-size:15px;box-shadow:0 10px 30px rgba(255,242,0,.15);transition:transform .2s}
+.panel-btn:hover{transform:translateY(-2px)}.panel-btn.off{background:var(--c3);color:var(--tx);box-shadow:none}
+/* lado derecho: la animación o el ejemplo */
+.vis{position:relative;background:var(--c1);border:1px solid var(--ln);border-radius:24px;padding:18px;min-height:360px;overflow:hidden}
+.vis .tag{position:absolute;top:14px;right:14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mu)}
+.ej{background:linear-gradient(180deg,rgba(255,242,0,.06),rgba(255,242,0,0) 60%),var(--c1);border-color:rgba(255,242,0,.35)}
+.ej .quien{display:flex;align-items:center;gap:10px;margin-bottom:10px}.ej .quien .av{width:36px;height:36px;border-radius:50%;background:var(--y);color:#0A0A0A;display:grid;place-items:center;font:400 20px 'Bebas Neue'}
+.ej .quien div{font-size:12.5px;color:var(--mu)}.ej .quien b{display:block;color:var(--tx);font-size:14px}
+.voz{font-size:15px;color:#e9e9e9;border-left:2px solid var(--y);padding:2px 0 2px 12px;margin:10px 0;font-style:italic}
+.campo{background:var(--c2);border:1px solid var(--ln);border-radius:14px;padding:10px 12px;margin:8px 0}.campo .k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.chip{font-size:12.5px;font-weight:600;border-radius:999px;padding:4px 10px;background:var(--c3)}
+.chip.si{background:rgba(92,227,138,.15);color:var(--ok)}.chip.no{background:rgba(255,107,107,.13);color:var(--bad)}.chip.y{background:var(--y);color:#0A0A0A}
+.nota{font-size:12.5px;color:var(--warn);margin-top:8px}
+/* piezas animadas */
+.anim .pz{animation:entra .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 110ms + 120ms)}
+@keyframes entra{from{opacity:0;transform:translateY(18px) scale(.97)}}
+.flujo{display:flex;flex-direction:column;gap:10px}
+.fl{display:flex;align-items:center;gap:12px;background:var(--c2);border:1px solid var(--ln);border-radius:14px;padding:10px 12px}
+.fl .ic{width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center;font-size:19px;background:var(--c3)}
+.fl b{display:block;font-size:14px}.fl span{font-size:12.5px;color:var(--mu)}
+.fl.y{border-color:rgba(255,242,0,.4)}.fl.y .ic{background:var(--y)}
+/* mini calendario */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+@media(max-width:600px){.cal{gap:3px}.cal .c{min-height:44px;padding:3px;border-radius:7px}.cal .p{font-size:8px;padding:1px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vis{padding:12px}}
+.cal .d{font-size:10.5px;color:var(--mu);text-align:center;font-weight:700;padding-bottom:2px}
+.cal .c{min-height:54px;background:var(--c2);border:1px solid var(--ln);border-radius:9px;padding:4px;font-size:10px;position:relative}
+.cal .c .n{color:#666;font-weight:700}
+.cal .p{display:block;margin-top:3px;border-radius:5px;padding:2px 4px;font-weight:700;font-size:9.5px;line-height:1.2}
+.anim .cal .p{animation:pop .45s cubic-bezier(.2,1.4,.4,1) both;animation-delay:calc(var(--i,0) * 70ms + 300ms)}
+@keyframes pop{from{opacity:0;transform:scale(.6)}}
+.p.ddl{background:var(--y);color:#0A0A0A}.p.pro{background:rgba(255,138,216,.2);color:var(--pink)}.p.env{background:rgba(111,195,255,.18);color:var(--sky)}.p.web{background:rgba(92,227,138,.16);color:var(--ok)}.p.maq{background:rgba(255,180,84,.18);color:var(--warn)}.p.of{background:#2e2e2e;color:#ddd}
+.cal .c.hoy{border-color:var(--y)}
+.ley{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11.5px;color:var(--mu)}.ley i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+/* lista de Trello */
+.trello{background:#0e0e0e;border-radius:16px;padding:10px;border:1px solid var(--ln)}
+.trello .h{font-size:12.5px;font-weight:700;margin:2px 4px 8px}
+.tc{background:var(--c2);border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;border:1px solid var(--ln)}
+.anim .tc{animation:vuela .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 160ms + 250ms)}
+@keyframes vuela{from{opacity:0;transform:translateX(40px) rotate(3deg)}}
+.tc small{display:block;color:var(--mu);font-size:11.5px}.tc .lb{display:inline-block;font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:4px;background:#5a4bd1;color:#fff}
+/* línea que se dibuja (intro) */
+.camino{width:100%;height:auto;display:block}
+.camino path.l{fill:none;stroke:var(--y);stroke-width:3;stroke-linecap:round;stroke-dasharray:1400}
+.anim .camino path.l{animation:dibuja 2.4s cubic-bezier(.6,.1,.3,1) .2s both}@keyframes dibuja{from{stroke-dashoffset:1400}}
+.anim .camino g.n{animation:aparece .5s ease both;animation-delay:calc(var(--i) * 230ms + 400ms)}@keyframes aparece{from{opacity:0}}
+.camino text{fill:var(--tx);font:600 13px Outfit}.camino text.s{fill:var(--mu);font-size:11px;font-weight:500}
+/* pie de navegación */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(10,10,10,1) 55%,rgba(10,10,10,0))}
+.nav .in{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.nav .pg{flex:1;height:4px;background:var(--c3);border-radius:9px;overflow:hidden}.nav .pg i{display:block;height:100%;background:var(--y);border-radius:9px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.nav .cnt{font-size:12.5px;color:var(--mu);font-weight:600;min-width:44px;text-align:center}
+.bt{border:1px solid var(--ln);background:var(--c1);border-radius:14px;padding:12px 18px;font-weight:700}.bt.y{background:var(--y);color:#0A0A0A;border-color:var(--y)}.bt:disabled{opacity:.35;cursor:default}
+.saltar{position:fixed;right:16px;top:70px;z-index:19}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.pz,.tc,.cal .p,.camino g.n{opacity:1!important;transform:none!important}.camino path.l{stroke-dashoffset:0!important}}
+/* transición entre escenas */
+.esc.sale{animation:sale .28s ease forwards}@keyframes sale{to{opacity:0;transform:translateX(var(--dx,-30px))}}
+.esc.entra-izq{animation:entraI .45s cubic-bezier(.2,.8,.2,1)}@keyframes entraI{from{opacity:0;transform:translateX(-40px)}}
+.esc.entra-der{animation:entraD .45s cubic-bezier(.2,.8,.2,1)}@keyframes entraD{from{opacity:0;transform:translateX(40px)}}
+.semana{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--ln)}.semana:first-of-type{border-top:0}.semana .s{font:400 22px/1 'Bebas Neue';color:var(--y)}
+.semana .s small{display:block;font:600 10.5px Outfit;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+</style>
+<script src="../../ideamia-nav.js?v=4" defer></script>
+</head>
+<body>
+<div class="mapa"><div class="in"><div class="nodos" id="nodos"></div><button class="ej-sw" id="ejsw" title="Mostrar en cada paso cómo lo hizo Joaquín con Isco"><span class="t"></span><span class="l">Ejemplo Isco</span></button></div></div>
+<main class="stage" id="stage"></main>
+<div class="nav"><div class="in"><button class="bt" id="atras">← Atrás</button><div class="pg"><i id="pg"></i></div><span class="cnt" id="cnt"></span><button class="bt y" id="sig">Siguiente →</button></div></div>
+<script>
+(function () {
+  /* Cada escena es una pieza del recorrido. "ej" es cómo lo armó Joaquín para Isco y el Día del Dulce de Leche (contado por él, 17/10/2026). */
+  const J = '<div class="quien"><span class="av">J</span><div><b>Cómo lo hizo Joaquín</b>Isco · Día del Dulce de Leche (11/10, N2)</div></div>';
+  const E = [
+    { ic: '🧭', cuando: 'Antes de arrancar', t: 'Cómo se arma <b>un mes</b>', bajada: 'Este es el camino que sigue cada social media para que el calendario salga ordenado y no se olvide nada. Son piezas que se repiten: algunas una sola vez, otras cada mes y otras cada semana.',
+      que: ['Tocá <b>Siguiente</b> para recorrerlo pieza por pieza, o tocá un círculo de arriba para saltar.', 'Prendé <b>Ejemplo Isco</b> (arriba a la derecha) para ver en cada paso cómo lo armó Joaquín para el Día del Dulce de Leche.', 'Todo esto se carga en <b>Plan</b>: el panel te recuerda las fechas y crea las tarjetas solo.'],
+      vis: 'camino', ej: J + '<div class="voz">"Lo que quiero es que lo armen como lo armaba yo cuando era social media: veía el calendario anual, me fijaba qué campaña venía y la preparaba paso a paso. Esto es Isco, pero hay que aplicarlo a cada marca."</div><p style="color:var(--mu);font-size:14px">Cada marca es un mundo: la estructura es la misma, lo que cambia es lo que pone cada social media.</p>' },
+    { ic: '📋', cuando: 'Una vez por marca', t: 'La <b>ficha</b> de la marca', bajada: 'Lo que se mueve sí o sí todas las semanas, lo que hay que pedir siempre y lo que aprendiste de tus reportes. Se arma una vez, la aprueba Joaquín y queda como base de todos los meses.',
+      que: ['<b>Tópicos fijos</b> con qué días, cuántas veces y <b>mínimo 5 ángulos</b> para moverlos.<small>Sin 5 ángulos no se puede guardar.</small>', '<b>Pedidos recurrentes</b>: qué, a quién, cuándo y por dónde si no responde.', '<b>Aprendizajes</b> de los reportes: hacer más, hacer menos o dejar de hacer, con frecuencia y hasta cuándo.'],
+      regla: 'Con la ficha aprobada, el panel te recuerda los pedidos el día anterior y cuenta lo que movés con la etiqueta "Tópico · …".', donde: 'Plan → Ficha',
+      vis: 'ficha', ej: J + '<div class="campo"><div class="k">Promo del día · miércoles y sábado</div>Producto con descuento y precio final ("comprando tanto, este producto que sale $50.000 te queda $45.000") · medios de pago que entran · la promo directa · video de alguien contando la promo · clientes aprovechando la promo, local lleno</div>' +
+        '<div class="campo"><div class="k">Envíos · martes y jueves · 2 o 3 veces al mes</div>"¿Sabías que podés pedirnos y te llega a la puerta de tu casa?" · qué días hacemos envíos · cómo pedir</div>' +
+        '<div class="campo"><div class="k">Web · 6 veces al mes, un día por semana que va variando</div>Productos de la web · la sección oferta · recursos de la web · productos en promo en el local que también están en la web</div>' +
+        '<div class="campo"><div class="k">Maquinarias · 1 por semana (4 al mes)</div>Semana 1: maquinarias para panadería · semana 2: para pastelería · semana 3: todo lo que es maquinaria · semana 4: el sector de maquinaria</div>' +
+        '<div class="campo"><div class="k">Oferta del mes</div>La primera semana del mes, en feed</div>' +
+        '<div class="campo"><div class="k">Pedidos</div>Día 1: la promo del mes al project (si no la pasa, pedila en el canal de la marca) · al cliente: cuáles son las maquinarias de panadería y de pastelería · qué ofertas se mueven en el mes</div>' +
+        '<div class="campo"><div class="k">Aprendizaje</div>"Me funcionaron los juegos en historias" → mover más juegos: 2 por semana</div>' },
+    { ic: '🔔', cuando: 'Día 1 de cada mes', t: 'El panel te <b>avisa</b> qué viene', bajada: 'El primer día hábil del mes te llega por Discord qué campañas tenés este mes y cuáles el mes que viene, sacadas del calendario anual de la marca. Con eso arranca el plan del mes que viene.',
+      que: ['"Este mes tenés… El mes que viene tenés…", con el nivel de cada campaña.', 'Si no hay campañas: <b>organizá el mes con tus tópicos fijos</b> (la ficha).', 'Las N1 y N2 llevan brainstorming: programala con tiempo y avisale al equipo 24 h antes.'],
+      donde: 'Discord (privado) y Plan → Campañas', vis: 'aviso',
+      ej: J + '<div class="voz">"Che, el mes que viene es el Día del Dulce de Leche. Tengo que hacer algo para el Día del Dulce de Leche. ¿Qué nivel de campaña es? Nivel 2, ok, listo."</div><div class="campo"><div class="k">Por qué Isco</div>Isco vende Vacalín, el distribuidor oficial de dulce de leche: la fecha le queda perfecta.</div>' },
+    { ic: '🎯', cuando: 'Día 1 de cada mes', t: '¿La <b>atacamos</b>?', bajada: 'Por cada fecha del calendario anual decidís si se ataca. Si no, el motivo es obligatorio y Joaquín lo aprueba o lo rechaza.',
+      que: ['<b>La atacamos</b>: pasa al plan del mes.', '<b>No la atacamos</b> + motivo (ej.: "el cliente dijo que no", "no tiene relación con la marca").', 'Si Joaquín rechaza el descarte, vuelve como campaña a planificar y te llega el aviso.'],
+      donde: 'Plan → Campañas', vis: 'decision',
+      ej: J + '<div class="campo"><div class="k">Día del Dulce de Leche · N2</div><span class="chip si">La atacamos</span> Isco vende dulce de leche: sí o sí.</div><div class="campo"><div class="k">Día del Vegetariano (ejemplo de descarte)</div><span class="chip no">No la atacamos</span> "No tiene nada que ver con la marca". Lo revisa Joaquín.</div>' },
+    { ic: '🔍', cuando: 'Plan del mes · paso 1', t: 'Mirá a la <b>competencia</b>', bajada: 'Entre 3 y 5 marcas del nicho (competencia o referencias que te sirvan de inspiración). Por cada una, qué hizo para esa fecha. Con menos de 3 no avanza.',
+      que: ['Entrá a su Instagram y a la biblioteca de anuncios de Meta.', 'Anotá <b>qué hizo cada una</b>: formato, idea, promo, colaboración.', 'Buscá lo que te sirva para tu marca, no para copiar.'],
+      regla: '<b>Excluyente:</b> sin 3 referencias con lo que hizo cada una, el plan no sigue.', donde: 'Plan → Campañas → Armar el plan', vis: 'comp',
+      ej: J + '<div class="voz">"Entro a Vacalín, entro a Apuratos, entro a otras panaderías, entro a otras competencias que me puedan servir de inspiración: qué hacen para el Día del Dulce de Leche, qué hicieron el año pasado, cómo lo manejaron."</div><div class="chips"><span class="chip y">Vacalín</span><span class="chip y">Apuratos</span><span class="chip">otras panaderías</span><span class="chip">otras competencias</span></div>' },
+    { ic: '📈', cuando: 'Plan del mes · paso 2', t: 'Qué hicimos el <b>año pasado</b>', bajada: 'Qué se publicó, por dónde (feed, historias, activación) y cómo funcionó. Si la marca es nueva, qué hizo la marca. Si no se hizo nada, se marca.',
+      que: ['Mirá tus métricas y tus reportes del año pasado.', 'Por feed, por historias, activaciones: qué sirvió y qué no.', 'Opción válida: <b>"No se hizo nada"</b>.'],
+      donde: 'Plan del mes · paso 2', vis: 'metricas',
+      ej: J + '<div class="voz">"Veo cosas que nos sirvieron a nosotros, veo nuestras métricas: che, el año pasado qué hicimos para el Día del Dulce de Leche, cómo lo manejamos, de qué manera publicamos, por historia, por feed."</div>' },
+    { ic: '💡', cuando: 'Plan del mes · paso 3', t: 'Todas las <b>ideas</b>', bajada: 'Una lista libre con todo lo que se te ocurra para mover la fecha. Si querés ayuda, el botón Preguntale a Claude se abre con la marca, la fecha, la competencia y el año pasado ya escritos.',
+      que: ['Promos, reels, carruseles, historias, recetas, colaboraciones, acciones en el local o en la web.', 'Lo que te sugiere Claude es ayuda: las ideas son tuyas.', 'Pensá en la marca: lo que funciona para una no siempre sirve para otra.'],
+      donde: 'Plan del mes · paso 3', vis: 'ideas',
+      ej: J + '<div class="chips">' + ['Subir promos', 'Reel: los beneficios del dulce de leche', 'Reel o carrusel: las diferencias entre dulces de leche y para qué usar cada uno', 'Receta con dulce de leche', 'Activación: mandar muestras a influencers o panaderos para que hagan algo, nos etiqueten y suban un video en colaboración', 'Que muestren o regalen dulce de leche', 'Degustación en el local', 'Historias sobre los distintos tipos de dulce de leche', 'Pedir promos y descuentos', 'Sección de la web solo de dulce de leche', 'Preguntar qué dulce de leche conviene mover'].map((x, i) => '<span class="chip pz" style="--i:' + i + '">' + x + '</span>').join('') + '</div>' },
+    { ic: '🎨', cuando: 'Plan del mes · paso 4', t: '¿Necesita <b>producción</b>?', bajada: 'Tres preguntas de sí o no. Cada "sí" se convierte en una tarjeta para Diseño con su etiqueta. Si dudás, preguntale al project: "¿lo hacemos o no?".',
+      que: ['¿Estética especial para la campaña?', '¿Banners para la web?', '¿Cartelería para el local?'],
+      regla: 'El social media es quien regula esto: lo anota, lo confirma y lo manda a cada puesto.', donde: 'Plan del mes · paso 4', vis: 'prod',
+      ej: J + '<div class="campo"><div class="k">Estética especial</div><span class="chip no">No</span> "En este caso no la necesito. Si fuera Halloween, sí: ambientar la gráfica."</div><div class="campo"><div class="k">Banners para la web</div><span class="chip si">Sí</span> "Vamos a tener promo el Día del Dulce de Leche: ya sé que al diseñador le tengo que pedir banners."</div><div class="campo"><div class="k">Cartelería para el local</div><span class="chip si">Sí</span> "Vamos a tener promos en la parte de dulce de leche: cartelitos para el local."</div>' },
+    { ic: '📨', cuando: 'Plan del mes · paso 5', t: 'Qué hay que <b>pedir</b>', bajada: 'Lo que necesitás del cliente o lo que tenés que consultarle al project para poder hacerlo. Cada pedido queda como tarjeta con fecha límite, así no se pierde.',
+      que: ['Al cliente: precios, productos, descuentos, fotos, material.', 'Al project: lo que tenés que confirmar antes de avanzar.', 'Siempre con fecha: "para el…".'],
+      donde: 'Plan del mes · paso 5', vis: 'pedidos',
+      ej: J + '<div class="campo"><div class="k">Para la campaña</div>¿Qué descuentos vamos a tener el Día del Dulce de Leche? · ¿Qué productos se van a mover? · ¿Hay algún dulce de leche que quieran mover más que otro? (así hacemos foco: ofertas en la web y en el local, flyers y más comunicación sobre ese)</div><div class="campo"><div class="k">Para el resto del mes</div>Cuáles son las maquinarias de panadería y de pastelería · qué ofertas vamos a mover en el mes (para la promo del día y la web)</div>' },
+    { ic: '🗓️', cuando: 'Plan del mes · paso 6', t: 'La <b>distribución</b>', bajada: 'De todas las ideas, cuáles se hacen y cuándo: la semana previa, la semana de la fecha o después. Cada línea se convierte en una tarjeta en "Para mover en el mes", con su fecha.',
+      que: ['N2: alcanza con arrancar una semana antes. N1 o fechas como Navidad: mucho antes.', 'La semana de la fecha es la fuerte: ahí va el video y la activación.', 'El resto del mes lo llenan los tópicos fijos de la ficha.'],
+      donde: 'Plan del mes · paso 6', vis: 'calendario',
+      ej: J + '<div class="semana"><div class="s">Sem 1<small>previa</small></div><div>Tentativa: se empieza a anticipar el Día del Dulce de Leche y se sigue comunicando lo de siempre. No se mueve 15 días antes: es N2.</div></div><div class="semana"><div class="s">Sem 2<small>la fecha</small></div><div>Todo enfocado en el Día del Dulce de Leche: carruseles, sale el video y se hace la activación con influencers.</div></div><div class="semana"><div class="s">Sem 3 y 4<small>después</small></div><div>Los tópicos fijos de la semana: promo del día, envíos, web, maquinarias.</div></div>' },
+    { ic: '🧠', cuando: 'N1 y N2', t: 'Programá la <b>brainstorming</b>', bajada: 'Las campañas grandes llevan brainstorming con el equipo, con un mes y medio de anticipación. También sirve para cosas que aparecen de golpe (un lanzamiento en 15 días).',
+      que: ['Cargala en la página de Brainstormings.', 'Avisale al equipo con 24 h de anticipación.', 'Lo que salga se suma a las ideas del plan.'],
+      donde: 'Ideas (Brainstormings)', vis: 'brain',
+      ej: J + '<div class="voz">"Acordate de entrar a la página de brainstorming y avisarle al equipo con 24 horas de anticipación. Programá esta brainstorming, que viene una campaña de nivel 1 o nivel 2."</div>' },
+    { ic: '🗂️', cuando: 'Al terminar el plan', t: 'Se crean las <b>tarjetas</b>', bajada: 'Al terminar, el panel crea solo las tarjetas en la lista "Para mover en el mes" del SCL. Desde ahí las pasás al calendario como siempre.',
+      que: ['🎯 Una por cada pieza de la distribución, con su fecha.', '🎨 Una por cada "sí" de producción, con la etiqueta Diseño (al aprobarla sigue a Diseño).', '📨 Una por cada pedido, con su fecha límite.', '📌 Y cada mes, los tópicos fijos de la ficha con sus ángulos.'],
+      regla: 'El plan de un mes se cierra en la <b>última entrega de calendario antes de que empiece</b>. Si no está, te llega el aviso y, al otro día, a Joaquín.', donde: 'Trello → SCL → Para mover en el mes', vis: 'trello',
+      ej: J + '<p style="font-size:14px;color:#d6d6d6">Así le quedarían a Isco las tarjetas del Día del Dulce de Leche (las de la derecha). Con eso, el calendario de la semana 2 ya está pensado antes de empezar el mes.</p>' },
+    { ic: '📦', cuando: 'Lunes y viernes', t: 'Las <b>entregas</b>', bajada: 'Las fechas están en el calendario de Ideamia. El panel revisa solo, esa noche, si la entrega quedó cumplida.',
+      que: ['<b>Viernes · calendario</b>: cargado hasta la misma fecha del mes siguiente (si entregás el 16/10, hasta el 16/11).', '<b>Lunes · reels</b>: la primera entrega, los reels del mes que viene.', '<b>Lunes siguiente · plan B</b>: el plan B de cada uno de esos reels y cómo vienen los del mes.'],
+      regla: 'Dos días antes te llega el recordatorio. Si queda incumplida, aviso esa noche y, al día siguiente, a Joaquín.', donde: 'Plan → Cumplimiento', vis: 'entregas',
+      ej: J + '<div class="voz">"Yo entrego el 1 de enero y tengo que completar hasta el 1 de febrero. El 15 de enero, hasta el 15 de febrero. Siempre un mes adelantado en cada entrega."</div><div class="voz">"El 1 te entrego los reels que vamos a publicar el mes que viene. El 15, el plan B de esos contenidos y cómo está la situación de los de este mes."</div>' },
+    { ic: '🛟', cuando: 'Cada reel', t: 'Siempre un <b>plan B</b>', bajada: 'Cada reel tiene un plan B específico: qué se publica en su lugar, qué día y con qué material. No puede depender de lo mismo que el reel original.',
+      que: ['Si el reel depende de un influencer, del cliente o de un proveedor, el plan B se hace con recursos propios: Bauti, diseño o material ya grabado.', 'Puede ser un carrusel, otro reel o extender otro video.', 'Un plan B genérico no cuenta.'],
+      regla: 'Pasó en Gabriel Varisco el Día del Pan: la panadería se bajó una semana antes y el panadero se quemó la mano el día de la producción. Sin plan B, el video no salió.', donde: 'Lista "Plan B" del SCL (llega en la próxima fase)', vis: 'planb',
+      ej: J + '<div class="campo"><div class="k">Reel · activación con influencers</div>Depende de que los influencers suban el video.</div><div class="campo" style="border-color:rgba(92,227,138,.4)"><div class="k">Plan B · mismo día</div>Carrusel "Qué dulce de leche usar para cada cosa", con fotos de Bauti en el local. No depende de nadie de afuera.</div><p class="nota">Este plan B es una propuesta de ejemplo: Joaquín no lo detalló para esta fecha.</p>' },
+    { ic: '🔁', cuando: 'Cada semana', t: 'La semana a <b>semana</b>', bajada: 'Con el plan armado, el día a día es más simple: el panel te recuerda lo que hay que pedir, lo que tenés que mover y cómo vas.',
+      que: ['Pedidos de la ficha: te llegan el día anterior.', 'Tópicos de afuera de Instagram (canal de WhatsApp, comunicación interna): aviso el día que tocan.', 'Lunes: aprendizajes activos ("acordate de mover más juegos: calendarizalo") y la pauta de la semana.', 'Inputs de Joaquín: procesados en 24 h.'],
+      donde: 'Discord y Plan → Para hacer', vis: 'semana',
+      ej: J + '<div class="voz">"Así ordenan todos los meses. Si el mes que viene no hay nada, ya tengo una estructura: maquinarias cuatro veces al mes con estos ángulos, la promo del día toda la semana, los envíos, las ofertas, y la primera semana la oferta del mes en feed."</div>' },
+    { ic: '✅', cuando: 'Listo', t: 'El mes, <b>armado</b>', bajada: 'Así queda el mes de Isco con el Día del Dulce de Leche: la campaña en la semana 2 y los tópicos fijos repartidos en todas las semanas.',
+      que: ['Primero la ficha (una vez).', 'Cada mes: aviso, elegir, plan por campaña, tarjetas.', 'Cada semana: tópicos, pedidos, entregas y plan B.', 'Todo se mide solo en Plan → Cumplimiento.'],
+      vis: 'mes', final: true,
+      ej: J + '<div class="voz">"Me gustaría que lo estructuren, lo armen y tengan la herramienta. Su trabajo va a ser más fácil, lo van a poder gestionar mejor y van a estar más organizados."</div>' }
+  ];
+  /* ---------- visuales animados de cada escena ---------- */
+  const fl = (arr) => '<div class="flujo">' + arr.map((x, i) => '<div class="fl pz' + (x[3] ? ' y' : '') + '" style="--i:' + i + '"><span class="ic">' + x[0] + '</span><div><b>' + x[1] + '</b><span>' + x[2] + '</span></div></div>').join('') + '</div>';
+  function calMes(soloDDL) {
+    // octubre 2026 arranca jueves; se muestran 4 semanas de lunes a domingo (5/10 al 1/11)
+    const D = ['L', 'M', 'X', 'J', 'V', 'S', 'D'], P = {};
+    const add = (d, cl, t) => (P[d] = P[d] || []).push([cl, t]);
+    if (!soloDDL) {
+      [7, 10, 14, 17, 21, 24, 28, 31].forEach(d => add(d, 'pro', 'Promo del día'));
+      [6, 15, 27].forEach(d => add(d, 'env', 'Envíos'));
+      [5, 9, 13, 19, 23, 30].forEach(d => add(d, 'web', 'Web'));
+      [[8, 'Maq. panadería'], [16, 'Maq. pastelería'], [22, 'Maquinarias'], [29, 'Sector maq.']].forEach(x => add(x[0], 'maq', x[1]));
+      add(5, 'of', 'Oferta del mes');
+    }
+    [[6, 'Tentativa DDL'], [9, 'Historias tipos DDL'], [11, 'DÍA DEL DULCE DE LECHE'], [12, 'Reel beneficios'], [13, 'Carrusel diferencias'], [14, 'Colab influencers'], [10, 'Receta'], [16, 'Degustación']].forEach(x => add(x[0], 'ddl', x[1]));
+    let h = '<div class="cal">' + D.map(d => '<div class="d">' + d + '</div>').join(''), k = 0;
+    for (let d = 5; d <= 32; d++) {
+      const n = d > 31 ? 1 : d, L = P[d] || [];
+      h += '<div class="c' + (d === 11 ? ' hoy' : '') + '"><span class="n">' + n + '</span>' + L.map(x => '<span class="p ' + x[0] + '" style="--i:' + (k++) + '">' + x[1] + '</span>').join('') + '</div>';
+    }
+    return h + '</div><div class="ley"><span><i style="background:var(--y)"></i>Día del Dulce de Leche</span>' + (soloDDL ? '' : '<span><i style="background:var(--pink)"></i>Promo del día</span><span><i style="background:var(--sky)"></i>Envíos</span><span><i style="background:var(--ok)"></i>Web</span><span><i style="background:var(--warn)"></i>Maquinarias</span>') + '</div>';
+  }
+  const tarjetas = L => '<div class="trello"><div class="h">Para mover en el mes · SCL Isco</div>' + L.map((x, i) => '<div class="tc" style="--i:' + i + '">' + (x[2] ? '<span class="lb">' + x[2] + '</span>' : '') + x[0] + '<small>' + x[1] + '</small></div>').join('') + '</div>';
+  const VIS = {
+    camino: () => {
+      const N = [['📋', 'Ficha', 'una vez'], ['🔔', 'Aviso', 'día 1'], ['🎯', 'Elegir', 'día 1'], ['🧭', 'Plan', '6 pasos'], ['🗂️', 'Tarjetas', 'solas'], ['📦', 'Entregas', 'lun y vie'], ['🛟', 'Plan B', 'cada reel'], ['🔁', 'Semana', 'siempre']];
+      const pts = N.map((_, i) => { const r = Math.floor(i / 4), c = i % 4, x = r % 2 ? 420 - c * 120 + 30 : 60 + c * 120; return [x, 60 + r * 150]; });
+      let d = 'M' + pts[0][0] + ' ' + pts[0][1];
+      for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; d += a[1] === b[1] ? ' L' + b[0] + ' ' + b[1] : ' C' + (a[0] + 90) + ' ' + a[1] + ' ' + (b[0] + 90) + ' ' + b[1] + ' ' + b[0] + ' ' + b[1]; }
+      return '<svg class="camino" viewBox="0 0 520 330"><path d="' + d + '" stroke="#262626" stroke-width="3" fill="none"/><path class="l" d="' + d + '"/>' + N.map((n, i) => '<g class="n" style="--i:' + i + '"><circle cx="' + pts[i][0] + '" cy="' + pts[i][1] + '" r="24" fill="#1C1C1C" stroke="#FFF200" stroke-width="2"/><text x="' + pts[i][0] + '" y="' + (pts[i][1] + 6) + '" text-anchor="middle" font-size="18">' + n[0] + '</text><text x="' + pts[i][0] + '" y="' + (pts[i][1] + 46) + '" text-anchor="middle">' + n[1] + '</text><text class="s" x="' + pts[i][0] + '" y="' + (pts[i][1] + 61) + '" text-anchor="middle">' + n[2] + '</text></g>').join('') + '</svg>';
+    },
+    ficha: () => fl([['📌', 'Tópicos fijos', 'qué días · cuántas veces · 5 ángulos'], ['📨', 'Pedidos recurrentes', 'qué · a quién · cuándo · si no responde'], ['💡', 'Aprendizajes', 'de los reportes: más, menos, dejar'], ['✅', 'Joaquín la aprueba', 'y queda como base de todos los meses', 1]]),
+    aviso: () => fl([['🗓️', 'Calendario anual', 'de cada marca'], ['🔔', 'Privado de Discord, día 1', '"Este mes tenés… El mes que viene…"', 1], ['🧭', 'Se abre el plan del mes que viene', 'Plan → Campañas']]),
+    decision: () => fl([['🎯', 'Día del Dulce de Leche · N2', 'La atacamos → pasa al plan', 1], ['🚫', 'Día del Vegetariano · N3', 'No la atacamos + motivo'], ['👀', 'Joaquín revisa el descarte', 'lo aprueba o pide atacarla']]),
+    comp: () => fl([['1', 'Marca 1', 'qué hizo para la fecha'], ['2', 'Marca 2', 'qué hizo para la fecha'], ['3', 'Marca 3', 'qué hizo para la fecha', 1], ['＋', 'Hasta 5', 'competencia o referencias']]),
+    metricas: () => fl([['📊', 'Métricas y reportes', 'del año pasado'], ['🖼️', 'Feed · historias · activaciones', 'qué se publicó y por dónde'], ['✔️', 'Qué funcionó y qué no', 'o "no se hizo nada"', 1]]),
+    ideas: () => fl([['✍️', 'Tus ideas', 'una por línea, sin filtro'], ['✦', 'Preguntale a Claude', 'se abre con todo ya escrito, sin créditos'], ['🧩', 'Elegís las que sirven', 'pensando en la marca', 1]]),
+    prod: () => fl([['🖌️', 'Estética especial', 'sí o no'], ['🖥️', 'Banners para la web', 'sí o no'], ['🪧', 'Cartelería para el local', 'sí o no'], ['🎨', 'Cada sí → tarjeta para Diseño', 'con la etiqueta Diseño', 1]]),
+    pedidos: () => fl([['🏪', 'Al cliente', 'precios, productos, descuentos, material'], ['🧑‍💼', 'Al project', 'lo que hay que confirmar'], ['⏰', 'Con fecha límite', 'cada uno es una tarjeta', 1]]),
+    calendario: () => calMes(true),
+    brain: () => fl([['📆', '45 días antes', 'campañas N1 y N2'], ['💬', 'Aviso al equipo', '24 h antes'], ['💡', 'Lo que sale', 'se suma a las ideas', 1]]),
+    trello: () => tarjetas([['🎯 Día del Dulce de Leche · Tentativa en historias', 'mar 06/10 · semana previa'], ['🎯 Día del Dulce de Leche · Reel beneficios', 'lun 12/10 · semana de la fecha'], ['🎯 Día del Dulce de Leche · Colab con influencers', 'mié 14/10 · semana de la fecha'], ['🎨 Día del Dulce de Leche · Banners para la web', 'vence 04/10', 'Diseño'], ['🎨 Día del Dulce de Leche · Cartelería para el local', 'vence 04/10', 'Diseño'], ['📨 Pedir al cliente: qué dulce de leche mover más', 'para el 28/09']]),
+    entregas: () => fl([['📅', 'Viernes · calendario', 'hasta la misma fecha del mes siguiente'], ['🎬', 'Lunes · reels', 'los del mes que viene'], ['🛟', 'Lunes siguiente · plan B', 'uno por reel, específico', 1], ['🌙', 'Esa noche, el panel revisa', 'cumplida o incumplida']]),
+    planb: () => fl([['🎬', 'Reel con un tercero', 'influencer, cliente, proveedor'], ['⚠️', 'Se cae', 'cancelan, no llega el material'], ['🛟', 'Plan B con recursos propios', 'Bauti, diseño o material grabado', 1], ['📅', 'Mismo día, sin hueco', 'el calendario no se rompe']]),
+    semana: () => fl([['📨', 'Mañana pedís…', 'según la ficha'], ['📌', 'Tópicos de afuera de Instagram', 'aviso el día que tocan'], ['💡', 'Lunes: aprendizajes y pauta', '"calendarizalo"'], ['⏱️', 'Inputs en 24 h', 'los marca el panel', 1]]),
+    mes: () => calMes(false)
+  };
+  /* ---------- motor del recorrido ---------- */
+  const stage = document.getElementById('stage'), nodos = document.getElementById('nodos'), sw = document.getElementById('ejsw');
+  const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
+  let i = Math.min(Math.max(Number((location.hash.match(/\d+/) || [0])[0]) || 0, 0), E.length - 1), ejemplo = ls.get('rec:ej') === '1', abiertos = {};
+  nodos.innerHTML = E.map((e, k) => '<button class="nodo" data-k="' + k + '" title="' + e.t.replace(/<[^>]+>/g, '') + '"><i>' + e.ic + '</i><b></b></button>').join('');
+  function pintar(dir) {
+    const e = E[i], verEj = ejemplo || abiertos[i];
+    stage.innerHTML = '<section class="esc anim ' + (dir ? (dir > 0 ? 'entra-der' : 'entra-izq') : '') + '"><div>' +
+      '<span class="cuando">' + e.ic + ' ' + e.cuando + '</span>' + (i === 0 ? '<h1>' + e.t + '</h1>' : '<h2>' + e.t + '</h2>') + '<p class="bajada">' + e.bajada + '</p>' +
+      '<ul class="lista">' + e.que.map((q, k) => '<li class="pz" style="--i:' + k + '">' + q + '</li>').join('') + '</ul>' +
+      (e.regla ? '<div class="regla pz" style="--i:' + e.que.length + '">' + e.regla + '</div>' : '') +
+      (e.donde ? '<p style="color:var(--mu);font-size:13px;margin:12px 0 0">📍 Dónde: <b style="color:var(--tx)">' + e.donde + '</b></p>' : '') +
+      '<button class="panel-btn' + (verEj ? ' off' : '') + '" id="verej">' + (verEj ? '← Volver al paso' : '👀 Ver el ejemplo de Isco') + '</button>' +
+      (e.final ? ' <a class="panel-btn off" style="text-decoration:none" href="../">Ir a Plan →</a>' : '') +
+      '</div><div class="vis' + (verEj ? ' ej' : '') + '">' + (verEj ? e.ej : '<span class="tag">' + (i + 1) + ' / ' + E.length + '</span>' + VIS[e.vis]()) + '</div></section>';
+    nodos.querySelectorAll('.nodo').forEach((n, k) => { n.classList.toggle('on', k === i); n.classList.toggle('hecho', k < i); });
+    const on = nodos.children[i]; if (on) on.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    document.getElementById('pg').style.width = ((i + 1) / E.length * 100) + '%';
+    document.getElementById('cnt').textContent = (i + 1) + ' / ' + E.length;
+    document.getElementById('atras').disabled = i === 0;
+    const s = document.getElementById('sig'); s.textContent = i === E.length - 1 ? 'Volver a empezar ↺' : 'Siguiente →';
+    sw.classList.toggle('on', ejemplo);
+    document.getElementById('verej').onclick = () => { if (ejemplo) { ejemplo = false; ls.set('rec:ej', '0'); abiertos = {}; } else abiertos[i] = !abiertos[i]; pintar(); };
+    history.replaceState(null, '', '#' + i);
+    window.scrollTo({ top: 0, behavior: dir ? 'smooth' : 'auto' });
+  }
+  const ir = k => { if (k < 0 || k >= E.length || k === i) return; const dir = k > i ? 1 : -1, sec = stage.querySelector('.esc'); if (sec && !matchMedia('(prefers-reduced-motion: reduce)').matches) { sec.style.setProperty('--dx', dir > 0 ? '-30px' : '30px'); sec.classList.add('sale'); setTimeout(() => { i = k; pintar(dir); }, 220); } else { i = k; pintar(dir); } };
+  document.getElementById('atras').onclick = () => ir(i - 1);
+  document.getElementById('sig').onclick = () => i === E.length - 1 ? ir(0) : ir(i + 1);
+  nodos.onclick = ev => { const b = ev.target.closest('[data-k]'); if (b) ir(Number(b.dataset.k)); };
+  sw.onclick = () => { ejemplo = !ejemplo; abiertos = {}; ls.set('rec:ej', ejemplo ? '1' : '0'); pintar(); };
+  document.addEventListener('keydown', ev => { if (ev.key === 'ArrowRight') ir(i + 1); if (ev.key === 'ArrowLeft') ir(i - 1); });
+  let x0 = null; stage.addEventListener('touchstart', ev => { x0 = ev.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', ev => { if (x0 == null) return; const dx = ev.changedTouches[0].clientX - x0; if (Math.abs(dx) > 70) ir(i + (dx < 0 ? 1 : -1)); x0 = null; }, { passive: true });
+  pintar();
+})();
+</script>
+</body>
+</html>
