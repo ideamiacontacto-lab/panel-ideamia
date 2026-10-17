@@ -3209,7 +3209,7 @@ function okrVista_(quien, esProject) {
       const objetivos = p.objs.map((o, i) => Object.assign(okrCalcular_(o, reps, man, hoyS), { vale: Math.round((conPeso ? pesos[i] : total / p.objs.length) * 100) / 100 }));
       const cumplidos = objetivos.filter(o => o.cumplido);
       return { titulo: p.titulo, tipo: p.tipo, desde: p.desde, hasta: p.hasta, terminado: p.hasta < hoyS, abierto: p.desde <= hoyS && p.hasta >= hoyS, bono: total,
-        cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round(cumplidos.reduce((a, o) => a + o.vale, 0) * 100) / 100, objetivos: objetivos };
+        cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round((conPeso ? cumplidos.reduce((a, o) => a + o.vale, 0) : total * cumplidos.length / objetivos.length) * 100) / 100, objetivos: objetivos };
     }).sort((a, b) => (a.terminado - b.terminado) || a.hasta.localeCompare(b.hasta));
     return { slug: m.slug, nombre: m.nombre || m.slug, sm: m.sm, periodos: periodos };
   });
