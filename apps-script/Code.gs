@@ -3204,14 +3204,15 @@ function okrPorMes_(reps, marca, metrica, desde, hasta, manMes) {
   const mias = reps.filter(r => r.marca === marca);
   return meses.map(mes => {
     const men = mias.filter(r => r.tipo === 'mensual' && r.periodo === mes)[0];
-    const val = r => metrica === 'seg_netos' ? (okrNum_(r.d.seg_sumados) || 0) - (okrNum_(r.d.seg_perdidos) || 0)
+    // seg_nuevos: los seguidores que entraron en el mes, sin restar las bajas (para la conversión, pedido de Joaquín 17/10/2026)
+    const val = r => metrica === 'seg_netos' ? (okrNum_(r.d.seg_sumados) || 0) - (okrNum_(r.d.seg_perdidos) || 0) : metrica === 'seg_nuevos' ? okrNum_(r.d.seg_sumados)
       : metrica === 'contactos' ? okrNum_(r.d.m_contactos) : /^alcance/.test(metrica) ? okrNum_(r.d.m_alc_total) : null;
     if (men) return { mes: mes, v: val(men), fuente: 'mensual' };
-    const am = (manMes || {})[marca + '|' + (/^alcance/.test(metrica) ? 'alcance' : metrica) + '|' + mes];
+    const am = (manMes || {})[marca + '|' + (/^alcance/.test(metrica) ? 'alcance' : metrica === 'seg_nuevos' ? 'seg_netos' : metrica) + '|' + mes];   // a mano solo se cargan netos: es lo más cercano
     if (am) return { mes: mes, v: am.v, fuente: 'cargado a mano por ' + am.quien, aMano: true };
     // el reporte trimestral / semestral trae una fila por mes ("Julio 2026"): sirve si ese mes no tiene mensual ni dato a mano
     const MESES_ = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-    const col = metrica === 'seg_netos' ? 'netos' : metrica === 'contactos' ? 'cont' : 'alc';
+    const col = metrica === 'seg_netos' || metrica === 'seg_nuevos' ? 'netos' : metrica === 'contactos' ? 'cont' : 'alc';
     for (const r of mias.filter(x => x.tipo === 'periodico')) {
       const n = Number(okrNum_(r.d.mm_n) || 12);
       for (let i = 1; i <= n; i++) {
@@ -3221,7 +3222,7 @@ function okrPorMes_(reps, marca, metrica, desde, hasta, manMes) {
         if (v != null) return { mes: mes, v: v, fuente: 'reporte ' + (n >= 6 ? 'semestral' : 'trimestral'), deTrimestral: true };
       }
     }
-    if (metrica === 'seg_netos') {
+    if (metrica === 'seg_netos' || metrica === 'seg_nuevos') {
       const sem = mias.filter(r => r.tipo === 'sm' && r.periodo.slice(0, 7) === mes);
       if (sem.length) return { mes: mes, v: sem.reduce((a, r) => a + val(r), 0), fuente: sem.length + ' semanal' + (sem.length > 1 ? 'es' : ''), parcial: true };
     }
@@ -3306,6 +3307,16 @@ function okrVista_(quien, esProject) {
     const periodos = Object.keys(pers).map(k => {
       const p = pers[k], total = bono[p.tipo] || bono.trimestral, pesos = p.objs.map(o => o.peso), conPeso = pesos.every(x => x != null);
       const objetivos = p.objs.map((o, i) => Object.assign(okrCalcular_(o, reps, man, hoyS, manMes), { vale: Math.round((conPeso ? pesos[i] : total / p.objs.length) * 100) / 100 }));
+      // Conversión = seguidores netos del período / alcance total del período (Joaquín, 17/10/2026): se toman los dos objetivos
+      // del mismo período. Si falta alguno de los dos números, queda el cálculo mes a mes de okrCalcular_ como aproximación.
+      const segO = objetivos.filter(x => x.metrica === 'seg_netos')[0], alcO = objetivos.filter(x => /^alcance/.test(x.metrica))[0];
+      objetivos.filter(x => x.metrica === 'conversion').forEach(x => {
+        if (!segO || !alcO || segO.logrado == null || !alcO.logrado) { x.aproximado = true; return; }
+        x.logrado = Math.round(segO.logrado / alcO.logrado * 1000) / 10; x.faltanDatos = [];
+        x.calculo = 'Seguidores netos del período (' + Math.round(segO.logrado).toLocaleString('es-AR') + ') ÷ alcance del período (' + Math.round(alcO.logrado).toLocaleString('es-AR') + ')';
+        x.nota = x.calculo + '. ' + (x.nota || '');
+        const llego = x.logrado >= x.meta; x.cumplido = llego && p.hasta < hoyS; x.enCamino = llego && !x.cumplido; x.atrasado = false;
+      });
       const cumplidos = objetivos.filter(o => o.cumplido);
       // reporte del período (trimestral / semestral / anual de Reportes): su período es "2026-10+3" (mes de inicio + cantidad de meses); vale el que termina el mismo mes
       const repPer = reps.some(r => r.tipo === 'periodico' && r.marca === m.slug && (() => { const x = /^(\d{4})-(\d{2})\+(\d+)$/.exec(r.periodo); if (!x) return false; const fin = new Date(+x[1], +x[2] - 1 + +x[3] - 1, 1); return Utilities.formatDate(fin, TZ, 'yyyy-MM') === p.hasta.slice(0, 7); })());
