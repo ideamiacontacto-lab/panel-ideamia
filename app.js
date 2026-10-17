@@ -394,7 +394,7 @@
     const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || (x.tipo === 'guion' && !/^sf/.test(x.sub || '')))
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : x.sub === 'sfvid' ? I.reel : x.sub === 'sfdis' ? I.grid : x.sub === 'cum' ? I.star : x.tipo === 'guion' ? I.pen : I.inbox) + '</span>'
       : '<button class="chk" data-check="' + esc(x.k) + '" aria-label="Marcar como hecho">' + I.check + '</button>';
-    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div class="acc">' + (!done && x.k && !esRevisa() ? '<button class="star' + (esPrio(x.k) ? ' on' : '') + '" data-star="' + esc(x.k) + '" title="Prioridad de hoy">' + (esPrio(x.k) ? '★' : '☆') + '</button>' : '') + accion + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + chk + '<div><div class="tt">' + ((x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="lnk" ' + (x.tipo === 'input' ? 'data-det-input' : 'data-card-det') + '="' + esc(x.obj.id) + '">' + esc(x.t) + '</button>' : esc(x.t)) + '</div><div class="mt">' + tagM(x.marca) + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + (done && x.obj.estado && x.obj.estado.fecha ? '<span>hecho ' + hace(x.obj.estado.fecha) + '</span>' : '') + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div class="acc">' + (!done && x.k && !esRevisa() ? '<button class="star' + (esPrio(x.k) ? ' on' : '') + '" data-star="' + esc(x.k) + '" title="Prioridad de hoy">' + (esPrio(x.k) ? '★' : '☆') + '</button>' : '') + (!done && (x.tipo === 'card' || x.tipo === 'input') && x.obj.id ? '<button class="rc-bell" data-rec="' + esc(x.obj.id) + '" title="Recordame esta tarjeta">🔔</button>' : '') + accion + '</div></div>';
   }
   function vHoy(t) {
     const pend = t.filter(x => !hecho(x.obj)), done = t.filter(x => hecho(x.obj));
@@ -1855,6 +1855,12 @@
     root.querySelectorAll('[data-pliegue]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.pliegue] = !S.abiertos[b.dataset.pliegue]; render(); });
     root.querySelectorAll('[data-det-input]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.detInput); if (c) detalleInput(c); });
     root.querySelectorAll('[data-recordar]').forEach(b => b.onclick = () => recordar(b.dataset.id, b.dataset.recordar));
+    // campanita de cada tarjeta: recordatorio personal (recordatorios.js), por Discord y/o en el panel
+    root.querySelectorAll('[data-rec]').forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      const c = ((S.data && S.data.cards) || []).find(x => x.id === b.dataset.rec) || {};
+      if (window.Recordatorios) window.Recordatorios.abrir({ id: b.dataset.rec, n: c.n || 'Tarjeta', url: c.url || '', due: c.due || '', marca: (c.m || [])[0] || '' });
+    });
     root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
     root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
