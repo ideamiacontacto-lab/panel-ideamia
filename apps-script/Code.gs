@@ -2888,7 +2888,7 @@ function avisarAdsTodos() {
    3. Cada 10 minutos reunionesProcesar() toma los audios nuevos, Gemini transcribe y resume, y el resumen se publica en el
       canal de Discord del webhook. El resumen y la transcripción completa quedan como .txt en "Reuniones · resúmenes".
    Claves (NUNCA en el código): menú del Sheet "Cargar la clave de Gemini" y "Cargar el webhook de reuniones".
-   Config opcional: GEMINI_MODELO (por defecto gemini-2.5-flash) y REUNIONES_CRAIG (carpeta de Craig si no es la "Craig" de esta cuenta). Cada audio se procesa una sola vez (propiedad REUNIONES_HECHOS);
+   Config opcional: GEMINI_MODELO (por defecto gemini-3.8-flash) y REUNIONES_CRAIG (carpeta de Craig si no es la "Craig" de esta cuenta). Cada audio se procesa una sola vez (propiedad REUNIONES_HECHOS);
    si falla, se reintenta hasta 3 veces y el motivo queda en REUNIONES_NOTA. */
 function cargarClaveGemini() { cambiarClave_('GEMINI_KEY', 'Gemini · clave de la API (la de aistudio.google.com)'); }
 function cargarWebhookReuniones() { cambiarClave_('REUNIONES_WEBHOOK', 'Discord · URL del webhook del canal de resúmenes de reuniones'); }
@@ -2932,7 +2932,7 @@ function pistasReunion_(f) {
   const p = una(f.getBlob(), f.getName()); return p ? [p] : [];
 }
 function geminiAudio_(pistas) {
-  const key = P.getProperty('GEMINI_KEY'), modelo = String(config_().GEMINI_MODELO || 'gemini-2.5-flash').trim();
+  const key = P.getProperty('GEMINI_KEY'), modelo = String(config_().GEMINI_MODELO || 'gemini-3.8-flash').trim();
   const base = 'https://generativelanguage.googleapis.com';
   const subir = p => {
     const bytes = p.blob.getBytes();
@@ -3047,6 +3047,202 @@ function probarReuniones() {
   console.log('Último error: ' + (P.getProperty('REUNIONES_NOTA') || 'ninguno'));
 }
 
+/* ---------------- OKR por marca (página "Objetivos": solo social media de cada marca y el project) ----------------
+   Las metas viven en la pestaña "OKR" del Sheet (una fila por objetivo; Joaquín la edita). Lo logrado sale solo de los reportes
+   (Sheet de Reportes: mensual y semanal) y lo que no se puede calcular lo anota la social media en la página (archivo de Drive).
+   Métricas: seg_netos (sumados − perdidos), contactos, alcance_suma (suma de alcance de cada mes), alcance_esp (espectadores del
+   período en Meta: se anota a mano), reels (cantidad de reels con "umbral" views o más, orgánico + pauta), conversion (% seguidores
+   netos / alcance), manual (sí/no, p. ej. campañas). "base" = lo acumulado hasta "base_hasta" (antes de que existieran los reportes).
+   Bono: Config OKR_BONO_TRIMESTRAL / SEMESTRAL / ANUAL (20 / 40 / 70 % del salario de la marca) repartido parejo entre los objetivos
+   del período (o según "peso"). Se cobra la parte de cada objetivo cumplido. */
+const OKR_COLS = ['id', 'marca', 'periodo', 'tipo', 'desde', 'hasta', 'objetivo', 'metrica', 'meta', 'minimo_mes', 'umbral', 'base', 'base_hasta', 'peso', 'cerrado', 'nota'];
+function okrCrearPestana() {
+  const ss = SpreadsheetApp.getActive(); let h = ss.getSheetByName('OKR');
+  if (h) return console.log('La pestaña OKR ya existe: no se toca. Filas: ' + (h.getLastRow() - 1));
+  h = ss.insertSheet('OKR');
+  const T = ['tritato', 'Trimestral octubre a diciembre 2026', 'trimestral', '2026-10-01', '2026-12-31'];
+  const S = ['tritato', 'Semestral junio a diciembre 2026', 'semestral', '2026-07-01', '2026-12-31'];
+  const filas = [
+    ['trit-t4-seg'].concat(T, ['Seguidores netos: 3.300 en el trimestre y mínimo 900 cada mes', 'seg_netos', 3300, 900, '', '', '', '', '', 'Colaboraciones cuentan. Vale pauta.']),
+    ['trit-t4-cont'].concat(T, ['Contactos nuevos: 360 en el trimestre y mínimo 100 cada mes', 'contactos', 360, 100, '', '', '', '', '', 'Si se cumple, también cierra el de contactos del semestral.']),
+    ['trit-t4-alc'].concat(T, ['Alcance: 150.000 espectadores del trimestre', 'alcance_esp', 150000, '', '', '', '', '', '', 'Meta Business Suite > Estadísticas > Resultados > Instagram, del 1/10 a hoy: número de Espectadores. No se suman meses.']),
+    ['trit-t4-reels'].concat(T, ['5 reels con 70.000 views o más', 'reels', 5, '', 70000, '', '', '', '', 'Se cuentan views totales (orgánico + pauta) de los reels cargados en los reportes.']),
+    ['trit-t4-camp'].concat(T, ['Campaña Nivel 1 de Navidad / Fin de año', 'manual', 1, '', '', '', '', '', '', 'Reel de 100.000 views o más, carrusel de 300 me gusta o más y 40 contactos nuevos en la semana de la campaña.']),
+    ['trit-s2-seg'].concat(S, ['Seguidores netos (jul a dic): 4.000', 'seg_netos', 4000, '', '', '', '', '', 'si', 'Cumplido en agosto (colaboración con Agus Bulacios).']),
+    ['trit-s2-cont'].concat(S, ['Contactos nuevos (jul a dic): 800', 'contactos', 800, '', '', 628, '2026-09-30', '', '', '628 acumulados a septiembre.']),
+    ['trit-s2-alc'].concat(S, ['Alcance acumulado (jul a dic, sumando meses): 450.000', 'alcance_suma', 450000, '', '', 292200, '2026-09-30', '', '', 'Este semestral se mide sumando el alcance de cada mes (excepción de 2026).']),
+    ['trit-s2-conv'].concat(S, ['Conversión alcance → seguidores: 1,3 % o más', 'conversion', 1.3, '', '', '', '', '', 'si', 'Cumplido.']),
+    ['trit-s2-n1'].concat(S, ['Campaña Nivel 1 (mínimo 1, obligatoria)', 'manual', 1, '', '', '', '', '', '', 'Desde octubre: reel 100.000 views, carrusel 300 me gusta y 40 contactos en la semana. La de Navidad del trimestral la cierra.']),
+    ['trit-s2-n2'].concat(S, ['Campañas Nivel 2 (al menos 2)', 'manual', 2, '', '', '', '', '', 'si', 'Cumplidas: Mundial y Día del Niño.'])
+  ];
+  h.getRange(1, 1, 1, OKR_COLS.length).setValues([OKR_COLS]).setFontWeight('bold');
+  h.getRange(2, 1, filas.length, OKR_COLS.length).setValues(filas);
+  h.getRange(2, 5, filas.length, 2).setNumberFormat('@'); h.getRange(2, 13, filas.length, 1).setNumberFormat('@');
+  h.setFrozenRows(1); h.autoResizeColumns(1, 6);
+  console.log('Pestaña OKR creada con ' + filas.length + ' objetivos de Tritato.');
+}
+const okrNum_ = v => {
+  if (typeof v === 'number') return v;
+  let s = String(v == null ? '' : v).replace(/[^\d.,-]/g, '');
+  if (!s) return null;
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');   // 116.299 · 1.234,5
+  else if (/^-?\d+,\d+$/.test(s)) s = s.replace(',', '.');                                   // 1,4
+  else if (/^-?\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');                          // 116,299
+  const n = Number(s); return isFinite(n) ? n : null;
+};
+const okrFecha_ = v => v instanceof Date ? Utilities.formatDate(v, TZ, 'yyyy-MM-dd') : String(v || '').trim();
+function okrDefs_() {
+  const h = SpreadsheetApp.getActive().getSheetByName('OKR'); if (!h || h.getLastRow() < 2) return [];
+  const v = h.getRange(1, 1, h.getLastRow(), h.getLastColumn()).getValues(), cab = v[0].map(x => norm_(String(x)).replace(/ /g, '_'));
+  return v.slice(1).map(r => { const o = {}; cab.forEach((c, i) => o[c] = r[i]); return o; }).filter(o => o.id && o.marca && o.metrica)
+    .map(o => ({ id: String(o.id).trim(), marca: String(o.marca).trim(), periodo: String(o.periodo || '').trim(), tipo: norm_(String(o.tipo || 'trimestral')),
+      desde: okrFecha_(o.desde), hasta: okrFecha_(o.hasta), objetivo: String(o.objetivo || ''), metrica: norm_(String(o.metrica)).replace(/ /g, '_'),
+      meta: okrNum_(o.meta), minMes: okrNum_(o.minimo_mes), umbral: okrNum_(o.umbral), base: okrNum_(o.base) || 0, baseHasta: okrFecha_(o.base_hasta),
+      peso: okrNum_(o.peso), cerrado: /^(si|sí|x|ok|cumplido)$/i.test(String(o.cerrado || '').trim()), nota: String(o.nota || '') }));
+}
+/* Reportes vivos (sin los dados de baja; si se corrigió, queda el último): [{tipo, marca, periodo, enviado, d}] */
+function okrReportes_() {
+  const c = CacheService.getScriptCache(), hit = c.get('okrrep'); if (hit) return JSON.parse(hit);
+  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
+  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  if (!/^enviado_en/.test(txt)) return [];
+  const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
+  const iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), iD = ix('datos_json'), bajas = {}, ult = {};
+  rows.slice(1).forEach(r => { if (r[iT] === 'baja') { try { const d = JSON.parse(r[iD] || '{}'); bajas[d.ref_tipo + '|' + r[iM] + '|' + d.ref_enviado_en] = 1; } catch (e) {} } });
+  rows.slice(1).forEach(r => {
+    const tipo = r[iT]; if (['mensual', 'sm'].indexOf(tipo) < 0 || bajas[tipo + '|' + r[iM] + '|' + r[iE]]) return;
+    let p = String(r[iP] || '').trim(); const dm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(p);
+    if (dm) p = dm[3] + '-' + ('0' + dm[2]).slice(-2) + '-' + ('0' + dm[1]).slice(-2);
+    if (tipo === 'mensual') p = p.slice(0, 7);
+    let d = {}; try { d = JSON.parse(r[iD] || '{}'); } catch (e) {}
+    // solo lo que se usa (el caché tiene un límite de 100 KB)
+    const k = {}; Object.keys(d).forEach(x => { if (/^(seg_sumados|seg_perdidos|m_contactos|m_alc_total|alcance_total)$/.test(x) || /^rk_reel_\d+_(views|views_pauta|link|desc|fecha)$/.test(x) || /^reel\d+_(res_views|link|nombre|dia)$/.test(x)) k[x] = d[x]; });
+    const key = tipo + '|' + r[iM] + '|' + p;
+    if (!ult[key] || String(r[iE]) > ult[key].enviado) ult[key] = { tipo: tipo, marca: r[iM], periodo: p, enviado: String(r[iE]), d: k };
+  });
+  const out = Object.keys(ult).map(x => ult[x]);
+  try { c.put('okrrep', JSON.stringify(out), 600); } catch (e) {}
+  return out;
+}
+/* Reels cargados en reportes (mensual y semanal), sin repetir: el mismo reel se reconoce por el link (o la descripción). */
+function okrReels_(reps, marca, desde, hasta) {
+  const vistos = {};
+  reps.filter(r => r.marca === marca).forEach(r => {
+    if (r.tipo === 'mensual' && (r.periodo < desde.slice(0, 7) || r.periodo > hasta.slice(0, 7))) return;
+    // semanal: el período es el lunes; entra si algún día de esa semana cae dentro del período del objetivo
+    if (r.tipo === 'sm' && (Utilities.formatDate(new Date(new Date(r.periodo + 'T12:00:00').getTime() + 6 * 864e5), TZ, 'yyyy-MM-dd') < desde || r.periodo > hasta)) return;
+    const idx = {}, ren = { res_views: 'views', nombre: 'desc', dia: 'fecha' };
+    Object.keys(r.d).forEach(k => { const m = /^rk_reel_(\d+)_(\w+)$/.exec(k) || /^reel(\d+)_(\w+)$/.exec(k); if (m) (idx[m[1]] = idx[m[1]] || {})[ren[m[2]] || m[2]] = r.d[k]; });
+    Object.keys(idx).forEach(i => {
+      const x = idx[i], v = (okrNum_(x.views) || 0) + (okrNum_(x.views_pauta) || 0); if (!v) return;
+      const id = String(x.link || '').replace(/[?#].*$/, '').replace(/\/$/, '') || norm_(String(x.desc || '')).slice(0, 40) || (r.periodo + i);
+      if (!vistos[id] || vistos[id].v < v) vistos[id] = { v: v, desc: String(x.desc || '').slice(0, 80), link: x.link || '', fecha: x.fecha || '' };
+    });
+  });
+  return Object.keys(vistos).map(k => vistos[k]);
+}
+/* Valor por mes (yyyy-MM) de una métrica: el mensual si existe; si no, la suma de los semanales de ese mes (solo seguidores). */
+function okrPorMes_(reps, marca, metrica, desde, hasta) {
+  const meses = []; let d = new Date(desde.slice(0, 7) + '-01T12:00:00');
+  while (Utilities.formatDate(d, TZ, 'yyyy-MM') <= hasta.slice(0, 7)) { meses.push(Utilities.formatDate(d, TZ, 'yyyy-MM')); d = new Date(d.getFullYear(), d.getMonth() + 1, 1, 12); }
+  const mias = reps.filter(r => r.marca === marca);
+  return meses.map(mes => {
+    const men = mias.filter(r => r.tipo === 'mensual' && r.periodo === mes)[0];
+    const val = r => metrica === 'seg_netos' ? (okrNum_(r.d.seg_sumados) || 0) - (okrNum_(r.d.seg_perdidos) || 0)
+      : metrica === 'contactos' ? okrNum_(r.d.m_contactos) : /^alcance/.test(metrica) ? okrNum_(r.d.m_alc_total) : null;
+    if (men) return { mes: mes, v: val(men), fuente: 'mensual' };
+    if (metrica === 'seg_netos') {
+      const sem = mias.filter(r => r.tipo === 'sm' && r.periodo.slice(0, 7) === mes);
+      if (sem.length) return { mes: mes, v: sem.reduce((a, r) => a + val(r), 0), fuente: sem.length + ' semanal' + (sem.length > 1 ? 'es' : ''), parcial: true };
+    }
+    return { mes: mes, v: null, fuente: 'falta' };
+  });
+}
+function okrCalcular_(o, reps, man, hoyS) {
+  const r = { id: o.id, objetivo: o.objetivo, metrica: o.metrica, meta: o.meta, minMes: o.minMes, umbral: o.umbral, nota: o.nota, manual: false };
+  const anot = man[o.id] || null;
+  const desdeAuto = o.baseHasta && o.baseHasta >= o.desde ? Utilities.formatDate(new Date(new Date(o.baseHasta + 'T12:00:00').getTime() + 864e5), TZ, 'yyyy-MM-dd') : o.desde;
+  if (o.cerrado) { r.logrado = o.meta; r.cumplido = true; r.cerrado = true; }
+  else if (o.metrica === 'seg_netos' || o.metrica === 'contactos' || o.metrica === 'alcance_suma') {
+    const meses = okrPorMes_(reps, o.marca, o.metrica, desdeAuto, o.hasta).filter(m => m.mes <= hoyS.slice(0, 7));
+    r.meses = meses; r.logrado = o.base + meses.reduce((a, m) => a + (m.v || 0), 0); r.base = o.base || 0;
+    r.faltanDatos = meses.filter(m => m.v == null).map(m => m.mes);
+    if (o.minMes) r.mesesBajos = meses.filter(m => m.v != null && !m.parcial && m.v < o.minMes).map(m => m.mes);
+    // con mínimo mensual: se da por cumplido recién cuando terminó el período, con todos los meses reportados y ninguno abajo del mínimo
+    const llego = r.logrado >= o.meta && !(r.mesesBajos || []).length;
+    r.cumplido = o.minMes ? llego && o.hasta < hoyS && !r.faltanDatos.length && !meses.some(m => m.parcial) : llego;
+    r.enCamino = llego && !r.cumplido;
+  } else if (o.metrica === 'reels') {
+    const lista = okrReels_(reps, o.marca, o.desde, o.hasta).filter(x => x.v >= (o.umbral || 0)).sort((a, b) => b.v - a.v);
+    r.reels = lista.slice(0, 12); r.logrado = lista.length; r.cumplido = r.logrado >= o.meta;
+  } else if (o.metrica === 'conversion') {
+    const s = okrPorMes_(reps, o.marca, 'seg_netos', o.desde, o.hasta), a = okrPorMes_(reps, o.marca, 'alcance_suma', o.desde, o.hasta);
+    const ss = s.reduce((x, m) => x + (m.v || 0), 0), aa = a.reduce((x, m) => x + (m.v || 0), 0);
+    r.logrado = aa ? Math.round(ss / aa * 1000) / 10 : null; r.cumplido = r.logrado != null && r.logrado >= o.meta;
+  } else {   // alcance_esp y manual: lo anota la social media
+    r.manual = true;
+    if (anot) { r.logrado = anot.v; r.anotado = { quien: anot.quien, cuando: anot.cuando, nota: anot.nota || '' }; }
+    r.cumplido = r.logrado != null && r.logrado >= o.meta;
+  }
+  // ritmo: cuánto debería llevar hoy si avanzara parejo
+  const t0 = new Date(o.desde + 'T00:00:00').getTime(), t1 = new Date(o.hasta + 'T23:59:59').getTime(), ahora = new Date(hoyS + 'T12:00:00').getTime();
+  r.avanceTiempo = Math.max(0, Math.min(1, (ahora - t0) / (t1 - t0)));
+  if (!r.cumplido && o.meta && r.logrado != null && ['seg_netos', 'contactos', 'alcance_suma', 'reels', 'alcance_esp'].indexOf(o.metrica) >= 0) {
+    const mesesRest = Math.max(0, (new Date(t1).getFullYear() - new Date(ahora).getFullYear()) * 12 + new Date(t1).getMonth() - new Date(ahora).getMonth()) + 1;
+    r.falta = Math.max(0, o.meta - r.logrado); r.porMes = mesesRest ? Math.ceil(r.falta / mesesRest) : r.falta;
+    r.atrasado = r.logrado < o.meta * r.avanceTiempo * 0.9;
+  }
+  return r;
+}
+function okrVista_(quien, esProject) {
+  const cfgR = reportesConfig_(), cfg = config_(), defs = okrDefs_(), reps = okrReportes_(), man = leerJson_('OKR_FILE_ID', 'panel-ideamia-okr.json').v || {};
+  const hoyS = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  const bono = { trimestral: okrNum_(cfg.OKR_BONO_TRIMESTRAL) || 20, semestral: okrNum_(cfg.OKR_BONO_SEMESTRAL) || 40, anual: okrNum_(cfg.OKR_BONO_ANUAL) || 70 };
+  const marcas = (cfgR.marcas || []).filter(m => esProject || m.sm === norm_(quien));
+  const nombres = {}; (cfgR.marcas || []).forEach(m => nombres[m.slug] = m.nombre || m.slug);
+  const out = marcas.map(m => {
+    const mias = defs.filter(o => o.marca === m.slug), pers = {};
+    mias.forEach(o => { const k = o.periodo + '|' + o.desde; (pers[k] = pers[k] || { titulo: o.periodo, tipo: o.tipo, desde: o.desde, hasta: o.hasta, objs: [] }).objs.push(o); });
+    const periodos = Object.keys(pers).map(k => {
+      const p = pers[k], total = bono[p.tipo] || bono.trimestral, pesos = p.objs.map(o => o.peso), conPeso = pesos.every(x => x != null);
+      const objetivos = p.objs.map((o, i) => Object.assign(okrCalcular_(o, reps, man, hoyS), { vale: Math.round((conPeso ? pesos[i] : total / p.objs.length) * 100) / 100 }));
+      const cumplidos = objetivos.filter(o => o.cumplido);
+      return { titulo: p.titulo, tipo: p.tipo, desde: p.desde, hasta: p.hasta, terminado: p.hasta < hoyS, abierto: p.desde <= hoyS && p.hasta >= hoyS, bono: total,
+        cumplidos: cumplidos.length, total: objetivos.length, logradoPct: Math.round(cumplidos.reduce((a, o) => a + o.vale, 0) * 100) / 100, objetivos: objetivos };
+    }).sort((a, b) => (a.terminado - b.terminado) || a.hasta.localeCompare(b.hasta));
+    return { slug: m.slug, nombre: m.nombre || m.slug, sm: m.sm, periodos: periodos };
+  });
+  return { ok: true, hoy: hoyS, quien: quien, project: !!esProject, marcas: out, reportesHasta: reps.reduce((a, r) => r.tipo === 'mensual' && r.periodo > a ? r.periodo : a, '') };
+}
+/* La social media de la marca (o el project) anota un valor que no sale de los reportes: espectadores del período, campaña cumplida, etc. */
+function okrAnotar_(b, quien, esProject) {
+  const defs = okrDefs_(), o = defs.filter(x => x.id === String(b.id || ''))[0];
+  if (!o) return { error: 'datos', mensaje: 'No encuentro ese objetivo' };
+  const m = (reportesConfig_().marcas || []).filter(x => x.slug === o.marca)[0];
+  if (!esProject && (!m || m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Solo la social media de la marca puede anotar sus objetivos' };
+  if (['alcance_esp', 'manual'].indexOf(o.metrica) < 0) return { error: 'datos', mensaje: 'Este objetivo se calcula solo con los reportes' };
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = leerJson_('OKR_FILE_ID', 'panel-ideamia-okr.json'); g.v = g.v || {}; g.hist = g.hist || [];
+    const v = b.borrar ? null : okrNum_(b.valor);
+    if (!b.borrar && v == null) return { error: 'datos', mensaje: 'Falta el número' };
+    if (b.borrar) delete g.v[o.id]; else g.v[o.id] = { v: v, quien: norm_(quien), cuando: new Date().toISOString(), nota: String(b.nota || '').slice(0, 300) };
+    g.hist.push({ id: o.id, v: v, quien: norm_(quien), cuando: new Date().toISOString() }); g.hist = g.hist.slice(-500);
+    guardarJson_('OKR_FILE_ID', 'panel-ideamia-okr.json', g);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/* PRUEBA sin efectos: cómo viene cada marca con objetivos cargados. */
+function probarOKR() {
+  const v = okrVista_('project', true);
+  v.marcas.filter(m => m.periodos.length).forEach(m => m.periodos.forEach(p => {
+    console.log(m.nombre + ' · ' + p.titulo + ' · ' + p.cumplidos + ' de ' + p.total + ' → ' + p.logradoPct + ' % de ' + p.bono + ' %');
+    p.objetivos.forEach(o => console.log('   ' + (o.cumplido ? '✔' : '·') + ' ' + o.objetivo + ' · logrado ' + o.logrado + ' de ' + o.meta + (o.faltanDatos && o.faltanDatos.length ? ' · faltan reportes de ' + o.faltanDatos.join(', ') : '') + (o.mesesBajos && o.mesesBajos.length ? ' · meses bajo el mínimo: ' + o.mesesBajos.join(', ') : '')));
+  }));
+  console.log('Marcas sin objetivos cargados: ' + v.marcas.filter(m => !m.periodos.length).map(m => m.nombre).join(', ') + ' · último mensual: ' + v.reportesHasta);
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -3078,6 +3274,12 @@ function doGet(e) {
       if (!/project|direcc|creativ/i.test(((catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0]) || {}).rol || '')) return json_({ error: 'permiso', mensaje: 'La agenda privada es solo para el project y dirección' }, q.cb);
       try { return json_(agendaPrivada_(), q.cb); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo leer el calendario: ' + String(e.message || e).slice(0, 200) }, q.cb); }
     }
+    if (q.action === 'okr') { // objetivos por marca: solo la social media de cada marca (sus marcas) y el project (todas, con su clave)
+      const yo = catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
+      if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
+      if (!yo || (!esProj && !(reportesConfig_().marcas || []).some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'Los objetivos son solo para las social media y el project' }, q.cb);
+      return json_(okrVista_(yo.clave, esProj), q.cb);
+    }
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       return json_(vistaProject_(), q.cb);
@@ -3099,6 +3301,11 @@ function doPost(e) {
     if (!claveOk_(b.k)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
     const quien = String(b.persona || '');
     switch (b.action) {
+      case 'okrAnotar': { // la social media anota un valor de sus objetivos (espectadores del período, campaña cumplida)
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0], esProj = !!yo && /project/i.test(yo.rol);
+        if (!yo || (esProj && !claveOk_(b.k, true))) return json_({ error: 'permiso', mensaje: 'Sin permiso' });
+        return json_(okrAnotar_(b, yo.clave, esProj));
+      }
       case 'entregarPieza': // el filmmaker marca "Listo": la tarjeta pasa a En revisión
         return json_(entregarPieza_(b, quien));
       case 'marcar': // rutina / evento / input / corrección
