@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="robots" content="noindex">
+<title>Agente · Ideamia</title>
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--pk:#FF8AD8;--sk:#6FC3FF;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}a{color:var(--y)}
+.wrap{max-width:980px;margin:0 auto;padding:18px 16px 80px}
+.kick{color:var(--mu);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+h1{font:400 42px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:6px 0 4px}h1 b{color:var(--y);font-weight:400}
+h2{font:400 26px/1 'Bebas Neue',sans-serif;letter-spacing:.03em;margin:26px 0 10px}
+h3{margin:0;font-size:16px}
+.sub{color:var(--mu);margin:0 0 14px;font-size:14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:3px 10px;background:var(--c3);color:var(--mu)}
+.card{background:var(--c1);border:1px solid var(--ln);border-radius:18px;padding:16px;margin-bottom:12px}
+.btn{background:var(--y);color:#0A0A0A;border:0;border-radius:12px;padding:10px 16px;font-weight:700}.btn.g{background:var(--c3);color:var(--tx)}.btn.r{background:none;color:var(--bad);border:1px solid #4a2525}.btn:disabled{opacity:.4}
+.btn.sm{padding:6px 11px;font-size:13px;border-radius:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,textarea{background:var(--c2);border:1px solid var(--ln);border-radius:10px;padding:8px 10px;width:100%;font-size:14px}textarea{resize:vertical}
+label.l{display:block;font-size:11.5px;color:var(--mu);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 6px}
+.gasto{height:10px;background:var(--c3);border-radius:6px;overflow:hidden;margin:8px 0 4px}.gasto i{display:block;height:100%;background:var(--ok)}
+.tareas{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}@media(max-width:700px){.tareas{grid-template-columns:repeat(2,1fr)}}
+.tarea{background:var(--c2);border:1px solid var(--ln);border-radius:14px;padding:12px;text-align:left}.tarea b{display:block;font-size:14.5px}.tarea span{font-size:12.5px;color:var(--mu)}.tarea:hover{border-color:#444}
+.prop{border-left:3px solid var(--y)}.prop.aprobada{border-left-color:var(--ok);opacity:.75}.prop.descartada{border-left-color:#555;opacity:.6}
+.meta{font-size:12.5px;color:var(--mu)}
+.it{display:grid;gap:6px;background:var(--c2);border-radius:12px;padding:10px;margin-top:8px;position:relative}
+.it .x{position:absolute;top:6px;right:6px;background:none;border:0;color:var(--mu);font-size:16px}
+.g3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px}@media(max-width:640px){.g3{grid-template-columns:1fr}}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:6px 4px;border-top:1px solid var(--ln);text-align:left;vertical-align:top}th{color:var(--mu);font-size:12px;font-weight:600;border-top:0}
+.scroll{overflow-x:auto}
+.chk{display:inline-flex;gap:6px;align-items:center;margin:4px 12px 4px 0;font-size:14px}.chk input{width:auto}
+.acc{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.empty{color:var(--mu);text-align:center;padding:26px 10px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:60;max-width:90vw}
+.trab{position:fixed;inset:0;background:rgba(0,0,0,.65);display:grid;place-items:center;z-index:50}.trab div{background:var(--c1);border:1px solid var(--ln);border-radius:18px;padding:22px;text-align:center;max-width:340px}
+.spin{width:34px;height:34px;border:3px solid var(--c3);border-top-color:var(--y);border-radius:50%;animation:g 1s linear infinite;margin:0 auto 12px}@keyframes g{to{transform:rotate(360deg)}}
+.prio{padding:8px 0;border-top:1px solid var(--ln)}.prio:first-child{border-top:0}
+.ps{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:10px 0}.chip{background:var(--c3);border:1px solid var(--ln);border-radius:999px;padding:6px 12px}.chip.on{background:var(--y);color:#0A0A0A}
+details summary{cursor:pointer;color:var(--mu);font-size:13px}
+</style>
+<script src="../config.js?v=2"></script>
+<script src="../ideamia-nav.js?v=5" defer></script>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Cargando…</div></div>
+<script>
+(function () {
+  const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
+  const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const toast = t => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 5000); };
+  const PERMITIDAS = { joaco: 'Joaquín (prueba)', orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
+  const S = { persona: new URLSearchParams(location.search).get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', d: null, ed: {}, ver: false };
+  const clave = () => S.persona === 'project' ? (S.pkey || S.key) : S.key;
+  const TXT = {
+    inputs: 'Lee los inputs nuevos del SCL y propone las piezas y lo que hay que pedir.',
+    plan: 'Arma el plan general (tópicos semana por semana) y el de cada campaña que se ataca.',
+    planb: 'Propone el plan B de cada reel de los próximos 45 días que no lo tenga.',
+    control: 'Revisa qué está atrasado o falta y te lo ordena por prioridad.'
+  };
+  const FMT = { reel: 'Reel', carrusel: 'Carrusel', post: 'Post', historias: 'Historias', canal: 'Canal social', otro: 'Otro' };
+  const CUANDO = { previa: 'Semana previa', semana: 'Semana de la fecha', despues: 'Después' };
+  const dm = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
+  const usd = n => 'US$ ' + (Number(n) || 0).toFixed(2).replace('.', ',');
+  const seg = ms => Math.round((ms || 0) / 1000) + ' s';
+
+  function gate(msg) {
+    app.innerHTML = '<div class="card" style="max-width:400px;margin:40px auto;text-align:center"><div class="kick">Ideamia</div><h1>El <b>agente</b></h1>' + (msg ? '<p class="sub">' + esc(msg) + '</p>' : '') +
+      (S.persona && PERMITIDAS[S.persona] ? '' : '<p class="sub">¿Quién sos?</p><div class="ps">' + Object.keys(PERMITIDAS).map(p => '<button class="chip' + (S.persona === p ? ' on' : '') + '" data-p="' + p + '">' + PERMITIDAS[p] + '</button>').join('') + '</div>') +
+      '<input id="k" type="password" placeholder="' + (S.persona === 'project' ? 'Clave del project' : 'Clave del equipo') + '"><div style="margin-top:10px"><button class="btn" id="ent">Entrar</button></div></div>';
+    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { S.persona = b.dataset.p; gate(msg); });
+    const ent = () => { const v = app.querySelector('#k').value.trim(); if (!v || !S.persona) return toast('Elegí quién sos y poné la clave'); if (S.persona === 'project') S.pkey = v; else { S.key = v; lsSet('ideamia:clave', v); } cargar(); };
+    app.querySelector('#ent').onclick = ent; app.querySelector('#k').onkeydown = e => { if (e.key === 'Enter') ent(); };
+  }
+  async function cargar() {
+    if (!S.persona || !PERMITIDAS[S.persona]) return gate('');
+    if (!clave()) return gate('');
+    try {
+      const r = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'agente', k: clave(), p: S.persona }), { cache: 'no-store' }).then(r => r.json());
+      if (r.error) { if (r.error === 'clave') return gate(r.mensaje); throw new Error(r.mensaje || r.error); }
+      S.d = r; pintar();
+    } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '</div>'; }
+  }
+  async function post(b, espera) {
+    let w = null;
+    if (espera) { w = document.createElement('div'); w.className = 'trab'; w.innerHTML = '<div><div class="spin"></div><b>' + esc(espera) + '</b><p class="sub" style="margin:8px 0 0">Puede tardar hasta un minuto. No cierres la página.</p></div>'; document.body.appendChild(w); }
+    try {
+      const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'agente', k: clave(), persona: S.persona }, b)) }).then(r => r.json());
+      if (r.error) throw new Error(r.mensaje || r.error);
+      S.d = r; pintar(); return r;
+    } finally { if (w) w.remove(); }
+  }
+
+  /* ---------- formularios editables de cada propuesta (se edita una copia; al aprobar se manda la copia) ---------- */
+  const copia = p => S.ed[p.id] = S.ed[p.id] || JSON.parse(JSON.stringify(p.datos));
+  const ruta = (o, path) => path.split('.').reduce((a, k) => a == null ? a : a[k], o);
+  const poner = (o, path, v) => { const ks = path.split('.'), last = ks.pop(); const t = ks.reduce((a, k) => a[k], o); t[last] = v; };
+  const inp = (p, path, ph, tipo) => '<input data-e="' + p.id + '" data-path="' + path + '"' + (tipo ? ' type="' + tipo + '"' : '') + ' placeholder="' + esc(ph || '') + '" value="' + esc(ruta(copia(p), path) || '') + '">';
+  const area = (p, path, ph, rows) => '<textarea data-e="' + p.id + '" data-path="' + path + '" rows="' + (rows || 2) + '" placeholder="' + esc(ph || '') + '">' + esc(ruta(copia(p), path) || '') + '</textarea>';
+  const sel = (p, path, ops) => { const v = ruta(copia(p), path); return '<select data-e="' + p.id + '" data-path="' + path + '">' + Object.keys(ops).map(k => '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + esc(ops[k]) + '</option>').join('') + '</select>'; };
+  const chk = (p, path, txt) => '<label class="chk"><input type="checkbox" data-e="' + p.id + '" data-path="' + path + '"' + (ruta(copia(p), path) ? ' checked' : '') + '>' + esc(txt) + '</label>';
+  const quitar = (p, path, i) => '<button class="x" title="Sacar" data-quitar="' + p.id + '" data-path="' + path + '" data-i="' + i + '">✕</button>';
+  const sumar = (p, path, txt, nuevo) => '<button class="btn g sm" style="margin-top:8px" data-sumar="' + p.id + '" data-path="' + path + '" data-nuevo="' + esc(JSON.stringify(nuevo)) + '">+ ' + esc(txt) + '</button>';
+  const pedidos = (p, base) => { const L = ruta(copia(p), base) || []; return '<label class="l">Qué hay que pedir</label>' + (L.length ? L.map((x, i) => '<div class="it">' + quitar(p, base, i) + '<div class="g3">' + inp(p, base + '.' + i + '.que', 'Qué') + sel(p, base + '.' + i + '.aQuien', { cliente: 'Al cliente', project: 'Al project' }) + inp(p, base + '.' + i + '.fecha', '', 'date') + '</div></div>').join('') : '<div class="meta">Nada para pedir.</div>') + sumar(p, base, 'Pedido', { que: '', aQuien: 'cliente', fecha: '' }); };
+
+  function formInputs(p) {
+    const d = copia(p);
+    return '<label class="l">Qué pide el input</label>' + area(p, 'resumen', '', 2) +
+      '<label class="l">Piezas que salen</label>' + ((d.piezas || []).length ? d.piezas.map((x, i) => '<div class="it">' + quitar(p, 'piezas', i) + '<div class="g3">' + inp(p, 'piezas.' + i + '.titulo', 'Título de la tarjeta') + sel(p, 'piezas.' + i + '.formato', FMT) + inp(p, 'piezas.' + i + '.fecha', '', 'date') + '</div>' + area(p, 'piezas.' + i + '.idea', 'La idea', 2) + '</div>').join('') : '<div class="meta">Sin piezas.</div>') +
+      sumar(p, 'piezas', 'Pieza', { titulo: '', formato: 'post', fecha: '', idea: '' }) + pedidos(p, 'pedir') +
+      '<label class="l">Duda para el project o el cliente</label>' + area(p, 'duda', 'Sin dudas', 2) +
+      '<p class="meta" style="margin-top:10px">Al aprobar: cada pieza y cada pedido se crea como tarjeta en "Para mover en el mes" del SCL y se deja un comentario en el input.</p>';
+  }
+  function formPlan(p) {
+    const d = copia(p), sem = p.semanas || [], G = d.general || { topicos: [], pedidos: [] };
+    let h = '';
+    if ((G.topicos || []).length) {
+      h += '<h3 style="margin-top:6px">Plan general · tópicos semana por semana</h3><div class="scroll"><table><tr><th>Tópico</th>' + sem.map(w => '<th>Semana del ' + dm(w) + '</th>').join('') + '</tr>' +
+        G.topicos.map((t, ti) => { const porSem = {}; (t.semanas || []).forEach((w, wi) => porSem[w.semana] = wi);
+          return '<tr><td><b>' + esc((p.nombres || {})[t.id] || t.id) + '</b></td>' + sem.map(w => '<td style="min-width:170px">' + (porSem[w] != null ? area(p, 'general.topicos.' + ti + '.semanas.' + porSem[w] + '.angulo', '', 2) : '<span class="meta">sin ángulo</span>') + '</td>').join('') + '</tr>'; }).join('') + '</table></div>' +
+        pedidos(p, 'general.pedidos');
+    }
+    (d.campanas || []).forEach((c, ci) => {
+      const info = (p.camps || []).filter(x => x.key === c.key)[0] || { nombre: c.key, nivel: '', f: '' }, b = 'campanas.' + ci;
+      h += '<h3 style="margin-top:18px">Campaña: ' + esc(info.nombre) + ' <span class="meta">(N' + info.nivel + ', ' + dm(info.f) + ')</span></h3>' +
+        '<label class="l">Ideas</label>' + (c.ideas || []).map((x, i) => '<div class="it">' + quitar(p, b + '.ideas', i) + area(p, b + '.ideas.' + i, '', 2) + '</div>').join('') + sumar(p, b + '.ideas', 'Idea', '') +
+        '<label class="l">Producción especial</label>' + chk(p, b + '.produccion.estetica', 'Estética especial') + chk(p, b + '.produccion.banners', 'Banners para la web') + chk(p, b + '.produccion.carteleria', 'Cartelería para el local') + area(p, b + '.produccion.notas', 'Notas de producción', 2) +
+        pedidos(p, b + '.pedidos') +
+        '<label class="l">Distribución</label>' + (c.distribucion || []).map((x, i) => '<div class="it">' + quitar(p, b + '.distribucion', i) + '<div class="g3">' + inp(p, b + '.distribucion.' + i + '.idea', 'Qué sale') + sel(p, b + '.distribucion.' + i + '.cuando', CUANDO) + inp(p, b + '.distribucion.' + i + '.fecha', '', 'date') + '</div></div>').join('') + sumar(p, b + '.distribucion', 'Línea', { idea: '', cuando: 'semana', fecha: '' }) +
+        (c.anterior ? '<p class="meta" style="margin-top:10px"><b>Para averiguar del año pasado:</b> ' + esc(c.anterior) + '</p>' : '');
+    });
+    if (d.nota) h += '<div class="it" style="margin-top:14px;border:1px solid rgba(255,242,0,.3)"><b>Revisá antes de aprobar</b><div>' + esc(d.nota) + '</div></div>';
+    return h + '<p class="meta" style="margin-top:10px">Al aprobar queda guardado como borrador en Plan → Plan del mes, sin pisar lo que ya hayas escrito. Las tarjetas se crean recién cuando tocás Terminar en Plan.</p>';
+  }
+  function formPlanB(p) {
+    const d = copia(p);
+    return '<div class="meta">Reel: <a href="' + esc(p.card.url) + '" target="_blank" rel="noopener">' + esc(p.card.n) + '</a> · ' + dm(p.card.due) + '</div>' +
+      '<label class="l">El reel depende de</label>' + Object.keys(S.d.dep).map(k => '<label class="chk"><input type="checkbox" data-dep="' + p.id + '" value="' + k + '"' + ((d.depReel || []).indexOf(k) >= 0 ? ' checked' : '') + '>' + esc(S.d.dep[k]) + '</label>').join('') +
+      '<label class="l">Qué se publica si se cae</label>' + area(p, 'que', '', 2) +
+      '<div class="g3" style="margin-top:8px">' + sel(p, 'formato', S.d.formatos) + sel(p, 'material', S.d.material) + inp(p, 'fecha', '', 'date') + '</div>' +
+      '<label class="l">Detalle del material</label>' + inp(p, 'materialTxt', 'Ej.: tomas del making of de septiembre') +
+      '<p class="meta" style="margin-top:10px">Al aprobar se crea su tarjeta en la lista "Plan B" del SCL, como si lo cargaras en Plan.</p>';
+  }
+  function formControl(p) {
+    const d = p.datos;
+    return '<p style="margin:6px 0 10px">' + esc(d.resumen) + '</p>' + (d.prioridades || []).map((x, i) => '<div class="prio"><b>' + (i + 1) + '. ' + esc(x.que) + '</b><div class="meta">' + esc(x.cuando) + '</div></div>').join('') +
+      '<details style="margin-top:10px"><summary>Lo que miró el agente</summary><pre style="white-space:pre-wrap;font-size:12px;color:var(--mu)">' + esc(JSON.stringify(d.estado, null, 1)) + '</pre></details>';
+  }
+  function pintarProp(p) {
+    const MAR = {}; S.d.marcas.forEach(m => MAR[m.slug] = m.nombre);
+    const pend = p.estado === 'pendiente', T = S.d.tareas[p.tarea] || p.tarea;
+    const cab = '<div class="row" style="justify-content:space-between;align-items:flex-start"><div><span class="tag">' + esc(T) + '</span> <span class="tag">' + esc(MAR[p.marca] || p.marca) + '</span><h3 style="margin-top:8px">' + esc(p.titulo) + '</h3>' +
+      '<div class="meta">' + new Date(p.creada).toLocaleString('es-AR', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' + usd(p.usd) + ' · el agente tardó ' + seg(p.ms) + (p.card && p.tarea === 'inputs' ? ' · <a href="' + esc(p.card.url) + '" target="_blank" rel="noopener">ver el input</a>' : '') + '</div></div>' +
+      (pend ? '' : '<span class="tag" style="color:' + (p.estado === 'aprobada' ? 'var(--ok)' : 'var(--mu)') + '">' + (p.estado === 'aprobada' ? 'Aprobada' + (p.editada ? ' con cambios' : '') : 'Descartada') + '</span>') + '</div>';
+    if (!pend) return '<div class="card prop ' + p.estado + '">' + cab + (p.motivo ? '<div class="meta" style="margin-top:6px">Motivo: ' + esc(p.motivo) + '</div>' : '') + '</div>';
+    const cuerpo = p.tarea === 'inputs' ? formInputs(p) : p.tarea === 'plan' ? formPlan(p) : p.tarea === 'planb' ? formPlanB(p) : formControl(p);
+    return '<div class="card prop" data-prop="' + p.id + '">' + cab + '<div style="margin-top:6px">' + cuerpo + '</div><div class="acc"><button class="btn r sm" data-desc="' + p.id + '">Descartar</button><button class="btn" data-apr="' + p.id + '">' + (p.tarea === 'control' ? 'Listo, lo vi' : 'Aprobar') + '</button></div></div>';
+  }
+  function pintar() {
+    const d = S.d, pct = Math.min(100, d.gasto / d.tope * 100), pend = d.props.filter(p => p.estado === 'pendiente'), res = d.props.filter(p => p.estado !== 'pendiente');
+    const est = Object.keys(d.porTarea || {});
+    app.innerHTML = '<div><span class="kick">Ideamia · copiloto de social media</span><h1>El <b>agente</b></h1><p class="sub">Te deja el trabajo operativo armado en borrador. Nada llega a Trello ni al cliente hasta que vos lo revisás y tocás Aprobar.</p></div>' +
+      '<div class="card"><div class="row" style="justify-content:space-between"><b>Gasto de ' + esc(d.mes.slice(5)) + '/' + esc(d.mes.slice(0, 4)) + '</b><span class="meta">' + usd(d.gasto) + ' de ' + usd(d.tope) + '</span></div><div class="gasto"><i style="width:' + pct + '%;background:' + (pct > 85 ? 'var(--bad)' : pct > 60 ? 'var(--warn)' : 'var(--ok)') + '"></i></div>' +
+        (est.length ? '<div class="meta">' + est.map(k => esc(d.tareas[k] || k) + ': ' + d.porTarea[k].n + ' vez' + (d.porTarea[k].n === 1 ? '' : 'es') + ', ' + usd(d.porTarea[k].usd) + ', ' + seg(d.porTarea[k].ms / d.porTarea[k].n) + ' promedio').join(' · ') + '</div>' : '<div class="meta">Todavía no se usó este mes.</div>') +
+        (d.hayClave ? '' : '<p style="color:var(--bad);margin:8px 0 0">Falta la API key de Claude en el Apps Script.</p>') + '</div>' +
+      (d.marcas.length ? d.marcas.map(m => '<div class="card"><b>' + esc(m.nombre) + '</b><div class="tareas">' + Object.keys(d.tareas).map(k => '<button class="tarea" data-correr="' + k + '" data-marca="' + m.slug + '"><b>' + esc(d.tareas[k]) + '</b><span>' + esc(TXT[k] || '') + '</span></button>').join('') + '</div></div>').join('')
+        : '<div class="card empty">El agente todavía no está habilitado para tus marcas.</div>') +
+      '<h2>Para revisar' + (pend.length ? ' · ' + pend.length : '') + '</h2>' + (pend.length ? pend.map(pintarProp).join('') : '<div class="card empty">No hay propuestas pendientes. Pedile algo al agente arriba.</div>') +
+      (res.length ? '<h2>Resueltas</h2>' + (S.ver ? res.map(pintarProp).join('') + '<button class="btn g sm" data-ver>Ocultar</button>' : '<button class="btn g sm" data-ver>Ver las ' + res.length + ' resueltas</button>') : '');
+    bind();
+  }
+  function bind() {
+    const $$ = s => app.querySelectorAll(s);
+    $$('[data-correr]').forEach(b => b.onclick = async () => {
+      const t = b.dataset.correr;
+      try { const r = await post({ accion: 'correr', tarea: t, marca: b.dataset.marca }, 'El agente está con ' + (S.d.tareas[t] || t).toLowerCase() + '…'); const c = r.corrida || {}; toast(c.mensaje || (c.nuevas ? c.nuevas + ' propuesta' + (c.nuevas === 1 ? '' : 's') + ' nueva' + (c.nuevas === 1 ? '' : 's') + ' · ' + usd(c.usd) + ' · ' + seg(c.ms) : 'Listo')); }
+      catch (e) { toast(e.message); }
+    });
+    $$('[data-e]').forEach(el => { const ev = el.type === 'checkbox' ? 'change' : 'input'; el.addEventListener(ev, () => poner(S.ed[el.dataset.e], el.dataset.path, el.type === 'checkbox' ? el.checked : el.value)); });
+    $$('[data-dep]').forEach(el => el.onchange = () => { const p = S.d.props.find(x => x.id === el.dataset.dep), c = copia(p); c.depReel = Array.from(app.querySelectorAll('[data-dep="' + p.id + '"]:checked')).map(x => x.value); });
+    $$('[data-quitar]').forEach(b => b.onclick = () => { const p = S.d.props.find(x => x.id === b.dataset.quitar); ruta(copia(p), b.dataset.path).splice(Number(b.dataset.i), 1); pintar(); });
+    $$('[data-sumar]').forEach(b => b.onclick = () => { const p = S.d.props.find(x => x.id === b.dataset.sumar), c = copia(p); let L = ruta(c, b.dataset.path); if (!L) { poner(c, b.dataset.path, []); L = ruta(c, b.dataset.path); } L.push(JSON.parse(b.dataset.nuevo)); pintar(); });
+    $$('[data-apr]').forEach(b => b.onclick = async () => {
+      const p = S.d.props.find(x => x.id === b.dataset.apr), c = S.ed[p.id] || p.datos, editada = JSON.stringify(c) !== JSON.stringify(p.datos);
+      b.disabled = true;
+      try { const r = await post({ accion: 'aprobar', id: p.id, datos: c, editada: editada }, p.tarea === 'control' ? '' : 'Aplicando la propuesta…'); delete S.ed[p.id]; const z = r.resultado || {}; toast(z.error ? z.mensaje : (z.mensaje || 'Aprobada')); }
+      catch (e) { toast(e.message); b.disabled = false; }
+    });
+    $$('[data-desc]').forEach(b => b.onclick = async () => { const m = prompt('¿Por qué la descartás? (opcional, sirve para mejorar al agente)'); if (m === null) return; try { await post({ accion: 'descartar', id: b.dataset.desc, motivo: m }); delete S.ed[b.dataset.desc]; toast('Descartada'); } catch (e) { toast(e.message); } });
+    $$('[data-ver]').forEach(b => b.onclick = () => { S.ver = !S.ver; pintar(); });
+  }
+  cargar();
+})();
+</script>
+</body>
+</html>
