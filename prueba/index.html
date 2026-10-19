@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="robots" content="noindex">
+<title>Semana de prueba · Ideamia</title>
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--pk:#FF8AD8;--sk:#6FC3FF;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}a{color:var(--y)}
+.wrap{max-width:980px;margin:0 auto;padding:18px 16px 80px}
+.kick{color:var(--mu);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+h1{font:400 42px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:6px 0 4px}h1 b{color:var(--y);font-weight:400}
+h2{font:400 26px/1 'Bebas Neue',sans-serif;letter-spacing:.03em;margin:26px 0 10px}
+.sub{color:var(--mu);margin:0 0 14px;font-size:14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,138,216,.14);color:var(--pk);border-radius:999px;padding:3px 10px}
+.tabs{display:flex;gap:4px;background:var(--c1);border:1px solid var(--ln);border-radius:12px;padding:3px;margin:14px 0;position:sticky;top:44px;z-index:5}
+.tabs button{flex:1;border:0;background:none;border-radius:9px;padding:8px 6px;font-size:13px;font-weight:600;color:var(--mu)}.tabs button.on{background:var(--c3);color:var(--tx)}
+.card{background:var(--c1);border:1px solid var(--ln);border-radius:18px;padding:16px;margin-bottom:12px}
+.timer{display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(255,242,0,.35);background:linear-gradient(135deg,rgba(255,242,0,.07),rgba(255,242,0,0) 60%),var(--c1)}
+.timer .reloj{font:400 52px/1 'Bebas Neue',sans-serif;letter-spacing:.04em;color:var(--y);min-width:150px}
+.timer .que{flex:1;min-width:200px}.timer .que b{display:block;font-size:17px}.timer .que span{color:var(--mu);font-size:13px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px;animation:lat 1.2s infinite}@keyframes lat{50%{opacity:.25}}
+.btn{background:var(--y);color:#0A0A0A;border:0;border-radius:12px;padding:10px 16px;font-weight:700}.btn.g{background:var(--c3);color:var(--tx)}.btn.r{background:var(--bad);color:#fff}.btn:disabled{opacity:.4}
+.btn.sm{padding:6px 11px;font-size:13px;border-radius:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,textarea{background:var(--c2);border:1px solid var(--ln);border-radius:12px;padding:10px 12px;width:100%}textarea{resize:vertical}
+.grid2{display:grid;grid-template-columns:2fr 1fr auto;gap:8px}@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.task{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid var(--ln)}.task:first-child{border-top:0}
+.task .ck{width:22px;height:22px;border-radius:7px;border:2px solid #444;background:none;display:grid;place-items:center;font-size:13px;color:#0A0A0A}.task .ck.on{background:var(--ok);border-color:var(--ok)}
+.task b{font-weight:600}.task .m{color:var(--mu);font-size:12.5px}.task.done b{color:var(--mu);text-decoration:line-through}
+.task .bts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:640px){.task{grid-template-columns:28px 1fr}.task .bts{grid-column:2;justify-content:flex-start}}
+.cat{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-right:6px;background:var(--c3)}
+.dia{margin-top:14px}.dia h3{margin:0 0 6px;font-size:14px;color:var(--mu);font-weight:600;text-transform:capitalize}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-top:1px solid var(--ln);text-align:left;vertical-align:top}th{color:var(--mu);font-size:12px;font-weight:600;border-top:0}
+td.n{white-space:nowrap;font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--c2);border-radius:14px;padding:12px}.kpi .v{font:400 34px/1 'Bebas Neue',sans-serif;color:var(--y)}.kpi .l{font-size:12.5px;color:var(--mu);margin-top:4px}
+.bar{display:grid;grid-template-columns:150px 1fr 70px;gap:10px;align-items:center;margin:7px 0;font-size:13.5px}.bar i{display:block;height:14px;border-radius:7px}.bar .t{text-align:right;color:var(--mu);font-variant-numeric:tabular-nums}
+@media(max-width:640px){.bar{grid-template-columns:100px 1fr 56px}}
+.gantt{position:relative;margin-top:6px}.gantt .fila{display:grid;grid-template-columns:70px 1fr;gap:8px;align-items:center;margin:6px 0}.gantt .pista{position:relative;height:26px;background:var(--c2);border-radius:8px;overflow:hidden}
+.gantt .blk{position:absolute;top:3px;bottom:3px;border-radius:5px;min-width:3px}.gantt .esc{display:grid;grid-template-columns:70px 1fr;gap:8px;font-size:11px;color:var(--mu)}.gantt .esc div{display:flex;justify-content:space-between}
+.ley{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--mu);margin-top:8px}.ley i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.colab{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-top:1px solid var(--ln)}.colab:first-child{border-top:0}
+.st{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:end center;z-index:40}@media(min-width:700px){.modal{place-items:center}}
+.modal .box{background:var(--c1);border:1px solid var(--ln);border-radius:20px 20px 0 0;padding:18px;width:100%;max-width:560px;max-height:90vh;overflow:auto}@media(min-width:700px){.modal .box{border-radius:20px}}
+.modal label{display:block;font-size:11.5px;color:var(--mu);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 6px}
+.acc{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.empty{color:var(--mu);text-align:center;padding:30px 10px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:60}
+.pres .ed{display:none!important}
+</style>
+<script src="../config.js?v=2"></script>
+<script src="../ideamia-nav.js?v=5" defer></script>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Cargando…</div></div>
+<script>
+(function () {
+  const C = window.PANEL_CONFIG || {}, app = document.getElementById('app'), P = 'joaco';
+  const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
+  const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
+  let K = jget('pi:key') || lsGet('ideamia:clave') || jget('pi:pkey') || '';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const toast = t => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3000); };
+  const B = 'https://ideamiacontacto-lab.github.io/panel-ideamia/';
+  const CATS = { 'Formación': '#9b8cff', 'Inputs': '#6FC3FF', 'Ficha': '#5CE38A', 'Campañas': '#FFF200', 'Plan del mes': '#FFB454', 'Colaboradores': '#FF8AD8', 'Calendario': '#4fd1c5', 'Plan B': '#f97373', 'Ads': '#c084fc', 'Reportes': '#60a5fa', 'Objetivos': '#a3e635', 'Brainstorming': '#fbbf24', 'Otro': '#8C8C8C' };
+  const col = c => CATS[c] || CATS.Otro;
+  /* tareas de la semana: lo que tiene que hacer un social media, con dónde se hace */
+  const TAREAS = [
+    { id: 'recorrido', t: 'Mirar el recorrido "Cómo se arma un mes"', c: 'Formación', u: B + 'plan/recorrido/' },
+    { id: 'inputs', t: 'Procesar los pedidos del tablero (Inputs)', c: 'Inputs', u: 'TABLERO', m: 'Marcalos en el Panel diario dentro de las 24 h' },
+    { id: 'ficha', t: 'Armar la ficha de la marca y mandarla a aprobar', c: 'Ficha', u: B + 'plan/?p=joaco', m: 'Tópicos fijos con 5 ángulos, pedidos recurrentes y aprendizajes' },
+    { id: 'campanas', t: 'Decidir qué campañas de noviembre se atacan', c: 'Campañas', u: B + 'plan/?p=joaco' },
+    { id: 'general', t: 'Plan general de noviembre (tópicos semana por semana)', c: 'Plan del mes', u: B + 'plan/?p=joaco', m: 'Se cierra el viernes 30/10' },
+    { id: 'sandwich', t: 'Plan de la campaña: Día del Sándwich (3/11)', c: 'Plan del mes', u: B + 'plan/?p=joaco', m: 'Competencia, año pasado, ideas, producción, pedidos y distribución' },
+    { id: 'colabs', t: 'Buscar y cargar colaboradores para el Día del Sándwich', c: 'Colaboradores', u: '#colabs' },
+    { id: 'calendario', t: 'Dejar el calendario cargado hasta el 30/11', c: 'Calendario', u: 'TABLERO', m: 'Entrega del viernes 30/10' },
+    { id: 'planb', t: 'Plan B de cada reel de noviembre', c: 'Plan B', u: B + 'plan/?p=joaco', m: 'Entrega del lunes 26/10' },
+    { id: 'ads', t: 'Revisar la pauta de la semana', c: 'Ads', u: B + 'plan/?p=joaco' },
+    { id: 'semanal', t: 'Reporte semanal (semana del 12/10)', c: 'Reportes', u: B + 'prueba/reportes/?resp=joaco', m: 'Vence el martes 20/10 a las 12' },
+    { id: 'mensual', t: 'Reporte mensual de septiembre', c: 'Reportes', u: B + 'prueba/reportes/?resp=joaco' },
+    { id: 'trimestral', t: 'Reporte trimestral (julio a septiembre)', c: 'Reportes', u: B + 'prueba/reportes/?resp=joaco' },
+    { id: 'okr', t: 'Cargar los datos que faltan en Objetivos', c: 'Objetivos', u: B + 'objetivos/?p=joaco' },
+    { id: 'brain', t: 'Programar la brainstorming si la campaña la lleva', c: 'Brainstorming', u: 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/' }
+  ];
+  const S = { d: null, tab: lsGet('prueba:tab') || 'semana', pres: false };
+  const api = async q => { const r = await fetch(C.API_URL + '?' + new URLSearchParams(Object.assign({ action: 'prueba', p: P, k: K }, q || {})), { cache: 'no-store' }).then(r => r.json()); if (r.error) throw new Error(r.mensaje || r.error); return r; };
+  const post = async b => { const r = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'prueba', persona: P, k: K }, b)) }).then(r => r.json()); if (r.error) throw new Error(r.mensaje || r.error); S.d = r; pintar(); return r; };
+  const hhmm = iso => { const d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  const dur = m => { m = Math.round(m || 0); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); };
+  const diaTxt = iso => new Date(iso).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric' });
+  const minDe = o => o.fin ? o.minutos : Math.max(0, Math.round((Date.now() - new Date(o.inicio).getTime()) / 6e4));
+  const local = iso => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+  async function cargar() {
+    if (!K) return gate();
+    try { S.d = await api(); pintar(); } catch (e) { if (/clave/i.test(e.message)) return gate('Clave incorrecta'); app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '</div>'; }
+  }
+  function gate(msg) {
+    app.innerHTML = '<div class="card" style="max-width:380px;margin:40px auto;text-align:center"><div class="kick">Semana de prueba</div><h1><b>Joaquín</b></h1>' + (msg ? '<p class="sub">' + esc(msg) + '</p>' : '') + '<input id="k" type="password" placeholder="Clave del equipo"><div style="margin-top:10px"><button class="btn" id="ent">Entrar</button></div></div>';
+    const ent = () => { K = app.querySelector('#k').value.trim(); if (K) cargar(); };
+    app.querySelector('#ent').onclick = ent; app.querySelector('#k').onkeydown = e => { if (e.key === 'Enter') ent(); };
+  }
+  const tablero = () => (S.d.tablero || {}).url || 'https://trello.com';
+  /* ---------- cronómetro ---------- */
+  function pintarTimer() {
+    const c = S.d.corriendo;
+    if (c) return '<div class="card timer"><div class="reloj" id="reloj">00:00</div><div class="que"><span><span class="dot"></span>En curso desde las ' + hhmm(c.inicio) + '</span><b>' + esc(c.tarea) + '</b><span><span class="cat" style="background:' + col(c.categoria) + '22;color:' + col(c.categoria) + '">' + esc(c.categoria) + '</span></span></div><div class="row ed"><button class="btn r" data-fin>■ Terminar</button></div></div>';
+    return '<div class="card timer ed"><div class="reloj" style="color:#555">00:00</div><div class="que" style="min-width:260px"><div class="grid2"><input id="ntarea" placeholder="¿Qué empezás? (o tocá ▶ en una tarea)"><select id="ncat">' + Object.keys(CATS).map(k => '<option>' + k + '</option>').join('') + '</select><button class="btn" data-emp>▶ Empezar</button></div></div></div>';
+  }
+  /* ---------- pestañas ---------- */
+  function pintarSemana() {
+    const H = S.d.horarios, porT = {}; H.forEach(o => { porT[o.tarea] = (porT[o.tarea] || 0) + minDe(o); });
+    const hechas = S.d.hechas || {}, n = TAREAS.filter(t => hechas[t.id]).length;
+    return '<div class="card"><div class="row" style="justify-content:space-between"><div><b>Tareas de la semana</b> <span class="m" style="color:var(--mu)">· ' + n + ' de ' + TAREAS.length + ' hechas</span></div></div>' +
+      TAREAS.map(t => { const u = t.u === 'TABLERO' ? tablero() : t.u, min = porT[t.t] || 0, ok = !!hechas[t.id];
+        return '<div class="task' + (ok ? ' done' : '') + '"><button class="ck' + (ok ? ' on' : '') + ' ed" data-hecha="' + t.id + '" title="Marcar hecha">' + (ok ? '✓' : '') + '</button><div><b>' + esc(t.t) + '</b><div class="m"><span class="cat" style="background:' + col(t.c) + '22;color:' + col(t.c) + '">' + t.c + '</span>' + (t.m ? esc(t.m) : '') + (min ? ' · <b style="color:var(--y)">' + dur(min) + '</b>' : '') + '</div></div><div class="bts"><a class="btn g sm" href="' + esc(u) + '"' + (u.charAt(0) === '#' ? '' : ' target="_blank" rel="noopener"') + ' data-ir="' + esc(u) + '">Abrir</a><button class="btn sm ed" data-play="' + t.id + '">▶ Empezar</button></div></div>'; }).join('') + '</div>' +
+      '<div class="card"><b>Links de la prueba</b><div class="row" style="margin-top:10px"><a class="btn g sm" target="_blank" rel="noopener" href="' + esc(tablero()) + '">Tablero SCL Tritato Prueba</a><a class="btn g sm" target="_blank" href="' + B + '?p=joaco">Panel diario</a><a class="btn g sm" target="_blank" href="' + B + 'plan/?p=joaco">Plan</a><a class="btn g sm" target="_blank" href="' + B + 'prueba/reportes/?resp=joaco">Reportes de prueba</a><a class="btn g sm" target="_blank" href="' + B + 'objetivos/?p=joaco">Objetivos</a></div><p class="sub" style="margin:10px 0 0">Todo esto es de la marca de prueba: no le llega a Orne, a Rama, al cliente ni a los reportes reales. Los avisos de Discord del social media te llegan a vos.</p></div>';
+  }
+  function pintarRegistro() {
+    const H = S.d.horarios.slice().sort((a, b) => b.inicio.localeCompare(a.inicio)); if (!H.length) return '<div class="card empty">Todavía no hay horarios. Tocá ▶ Empezar en una tarea.</div>';
+    const dias = {}; H.forEach(o => (dias[o.inicio.slice(0, 10)] = dias[o.inicio.slice(0, 10)] || []).push(o));
+    return '<div class="row ed" style="justify-content:flex-end;margin-bottom:8px"><button class="btn g sm" data-nuevo>+ Cargar un horario a mano</button><button class="btn g sm" data-csv>Descargar CSV</button></div>' +
+      Object.keys(dias).map(k => { const L = dias[k], tot = L.reduce((a, o) => a + minDe(o), 0);
+        return '<div class="card dia"><h3>' + diaTxt(k + 'T12:00:00') + ' · ' + dur(tot) + '</h3><table><tr><th>Horario</th><th>Tarea</th><th>Duración</th><th class="ed"></th></tr>' + L.map(o => '<tr><td class="n">' + hhmm(o.inicio) + ' a ' + (o.fin ? hhmm(o.fin) : '…') + '</td><td><span class="cat" style="background:' + col(o.categoria) + '22;color:' + col(o.categoria) + '">' + esc(o.categoria) + '</span>' + esc(o.tarea) + (o.nota ? '<div style="color:var(--mu);font-size:12.5px">' + esc(o.nota) + '</div>' : '') + '</td><td class="n">' + dur(minDe(o)) + '</td><td class="ed"><button class="btn g sm" data-ed="' + o.id + '">Editar</button></td></tr>').join('') + '</table></div>'; }).join('');
+  }
+  function pintarColabs() {
+    const L = S.d.colabs || [], EST = { contactar: ['#555', 'Por contactar'], contactado: ['#FFB454', 'Contactado'], acepto: ['#5CE38A', 'Aceptó'], rechazo: ['#FF6B6B', 'No aceptó'], publicado: ['#6FC3FF', 'Publicado'] };
+    return '<div class="card"><div class="row" style="justify-content:space-between"><div><b>Colaboradores e influencers</b><div style="color:var(--mu);font-size:13px">Para el Día del Sándwich y lo que venga: quiénes son, qué se les propone y en qué estado está.</div></div><button class="btn sm ed" data-cnuevo>+ Sumar</button></div>' +
+      (L.length ? L.map(c => { const e = EST[c.estado] || EST.contactar; return '<div class="colab"><div><b>' + esc(c.nombre || c.usuario) + '</b> ' + (c.usuario ? '<span style="color:var(--mu)">' + esc(c.usuario) + '</span>' : '') + ' <span class="st" style="background:' + e[0] + '33;color:' + e[0] + '">' + e[1] + '</span><div style="color:var(--mu);font-size:13px">' + [c.rubro, c.seguidores ? c.seguidores + ' seguidores' : '', c.campana, c.fecha ? 'para el ' + c.fecha.split('-').reverse().slice(0, 2).join('/') : '', c.contacto].filter(Boolean).map(esc).join(' · ') + '</div>' + (c.propuesta ? '<div style="font-size:13.5px;margin-top:3px">' + esc(c.propuesta) + '</div>' : '') + '</div><div class="ed"><button class="btn g sm" data-ced="' + c.id + '">Editar</button></div></div>'; }).join('') : '<div class="empty">Todavía no cargaste colaboradores.</div>') + '</div>';
+  }
+  function pintarInforme() {
+    const H = S.d.horarios.filter(o => o.fin); if (!H.length) return '<div class="card empty">El informe aparece cuando termines la primera tarea.</div>';
+    const tot = H.reduce((a, o) => a + o.minutos, 0), porC = {}, porT = {}, dias = {};
+    H.forEach(o => { porC[o.categoria] = (porC[o.categoria] || 0) + o.minutos; const k = o.tarea; porT[k] = porT[k] || { m: 0, n: 0, c: o.categoria }; porT[k].m += o.minutos; porT[k].n++; (dias[o.inicio.slice(0, 10)] = dias[o.inicio.slice(0, 10)] || []).push(o); });
+    const maxC = Math.max.apply(null, Object.values(porC)), nd = Object.keys(dias).length;
+    const hs = H.map(o => new Date(o.inicio).getHours()).concat(H.map(o => new Date(o.fin).getHours() + 1)), h0 = Math.min(8, Math.min.apply(null, hs)), h1 = Math.max(20, Math.max.apply(null, hs)), rango = (h1 - h0) * 60;
+    const pos = iso => { const d = new Date(iso); return ((d.getHours() - h0) * 60 + d.getMinutes()) / rango * 100; };
+    return '<div class="card"><div class="kpis"><div class="kpi"><div class="v">' + dur(tot) + '</div><div class="l">Tiempo total</div></div><div class="kpi"><div class="v">' + nd + '</div><div class="l">Días trabajados</div></div><div class="kpi"><div class="v">' + dur(tot / nd) + '</div><div class="l">Promedio por día</div></div><div class="kpi"><div class="v">' + H.length + '</div><div class="l">Bloques de trabajo</div></div></div></div>' +
+      '<div class="card"><b>Tiempo por tipo de tarea</b>' + Object.keys(porC).sort((a, b) => porC[b] - porC[a]).map(k => '<div class="bar"><span>' + esc(k) + '</span><i style="width:' + Math.max(2, porC[k] / maxC * 100) + '%;background:' + col(k) + '"></i><span class="t">' + dur(porC[k]) + '</span></div>').join('') + '</div>' +
+      '<div class="card"><b>Cómo se repartió cada día</b><div class="gantt"><div class="esc"><span></span><div>' + Array.from({ length: Math.floor((h1 - h0) / 2) + 1 }, (_, i) => '<span>' + (h0 + i * 2) + 'h</span>').join('') + '</div></div>' +
+        Object.keys(dias).sort().map(k => '<div class="fila"><span style="font-size:12.5px;color:var(--mu);text-transform:capitalize">' + new Date(k + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }) + '</span><div class="pista">' + dias[k].map(o => '<span class="blk" title="' + esc(hhmm(o.inicio) + ' a ' + hhmm(o.fin) + ' · ' + o.tarea) + '" style="left:' + pos(o.inicio) + '%;width:' + (pos(o.fin) - pos(o.inicio)) + '%;background:' + col(o.categoria) + '"></span>').join('') + '</div></div>').join('') +
+        '</div><div class="ley">' + Object.keys(porC).map(k => '<span><i style="background:' + col(k) + '"></i>' + esc(k) + '</span>').join('') + '</div></div>' +
+      '<div class="card"><b>Cuánto llevó cada tarea</b><table><tr><th>Tarea</th><th>Veces</th><th>Total</th></tr>' + Object.keys(porT).sort((a, b) => porT[b].m - porT[a].m).map(k => '<tr><td><span class="cat" style="background:' + col(porT[k].c) + '22;color:' + col(porT[k].c) + '">' + esc(porT[k].c) + '</span>' + esc(k) + '</td><td class="n">' + porT[k].n + '</td><td class="n">' + dur(porT[k].m) + '</td></tr>').join('') + '</table></div>' +
+      '<div class="row ed" style="justify-content:flex-end"><button class="btn g sm" data-copiar>Copiar resumen</button><button class="btn g sm" data-csv>Descargar CSV</button></div>';
+  }
+  function pintar() {
+    if (!S.d) return;
+    const T = [['semana', 'Semana'], ['registro', 'Horarios'], ['colabs', 'Colaboradores'], ['informe', 'Informe']];
+    app.className = 'wrap' + (S.pres ? ' pres' : '');
+    app.innerHTML = '<div class="row" style="justify-content:space-between;align-items:flex-end"><div><span class="tag">Plataforma de prueba</span><h1>Semana de <b>Joaquín</b> como social media</h1><p class="sub">Marca: <b style="color:var(--tx)">Tritato Prueba</b> · ejemplo: el Día del Sándwich. Cada tarea con su horario, para mostrar el proceso y cuánto lleva.</p></div><button class="btn g sm" data-pres>' + (S.pres ? 'Salir de presentación' : 'Modo presentación') + '</button></div>' +
+      pintarTimer() + '<div class="tabs">' + T.map(([k, n]) => '<button data-tab="' + k + '" class="' + (S.tab === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div>' +
+      (S.tab === 'registro' ? pintarRegistro() : S.tab === 'colabs' ? pintarColabs() : S.tab === 'informe' ? pintarInforme() : pintarSemana());
+    bind(); tick();
+  }
+  let iv = null;
+  function tick() { clearInterval(iv); const c = S.d && S.d.corriendo; if (!c) return; const f = () => { const s = Math.max(0, Math.floor((Date.now() - new Date(c.inicio).getTime()) / 1000)), r = document.getElementById('reloj'); if (r) r.textContent = (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }; f(); iv = setInterval(f, 1000); }
+  const correr = async (tarea, categoria, b) => { if (b) b.disabled = true; try { await post({ accion: 'empezar', tarea, categoria }); toast('▶ Empezaste: ' + tarea); window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { toast(e.message); if (b) b.disabled = false; } };
+  function bind() {
+    const $$ = s => app.querySelectorAll(s);
+    $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; try { localStorage.setItem('prueba:tab', S.tab); } catch (e) {} pintar(); });
+    $$('[data-pres]').forEach(b => b.onclick = () => { S.pres = !S.pres; if (S.pres) S.tab = 'informe'; pintar(); });
+    $$('[data-emp]').forEach(b => b.onclick = () => { const t = app.querySelector('#ntarea').value.trim(); if (!t) return toast('Escribí qué empezás'); correr(t, app.querySelector('#ncat').value, b); });
+    $$('[data-fin]').forEach(b => b.onclick = async () => { const nota = prompt('¿Querés anotar algo de esta tarea? (opcional: qué hiciste, qué trabó)') ; if (nota === null) return; b.disabled = true; try { await post({ accion: 'terminar', nota }); toast('■ Tarea terminada'); } catch (e) { toast(e.message); b.disabled = false; } });
+    $$('[data-play]').forEach(b => b.onclick = () => { const t = TAREAS.find(x => x.id === b.dataset.play); correr(t.t, t.c, b); });
+    $$('[data-hecha]').forEach(b => b.onclick = () => post({ accion: 'hecha', id: b.dataset.hecha, valor: !(S.d.hechas || {})[b.dataset.hecha] }).catch(e => toast(e.message)));
+    $$('[data-ir]').forEach(a => { if (a.dataset.ir === '#colabs') a.onclick = e => { e.preventDefault(); S.tab = 'colabs'; pintar(); }; });
+    $$('[data-ed]').forEach(b => b.onclick = () => editar(S.d.horarios.find(o => o.id === b.dataset.ed)));
+    $$('[data-nuevo]').forEach(b => b.onclick = () => editar(null));
+    $$('[data-cnuevo]').forEach(b => b.onclick = () => editarColab(null));
+    $$('[data-ced]').forEach(b => b.onclick = () => editarColab(S.d.colabs.find(c => c.id === b.dataset.ced)));
+    $$('[data-csv]').forEach(b => b.onclick = csv);
+    $$('[data-copiar]').forEach(b => b.onclick = copiar);
+  }
+  function modal(html, alGuardar, alBorrar) {
+    const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box">' + html + '<div class="acc">' + (alBorrar ? '<button class="btn g" data-x style="margin-right:auto;color:var(--bad)">Borrar</button>' : '') + '<button class="btn g" data-c>Cancelar</button><button class="btn" data-ok>Guardar</button></div></div>';
+    o.onclick = e => { if (e.target === o) o.remove(); }; o.querySelector('[data-c]').onclick = () => o.remove();
+    o.querySelector('[data-ok]').onclick = async function () { this.disabled = true; try { await alGuardar(o); o.remove(); } catch (e) { toast(e.message); this.disabled = false; } };
+    if (alBorrar) o.querySelector('[data-x]').onclick = async () => { if (!confirm('¿Borrar?')) return; try { await alBorrar(); o.remove(); } catch (e) { toast(e.message); } };
+    document.body.appendChild(o); return o;
+  }
+  function editar(o) {
+    const cats = Object.keys(CATS).map(k => '<option' + (o && o.categoria === k ? ' selected' : '') + '>' + k + '</option>').join('');
+    modal('<h3 style="margin:0">' + (o ? 'Editar horario' : 'Cargar un horario a mano') + '</h3><label>Tarea</label><input id="et" value="' + esc(o ? o.tarea : '') + '"><label>Tipo</label><select id="ec">' + cats + '</select><label>Empezó</label><input id="ei" type="datetime-local" value="' + local(o ? o.inicio : new Date().toISOString()) + '"><label>Terminó</label><input id="ef" type="datetime-local" value="' + local(o ? o.fin : '') + '"><label>Nota</label><textarea id="en" rows="2">' + esc(o ? o.nota : '') + '</textarea>',
+      async m => {
+        const v = id => m.querySelector(id).value, ini = v('#ei') ? new Date(v('#ei')).toISOString() : '', fin = v('#ef') ? new Date(v('#ef')).toISOString() : '';
+        if (o) return post({ accion: 'editar', id: o.id, tarea: v('#et'), categoria: v('#ec'), inicio: ini, fin: fin, nota: v('#en') });
+        if (!fin) throw new Error('Poné a qué hora terminó');
+        return post({ accion: 'agregar', tarea: v('#et'), categoria: v('#ec'), inicio: ini, fin: fin, nota: v('#en') });
+      }, o ? () => post({ accion: 'borrar', id: o.id }) : null);
+  }
+  function editarColab(c) {
+    c = c || { estado: 'contactar', campana: 'Día del Sándwich' };
+    const est = [['contactar', 'Por contactar'], ['contactado', 'Contactado'], ['acepto', 'Aceptó'], ['rechazo', 'No aceptó'], ['publicado', 'Publicado']];
+    const f = (id, l, ph, v, t) => '<label>' + l + '</label><input id="' + id + '" ' + (t ? 'type="' + t + '" ' : '') + 'placeholder="' + ph + '" value="' + esc(v || '') + '">';
+    modal('<h3 style="margin:0">' + (c.id ? 'Editar colaborador' : 'Sumar colaborador') + '</h3>' + f('cn', 'Nombre', 'Ej.: Sofi Gastro', c.nombre) + f('cu', 'Usuario de Instagram', '@usuario', c.usuario) + f('cr', 'Rubro', 'Ej.: gastronomía local, recetas', c.rubro) + f('cs', 'Seguidores', 'Ej.: 25.000', c.seguidores) + f('cc', 'Contacto', 'Mail, WhatsApp o "por MD"', c.contacto) + f('cp', 'Campaña', 'Día del Sándwich', c.campana) +
+      '<label>Qué se le propone</label><textarea id="cpr" rows="3" placeholder="Ej.: le mandamos una caja de sándwiches de miga para que los pruebe y suba un reel en colaboración">' + esc(c.propuesta || '') + '</textarea>' + f('cf', 'Para cuándo', '', c.fecha, 'date') +
+      '<label>Estado</label><select id="ce">' + est.map(([k, n]) => '<option value="' + k + '"' + (c.estado === k ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>',
+      m => { const v = id => m.querySelector(id).value; return post({ accion: 'colab', colab: { id: c.id, nombre: v('#cn'), usuario: v('#cu'), rubro: v('#cr'), seguidores: v('#cs'), contacto: v('#cc'), campana: v('#cp'), propuesta: v('#cpr'), fecha: v('#cf'), estado: v('#ce') } }); },
+      c.id ? () => post({ accion: 'colabBorrar', id: c.id }) : null);
+  }
+  function csv() {
+    const L = [['fecha', 'inicio', 'fin', 'minutos', 'tarea', 'tipo', 'nota']].concat(S.d.horarios.slice().sort((a, b) => a.inicio.localeCompare(b.inicio)).map(o => [o.inicio.slice(0, 10), hhmm(o.inicio), o.fin ? hhmm(o.fin) : '', minDe(o), o.tarea, o.categoria, o.nota]));
+    const t = '﻿' + L.map(r => r.map(x => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"').join(';')).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv' })); a.download = 'horarios-semana-prueba.csv'; a.click();
+  }
+  function copiar() {
+    const H = S.d.horarios.filter(o => o.fin), tot = H.reduce((a, o) => a + o.minutos, 0), porC = {}; H.forEach(o => porC[o.categoria] = (porC[o.categoria] || 0) + o.minutos);
+    const t = 'Semana de prueba como social media (Tritato Prueba)\nTiempo total: ' + dur(tot) + '\n' + Object.keys(porC).sort((a, b) => porC[b] - porC[a]).map(k => '• ' + k + ': ' + dur(porC[k])).join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Resumen copiado'), () => prompt('Copiá el resumen:', t));
+  }
+  cargar();
+  setInterval(() => { if (!document.hidden && S.d && !document.querySelector('.modal')) api().then(d => { S.d = d; pintar(); }).catch(() => {}); }, 60000);
+})();
+</script>
+</body>
+</html>
