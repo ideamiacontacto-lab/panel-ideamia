@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reporte semanal · Ideamia</title>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="shared.js"></script>
+<script src="forms.js"></script>
+<script src="periodico.js"></script>
+<script src="analisis.js"></script>
+<script src="importar.js"></script>
+<script src="fx.js"></script>
+<script src="../../ideamia-nav.js?v=5" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="site-head"><a class="logo" href="./">Idea<b>mia</b></a><span class="pill" id="who"></span><span class="progress" id="progress"></span></header>
+  <section class="hero">
+    <div class="puzzle" aria-hidden="true"><svg viewBox="0 0 300 260"><defs><path id="pz" d="M20 20 H42 C40 12 44 6 50 6 C56 6 60 12 58 20 H80 V42 C88 40 94 44 94 50 C94 56 88 60 80 58 V80 H58 C60 88 56 94 50 94 C44 94 40 88 42 80 H20 V58 C12 60 6 56 6 50 C6 44 12 40 20 42 Z"/></defs><g class="p p1" style="--r:-14deg"><g class="pin"><g transform="translate(150 20) scale(1.25)"><use href="#pz" fill="#8F8F8F" transform="translate(0 9)"/><use href="#pz" fill="#E9E9E9"/></g></g></g><g class="p p2" style="--r:18deg"><g class="pin"><g transform="translate(40 110) scale(1.05)"><use href="#pz" fill="#B3A900" transform="translate(0 9)"/><use href="#pz" fill="#FFF200"/></g></g></g><g class="p p3" style="--r:-6deg"><g class="pin"><g transform="translate(175 150) scale(.9)"><use href="#pz" fill="#262626" transform="translate(0 8)"/><use href="#pz" fill="#4A4A4A"/></g></g></g></svg></div>
+    <div class="kicker">— Estudio creativo · Sistema de reportes</div>
+    <h1 class="wordmark"><span class="thin ln"><span>Reportes</span></span><span class="heavy ln"><span>de <b>redes</b></span></span></h1>
+    <p class="lead">Las marcas no se construyen de una sola vez. <strong>Se construyen pieza por pieza</strong>, y cada reporte es una.</p>
+  </section>
+
+  <div class="seg" id="nav" style="margin-bottom:18px"><label><input type="radio" name="nav" value="nuevo" checked><span>Nuevo reporte</span></label><label><input type="radio" name="nav" value="historial"><span>Reportes anteriores</span></label><label id="navImportar"><input type="radio" name="nav" value="importar"><span>Subir reporte viejo</span></label></div>
+
+  <div id="login" class="hidden"></div>
+  <div id="historial" class="hidden"></div>
+  <div id="importar" class="hidden"></div>
+
+  <div id="setup" class="card accent">
+    <div style="margin-bottom:14px"><span class="lbl">Tipo de reporte</span><div class="seg" id="tipoSeg"></div></div>
+    <div class="grid g3">
+      <label class="f"><span class="l">Marca</span><select id="marca"></select></label>
+      <label class="f hidden" id="durWrap"><span class="l">Alcance del reporte</span><select id="dur"><option value="3">Trimestral · 3 meses</option><option value="6">Semestral · 6 meses</option><option value="12">Anual · 12 meses</option></select></label>
+      <label class="f"><span class="l" id="periodoLbl">Semana a reportar</span><select id="periodo"></select></label>
+    </div>
+    <div class="small muted" id="durInfo"></div>
+    <div class="small muted" id="setupInfo"></div>
+  </div>
+
+  <div id="errbox" class="errbox hidden"></div>
+  <div id="form"></div>
+  <div id="doneView" class="hidden"></div>
+  <div id="printArea" aria-hidden="true"></div>
+</div>
+
+<div class="stickybar" id="bar">
+  <div class="in">
+    <div class="meter" id="meter"><div class="ring" title="Obligatorios completos"><svg viewBox="0 0 36 36"><circle class="bgc" cx="18" cy="18" r="15.9155"/><circle class="fgc" id="ringFg" cx="18" cy="18" r="15.9155"/></svg><b id="ringPct">0%</b></div><div class="st" id="status">Borrador guardado en este dispositivo automáticamente</div></div>
+    <button class="btn" id="send">Enviar reporte</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const C = window.IDEAMIA_CONFIG, U = window.IDX, FORMS = window.FORMS;
+  const $ = s => document.querySelector(s);
+  const params = new URLSearchParams(location.search);
+  // quién sos: lo guardado acá o, si entraste por el Panel diario, la misma persona (sesión compartida; "project" siempre pide clave)
+  let storedUser=null; try{ storedUser = localStorage.getItem("ideamia-user"); if(!storedUser){ const s=localStorage.getItem("ideamia:persona"); if(s && s!=="project") storedUser=s; } }catch(e){}
+  const respParam = (params.get("resp")||storedUser||"").toLowerCase();
+  let resp = null, isProject = false;
+
+  // Última selección (tipo, marca, período): al actualizar la página se vuelve al mismo reporte y aparece su borrador.
+  let ui={}; try{ ui=JSON.parse(localStorage.getItem("ideamia-ui")||"{}")||{}; }catch(e){ ui={}; }
+  let tipo = params.get("tipo") || ui.tipo || "sm";
+  let marca = params.get("marca") || ui.marca || null, periodo = params.get("periodo") || ui.periodo || null, vals = {}, reports = [], idx = {};
+  let reportsLoaded=false, editMode=false, sending=false, uploading=0, draftFail=false;
+  let importando = !!ui.importando; // revisando un reporte viejo subido desde archivo
+  const TIPO_L = {sm:"Social Media · semanal", cm:"Community Manager · semanal", mensual:"Mensual", periodico:"Trimestral · Semestral · Anual"};
+  let tiposDisponibles = ["sm","cm","mensual","periodico"];
+  let dur = Number(params.get("dur") || (periodo&&periodo.includes("+") ? periodo.split("+")[1] : ui.dur) || 3);
+  function saveUI(){ try{ localStorage.setItem("ideamia-ui", JSON.stringify({tipo, marca, periodo, dur, importando})); }catch(e){} }
+  // No cerrar la pestaña en medio de un envío o de una subida
+  window.addEventListener("beforeunload", e=>{ if(sending || uploading>0){ e.preventDefault(); e.returnValue=""; } });
+  const P = window.PERIODICO;
+
+  // ---------- setup ----------
+  const urlResp = (params.get("resp")||"").toLowerCase();
+  // Por URL solo se acepta un responsable real (?resp=orne). "project" únicamente con clave (queda guardado en el dispositivo).
+  let currentUser = (urlResp && urlResp!=="project" && C.RESPONSABLES[urlResp]) ? urlResp : (storedUser||"");
+  function initRoles(){
+    isProject = currentUser==="project";
+    resp = (!isProject && C.RESPONSABLES[currentUser]) ? currentUser : null;
+    if(resp){ try{ localStorage.setItem("ideamia-user",resp); }catch(e){} }
+    if(resp && U.isCM(resp)) tipo="cm";
+    tiposDisponibles = (resp && U.isCM(resp)) ? ["cm"] : resp ? ["sm","mensual","periodico"] : ["sm","cm","mensual","periodico"];
+    $("#navImportar")?.classList.toggle("hidden", !!(resp && U.isCM(resp))); // los reportes viejos son mensuales o periódicos: solo Social Media y Project
+    if(!tiposDisponibles.includes(tipo)) tipo = tiposDisponibles[0];
+    $("#who").innerHTML = (isProject ? "Project · Joaquín" : resp ? `${esc(C.RESPONSABLES[resp].nombre)} · ${esc(C.RESPONSABLES[resp].rol)}` : "Equipo Ideamia") + ((isProject||resp) ? ` <a href="#" id="logout" style="margin-left:8px;color:var(--muted);text-decoration:none" title="Cambiar de usuario">✕</a>` : "");
+    document.body.classList.toggle("compact", isProject || !!resp); // portada chica para quien ya entró: el formulario queda a mano
+    if($("#logout")) $("#logout").addEventListener("click",e=>{ e.preventDefault(); try{ localStorage.removeItem("ideamia-user"); }catch(x){} location.href = location.pathname; });
+  }
+  const identified = () => isProject || !!resp;
+  function renderLogin(){
+    const box=$("#login"); box.classList.remove("hidden");
+    ["setup","form","bar","historial","errbox","doneView"].forEach(id=>$("#"+id).classList.add("hidden")); $("#nav").classList.add("hidden");
+    const people = Object.entries(C.RESPONSABLES).map(([slug,r])=>`<button class="btn ghost" data-login="${slug}" style="justify-content:flex-start;text-transform:none;letter-spacing:0;font-size:17px"><b>${esc(r.nombre)}</b>&nbsp;<span class="muted">· ${esc(r.rol)}</span></button>`).join("");
+    box.innerHTML = `<div class="card accent"><h2 style="margin-bottom:6px">¿Quién sos?</h2><div class="muted small" style="margin-bottom:14px">Elegí tu nombre para ver tus marcas. Queda guardado en este dispositivo.</div>
+      <div style="display:grid;gap:8px;max-width:420px">${people}
+        <details style="margin-top:6px"><summary class="muted small" style="cursor:pointer">Soy Project (Joaquín)</summary><div style="display:flex;gap:8px;margin-top:8px"><input type="password" id="projPw" placeholder="Clave" style="max-width:220px"><button class="btn sm" id="projGo">Entrar</button></div></details>
+      </div></div>`;
+    box.querySelectorAll("[data-login]").forEach(b=>b.addEventListener("click",()=>setUser(b.dataset.login)));
+    $("#projGo").addEventListener("click",()=>{ if($("#projPw").value===C.PANEL_PASSWORD) setUser("project"); else { $("#projPw").classList.add("invalid"); toast("Clave incorrecta","bad"); } });
+    $("#projPw").addEventListener("keydown",e=>{ if(e.key==="Enter") $("#projGo").click(); });
+  }
+  function setUser(u){ currentUser=u; try{ localStorage.setItem("ideamia-user",u); if(u!=="project") localStorage.setItem("ideamia:persona",u); }catch(e){} $("#login").classList.add("hidden"); $("#nav").classList.remove("hidden"); initRoles(); marca=null; periodo=null; showView("nuevo"); }
+  function marcasDisponibles(){
+    if(isProject) return C.MARCAS;
+    if(resp && U.isCM(resp)) return C.MARCAS.filter(m=>U.cmDe(m)===resp);
+    if(resp) return C.MARCAS.filter(m=>m.sm===resp);
+    return C.MARCAS;
+  }
+  function responsableDe(){
+    const m = C.MARCAS.find(x=>x.slug===marca); if(!m) return "";
+    if(tipo==="cm") return C.RESPONSABLES[U.cmDe(m)]?.nombre || "CM";
+    return C.RESPONSABLES[m.sm]?.nombre||m.sm;
+  }
+  const existing = () => idx[`${tipo}|${marca}|${periodo}`];
+  function renderSetup(){
+    $("#tipoSeg").innerHTML = tiposDisponibles.map(t=>`<label><input type="radio" name="tipo" value="${t}" ${t===tipo?"checked":""}><span>${TIPO_L[t]}</span></label>`).join("");
+    const ms = marcasDisponibles();
+    if(!marca || !ms.find(m=>m.slug===marca)) marca = ms[0].slug;
+    const isMes = tipo==="mensual", isPer = tipo==="periodico";
+    $("#periodoLbl").textContent = isPer ? "Mes de inicio del período" : isMes ? "Mes a reportar" : "Semana a reportar";
+    $("#durWrap").classList.toggle("hidden", !isPer);
+    let opts;
+    if(isPer){
+      $("#dur").value = String(dur);
+      const closed = P.closedPeriods(dur, new Date(), importando);
+      const custom = periodo && periodo.includes("+") && !closed.find(c=>c.id===periodo) && periodo.split("+")[1]===String(dur) ? periodo : null;
+      if(!periodo || !periodo.includes("+") || periodo.split("+")[1]!==String(dur)) periodo = closed.length ? closed[0].id : `${P.startMonths()[dur-1].id}+${dur}`;
+      opts = closed.map(c=>({id:c.id,label:c.label}));
+      if(!opts.length) opts.push({id:periodo,label:P.parsePeriod(periodo).label});
+      if(custom) opts.push({id:custom,label:P.parsePeriod(custom).label+"  ·  otro período"});
+      opts.push({id:"__otro__",label:"Otro período (elegir mes de inicio)…"});
+      $("#periodoLbl").textContent = "Período a reportar";
+      const pp = P.parsePeriod(periodo);
+      $("#durInfo").textContent = `Período: ${pp.label} · ${pp.meses.filter(m=>idx[`mensual|${marca}|${m}`]).length} de ${pp.n} mensuales cargados${pp.meses.some(m=>idx[`mensual|${marca}|${m}`])?"":" · el mes a mes se completa a mano"}`;
+    } else {
+      opts = isMes ? U.recentMonths() : U.recentWeeks();
+      // reporte viejo importado: el mes puede ser anterior al arranque del sistema
+      if(importando && isMes && periodo && /^\d{4}-\d{2}$/.test(periodo) && !opts.find(o=>o.id===periodo)) opts.push(U.monthFromId(periodo));
+      if(!periodo || !opts.find(o=>o.id===periodo)) periodo = opts[0].id;
+    }
+    const selVal = periodo;
+    $("#marca").innerHTML = ms.map(m=>{ const done = !!idx[`${tipo}|${m.slug}|${periodo}`]; return `<option value="${m.slug}" ${m.slug===marca?"selected":""}>${m.nombre}${done?"  ✓ entregado":""}</option>`; }).join("");
+    $("#periodo").innerHTML = opts.map((o,i)=>`<option value="${o.id}" ${o.id===selVal?"selected":""}>${(isMes||isPer)?o.label:U.weekLabelYear(o)}${(!isPer&&i===0)?(isMes?"  ·  mes pasado":"  ·  semana pasada"):""}</option>`).join("");
+    $("#setupInfo").innerHTML = `Carga: ${esc(responsableDe())} · ${esc(FORMS[tipo].titulo)}${reportsLoaded?"":` · <span style="color:var(--warn)">leyendo la planilla…</span>`}${borradoresHTML()}`;
+    $("#setupInfo").querySelectorAll("[data-draft]").forEach(a=>a.addEventListener("click",e=>{ e.preventDefault(); const [t,m,p]=a.dataset.draft.split("|"); tipo=t; marca=m; periodo=p; if(p.includes("+")) dur=Number(p.split("+")[1]); editMode=false; switchForm(); window.scrollTo({top:0,behavior:"smooth"}); }));
+  }
+  // Borradores guardados en este dispositivo que todavía no se enviaron (para no perder trabajo al cambiar de marca o actualizar)
+  function borradoresHTML(){
+    const ms = marcasDisponibles(), out=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i); if(!k||!k.startsWith("ideamia-draft|")) continue;
+        const [,t,m,p]=k.split("|"); if(!t||!m||!p) continue;
+        if(t===tipo && m===marca && p===periodo) continue;
+        if(!tiposDisponibles.includes(t) || !ms.some(x=>x.slug===m)) continue;
+        let d={}; try{ d=JSON.parse(localStorage.getItem(k)||"{}")||{}; }catch(e){ continue; }
+        const llenos = Object.keys(d).filter(x=>!x.startsWith("_") && !/^(mm_|okr_\d+_obj|meta_\d+_obj|est_)/.test(x) && d[x]!=="" && d[x]!=null).length;
+        if(llenos<2) continue;
+        if(reportsLoaded && idx[`${t}|${m}|${p}`] && !d._edit_de && !d._import){ try{ localStorage.removeItem(k); }catch(e){} i--; continue; } // ya se entregó: se limpia
+        const mk=C.MARCAS.find(x=>x.slug===m); const per = t==="periodico" ? P.parsePeriod(p).label : t==="mensual" ? U.monthFromId(p).label : U.weekFromId(p).label;
+        out.push(`<a href="#" data-draft="${esc(t)}|${esc(m)}|${esc(p)}" style="color:var(--accent)">${esc(mk?mk.nombre:m)} · ${esc(TIPO_L[t]||t)} · ${esc(per)}${d._edit_de?" (corrección)":""}</a>`);
+      }
+      // borradores que están en la nube pero no en este dispositivo (empezados en otra compu o celular)
+      for(const x of nubeLst){
+        const k=x.clave; if(localStorage.getItem(k)!=null) continue;
+        const [,t,m,p]=k.split("|"); if(!t||!m||!p || (t===tipo && m===marca && p===periodo)) continue;
+        if(!tiposDisponibles.includes(t) || !ms.some(y=>y.slug===m)) continue;
+        if(reportsLoaded && idx[`${t}|${m}|${p}`] && x.actualizado < U.ts(idx[`${t}|${m}|${p}`].enviado_en)+60000) continue;
+        const mk=C.MARCAS.find(y=>y.slug===m); let per=p; try{ per = t==="periodico" ? P.parsePeriod(p).label : t==="mensual" ? U.monthFromId(p).label : U.weekFromId(p).label; }catch(e){}
+        out.push(`<a href="#" data-draft="${esc(t)}|${esc(m)}|${esc(p)}" style="color:var(--accent)">☁ ${esc(mk?mk.nombre:m)} · ${esc(TIPO_L[t]||t)} · ${esc(per)}</a>`);
+      }
+    }catch(e){}
+    return out.length ? `<div style="margin-top:8px">📝 Borradores sin enviar: ${out.join(" · ")}</div>` : "";
+  }
+  $("#tipoSeg").addEventListener("change", e=>{ tipo = e.target.value; editMode=false; importando=false; switchForm(); });
+  $("#marca").addEventListener("change", e=>{ marca = e.target.value; editMode=false; importando=false; switchForm(); });
+  $("#periodo").addEventListener("change", e=>{
+    if(tipo==="periodico" && e.target.value==="__otro__"){
+      const months = P.startMonths(); const pick = prompt("Mes de inicio del período (formato AAAA-MM, ej. 2026-08):", months[dur-1].id);
+      if(pick && /^\d{4}-\d{2}$/.test(pick)) periodo = `${pick}+${dur}`; 
+    } else periodo = e.target.value;
+    llevarImportado(); editMode=false; switchForm(); });
+  $("#dur").addEventListener("change", e=>{ dur = Number(e.target.value); periodo = `${periodo.split("+")[0]}+${dur}`; llevarImportado(); editMode=false; switchForm(); });
+  // si se corrige el período de un reporte importado, lo leído viaja al período nuevo
+  let _keyPrevia=null;
+  function llevarImportado(){ if(!importando || !vals._import || !_keyPrevia) return; const k=draftKey(); if(k===_keyPrevia) return; try{ localStorage.setItem(k, JSON.stringify(vals)); localStorage.removeItem(_keyPrevia); }catch(e){} }
+  $("#nav").addEventListener("change", e=>{ showView(e.target.value); });
+  const vistaActual = () => document.querySelector("input[name=nav]:checked")?.value || "nuevo";
+  function showView(v){
+    const hist = v==="historial", imp = v==="importar", otra = hist || imp;
+    ["setup","form","errbox","doneView"].forEach(id=>{ if(otra) $("#"+id).classList.add("hidden"); });
+    $("#bar").classList.toggle("hidden", otra);
+    $("#historial").classList.toggle("hidden", !hist);
+    $("#importar").classList.toggle("hidden", !imp);
+    if(hist) renderHistorial(); else if(imp) renderImportar(); else switchForm();
+  }
+
+  // ---------- subir reporte viejo ----------
+  // Mensuales, trimestrales, semestrales o anuales hechos antes del sistema: se lee el archivo, la IA lo pasa al formato
+  // del sistema y se abre el formulario ya completo para revisar y guardar.
+  function renderImportar(){
+    const box=$("#importar"); const ms=marcasDisponibles();
+    const hoy=new Date(); const mesPasado = U.lastCompleteMonth().id;
+    box.innerHTML = `<div class="card accent">
+      <div class="kicker">— Para que todo quede en un solo lugar</div>
+      <h2 style="margin:8px 0 10px">Subir un reporte viejo</h2>
+      <p class="muted" style="margin:0 0 18px;max-width:640px">Mensuales, trimestrales, semestrales o anuales hechos antes del sistema. Subí el Word, PowerPoint, PDF o capturas: la IA los pasa al formato del sistema, lo revisás y queda en el historial, con su PDF y su presentación.</p>
+      <div class="grid g3">
+        <label class="f"><span class="l">Marca</span><select id="impMarca">${ms.map(m=>`<option value="${m.slug}" ${m.slug===marca?"selected":""}>${esc(m.nombre)}</option>`).join("")}</select></label>
+        <label class="f"><span class="l">Tipo</span><select id="impTipo"><option value="mensual">Mensual</option><option value="3" selected>Trimestral</option><option value="6">Semestral</option><option value="12">Anual</option></select></label>
+        <label class="f"><span class="l" id="impMesLbl">Mes de inicio</span><input type="month" id="impMes" max="${mesPasado}"></label>
+      </div>
+      <div class="small" id="impPer" style="margin:-4px 0 14px"></div>
+      <label class="f"><span class="l">Archivo del reporte</span><input type="file" id="impFile" accept=".docx,.pptx,.pdf,image/*" multiple style="padding:10px"></label>
+      <div class="help">Word (.docx), PowerPoint (.pptx), PDF o hasta 8 capturas de las páginas. Si es un .doc o .ppt viejo, guardalo antes como .docx, .pptx o PDF.</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px"><button class="btn" id="impGo">Procesar reporte</button><span class="small" id="impSt" style="color:var(--warn)"></span></div>
+    </div>`;
+    const actualizar = () => {
+      const t=$("#impTipo").value, m=$("#impMes").value; const mens = t==="mensual";
+      $("#impMesLbl").textContent = mens ? "Mes del reporte" : "Mes de inicio del período";
+      if(!m){ $("#impPer").textContent=""; return; }
+      const per = mens ? m : `${m}+${t}`; const lab = mens ? U.monthFromId(m).label : P.parsePeriod(per).label;
+      const fin = mens ? m : P.parsePeriod(per).fin; const futuro = fin >= `${hoy.getFullYear()}-${U.pad(hoy.getMonth()+1)}`;
+      const ya = idx[`${mens?"mensual":"periodico"}|${$("#impMarca").value}|${per}`];
+      $("#impPer").innerHTML = futuro ? `<span style="color:var(--bad)">Ese período todavía no terminó.</span>` : `Período: <b>${esc(lab)}</b>${ya?` · <span style="color:var(--warn)">ya hay un reporte de ese período: si guardás, queda como versión nueva</span>`:""}`;
+    };
+    const defMes = t => { const d=new Date(hoy.getFullYear(), hoy.getMonth()-(t==="mensual"?1:Number(t)), 1); return `${d.getFullYear()}-${U.pad(d.getMonth()+1)}`; };
+    $("#impMes").value = defMes("3");
+    $("#impTipo").addEventListener("change", ()=>{ $("#impMes").value = defMes($("#impTipo").value); actualizar(); });
+    $("#impMes").addEventListener("change", actualizar); $("#impMarca").addEventListener("change", actualizar);
+    actualizar();
+    $("#impGo").addEventListener("click", procesarImportacion);
+  }
+  async function procesarImportacion(){
+    const st = t => { $("#impSt").textContent = t; };
+    const t=$("#impTipo").value, mes=$("#impMes").value, mk=$("#impMarca").value, files=$("#impFile").files;
+    if(!mes){ st("Elegí el mes."); return; }
+    if(!files || !files.length){ st("Elegí el archivo del reporte."); return; }
+    const tipoD = t==="mensual" ? "mensual" : "periodico", per = t==="mensual" ? mes : `${mes}+${t}`;
+    const finPer = t==="mensual" ? mes : P.parsePeriod(per).fin; const hoy=new Date();
+    if(finPer >= `${hoy.getFullYear()}-${U.pad(hoy.getMonth()+1)}`){ st("Ese período todavía no terminó."); return; }
+    const marcaNom = (C.MARCAS.find(x=>x.slug===mk)||{}).nombre || mk;
+    const perLabel = t==="mensual" ? U.monthFromId(mes).label : P.parsePeriod(per).label;
+    const btn=$("#impGo"); btn.disabled=true; uploading++;
+    try{
+      st("Leyendo el archivo…");
+      const lect = await window.IMPORTAR.leerArchivos(files, `${marcaNom} · ${perLabel}`);
+      let orig=null;
+      if(lect.tipo==="texto" || /pdf$/i.test(files[0].name)){ st("Guardando el archivo original en Drive…"); orig = await window.IMPORTAR.subirOriginal(files[0], {marca:mk, periodo:per}); }
+      const datos={}, devol=[], paginas=[];
+      if(!C.UPLOAD_URL) devol.push("La lectura automática no está configurada: completá a mano lo principal.");
+      else {
+        const ctx = { marca:marcaNom, periodo:perLabel, tipoNombre: t==="mensual"?"mensual":P.parsePeriod(per).tipoNombre.toLowerCase(), archivo: files[0].name };
+        // Word, PowerPoint o PDF con texto: se pide en 3 partes (números · listas · textos) con todo el texto del reporte.
+        // Capturas o PDF escaneado: una pasada por página.
+        const pasos = lect.tipo==="texto"
+          ? window.IMPORTAR.GRUPOS[tipoD].map((g,i,arr)=>({ img: lect.imagenes[0], grupo:g, etiqueta:`parte ${i+1} de ${arr.length}`, texto: lect.texto }))
+          : lect.imagenes.map((img,k,arr)=>({ img, grupo:"", etiqueta: arr.length>1?`página ${k+1} de ${arr.length}`:"", parte: arr.length>1?`${k+1} de ${arr.length}`:"", texto: (lect.textosPagina||[])[k]||"" }));
+        for(const [k,p] of pasos.entries()){
+          st(`Procesando con IA${p.etiqueta?` · ${p.etiqueta}`:""}… (cada parte tarda entre 20 segundos y un minuto)`);
+          try{
+            const r = await U.subirFoto(p.img, {marca:mk, periodo:per, campo:"importar", tipo:tipoD, leer:true, timeout:200000,
+              prompt: window.IMPORTAR.prompt(tipoD, ctx, p.texto||"", p.parte||"", p.grupo)});
+            if(lect.tipo!=="texto" || k===0) paginas.push({id:r.id, url:r.url, nombre:r.nombre});
+            if(r.iaFallo){ devol.push("La lectura con IA no está respondiendo ahora: el archivo quedó guardado y podés completar el reporte a mano (o volver a subirlo más tarde)."); break; }
+            if(r.datos){ const m=window.IMPORTAR.mapear(tipoD, r.datos); for(const [a,b] of Object.entries(m)) if(!(a in datos)) datos[a]=b; if(r.datos.devolucion) devol.push(String(r.datos.devolucion)); }
+          }catch(err){ devol.push(`No se pudo procesar ${p.etiqueta||"el archivo"} con IA (${err.message}).`); }
+        }
+      }
+      const leidos = Object.keys(datos).length;
+      // resumen corto de lo que no estaba en el reporte (obligatorios del formulario que quedaron vacíos)
+      const faltan=[]; window.walkFields(FORMS[tipoD], datos, f=>{ const r = typeof f.req==="function" ? f.req(datos) : f.req; if(r && f.id && !(f.id in datos) && !(f.showIf && !f.showIf(datos))) faltan.push(f.label.replace(/\s*\(.*\)$/,"")); });
+      if(leidos) devol.unshift(`Completé ${leidos} campos con lo que dice el reporte.`);
+      if(faltan.length) devol.push(`No estaban en el reporte: ${faltan.slice(0,8).join(", ")}${faltan.length>8?` y ${faltan.length-8} más`:""}. Podés completarlos o dejarlos vacíos.`);
+      // se abre el formulario de ese tipo, marca y período, con lo que leyó la IA
+      tipo=tipoD; marca=mk; periodo=per; if(tipoD==="periodico") dur=Number(t); editMode=false; importando=true;
+      const v = Object.assign({}, datos, { _import:{ archivo: files.length>1 ? `${files.length} capturas` : files[0].name, url: orig?orig.url:"", ia: devol.join(" "), leidos, paginas, en: new Date().toISOString() } });
+      try{ localStorage.setItem(draftKey(), JSON.stringify(v)); }catch(e){}
+      saveUI();
+      const nv=document.querySelector('input[name=nav][value=nuevo]'); if(nv) nv.checked=true;
+      showView("nuevo"); window.scrollTo({top:0,behavior:"smooth"});
+      toast(leidos ? `La IA completó ${leidos} campos. Revisalos y guardá.` : "No se pudieron leer datos: completá lo principal a mano.", leidos?"ok":"bad");
+    }catch(err){ st(err.message || "No se pudo procesar el archivo"); }
+    finally{ btn.disabled=false; uploading--; }
+  }
+  function cancelImport(){
+    if(!confirm("¿Descartar este reporte importado? No se guarda nada.")) return;
+    const k=draftKey(); try{ localStorage.removeItem(k); }catch(e){} cancelarNube(k); U.nubeBorrar(k);
+    importando=false; saveUI(); const nv=document.querySelector('input[name=nav][value=importar]'); if(nv) nv.checked=true; showView("importar");
+  }
+
+  // ---------- render ----------
+  const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const isReq = f => typeof f.req==="function" ? !!f.req(vals) : !!f.req;
+  const lbl = f => `<span class="l">${esc(f.label)}${isReq(f)?'<span class="req">*</span>':''}</span>`;
+
+  function renderField(f){
+    if(f.type==="row") return `<div class="grid ${f.cls}">${f.fields.map(renderField).join("")}</div>`;
+    if(f.type==="sublabel") return `<div class="lbl ${f.showIf&&!f.showIf(vals)?"hidden":""}" style="margin:14px 0 8px;color:var(--accent)">${esc(f.text)}</div>`;
+    if(f.type==="repeat") return `<div data-repeat="${f.id}"></div>`;
+    if(f.type==="table") return renderTable(f);
+    const v = vals[f.id];
+    const wrapAttrs = `data-field="${f.id}" ${f.showIf?'data-cond="1"':''}`;
+    const help = f.help ? `<div class="help">${esc(f.help)}</div>` : "";
+    if(f.type==="confirm"){
+      const on = !!v;
+      return `<div class="f" ${wrapAttrs} style="margin:14px 0"><div class="seg group"><label><input type="checkbox" name="${f.id}" value="1" ${on?"checked":""}><span style="font-size:17px;padding:12px 18px">${on?"✓ ":""}${esc(f.label)}</span></label></div>${on&&vals[f.id+"_en"]?`<div class="help" style="margin-top:6px">Confirmado el ${esc(new Date(vals[f.id+"_en"]).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}</div>`:""}${help}</div>`;
+    }
+    if(f.type==="color"){
+      const c = v || "#FFF200";
+      const sw = ["#FFF200","#FF3B30","#FF7A00","#FFB800","#22C55E","#00B8A9","#2F80ED","#7C3AED","#EC4899","#F5F5F5"];
+      return `<div class="f" ${wrapAttrs}>${lbl(f)}<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="color" name="${f.id}" value="${esc(c)}" style="width:56px;height:44px;padding:4px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px"><span class="mono muted" data-colorval>${esc(c)}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${sw.map(x=>`<button type="button" data-swatch="${f.id}" data-color="${x}" title="${x}" style="width:24px;height:24px;border-radius:6px;border:2px solid ${x.toLowerCase()===String(c).toLowerCase()?"var(--text)":"var(--border2)"};background:${x};cursor:pointer"></button>`).join("")}</span></div>${help||'<div class="help">Elegí un color de la paleta o usá el selector para poner el exacto de la marca.</div>'}</div>`;
+    }
+    if(f.type==="fotos"){
+      const arr = Array.isArray(v)?v:[];
+      const off = !C.UPLOAD_URL; const full = f.max && arr.length>=f.max;
+      return `<div class="f" ${wrapAttrs}><span class="l">${esc(f.label)}</span>
+        <div class="fotos ${f.cover?"cover":""}">${arr.map((p,k)=>`<div class="foto"><a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="${esc(p.nombre||"captura")}" loading="lazy"></a><button type="button" class="x" data-foto-del="${f.id}" data-k="${k}" title="Quitar">✕</button></div>`).join("")}
+          ${full?"":`<label class="foto add ${off?"off":""}" title="${off?"La subida de capturas todavía no está configurada":"Agregar captura"}"><input type="file" accept="image/*" ${f.max===1?"":"multiple"} data-fotos="${f.id}" data-max="${f.max||6}" ${off?"disabled":""}><span>＋<br><small>${off?"No disponible":f.cover?"Portada":"Captura"}</small></span></label>`}
+        </div><div class="help">${off?"La subida de capturas se habilita cuando Joaquín conecte el escenario de Make.":(f.help||"Podés subir varias. Se comprimen solas.")}${!off&&IA_CAMPOS.test(f.id)?" La IA te deja una devolución de cada imagen.":""}</div><div class="small" data-foto-status="${f.id}" style="color:var(--warn)"></div>${iaHTML(arr)}</div>`;
+    }
+    if(f.type==="okrprev") return `<div class="ref" data-okrprev>${okrPrevHTML()}</div>`;
+    if(f.type==="diag"){ return `<div class="diag" data-diag="${f.target}" data-i="${f.i||""}"></div>`; }
+    if(f.type==="list") return renderList(f);
+    if(f.type==="logo"){
+      return `<div class="f" ${wrapAttrs}><span class="l">${esc(f.label)}</span><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${v?`<img src="${esc(v)}" alt="logo" style="height:56px;max-width:180px;object-fit:contain;background:#fff;border-radius:6px;padding:4px">`:'<span class="muted small">Sin logo</span>'}<input type="file" accept="image/*" data-logo="${f.id}" style="width:auto;padding:8px">${v?`<button type="button" class="btn sm ghost" data-logo-clear="${f.id}">Quitar</button>`:""}</div>${help}</div>`;
+    }
+    if(f.type==="text"||f.type==="number"){
+      return `<label class="f" ${wrapAttrs}>${lbl(f)}<input type="text" ${f.type==="number"?'inputmode="decimal" autocomplete="off" data-num="1"':''} name="${f.id}" value="${esc(v)}" placeholder="${esc(f.ph||"")}">${help}</label>`;
+    }
+    if(f.type==="url"){
+      const ok = !v || /^https?:\/\/\S+$/i.test(String(v).trim());
+      return `<label class="f" ${wrapAttrs}>${lbl(f)}<div style="display:flex;gap:8px;align-items:center"><input type="url" inputmode="url" autocomplete="off" spellcheck="false" class="${ok?"":"invalid"}" name="${f.id}" value="${esc(v)}" placeholder="${esc(f.ph||"https://…")}">${v&&ok?`<a class="btn sm ghost" href="${esc(String(v).trim())}" target="_blank" rel="noopener" title="Abrir" style="white-space:nowrap">Ver ↗</a>`:""}</div>${ok?help:'<div class="help" style="color:var(--bad)">Pegá el enlace completo, empieza con https://</div>'}</label>`;
+    }
+    if(f.type==="textarea"){
+      return `<label class="f" ${wrapAttrs}>${lbl(f)}<textarea name="${f.id}" ${f.max?`maxlength="${f.max}"`:""}>${esc(v)}</textarea>${help}</label>`;
+    }
+    if(f.type==="seg"){
+      return `<div class="f" ${wrapAttrs} style="margin-bottom:14px">${lbl(f)}<div class="seg group">${f.opts.map(o=>`<label><input type="radio" name="${f.id}" value="${esc(o)}" ${v===o?"checked":""}><span>${esc(o)}</span></label>`).join("")}</div>${help}</div>`;
+    }
+    if(f.type==="check"){
+      const arr = Array.isArray(v)?v:[];
+      return `<div class="f" ${wrapAttrs} style="margin-bottom:14px">${lbl(f)}<div class="seg group">${f.opts.map(o=>`<label><input type="checkbox" name="${f.id}" value="${esc(o)}" ${arr.includes(o)?"checked":""}><span>${esc(o)}</span></label>`).join("")}</div>${help}</div>`;
+    }
+    return "";
+  }
+  // Devoluciones de la IA de las capturas de un campo
+  function iaHTML(arr){
+    const it = (Array.isArray(arr)?arr:[]).map((p,k)=>p&&p.ia?{k,ia:p.ia}:null).filter(Boolean);
+    if(!it.length) return "";
+    return `<div class="diag" style="margin-top:10px"><div class="diag-head"><span>Devolución de la IA</span></div>${it.map(x=>`<div class="small" style="margin:6px 0;white-space:pre-line">${it.length>1||arr.length>1?`<b>Captura ${x.k+1}:</b> `:""}${esc(x.ia)}</div>`).join("")}<div class="help" style="margin-top:6px">Es un punto de partida: tu análisis es el que vale.</div></div>`;
+  }
+  // Chequeo en vivo del tracker de OKR: con qué dato se compara cada objetivo y si se cumple
+  function okrPrevHTML(){
+    if(tipo!=="periodico" || !periodo) return "";
+    const n = P.parsePeriod(periodo).n; const rows=[];
+    for(let i=1;i<=6;i++){
+      const obj=vals[`okr_${i}_obj`]; if(!obj || !String(obj).trim()) continue;
+      const rr=P.okrReal(obj, vals, n, vals[`okr_${i}_real`]); const isPct=/%/.test(obj)||!!rr.pct;
+      const mn=U.num(vals[`okr_${i}_min`]), mx=U.num(vals[`okr_${i}_max`]); const st=P.okrEstado(rr.v,mn,mx);
+      const fv = v => v==null ? "–" : isPct ? v.toFixed(2).replace(".",",")+" %" : U.fmt(Math.round(v));
+      rows.push(`<tr><td>${esc(obj)}</td><td class="muted">${rr.fuente?esc(rr.fuente):'<span style="color:var(--warn)">No lo reconozco: cargá el valor en "Logrado"</span>'}</td><td><b>${fv(rr.v)}</b></td><td>${mn!=null||mx!=null?`${fv(mn)}${mx!=null?" – "+fv(mx):""}`:'<span class="muted">sin meta</span>'}</td><td style="color:${st==="ok"?"var(--ok)":st==="warn"?"var(--warn)":st==="bad"?"var(--bad)":"var(--muted)"}">${st==="ok"?"Cumplido":st==="warn"?"Cerca":st==="bad"?"No cumplido":"–"}</td></tr>`);
+    }
+    if(!rows.length) return `<div class="small muted">Cuando cargues los objetivos, acá vas a ver con qué dato se compara cada uno y si se cumple (así sale en la presentación).</div>`;
+    return `<b>Así sale en la presentación</b><table class="t" style="margin-top:6px"><thead><tr><th>Objetivo</th><th>Se compara con</th><th>Logrado</th><th>Meta</th><th>Estado</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  }
+  function refreshOkrPrev(){ const el=document.querySelector("[data-okrprev]"); if(el) el.innerHTML=okrPrevHTML(); }
+  function renderTable(f){
+    let h = `<div class="f" data-field="${f.id}"><span class="l">${esc(f.label)}</span><div style="overflow:auto"><table class="t"><thead><tr><th>#</th>${f.cols.map(c=>`<th>${esc(c.l)}</th>`).join("")}</tr></thead><tbody>`;
+    for(let r=1;r<=f.rows;r++){
+      h += `<tr><td class="muted">${r}</td>${f.cols.map(c=>{ const id=`${f.id}_${r}_${c.id}`; return `<td style="min-width:${c.w?c.w*70:80}px"><input type="${c.t||"text"}" ${c.t==="number"?'inputmode="numeric" min="0"':''} name="${id}" value="${esc(vals[id])}" style="padding:7px 8px;font-size:14px"></td>`; }).join("")}</tr>`;
+    }
+    return h + `</tbody></table></div></div>`;
+  }
+  // Lista de ítems (reemplaza a las tablas): una tarjeta por ítem con cada campo rotulado
+  function listCount(f){
+    if(f.fixed) return Math.max(1, Number(vals[`${f.id}_n`]||f.rows));
+    let n = Number(vals[`${f.id}_n`]||0);
+    for(let r=1;r<=f.rows;r++){ if(f.cols.some(c=>vals[`${f.id}_${r}_${c.id}`])) n=Math.max(n,r); }
+    return Math.max(1, Math.min(f.rows, n));
+  }
+  function renderList(f){
+    const n = listCount(f);
+    let h = `<div class="f" data-field="${f.id}"><span class="l">${esc(f.label)}</span>`;
+    for(let r=1;r<=n;r++){
+      const title = f.fixed && vals[`${f.id}_${r}_mes`] ? vals[`${f.id}_${r}_mes`] : `${f.item} ${r}`;
+      h += `<div class="sub" style="padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h4 style="margin:0">${esc(title)}</h4>${(n>1&&!f.fixed)?`<button type="button" class="btn sm ghost" data-list-del="${f.id}" data-r="${r}">Quitar</button>`:""}</div><div class="grid g3">${f.cols.map(c=>{ const id=`${f.id}_${r}_${c.id}`; if(f.fixed&&c.id==="mes") return ""; const wide=c.w&&c.w>=2; return `<label class="f" style="margin-bottom:8px;${wide?"grid-column:span 2":""}"><span class="l">${esc(c.l)}</span><input type="${c.t==="url"?"url":"text"}" ${c.t==="number"?'inputmode="decimal" data-num="1"':c.t==="url"?'inputmode="url" spellcheck="false" placeholder="https://www.instagram.com/…"':''} name="${id}" value="${esc(vals[id])}"></label>`; }).join("")}</div></div>`;
+    }
+    if(n<f.rows && !f.fixed) h += `<button type="button" class="btn sm ghost" data-list-add="${f.id}">＋ Agregar ${esc(f.item.toLowerCase())}</button>`;
+    return h + `</div>`;
+  }
+  function renderRepeat(f){
+    const box = document.querySelector(`[data-repeat="${f.id}"]`); if(!box) return;
+    const cnt = Number(vals[f.countField]||0);
+    box.innerHTML = Array.from({length:cnt},(_,k)=>k+1).map(i=>`<div class="sub"><h4>${esc(f.title(i))}</h4>${f.item(i).map(renderField).join("")}</div>`).join("");
+  }
+
+  // Vista de solo lectura de cualquier reporte (se usa para el CM dentro del SM y para "ver" un reporte ya enviado)
+  // tarjeta de publicación en las vistas de solo lectura: miniatura + enlace directo
+  const okUrl = u => /^https?:\/\/\S+$/i.test(String(u||"").trim());
+  function coverRO(p, link){ const img=p?`<img src="${esc(p.url)}" loading="lazy" alt="">`:""; return `<div class="postcard">${!p?"":okUrl(link)?`<a href="${esc(String(link).trim())}" target="_blank" rel="noopener" title="Ver en Instagram">${img}</a>`:`<a href="${esc(p.url)}" target="_blank" rel="noopener">${img}</a>`}${okUrl(link)?`<a class="btn sm" href="${esc(String(link).trim())}" target="_blank" rel="noopener">Ver en Instagram ↗</a>`:""}</div>`; }
+  function linkRO(v, label){ if(!okUrl(v)) return `<div style="margin:4px 0"><span class="muted">${esc(label)}:</span> <b>${esc(v)}</b></div>`; return `<div style="margin:6px 0"><a class="btn sm ghost" href="${esc(String(v).trim())}" target="_blank" rel="noopener">Ver en Instagram ↗</a></div>`; }
+  function cellRO(c, v){ if(v==null||v==="") return ""; if(c.t==="url") return okUrl(v)?`<a href="${esc(String(v).trim())}" target="_blank" rel="noopener">Ver ↗</a>`:esc(v); return esc(v); }
+  function renderReadOnly(schema, d){
+    d = Object.assign({}, d, { _canal: !!(d.canal_movido) || d._canal });
+    let rows = d.importado ? `<div class="ref" style="border-style:solid">📎 Reporte importado de <b>${esc(d.importado_archivo||"un archivo")}</b> (hecho antes del sistema)${d.importado_url?` · <a href="${esc(d.importado_url)}" target="_blank" rel="noopener">ver el original ↗</a>`:""}</div>` : "";
+    for(const s of schema.secciones){
+      const items=[];
+      const walk=f=>{
+        if(f.type==="row"){f.fields.forEach(walk);return;}
+        if(f.type==="sublabel") return;
+        if(f.type==="repeat"){ const n=Number(d[f.countField]||0); for(let i=1;i<=n;i++){ items.push(`<div style="margin:8px 0 2px;color:var(--text);font-weight:600">${esc(f.title(i))}</div>`); f.item(i).forEach(walk); } return; }
+        if(f.type==="diag"&&f.target==="pub"){ const dp=d[`pub${f.i}_diag`]; if(dp) items.push(`<div class="diag" style="margin:8px 0"><div class="diag-head"><span>Diagnóstico automático</span></div><div class="small">${esc(dp)}</div></div>`); return; }
+        if(f.type==="diag"){ const dg=d[`reel${f.i}_diag`]; if(f.target==="reel"&&dg) items.push(`<div class="diag" style="margin:8px 0"><div class="diag-head"><span>Diagnóstico automático</span></div><div class="small">${esc(dg)}</div></div>`); if(f.target==="semana"&&d.diag_semana) items.push(`<div class="diag" style="margin:8px 0"><div class="diag-head"><span>Lectura automática de la semana</span></div><div class="small">${esc(d.diag_semana)}</div></div>`); return; }
+        if(f.type==="table"||f.type==="list"){ const trs=[]; for(let r=1;r<=f.rows;r++){ if(!f.cols.some(c=>d[`${f.id}_${r}_${c.id}`])) continue; trs.push(`<tr><td class="muted">${r}</td>${f.cols.map(c=>`<td>${cellRO(c, d[`${f.id}_${r}_${c.id}`])}</td>`).join("")}</tr>`); } if(trs.length) items.push(`<table class="t" style="margin:6px 0"><tr><th>#</th>${f.cols.map(c=>`<th>${esc(c.l)}</th>`).join("")}</tr>${trs.join("")}</table>`); return; }
+        if(!f.id) return; if(f.showIf&&!f.showIf(d)) return;
+        const raw=d[f.id]; let v=raw; if(f.type==="confirm") v = v ? "Sí" : ""; if(Array.isArray(v)) v=v.join(" · "); if(v==null||v==="") return;
+        if(f.type==="logo"){ items.push(`<div style="margin:4px 0"><span class="muted">${esc(f.label)}:</span> <img src="${esc(v)}" style="height:32px;vertical-align:middle;background:#fff;border-radius:4px;padding:2px"></div>`); return; }
+        if(f.type==="url"){ if(/^(reel|pub)\d+_link$/.test(f.id)) return; items.push(linkRO(v, f.label)); return; }
+        if(f.type==="text"&&/^(reel|pub)\d+_nombre$/.test(f.id)){ const pre=f.id.replace(/_nombre$/,""); const cv=d[pre+"_portada"]; const lk=d[pre+"_link"]; if(!(Array.isArray(cv)&&cv.length)&&okUrl(lk)) { items.push(`<div style="margin:4px 0"><span class="muted">${esc(f.label)}:</span> <b>${esc(v)}</b></div>`+coverRO(null,lk)); return; } }
+        if(f.type==="fotos"&&f.cover){ const arr=Array.isArray(raw)?raw:[]; if(!arr.length) return; items.push(coverRO(arr[0], d[f.id.replace(/_portada$/,"_link")]) + iaHTML(arr)); return; }
+        if(f.type==="fotos"){ const arr=Array.isArray(raw)?raw:[]; if(!arr.length) return; items.push(`<div style="margin:6px 0"><div class="muted small">${esc(f.label)}</div><div class="fotos">${arr.map(p=>`<a class="foto" href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" loading="lazy" alt=""></a>`).join("")}</div>${iaHTML(arr)}</div>`); return; }
+        if(f.type==="color"){ items.push(`<div style="margin:4px 0"><span class="muted">${esc(f.label)}:</span> <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${esc(v)};vertical-align:middle"></span> <b>${esc(v)}</b></div>`); return; }
+        if(f.type==="number") v=U.fmt(U.num(v));
+        items.push(`<div style="margin:4px 0"><span class="muted">${esc(f.label)}:</span> <b>${esc(v)}</b></div>`);
+      };
+      s.fields.forEach(walk);
+      if(items.length) rows+=`<div style="margin-top:10px"><span style="color:var(--accent)">${s.num}. ${esc(s.titulo)}</span>${items.join("")}</div>`;
+    }
+    return rows || '<div class="muted" style="margin-top:6px">Sin datos.</div>';
+  }
+
+  // Tabla comparativa en vivo: período anterior · este período · variación
+  function prevReport(){
+    if(tipo==="sm") return idx[`sm|${marca}|${U.prevWeekId(periodo)}`];
+    if(tipo==="mensual") return idx[`mensual|${marca}|${U.prevMonthId(periodo)}`];
+    if(tipo==="periodico") return idx[`periodico|${marca}|${P.prevPeriodId(periodo)}`];
+    return null;
+  }
+  function compareHTML(sec){
+    if(!sec.compare) return "";
+    const p = prevReport(); const pd = p ? (p.datos||{}) : null;
+    const isMes = tipo!=="sm";
+    const prevLbl = p ? p.periodo_label : (tipo==="periodico"?"período anterior":isMes?"mes anterior":"semana anterior");
+    const val = (m,d) => { if(!d) return null; if(m.calc) return m.calc(d); const x=d[m.id]; return (x==null||x==="")?null:Number(String(x).replace(/\./g,"").replace(",",".")); };
+    const f = (m,v) => v==null||isNaN(v) ? "–" : (m.pct ? v.toFixed(2).replace(".",",")+" %" : U.fmt(v));
+    const trs = sec.compare.map(m=>{
+      const a=val(m,pd), b=val(m,vals);
+      let delta="", cls="";
+      if(a!=null && b!=null && !isNaN(a) && !isNaN(b)){
+        if(m.pct){ const d=b-a; delta=`${d>0?"+":""}${d.toFixed(2).replace(".",",")} pp`; cls = d===0?"":(d>0)!==!!m.inverse?"up":"down"; }
+        else if(a===0){ delta = b===0?"=":"nuevo"; }
+        else { const pc=(b-a)/a*100; delta=U.fmtPct(pc); cls = pc===0?"":(pc>0)!==!!m.inverse?"up":"down"; }
+      }
+      return `<tr><td>${esc(m.k)}</td><td class="muted">${f(m,a)}</td><td><b>${f(m,b)}</b></td><td class="d ${cls}" style="color:${cls==="up"?"var(--ok)":cls==="down"?"var(--bad)":"var(--muted)"}">${delta}</td></tr>`;
+    }).join("");
+    const note = p ? `Comparado contra el reporte de <b>${esc(prevLbl)}</b>. Se actualiza mientras cargás.` : `Todavía no hay reporte ${tipo==="periodico"?"del período":isMes?"del mes":"de la semana"} anterior para esta marca. Esta comparativa se completa sola a partir del próximo reporte.`;
+    return `<div class="ref" data-compare="1"><div style="margin-bottom:6px">${note}</div><table class="t"><thead><tr><th>Métrica</th><th>${esc(prevLbl)}</th><th>${tipo==="periodico"?"Este período":isMes?"Este mes":"Esta semana"}</th><th>Variación</th></tr></thead><tbody>${trs}</tbody></table></div>`;
+  }
+  function refreshCompare(){
+    FORMS[tipo].secciones.forEach(sec=>{ if(!sec.compare) return; const el=document.querySelector(`section[data-sec="${sec.num}"] [data-compare]`); if(el) el.outerHTML = compareHTML(sec); });
+  }
+
+  function renderRef(sec){
+    if(!sec.ref) return "";
+    if(sec.ref==="cm"){
+      const p = idx[`cm|${marca}|${periodo}`];
+      if(!p) return `<div class="ref">El CM todavía no cargó el reporte de esta semana para esta marca.</div>`;
+      const sent=new Date(p.enviado_en);
+      return `<div class="ref" style="border-style:solid"><div><b>Reporte del CM · ${esc(p.periodo_label)}</b> <span class="muted">· cargado por ${esc(p.responsable)} el ${isNaN(sent)?"":sent.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit"})}</span></div>${renderReadOnly(FORMS.cm, p.datos||{})}<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><span class="help" style="margin:0">Leelo completo y confirmá abajo para seguir con tu reporte.</span><button type="button" class="btn sm ghost" data-pdf-cm="1">Descargar PDF del CM</button></div></div>`;
+    }
+    if(sec.ref==="periodo"){
+      const ag = P.aggregate(idx, marca, periodo);
+      const trs = ag.meses.map(({mid,r})=>{ const d=r?r.datos||{}:null; const mn=U.MESES_C[Number(mid.split("-")[1])-1]; return `<tr><td>${mn}</td><td>${d?U.fmt(U.num(d.m_alc_total)):"<span class='muted'>sin mensual</span>"}</td><td>${d?U.fmt(U.num(d.m_views)):""}</td><td>${d?U.fmt(U.num(d.seg_sumados)-U.num(d.seg_perdidos)):""}</td><td>${d?U.fmt(U.num(d.m_inter)):""}</td><td>${d?U.fmt(U.num(d.m_contactos)):""}</td></tr>`; }).join("");
+      return `<div class="ref"><b>Mes a mes</b> (${ag.cargados} de ${ag.meses.length} mensuales cargados; esta tabla va a la presentación)<table class="t" style="margin-top:6px"><tr><th>Mes</th><th>Alcance</th><th>Visualiz.</th><th>Seg. netos</th><th>Interacc.</th><th>Contactos</th></tr>${trs}</table>${ag.alc_suma!=null?`<div class="small" style="margin-top:6px">Suma de alcances mensuales: <b>${U.fmt(ag.alc_suma)}</b>. El alcance del período son cuentas únicas: tomarlo de Meta, no de esta suma.</div>`:""}</div>`;
+    }
+    if(sec.ref==="mes"){
+      const p = idx[`mensual|${marca}|${U.prevMonthId(periodo)}`];
+      const weeks = U.weeksInMonth(periodo).map(w=>({w, r: idx[`sm|${marca}|${w.id}`]}));
+      let h = "";
+      if(weeks.some(x=>x.r)){
+        h += `<div class="ref"><b>Semanas del mes cargadas</b> (referencia para el mensual)<table class="t" style="margin-top:6px"><tr><th>Semana</th><th>Alcance</th><th>Seg. netos</th><th>Interacc.</th><th>Reels</th><th>Feed</th></tr>${weeks.map(({w,r})=>`<tr><td>${w.label}</td><td>${r?U.fmt(U.num(r.datos.alcance_total)):"<span class='muted'>sin reporte</span>"}</td><td>${r?U.fmt(U.num(r.datos.seg_sumados)-U.num(r.datos.seg_perdidos)):""}</td><td>${r?U.fmt(U.num(r.datos.interacciones)):""}</td><td>${r?esc(r.datos.reels_n):""}</td><td>${r?esc(r.datos.feed_n):""}</td></tr>`).join("")}</table></div>`;
+      }
+      if(p){ const d=p.datos||{};
+        const li=(k,v)=>v?`<div style="margin:4px 0"><span class="muted">${k}:</span> ${esc(v)}</div>`:"";
+        h += `<details class="ref"><summary style="cursor:pointer"><b>Lo que planteaste en ${esc(p.periodo_label)}</b> <span class="muted">· para revisar si se cumplió</span></summary>${li("Escalar",d.plan_escalar)}${li("Ajustar",d.plan_ajustar)}${li("Discontinuar",d.plan_discontinuar)}${li("Testear",d.plan_testear)}${li("Campañas previstas",d.camp_prox)}${li("Aprendizajes",[d.aprend1,d.aprend2,d.aprend3].filter(Boolean).join(" · "))}</details>`;
+      }
+      return h;
+    }
+    if(sec.ref==="contenido") return queFuncionoHTML();
+    return "";
+  }
+  // Semanas que cubre el reporte actual (mensual: las del mes; periódico: las de todos sus meses)
+  function semanasDelReporte(){
+    if(tipo==="mensual") return U.weeksInMonth(periodo).map(w=>w.id);
+    if(tipo==="periodico") return P.parsePeriod(periodo).meses.flatMap(m=>U.weeksInMonth(m).map(w=>w.id));
+    return [];
+  }
+  function queFuncionoActual(){ return window.ANALISIS ? window.ANALISIS.queFunciono(reports, marca, semanasDelReporte()) : null; }
+  // Tabla automática "Qué funcionó" con lo cargado en los semanales
+  function queFuncionoHTML(){
+    const q = queFuncionoActual(); if(!q) return "";
+    if(!q.n) return `<div class="ref">Cuando haya reportes semanales de este ${tipo==="mensual"?"mes":"período"}, acá aparece solo qué tipo de contenido, día y horario rindieron más.</div>`;
+    const f1 = v => v==null ? "–" : (Math.round(v*10)/10).toString().replace(".",",")+" %";
+    const tabla = (titulo, rows) => rows.length ? `<div style="margin-top:10px"><b>${titulo}</b><table class="t" style="margin-top:4px"><thead><tr><th></th><th>Piezas</th><th>Alcance / views prom.</th><th>Engagement prom.</th><th>Seguidores generados</th></tr></thead><tbody>${rows.map((r,k)=>`<tr><td>${k===0&&rows.length>1?"🏆 ":""}${esc(r.k)}</td><td>${r.n}</td><td>${U.fmt(Math.round(r.views))}</td><td><b>${f1(r.eng)}</b></td><td>${r.seg==null?"–":U.fmt(r.seg)}</td></tr>`).join("")}</tbody></table></div>` : "";
+    const falta = q.n - q.conPilar;
+    return `<div class="ref"><b>Qué funcionó</b> <span class="muted">· calculado solo con ${q.n} pieza${q.n>1?"s":""} de los semanales, ordenado por engagement</span>
+      ${tabla("Por tipo de contenido", q.pilar)}${tabla("Por formato", q.formato)}${tabla("Por día", q.dia)}${tabla("Por franja horaria", q.franja)}
+      ${falta?`<div class="help" style="margin-top:8px">${falta} pieza${falta>1?"s":""} sin tipo de contenido cargado (reportes anteriores al cambio): no entran en la primera tabla.</div>`:""}
+      <div class="help" style="margin-top:6px">Usalo para el ranking, los aprendizajes y el plan: escalar lo que rinde, discontinuar lo que no.</div></div>`;
+  }
+  function renderForm(){
+    const S = FORMS[tipo];
+    $("#form").innerHTML = S.secciones.map(sec=>`<section class="section card" data-sec="${sec.num}">
+      <div class="section-head"><span class="num">${String(sec.num).padStart(2,"0")}</span><h2>${esc(sec.titulo)}</h2>${sec.hint?`<span class="hint">${esc(sec.hint)}</span>`:""}</div>
+      ${renderRef(sec)}
+      ${compareHTML(sec)}
+      ${sec.fields.map(renderField).join("")}
+    </section>`).join("");
+    S.secciones.forEach(sec=>sec.fields.forEach(f=>{ if(f.type==="repeat") renderRepeat(f); }));
+    if(editMode){ const box=document.createElement("section"); box.className="section card"; box.style.borderColor="var(--warn)"; box.dataset.sec="0"; box.innerHTML=`<div class="section-head"><span class="num" style="color:var(--warn)">✎</span><h2>Corrección de un reporte ya enviado</h2><span class="hint"><button type="button" class="btn sm ghost" id="cancelEdit">Descartar corrección</button></span></div><div class="help" style="margin-bottom:10px">Tus cambios se guardan solos en este dispositivo: si se corta o actualizás la página, la corrección sigue acá. El reporte original no cambia hasta que tocás "Enviar corrección".</div><label class="f" data-field="edicion_motivo"><span class="l">¿Qué corregís y por qué?<span class="req">*</span></span><textarea name="edicion_motivo">${esc(vals.edicion_motivo||"")}</textarea><div class="help">Queda registrado junto con la versión anterior. Solo lo ve Project.</div></label>`; $("#form").prepend(box); box.querySelector("#cancelEdit").addEventListener("click",cancelEdit); }
+    if(importando && vals._import){ const im=vals._import; const box=document.createElement("section"); box.className="section card"; box.style.borderTop="2px solid var(--accent)"; box.dataset.sec="0";
+      box.innerHTML=`<div class="section-head"><span class="num" style="color:var(--accent);opacity:1;transform:none">↑</span><h2 style="opacity:1;transform:none">Reporte importado</h2><span class="hint"><button type="button" class="btn sm ghost" id="cancelImp">Descartar</button></span></div>
+        <p style="margin:0 0 8px">Leído de <b>${esc(im.archivo||"archivo")}</b>${im.url?` · <a href="${esc(im.url)}" target="_blank" rel="noopener">ver el original ↗</a>`:""}. ${im.leidos?`La IA completó <b>${im.leidos} campos</b>.`:""} Revisá, corregí lo que haga falta y tocá <b>Guardar en el historial</b>. No hace falta completar todo: un reporte viejo no tiene por qué tener todos los datos.</p>
+        ${im.ia?`<div class="diag" style="margin:8px 0 0"><div class="diag-head"><span>Lo que dice la IA</span></div><div class="small">${esc(im.ia)}</div></div>`:""}`;
+      $("#form").prepend(box); box.querySelector("#cancelImp").addEventListener("click", cancelImport); }
+    $("#send").textContent = importando ? "Guardar en el historial" : editMode ? "Enviar corrección" : "Enviar reporte";
+    applyVisibility();
+    refreshDiag();
+    updateMissing();
+  }
+  // ---------- diagnóstico automático ----------
+  function diagHTML(res, titulo){
+    if(!res || !res.items || !res.items.length) return "";
+    const col = l => l==="ok"?"var(--ok)":l==="warn"?"var(--warn)":l==="bad"?"var(--bad)":"var(--info)";
+    const score = res.score!=null ? `<span class="pill ${res.score>=75?"ok":res.score>=45?"warn":"bad"}">${res.score>=75?"Bueno":res.score>=45?"Medio":"Flojo"}</span>` : "";
+    return `<div class="diag-head"><span>${esc(titulo)}</span>${score}</div>${res.veredicto?`<div class="diag-v">${esc(res.veredicto)}</div>`:""}<ul class="diag-list">${res.items.map(x=>`<li><i style="background:${col(x.lvl)}"></i><b>${esc(x.k)}</b><span>${esc(x.txt)}</span></li>`).join("")}</ul>`;
+  }
+  function computeDiag(target, i){
+    if(target==="reel"){ const base = window.ANALISIS.baselineReels(reports, marca, periodo); return window.ANALISIS.diagReel(vals, i, base); }
+    if(target==="pub"){ const base = window.ANALISIS.baselinePubs(reports, marca, periodo); return window.ANALISIS.diagPub(vals, i, base); }
+    if(target==="semana"){ const p = idx[`sm|${marca}|${U.prevWeekId(periodo)}`]?.datos || null; return { items: window.ANALISIS.diagSemana(vals, p) }; }
+    return null;
+  }
+  function refreshDiag(){
+    if(!window.ANALISIS) return;
+    document.querySelectorAll("[data-diag]").forEach(el=>{
+      const t=el.dataset.diag, i=Number(el.dataset.i||0);
+      const res = computeDiag(t,i);
+      const html = diagHTML(res, t==="reel"?"Diagnóstico automático del reel":t==="pub"?"Diagnóstico automático de la publicación":"Lectura automática de la semana");
+      el.innerHTML = html; el.classList.toggle("hidden", !html);
+    });
+  }
+  // ---------- contador de obligatorios ----------
+  function missingList(){
+    const errs=[]; let total = editMode ? 1 : 0;
+    if(importando){ errs.total = 0; return errs; }
+    if(editMode && !(vals.edicion_motivo||"").trim()) errs.push({id:"edicion_motivo", msg:"¿Qué corregís y por qué?"});
+    window.walkFields(FORMS[tipo], vals, (f,ctx)=>{
+      if(f.type==="table"||f.type==="list"||f.type==="fotos") return;
+      if(f.showIf && !f.showIf(vals)) return; if(!isReq(f)) return; total++;
+      const v = vals[f.id]; if(v==null||v===""||(Array.isArray(v)&&!v.length)||(f.type==="number"&&U.num(v)==null)||(f.type==="url"&&!/^https?:\/\/\S+$/i.test(String(v).trim()))) errs.push({id:f.id, msg:(ctx.repeat?`${ctx.repeat.title(ctx.i)} · `:"")+f.label});
+    });
+    errs.total = total;
+    return errs;
+  }
+  // Anillo de progreso: porcentaje de obligatorios completos; al 100 % el botón Enviar se ilumina
+  function updateRing(m){
+    const fg=document.getElementById("ringFg"), pc=document.getElementById("ringPct"), me=document.getElementById("meter"); if(!fg||!pc) return;
+    const tot=m.total||0, p = tot ? Math.round((tot-m.length)/tot*100) : 100;
+    fg.style.strokeDashoffset = String(100-p); pc.textContent = p+"%";
+    me.classList.toggle("full", p===100); $("#send").classList.toggle("ready", p===100 && !sending);
+  }
+  function updateMissing(){
+    const st=$("#status"); if(!st) return;
+    if(tipo==="sm" && (document.getElementById("cmGate")||document.getElementById("dupGate"))) return;
+    const m = missingList(); updateRing(m);
+    const loc = draftFail ? `<span style="color:var(--bad)">no se guarda en este dispositivo</span>` : "guardado en este dispositivo";
+    const nube = !U.nubeOn() ? "" : nubeEstado.startsWith("ok:") ? ` · <span style="color:var(--ok)">☁ copia en la nube ${nubeEstado.slice(3)}</span>` : nubeEstado==="error" ? ` · <span style="color:var(--warn)">☁ sin conexión con la nube, reintentando</span>` : (nubeEstado==="pend"||nubeEstado==="subiendo") ? " · ☁ guardando en la nube…" : "";
+    const bor = loc + nube;
+    if(!m.length){ st.innerHTML = `<span style="color:var(--ok)">✓ Todos los obligatorios completos.</span> <span class="muted">${bor}</span>`; }
+    else { st.innerHTML = `<a href="#" data-first-missing style="color:var(--warn);text-decoration:none">Faltan ${m.length} obligatorio${m.length>1?"s":""} →</a> <span class="muted">${bor}</span>`; st.querySelector("[data-first-missing]").addEventListener("click",e=>{ e.preventDefault(); const w=document.querySelector(`[data-field="${m[0].id}"]`); w?.scrollIntoView({behavior:"smooth",block:"center"}); w?.querySelector("input,textarea")?.focus(); }); }
+  }
+
+  // ---------- bloqueos ----------
+  // 1) SM sin reporte de CM → nada. 2) SM sin confirmar lectura del CM → solo hasta el bloque 2. 3) Reporte ya enviado → ver / editar.
+  function applyGate(){
+    ["cmGate","dupGate"].forEach(id=>document.getElementById(id)?.remove());
+    const secs = Array.from($("#form").querySelectorAll("section"));
+    secs.forEach(s=>s.classList.remove("hidden")); $("#bar").classList.toggle("hidden", vistaActual()!=="nuevo"); // la barra de enviar solo en "Nuevo reporte"
+    const m = C.MARCAS.find(x=>x.slug===marca);
+
+    const ex = existing();
+    if(ex && !editMode && !importando){
+      secs.forEach(s=>s.classList.add("hidden")); $("#bar").classList.add("hidden");
+      const sent=new Date(ex.enviado_en);
+      const box=document.createElement("div"); box.id="dupGate"; box.className="card accent";
+      box.innerHTML=`<h2 style="margin-bottom:8px">Este reporte ya está cargado</h2>
+        <p style="margin:0 0 12px">${esc(FORMS[tipo].titulo)} de <b>${esc(ex.marca)}</b> · <b>${esc(ex.periodo_label)}</b>, enviado por ${esc(ex.responsable)} el ${isNaN(sent)?"":sent.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}. ¿Querés verlo o editarlo?</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn sm ghost" id="verEx">Ver el reporte</button><button class="btn sm" id="editEx">Editar y reenviar</button></div>
+        <div id="verBox" class="hidden" style="margin-top:14px"></div>`;
+      $("#form").prepend(box);
+      $("#verEx").addEventListener("click",()=>{ const b=$("#verBox"); b.classList.toggle("hidden"); if(!b.innerHTML) b.innerHTML = renderReadOnly(FORMS[tipo], ex.datos||{}); });
+      $("#editEx").addEventListener("click",()=>startEdit(ex));
+      return;
+    }
+    if(tipo!=="sm") return;
+    if(reportsLoaded && !idx[`cm|${marca}|${periodo}`]){
+      secs.forEach(s=>s.classList.add("hidden")); $("#bar").classList.add("hidden");
+      const per=U.weekFromId(periodo);
+      const box=document.createElement("div"); box.id="cmGate"; box.className="card accent";
+      box.innerHTML=`<h2 style="margin-bottom:8px">Falta el reporte del CM</h2>
+        <p style="margin:0 0 12px">El reporte de Social Media de <b>${esc(m.nombre)}</b> para la semana <b>${esc(per.label)}</b> se completa después de leer el reporte del CM de esa misma semana, y el CM todavía no lo cargó. Pedile que lo suba y volvé a entrar; el borrador de lo que ya escribiste queda guardado.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn sm" id="recheck">Volver a comprobar</button><span class="small muted" style="align-self:center">Podés cambiar de marca arriba si otra ya tiene el reporte del CM.</span></div>`;
+      $("#form").prepend(box);
+      $("#recheck").addEventListener("click",async()=>{ $("#recheck").disabled=true; $("#recheck").textContent="Comprobando…"; try{ reports=await U.loadReports(); idx=U.indexReports(reports); }catch(e){} switchForm(); });
+      return;
+    }
+    // lectura del CM confirmada?
+    const gateField = FORMS.sm.secciones.flatMap(s=>s.fields).find(f=>f.gate);
+    if(gateField && !vals[gateField.id]){
+      const gateSec = FORMS.sm.secciones.find(s=>s.fields.includes(gateField)).num;
+      secs.forEach(s=>{ if(Number(s.dataset.sec)>gateSec) s.classList.add("hidden"); });
+      $("#bar").classList.add("hidden");
+      // ocultamos también los demás campos del bloque 2 hasta confirmar
+      const sec2=$(`section[data-sec="${gateSec}"]`); sec2?.querySelectorAll("[data-field]").forEach(el=>{ if(el.dataset.field!==gateField.id) el.classList.add("hidden"); });
+    }
+  }
+  // Empezar (o retomar) la corrección de un reporte ya enviado. Si en este dispositivo ya había una corrección a medio hacer, se retoma esa.
+  function startEdit(ex){
+    let d=null; try{ d=JSON.parse(localStorage.getItem(draftKey())||"null"); }catch(e){}
+    if(d && d._edit_de){ vals=d; }
+    else { vals = Object.assign({}, ex.datos||{}); delete vals.edicion_motivo; vals._edit_de = ex.enviado_en; }
+    editMode=true; vals._canal = !!(C.MARCAS.find(x=>x.slug===marca)||{}).canal;
+    _defsCache=null; saveDraft(); renderForm(); applyGate(); window.scrollTo({top:0,behavior:"smooth"});
+  }
+  function cancelEdit(){
+    if(!confirm("¿Descartar la corrección? El reporte enviado queda como estaba.")) return;
+    const k=draftKey(); try{ localStorage.removeItem(k); }catch(e){} cancelarNube(k); U.nubeBorrar(k);
+    editMode=false; switchForm();
+  }
+  function fieldDefs(){ const defs={}; window.walkFields(FORMS[tipo], vals, f=>{ if(f.id) defs[f.id]=f; }); return defs; }
+  function applyVisibility(){
+    document.querySelectorAll("[data-field][data-cond]").forEach(el=>{
+      const f = findDef(el.dataset.field); if(!f) return;
+      el.classList.toggle("hidden", !(!f.showIf || !!f.showIf(vals)));
+    });
+  }
+  let _defsCache=null;
+  function findDef(id){ if(!_defsCache) _defsCache = fieldDefs(); return _defsCache[id]; }
+
+  // ---------- state ----------
+  const draftKey = () => `ideamia-draft|${tipo}|${marca}|${periodo}`;
+  function saveDraft(){
+    vals._ts = Date.now();
+    try{ localStorage.setItem(draftKey(), JSON.stringify(vals)); draftFail=false; }
+    catch(e){ if(!draftFail && !U.nubeOn()) toast("Este navegador no está guardando el borrador (modo incógnito o memoria llena). No actualices la página hasta enviar.","bad"); draftFail=true; }
+    programarNube();
+  }
+  // ---------- copia en la nube ----------
+  // Unos segundos después de dejar de escribir, el borrador se copia a la pestaña "Borradores" de la planilla.
+  let nubePend=null, nubeTimer=null, nubeEstado="", nubeLst=[];
+  function programarNube(){
+    if(!U.nubeOn()) return;
+    const key=draftKey();
+    if(nubePend && nubePend.key!==key) subirNube(); // había otro reporte pendiente: se sube ya
+    nubePend={key, v:vals}; nubeEstado="pend"; clearTimeout(nubeTimer); nubeTimer=setTimeout(subirNube, 4000);
+  }
+  async function subirNube(){
+    clearTimeout(nubeTimer); const p=nubePend; nubePend=null; if(!p) return;
+    nubeEstado="subiendo"; if(!sending) updateMissing();
+    try{ await U.nubeGuardar(p.key, p.v, currentUser); nubeEstado = nubePend ? "pend" : "ok:"+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}); }
+    catch(e){ nubeEstado="error"; if(!nubePend){ nubePend=p; nubeTimer=setTimeout(subirNube, 20000); } } // reintenta solo
+    if(!sending) updateMissing();
+  }
+  function cancelarNube(key){ if(nubePend && nubePend.key===key){ clearTimeout(nubeTimer); nubePend=null; } }
+  // al cerrar o cambiar de pestaña, lo pendiente se manda en el momento
+  const flushNube = () => { if(nubePend){ clearTimeout(nubeTimer); U.nubeGuardar(nubePend.key, nubePend.v, currentUser, true); nubePend=null; } };
+  window.addEventListener("pagehide", flushNube);
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") flushNube(); });
+  // Al abrir un reporte: si en la nube hay una versión más nueva (de otro dispositivo o de antes de un corte), se recupera.
+  async function revisarNube(){
+    if(!U.nubeOn()) return;
+    const key=draftKey(), ts0=vals._ts||0;
+    let c=null; try{ c=await U.nubeLeer(key); }catch(e){ return; }
+    if(!c || !c.vals || draftKey()!==key || (vals._ts||0)!==ts0) return; // cambió de reporte o escribió mientras tanto
+    const tsN = Number(c.vals._ts||c.actualizado||0);
+    if(reportsLoaded && existing() && !c.vals._edit_de && !c.vals._import){ if(tsN < U.ts(existing().enviado_en)+60000) U.nubeBorrar(key); return; } // ya se envió
+    if(tsN <= ts0+1000) return;
+    if(vistaActual()!=="nuevo"){ try{ localStorage.setItem(key, JSON.stringify(c.vals)); }catch(e){} return; } // en otra pestaña: se guarda y se muestra al volver
+    vals = c.vals; vals._canal = !!(C.MARCAS.find(x=>x.slug===marca)||{}).canal;
+    try{ localStorage.setItem(key, JSON.stringify(vals)); }catch(e){}
+    editMode = !!(vals._edit_de && existing()); _defsCache=null;
+    renderForm(); applyGate();
+    // si el borrador es de otra persona, se avisa: escribir encima pisaría su trabajo
+    if(c.quien && c.quien!==currentUser) toast(`Ojo: ${C.RESPONSABLES[c.quien]?.nombre||c.quien} tiene este reporte a medio hacer. Si escribís acá, se reemplaza su borrador.`,"bad");
+    else toast(`Recuperé el borrador guardado en la nube${c.quien?` (última edición: ${C.RESPONSABLES[c.quien]?.nombre||c.quien})`:""}.`,"ok");
+  }
+  function loadDraft(){ try{ const s=localStorage.getItem(draftKey()); vals = s?JSON.parse(s):{}; }catch(e){ vals={}; } }
+
+  $("#form").addEventListener("change", e=>{
+    const el=e.target;
+    if(el.dataset && el.dataset.logo && el.files && el.files[0]){
+      const id=el.dataset.logo, file=el.files[0];
+      const img=new Image(); const url=URL.createObjectURL(file);
+      img.onload=()=>{ const max=200; const sc=Math.min(1, max/Math.max(img.width,img.height)); const c=document.createElement("canvas"); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); c.getContext("2d").drawImage(img,0,0,c.width,c.height); vals[id]=c.toDataURL("image/png"); URL.revokeObjectURL(url); saveDraft(); renderForm(); applyGate(); };
+      img.src=url;
+    }
+  });
+  $("#form").addEventListener("click", e=>{
+    if(e.target.closest("[data-pdf-cm]")){ const p=idx[`cm|${marca}|${periodo}`]; if(p) pdfReporte(p); return; }
+    const b=e.target.closest("[data-logo-clear]"); if(b){ delete vals[b.dataset.logoClear]; saveDraft(); renderForm(); applyGate(); return; }
+    const sw=e.target.closest("[data-swatch]"); if(sw){ vals[sw.dataset.swatch]=sw.dataset.color; saveDraft(); renderForm(); applyGate(); return; }
+    const add=e.target.closest("[data-list-add]"); if(add){ const id=add.dataset.listAdd; const f=findListDef(id); vals[`${id}_n`]=String(listCount(f)+1); saveDraft(); renderForm(); applyGate(); document.querySelector(`[data-field="${id}"] .sub:last-of-type input`)?.focus(); return; }
+    const del=e.target.closest("[data-list-del]"); if(del){ const id=del.dataset.listDel, r=Number(del.dataset.r); const f=findListDef(id); const n=listCount(f);
+      for(let k=r;k<n;k++){ f.cols.forEach(c=>{ const nv=vals[`${id}_${k+1}_${c.id}`]; if(nv==null||nv==="") delete vals[`${id}_${k}_${c.id}`]; else vals[`${id}_${k}_${c.id}`]=nv; }); }
+      f.cols.forEach(c=>delete vals[`${id}_${n}_${c.id}`]); vals[`${id}_n`]=String(Math.max(1,n-1)); saveDraft(); renderForm(); applyGate(); return; }
+    const fd=e.target.closest("[data-foto-del]"); if(fd){ const id=fd.dataset.fotoDel, k=Number(fd.dataset.k); const arr=Array.isArray(vals[id])?vals[id]:[]; arr.splice(k,1); vals[id]=arr; saveDraft(); renderForm(); applyGate(); return; }
+  });
+  function findListDef(id){ let found=null; const visit=f=>{ if(found) return; if(f.type==="row") f.fields.forEach(visit); else if(f.type==="repeat"){ const n=Number(vals[f.countField]||0); for(let i=1;i<=n;i++) f.item(i).forEach(visit); } else if((f.type==="list"||f.type==="table") && f.id===id) found=f; }; FORMS[tipo].secciones.forEach(s=>s.fields.forEach(visit)); return found; }
+  // Lectura automática de capturas: Make (escenario C) puede devolver {datos:{...}} con los números leídos de la imagen.
+  // Las claves son genéricas; acá se traducen al campo del formulario según de qué captura se trate. Solo se completan campos vacíos.
+  const LECTURA_REEL = { views:"res_views", visualizaciones:"res_views", mg:"res_mg", me_gusta:"res_mg", comentarios:"res_com", compartidos:"res_comp", guardados:"res_guard", duracion:"duracion", tiempo_prom:"tiempo_prom", tiempo_promedio:"tiempo_prom", omisiones:"omisiones", nuevos_seg:"nuevos_seg", seguidores_nuevos:"nuevos_seg", visitas:"visitas", reposts:"reposts", clics:"clics", org_feed:"org_feed", org_historias:"org_historias", org_reels:"org_reels", org_perfil:"org_perfil", org_explorar:"org_explorar", ret_3s:"ret_3s", ret_fin:"ret_fin", picos_mg:"picos_mg", picos:"picos_mg" };
+  const LECTURA_PUB = { views:"res_views", visualizaciones:"res_views", alcance:"alcance", mg:"res_mg", me_gusta:"res_mg", guardados:"res_guard", comentarios:"res_com", compartidos:"res_comp", nuevos_seg:"nuevos_seg", seguidores_nuevos:"nuevos_seg", visitas:"visitas" };
+  const LECTURA_CUENTA = { alcance_total:"alcance_total", alcance:"alcance_total", alcance_seg:"alcance_seg", alcance_seguidores:"alcance_seg", alcance_noseg:"alcance_noseg", alcance_no_seguidores:"alcance_noseg", interacciones:"interacciones", seg_sumados:"seg_sumados", seguidores_sumados:"seg_sumados", seg_perdidos:"seg_perdidos", seguidores_perdidos:"seg_perdidos" };
+  const LECTURA_MES = { alcance_total:"m_alc_total", alcance:"m_alc_total", alcance_seg:"m_alc_seg", alcance_noseg:"m_alc_noseg", interacciones:"m_inter", seg_sumados:"seg_sumados", seg_perdidos:"seg_perdidos", visualizaciones:"m_views", views:"m_views", contactos:"m_contactos" };
+  const LECTURA_PER = { alcance_total:"p_alc_total", alcance:"p_alc_total", alcance_seg:"p_alc_seg", alcance_noseg:"p_alc_noseg", interacciones:"p_inter", seg_sumados:"p_seg_sumados", seg_perdidos:"p_seg_perdidos", visualizaciones:"p_views", views:"p_views", contactos:"p_contactos" };
+  const LECTURA_AUD = { a_mujeres:"a_mujeres", a_franja:"a_franja", a_c1:"a_c1", a_c1p:"a_c1p", a_c2:"a_c2", a_c2p:"a_c2p", a_c3:"a_c3", a_c3p:"a_c3p", a_pais:"a_pais", a_pais_nombre:"a_pais_nombre" };
+  // Capturas que se mandan a la IA (lectura de números + devolución escrita)
+  const IA_CAMPOS = /^(reel\d+_fotos|pub\d+_fotos|reel\d+_portada|pub\d+_portada|fotos_resultados|m_fotos|p_fotos|a_fotos)$/;
+  function contextoIA(campo){
+    const mk = C.MARCAS.find(x=>x.slug===marca); const pre=(/^(reel|pub)\d+/.exec(campo)||[])[0];
+    const ctx = { marca: mk ? mk.nombre : marca };
+    if(pre){ ctx.nombre = vals[`${pre}_nombre`]||""; const o=[["obj_views","visualizaciones"],["obj_mg","me gusta"],["obj_com","comentarios"],["obj_comp","compartidos"],["obj_guard","guardados"]].filter(([k])=>vals[`${pre}_${k}`]).map(([k,l])=>`${vals[`${pre}_${k}`]} ${l}`); if(o.length) ctx.objetivo=o.join(", "); }
+    return ctx;
+  }
+  function aplicarLectura(campo, datos){
+    let pre="", mapa=LECTURA_CUENTA; let m;
+    if((m=/^(reel\d+)_/.exec(campo))){ pre=m[1]+"_"; mapa=LECTURA_REEL; }
+    else if((m=/^(pub\d+)_/.exec(campo))){ pre=m[1]+"_"; mapa=LECTURA_PUB; }
+    else if(campo==="m_fotos") mapa=LECTURA_MES;
+    else if(campo==="p_fotos") mapa=LECTURA_PER;
+    else if(campo==="a_fotos") mapa=LECTURA_AUD;
+    if(/_portada$/.test(campo)) return 0;
+    let n=0;
+    for(const [k,v] of Object.entries(datos)){ const dest = mapa[String(k).toLowerCase()]; if(!dest) continue; const id=pre+dest; if(!findDef(id)) continue; if(vals[id]!=null && String(vals[id]).trim()!=="") continue; if(v==null||v==="") continue; vals[id]=String(v); n++; }
+    if(n) saveDraft();
+    return n;
+  }
+  // subida de capturas
+  $("#form").addEventListener("change", async e=>{
+    const el=e.target; if(!(el.dataset && el.dataset.fotos && el.files && el.files.length)) return;
+    const id=el.dataset.fotos; const max=Number(el.dataset.max||6); const st=document.querySelector(`[data-foto-status="${id}"]`);
+    let arr = Array.isArray(vals[id])?vals[id]:[]; if(max===1) arr=[]; const files=Array.from(el.files).slice(0,Math.max(1,max-arr.length)); let k=0;
+    const leer = IA_CAMPOS.test(id);
+    // la clave del borrador se fija al empezar: si la persona cambia de marca mientras sube, la captura no cae en otro reporte
+    const key0 = draftKey();
+    uploading++; el.disabled=true;
+    try{
+      for(const file of files){ k++; if(st) st.textContent = `${leer?"Subiendo y analizando con IA":"Subiendo"} ${k} de ${files.length}… (no cierres la página)`;
+        try{
+          const r = await U.subirFoto(file,{marca, periodo, campo:id, tipo, leer, prompt: leer ? U.promptIA(id, contextoIA(id)) : ""});
+          if(draftKey()!==key0){ toast("La captura se subió, pero cambiaste de reporte: volvé y subila de nuevo.","bad"); continue; }
+          const foto = {id:r.id,url:r.url,nombre:r.nombre};
+          if(r.datos && typeof r.datos==="object"){
+            if(r.datos.devolucion) foto.ia = String(r.datos.devolucion).trim();
+            const n=aplicarLectura(id, r.datos);
+            if(n) toast(`La IA leyó ${n} dato${n>1?"s":""} de la captura y completó los campos vacíos. Revisalos antes de enviar.`,"ok");
+          }
+          if(r.iaFallo) toast("La captura se guardó, pero la lectura con IA no está respondiendo ahora: completá los números a mano.","bad");
+          arr.push(foto); vals[id]=arr; saveDraft();
+        }
+        catch(err){ toast("No se pudo subir la captura ("+err.message+"). Probá de nuevo en un momento; lo demás del reporte sigue guardado.","bad"); }
+      }
+    } finally { uploading--; }
+    if(st) st.textContent=""; renderForm(); applyGate();
+  });
+  $("#form").addEventListener("input", onChange);
+  $("#form").addEventListener("change", onChange);
+  function onChange(e){
+    const el = e.target; if(!el.name) return;
+    const def = findDef(el.name);
+    if(el.type==="color"){ vals[el.name]=el.value; el.closest("label")?.querySelector("[data-colorval]")?.replaceChildren(document.createTextNode(el.value)); saveDraft(); return; }
+    if(def && def.type==="confirm"){
+      vals[el.name] = el.checked ? true : "";
+      if(el.checked) vals[el.name+"_en"] = new Date().toISOString(); else delete vals[el.name+"_en"];
+      saveDraft(); renderForm(); applyGate(); return;
+    }
+    if(el.type==="checkbox"){
+      const arr = Array.from(document.querySelectorAll(`input[name="${el.name}"]:checked`)).map(x=>x.value);
+      if(el.checked && /^Ninguna/.test(el.value)) { document.querySelectorAll(`input[name="${el.name}"]`).forEach(x=>{ if(x!==el) x.checked=false; }); vals[el.name]=[el.value]; }
+      else { const none = arr.filter(v=>!/^Ninguna/.test(v)); document.querySelectorAll(`input[name="${el.name}"]`).forEach(x=>{ if(/^Ninguna/.test(x.value)) x.checked=false; }); vals[el.name]=none; }
+    } else if(el.type==="radio"){ if(el.checked) vals[el.name]=el.value; }
+    else vals[el.name]=el.value;
+    if(el.name==="reels_n"||el.name==="feed_n") prefillObjetivos();
+    el.classList.remove("invalid"); el.closest(".group")?.classList.remove("invalid");
+    if(def && def.type==="url"){ const ok=!el.value.trim()||/^https?:\/\/\S+$/i.test(el.value.trim()); el.classList.toggle("invalid",!ok); }
+    _defsCache=null;
+    FORMS[tipo].secciones.forEach(sec=>sec.fields.forEach(f=>{ if(f.type==="repeat" && (f.countField===el.name || (/_stats_ok$/.test(el.name) && el.name.startsWith(f.id)))) renderRepeat(f); }));
+    applyVisibility();
+    refreshCompare();
+    saveDraft();
+    updateMissing();
+    if(/^(reel|pub)\d+_|^(alcance_|interacciones|seg_)/.test(el.name)) refreshDiag();
+    if(/^(okr_|p_)/.test(el.name)) refreshOkrPrev();
+  }
+
+  // Objetivos de reels y publicaciones: se precargan con los del último reporte semanal de la marca (se pueden cambiar)
+  function prefillObjetivos(){
+    if(tipo!=="sm") return;
+    const prev = reports.filter(r=>r.tipo==="sm" && r.marca_slug===marca && r.periodo_id<periodo).sort((a,b)=>b.periodo_id.localeCompare(a.periodo_id))[0];
+    if(!prev) return; const d=prev.datos||{};
+    const tomar = (pre, n, campos) => { // primer objetivo cargado de ese tipo en la semana anterior
+      const out={}; for(const c of campos){ for(let k=1;k<=n;k++){ const v=d[`${pre}${k}_${c}`]; if(v!=null && v!==""){ out[c]=v; break; } } } return out; };
+    const oR = tomar("reel", Number(d.reels_n||0), ["obj_views","obj_mg","obj_com","obj_comp","obj_guard"]);
+    const oP = tomar("pub", Number(d.feed_n||0), ["obj_views","obj_mg","obj_com","obj_comp","obj_guard"]);
+    for(let i=1;i<=Number(vals.reels_n||0);i++) for(const [c,v] of Object.entries(oR)) if(vals[`reel${i}_${c}`]==null||vals[`reel${i}_${c}`]==="") vals[`reel${i}_${c}`]=String(v);
+    for(let i=1;i<=Number(vals.feed_n||0);i++) for(const [c,v] of Object.entries(oP)) if(vals[`pub${i}_${c}`]==null||vals[`pub${i}_${c}`]==="") vals[`pub${i}_${c}`]=String(v);
+  }
+  // "¿Se alcanzó el objetivo?" cuando no lo marcaron: se compara objetivo y resultado de views y me gusta
+  function calcAlcanzado(d, pre){
+    const n=v=>U.num(v); const pares=[[n(d[`${pre}_res_views`]),n(d[`${pre}_obj_views`])],[n(d[`${pre}_res_mg`]),n(d[`${pre}_obj_mg`])]].filter(([r,o])=>r!=null&&o);
+    if(!pares.length) return "";
+    const ok=pares.filter(([r,o])=>r>=o).length;
+    return ok===pares.length ? "Sí" : ok>0 ? "Parcialmente" : "No";
+  }
+  function prefillMensual(){
+    if(tipo!=="mensual") return;
+    const weeks = U.weeksInMonth(periodo);
+    const reels=[], pubs=[];
+    for(const w of weeks){ const r = idx[`sm|${marca}|${w.id}`]; if(!r) continue; const d=r.datos||{};
+      for(let i=1;i<=Number(d.reels_n||0);i++) reels.push({desc:d[`reel${i}_nombre`], fecha:w.label, views:d[`reel${i}_res_views`], mg:d[`reel${i}_res_mg`], guard:d[`reel${i}_res_guard`], comp:d[`reel${i}_res_comp`], com:d[`reel${i}_res_com`], seg:d[`reel${i}_nuevos_seg`], link:d[`reel${i}_link`]});
+      for(let i=1;i<=Number(d.feed_n||0);i++) pubs.push({desc:d[`pub${i}_nombre`], fecha:w.label, alc:d[`pub${i}_alcance`]||d[`pub${i}_res_views`], mg:d[`pub${i}_res_mg`], guard:d[`pub${i}_res_guard`], comp:d[`pub${i}_res_comp`], com:d[`pub${i}_res_com`], seg:d[`pub${i}_nuevos_seg`], link:d[`pub${i}_link`]});
+    }
+    reels.sort((a,b)=>(U.num(b.views)||0)-(U.num(a.views)||0)); pubs.sort((a,b)=>(U.num(b.mg)||0)-(U.num(a.mg)||0));
+    const fill=(id,list,rows)=>{ if(Object.keys(vals).some(k=>/_\d+_/.test(k)&&k.startsWith(id+"_")&&vals[k])) return; list.slice(0,rows).forEach((it,k)=>{ Object.entries(it).forEach(([c,v])=>{ if(v!=null&&v!=="") vals[`${id}_${k+1}_${c}`]=v; }); }); };
+    fill("rk_reel",reels,5); fill("rk_feed",pubs,4);
+  }
+
+  function prefillPeriodico(){
+    if(tipo!=="periodico") return;
+    const ag = P.aggregate(idx, marca, periodo);
+    const setIf=(k,v)=>{ if((vals[k]==null||vals[k]==="") && v!=null && v!=="") vals[k]=String(v); };
+    setIf("p_seg_sumados",ag.seg_sumados); setIf("p_seg_perdidos",ag.seg_perdidos); setIf("p_contactos",ag.contactos); setIf("p_inter",ag.inter); setIf("p_views",ag.views);
+    setIf("p_seg_inicio",ag.seg_inicio); setIf("p_seg_cierre",ag.seg_cierre); setIf("p_alc_pauta",ag.alc_pauta);
+    const fillTable=(id,list,rows,map)=>{ if(Object.keys(vals).some(k=>/^[a-z]+_\d+_/.test(k)&&k.startsWith(id+"_")&&vals[k])) return; list.slice(0,rows).forEach((it,k)=>{ Object.entries(map(it)).forEach(([c,v])=>{ if(v!=null&&v!=="") vals[`${id}_${k+1}_${c}`]=String(v); }); }); };
+    fillTable("camp",ag.campanias,4,c=>({nivel:c.nivel,nombre:c.nombre,cumple:c.cumple,pieza:c.pieza,texto:c.texto}));
+    fillTable("rk",ag.reels,6,r=>({desc:r.desc,fecha:r.fecha,views:r.views,mg:r.mg,com:r.com,comp:r.comp,guard:r.guard,seg:r.seg,link:r.link}));
+    fillTable("fd",ag.feed,3,r=>({desc:r.desc,views:r.alc,mg:r.mg,com:r.com,comp:r.comp,seg:r.seg,link:r.link}));
+    const pp = P.parsePeriod(periodo); vals.mm_n = String(pp.n);
+    pp.meses.forEach((mid,k)=>{ const r=k+1; vals[`mm_${r}_mes`] = `${U.MESES_C[Number(mid.split("-")[1])-1]} ${mid.split("-")[0]}`; const mr = idx[`mensual|${marca}|${mid}`]; if(mr){ const d=mr.datos||{}; const set=(c,v)=>{ if((vals[`mm_${r}_${c}`]==null||vals[`mm_${r}_${c}`]==="") && v!=null && v!=="") vals[`mm_${r}_${c}`]=String(v); }; set("alc",d.m_alc_total); set("views",d.m_views); set("netos",(U.num(d.seg_sumados)!=null)?U.num(d.seg_sumados)-(U.num(d.seg_perdidos)||0):""); set("inter",d.m_inter); set("cont",d.m_contactos); } });
+    fillTable("okr",P.OKR_DEFAULT.map(o=>({obj:o})),6,o=>o);
+    fillTable("meta",P.OKR_DEFAULT.slice(0,4).map(o=>({obj:o})),6,o=>o);
+    // estética: del último reporte periódico de la marca, o de la pestaña Marcas del Sheet
+    const prevs = reports.filter(r=>r.tipo==="periodico" && r.marca_slug===marca).sort((a,b)=>(b.enviado_en||"").localeCompare(a.enviado_en||""));
+    const src = prevs[0]?.datos || {};
+    const mk = C.MARCAS.find(x=>x.slug===marca) || {};
+    setIf("est_color", src.est_color || mk.color); setIf("est_fuente", src.est_fuente || mk.fuente); setIf("est_fondo", src.est_fondo || mk.fondo || "Oscuro");
+    setIf("est_logo", src.est_logo || mk.logo); setIf("est_ig", src.est_ig || mk.ig); setIf("est_autor", src.est_autor || responsableDe());
+    // logos grandes de reportes anteriores: se achican para que el reporte no supere el límite de una celda de la planilla
+    if(/^data:image/.test(vals.est_logo||"") && vals.est_logo.length>16000){ const key0=draftKey(); const img=new Image(); img.onload=()=>{ const sc=Math.min(1,200/Math.max(img.width,img.height)); const c=document.createElement("canvas"); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); c.getContext("2d").drawImage(img,0,0,c.width,c.height); const out=c.toDataURL("image/png"); if(draftKey()===key0 && out.length<vals.est_logo.length){ vals.est_logo=out; saveDraft(); } }; img.src=vals.est_logo; }
+    if(!vals.est_color) vals.est_color = "#FFF200";
+    if(!vals.est_fuente) vals.est_fuente = P.FUENTES.anton.nombre;
+    const nm = P.nextMonths(periodo,4);
+    // etiquetas de calendario
+    FORMS.periodico.secciones[8].fields.forEach(f=>{ const m=/^cal_m(\d)$/.exec(f.id||""); if(m) f.label = nm[Number(m[1])-1]?.nombre || f.label; });
+  }
+  function switchForm(){
+    _defsCache=null;
+    renderSetup(); saveUI();
+    if(!editMode) loadDraft();
+    // corrección a medio hacer guardada en el dispositivo → se retoma sola
+    if(!editMode && vals._edit_de && existing()) editMode=true;
+    importando = !!vals._import; if(importando) editMode=false; _keyPrevia = draftKey();
+    if(reportsLoaded && !existing() && vals._edit_de){ delete vals._edit_de; delete vals.edicion_motivo; editMode=false; }
+    vals._canal = !!(C.MARCAS.find(x=>x.slug===marca)||{}).canal;
+    prefillMensual(); prefillPeriodico(); prefillObjetivos();
+    renderForm();
+    $("#errbox").classList.add("hidden");
+    $("#doneView").classList.add("hidden"); $("#form").classList.remove("hidden"); $("#setup").classList.remove("hidden"); $("#bar").classList.remove("hidden");
+    applyGate();
+    revisarNube();
+  }
+
+  // ---------- validación ----------
+  const empty = v => v==null || v==="" || (Array.isArray(v)&&!v.length);
+  function validate(){
+    const errs=[]; document.querySelectorAll(".invalid").forEach(x=>x.classList.remove("invalid"));
+    if(importando) return errs; // reporte viejo: se guarda con lo que tenga
+    if(editMode && !(vals.edicion_motivo||"").trim()) errs.push({id:"edicion_motivo", msg:"¿Qué corregís y por qué?"});
+    window.walkFields(FORMS[tipo], vals, (f,ctx)=>{
+      if(f.type==="table"||f.type==="list"||f.type==="fotos") return;
+      if(f.showIf && !f.showIf(vals)) return;
+      if(!isReq(f)) return;
+      const v = vals[f.id];
+      if(empty(v) || (f.type==="number" && U.num(v)==null) || (f.type==="url" && !/^https?:\/\/\S+$/i.test(String(v).trim()))){
+        const pre = ctx.repeat ? `${ctx.repeat.title(ctx.i)} · ` : "";
+        errs.push({id:f.id, msg:`${pre}${f.label}`});
+      }
+    });
+    return errs;
+  }
+  function markInvalid(errs){
+    errs.forEach(e=>{ const wrap=document.querySelector(`[data-field="${e.id}"]`); if(!wrap) return; const inp=wrap.querySelector("input:not([type=radio]):not([type=checkbox]),textarea,select"); if(inp) inp.classList.add("invalid"); wrap.querySelector(".group")?.classList.add("invalid"); });
+  }
+  function showErrors(errs){
+    const box=$("#errbox");
+    if(!errs.length){ box.classList.add("hidden"); return; }
+    markInvalid(errs);
+    box.classList.remove("hidden");
+    box.innerHTML = `<b>Faltan ${errs.length} campo${errs.length>1?"s":""} obligatorio${errs.length>1?"s":""}:</b><ul>${errs.map(e=>`<li><a href="#" data-go="${e.id}">${esc(e.msg)}</a></li>`).join("")}</ul>`;
+    box.querySelectorAll("[data-go]").forEach(a=>a.addEventListener("click",ev=>{ ev.preventDefault(); const w=document.querySelector(`[data-field="${a.dataset.go}"]`); w?.scrollIntoView({behavior:"smooth",block:"center"}); w?.querySelector("input,textarea")?.focus(); }));
+    box.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  // ---------- envío ----------
+  function buildPayload(){
+    const m = C.MARCAS.find(x=>x.slug===marca);
+    const per = tipo==="periodico" ? P.parsePeriod(periodo) : tipo==="mensual" ? U.monthFromId(periodo) : U.weekFromId(periodo);
+    const d = vals;
+    const now = new Date();
+    const off = -now.getTimezoneOffset(); const sg = off>=0?"+":"-"; const oh=U.pad(Math.floor(Math.abs(off)/60)), om=U.pad(Math.abs(off)%60);
+    const enviado = `${U.iso(now)}T${U.pad(now.getHours())}:${U.pad(now.getMinutes())}:${U.pad(now.getSeconds())}${sg}${oh}:${om}`;
+    let resumen="", alcance=null, netos=null, inter=null, reels=null;
+    if(tipo==="sm"){ resumen=d.resumen||""; alcance=U.num(d.alcance_total); netos=U.num(d.seg_sumados)-U.num(d.seg_perdidos); inter=U.num(d.interacciones); reels=U.num(d.reels_n); }
+    else if(tipo==="cm"){ resumen=`Mensajes: ${d.msg_total||0} · Tema: ${d.msg_tema||""}${d.cal_todo==="No, hubo faltantes"?" · HUBO FALTANTES":""}${d.inconv?" · Inconveniente: "+d.inconv:""}`; }
+    else if(tipo==="periodico"){ resumen=`${per.tipoNombre}: ${d.s_texto||""}`; alcance=U.num(d.p_alc_total); netos=U.num(d.p_seg_sumados)-U.num(d.p_seg_perdidos); inter=U.num(d.p_inter); }
+    else { resumen=d.resumen_mes||""; alcance=U.num(d.m_alc_total); netos=U.num(d.seg_sumados)-U.num(d.seg_perdidos); inter=U.num(d.m_inter); }
+    if(editMode) resumen = "(corregido) " + resumen;
+    if(importando) resumen = "(importado) " + resumen;
+    const datos={}; Object.entries(d).forEach(([k,v])=>{ if(!empty(v) && !k.startsWith("_")) datos[k]=v; });
+    if(tipo==="sm"){ for(let i=1;i<=Number(d.reels_n||0);i++) if(!datos[`reel${i}_alcanzado`]){ const a=calcAlcanzado(d,`reel${i}`); if(a) datos[`reel${i}_alcanzado`]=a; } for(let i=1;i<=Number(d.feed_n||0);i++) if(!datos[`pub${i}_alcanzado`]){ const a=calcAlcanzado(d,`pub${i}`); if(a) datos[`pub${i}_alcanzado`]=a; } }
+    if(tipo==="sm" && window.ANALISIS){
+      const base = window.ANALISIS.baselineReels(reports, marca, periodo);
+      for(let i=1;i<=Number(d.reels_n||0);i++){ const r=window.ANALISIS.diagReel(d,i,base); if(r&&r.items&&r.items.length&&r.score!=null) datos[`reel${i}_diag`] = `${r.veredicto} ` + r.items.filter(x=>x.lvl!=="info").map(x=>`${x.k}: ${x.txt}`).join(" · "); }
+      const p = idx[`sm|${marca}|${U.prevWeekId(periodo)}`]?.datos || null; const ds = window.ANALISIS.diagSemana(d,p); if(ds.length) datos.diag_semana = ds.map(x=>`${x.k}: ${x.txt}`).join(" · ");
+      const bp = window.ANALISIS.baselinePubs(reports, marca, periodo);
+      for(let i=1;i<=Number(d.feed_n||0);i++){ const r=window.ANALISIS.diagPub(d,i,bp); if(r&&r.items&&r.items.length&&r.score!=null) datos[`pub${i}_diag`] = `${r.veredicto} ` + r.items.filter(x=>x.lvl!=="info").map(x=>`${x.k}: ${x.txt}`).join(" · "); }
+    }
+    // reporte viejo subido desde archivo: queda marcado y con el enlace al original
+    if(importando && d._import){ datos.importado = true; datos.importado_archivo = d._import.archivo||""; if(d._import.url) datos.importado_url = d._import.url; if(Array.isArray(d._import.paginas) && d._import.paginas.length) datos.importado_paginas = d._import.paginas.slice(0,8); }
+    // "Qué funcionó" queda guardado en el mensual y el periódico para la presentación
+    if((tipo==="mensual"||tipo==="periodico") && window.ANALISIS){ const q=queFuncionoActual(); if(q && q.n) datos.que_funciono = { n:q.n, pilar:q.pilar.slice(0,5), dia:q.dia.slice(0,3), franja:q.franja.slice(0,3), formato:q.formato.slice(0,4) }; }
+    return { enviado_en:enviado, tipo, marca:m.nombre, marca_slug:marca, periodo_id:periodo, periodo_label:per.label, responsable:responsableDe(),
+      resumen: resumen.slice(0,900), alcance: alcance??"", seguidores_netos: isNaN(netos)?"":netos??"", interacciones: inter??"", reels_publicados: reels??"", datos_json: JSON.stringify(datos) };
+  }
+  function toast(msg,cls){ const t=document.createElement("div"); t.className="toast "+(cls||""); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),4000); }
+
+  $("#send").addEventListener("click", async ()=>{
+    if(sending) return;
+    if(uploading>0){ toast("Esperá a que terminen de subir las capturas y volvé a tocar Enviar.","bad"); return; }
+    const errs = validate(); showErrors(errs); if(errs.length) return;
+    if(!C.WEBHOOK_URL){ toast("Falta configurar la URL del webhook en config.js","bad"); return; }
+    const payload = buildPayload();
+    // una celda de Google Sheets admite 50.000 caracteres: si se pasa, Make no puede guardar la fila y el envío "queda colgado"
+    if(payload.datos_json.length > 48000){
+      const box=$("#errbox"); box.classList.remove("hidden");
+      box.innerHTML = `<b>El reporte es demasiado largo para la planilla</b> (${U.fmt(payload.datos_json.length)} de 48.000 caracteres). Acortá los textos más largos${vals.est_logo?" o quitá y volvé a subir el logo":""} y probá de nuevo. Tu borrador está guardado.`;
+      box.scrollIntoView({behavior:"smooth"}); return;
+    }
+    const key0 = draftKey(), lbl = editMode ? "Enviar corrección" : "Enviar reporte";
+    const btn=$("#send"); btn.disabled=true; btn.textContent="Enviando…"; sending=true;
+    $("#status").textContent = "Enviando… no cierres ni actualices la página.";
+    try{
+      await U.enviarWebhook(payload, msg=>{ btn.textContent="Comprobando…"; $("#status").textContent=msg; });
+      cancelarNube(key0); U.nubeBorrar(key0); nubeLst = nubeLst.filter(x=>x.clave!==key0); importando=false; saveUI();
+      try{ localStorage.removeItem(key0); if(tipo==="periodico") localStorage.setItem(`ideamia-pres|${marca}|${periodo}`, JSON.stringify(payload)); }catch(e){}
+      sending=false; btn.disabled=false; btn.textContent=lbl;
+      showDone(payload);
+    }catch(e){
+      sending=false; btn.disabled=false; btn.textContent=lbl; updateMissing();
+      const box=$("#errbox"); box.classList.remove("hidden");
+      box.innerHTML = `<b>No se pudo enviar (${esc(e.message)}).</b> Revisé la planilla y el reporte no llegó, así que no se duplica nada si lo volvés a mandar. <b>No perdiste nada:</b> el borrador sigue guardado en este dispositivo, aunque actualices la página. <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="retrySend">Reintentar ahora</button><button class="btn sm ghost" id="copyBk">Copiar respaldo para Joaquín</button></div>`;
+      $("#retrySend").addEventListener("click",()=>$("#send").click());
+      $("#copyBk").addEventListener("click",()=>{ navigator.clipboard.writeText(JSON.stringify(payload)).then(()=>toast("Respaldo copiado","ok")); });
+      box.scrollIntoView({behavior:"smooth"});
+    }
+  });
+  function showDone(p){
+    $("#form").classList.add("hidden"); $("#setup").classList.add("hidden"); $("#bar").classList.add("hidden"); $("#errbox").classList.add("hidden");
+    // lo registramos localmente para que la marca figure como entregada sin esperar al Sheet
+    reports.push(Object.assign({}, p, {datos: JSON.parse(p.datos_json||"{}")})); idx = U.indexReports(reports);
+    editMode=false;
+    const dv=$("#doneView"); dv.classList.remove("hidden");
+    const ms=marcasDisponibles(); const pend = ms.filter(m=>!idx[`${tipo}|${m.slug}|${periodo}`]);
+    const mk = C.MARCAS.find(x=>x.slug===p.marca_slug)||{}; const dd = JSON.parse(p.datos_json||"{}");
+    let recordatorios = "";
+    if(p.tipo==="sm"){
+      const cambios=[dd.cambio1,dd.cambio2,dd.cambio3].filter(Boolean);
+      recordatorios = `<div class="card accent" style="text-align:left;margin-top:22px"><h3 style="margin-bottom:10px">Antes de cerrar</h3>
+        ${cambios.length?`<div style="margin-bottom:10px"><b>Calendarizá los cambios que anotaste.</b> Anotalos ahora en el calendario de contenido:<ul style="margin:6px 0 0 18px;padding:0">${cambios.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>`:""}
+        ${dd.aplicar_cm?`<div style="margin-bottom:10px"><b>Lo positivo del CM para aplicar:</b> ${esc(dd.aplicar_cm)}</div>`:""}
+        ${mk.canal?`<div><b>Mové el canal social esta semana.</b> ${dd.canal_movido==="No"?"Esta semana no se movió: que la próxima sí.":"Al menos una publicación en el canal de difusión."}</div>`:""}
+      </div>`;
+    }
+    if(p.tipo==="cm" && mk.canal && dd.canal_movido==="No"){ recordatorios = `<div class="card accent" style="text-align:left;margin-top:22px"><h3 style="margin-bottom:6px">Antes de cerrar</h3><div><b>El canal social no se movió esta semana.</b> Coordinalo con la Social Media para que la próxima sí.</div></div>`; }
+    dv.innerHTML = `<div class="card done"><div class="big">✓<i></i><i></i><i></i><i></i><i></i></div><h2 style="margin:12px 0 6px">Reporte enviado</h2><div class="muted">${esc(p.marca)} · ${esc(p.periodo_label)} · ${esc(FORMS[p.tipo].titulo)}</div>${recordatorios}
+      <div class="small muted" style="margin-top:10px">${pend.length?`Te faltan: ${pend.map(m=>esc(m.nombre)).join(", ")}`:"No te queda ninguna marca pendiente para este período."}</div>
+      <div class="small muted" style="margin-top:6px">El reporte puede tardar hasta un minuto en aparecer en "Reportes anteriores" y en el panel.</div>
+      <div style="margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn" id="pdfDone">Descargar PDF</button>${p.tipo==="periodico"?`<a class="btn ghost" href="${presUrl(p)}" target="_blank">Abrir la presentación</a>`:""}<button class="btn ghost" id="another">${pend.length?"Cargar la siguiente marca":"Volver"}</button></div></div>`;
+    $("#pdfDone").addEventListener("click",()=>pdfReporte(Object.assign({}, p, {datos: dd})));
+    $("#another").addEventListener("click",()=>{ if(pend.length) marca = pend[0].slug; switchForm(); window.scrollTo(0,0); });
+  }
+
+  // Diferencias entre versiones de un reporte (solo Project)
+  function labelOf(tipo,id){ let found=null; const visit=f=>{ if(found) return; if(f.type==="row") f.fields.forEach(visit); else if(f.type==="repeat"){ for(let i=1;i<=9;i++) f.item(i).forEach(visit); } else if(f.id===id) found=f; }; (FORMS[tipo]||FORMS.sm).secciones.forEach(sc=>sc.fields.forEach(visit)); return found ? found.label : id; }
+  function renderCambios(r){
+    const chain=[...(r.versiones||[]), r]; let h="";
+    for(let i=1;i<chain.length;i++){ const a=chain[i-1].datos||{}, b=chain[i].datos||{}; const keys=[...new Set([...Object.keys(a),...Object.keys(b)])].filter(k=>!k.startsWith("_")&&!/_diag$|^diag_|^edicion_motivo$|_fotos$/.test(k)&&JSON.stringify(a[k])!==JSON.stringify(b[k]));
+      const sent=new Date(chain[i].enviado_en);
+      h+=`<div class="diag" style="border-color:rgba(255,180,84,.5);background:rgba(255,180,84,.06)"><div class="diag-head" style="color:var(--warn)"><span>Corrección v${i+1} · ${isNaN(sent)?"":sent.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · ${esc(chain[i].responsable)}</span></div>
+        <div style="margin-bottom:8px"><b>Motivo:</b> ${esc(b.edicion_motivo||"(sin motivo registrado)")}</div>
+        ${keys.length?`<table class="t"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${esc(labelOf(r.tipo,k))}</td><td class="muted">${esc(Array.isArray(a[k])?a[k].join(" · "):(a[k]??"–"))}</td><td><b>${esc(Array.isArray(b[k])?b[k].join(" · "):(b[k]??"–"))}</b></td></tr>`).join("")}</tbody></table>`:'<div class="small muted">Sin cambios en los campos (solo reenvío).</div>'}</div>`; }
+    return h;
+  }
+  // ---------- PDF ----------
+  // Arma una versión limpia (fondo blanco) del reporte y abre el diálogo de impresión: "Guardar como PDF".
+  function pdfReporte(r){
+    if(!r) return;
+    const mk = C.MARCAS.find(x=>x.slug===r.marca_slug)||{};
+    const sent = new Date(r.enviado_en); const fecha = isNaN(sent) ? "" : sent.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    const titulo = (FORMS[r.tipo]||{}).titulo || "Reporte";
+    const box = $("#printArea");
+    box.innerHTML = `<div class="pr-head"><div class="pr-logo">IDEA<b>MIA</b></div><div class="pr-kicker">— Estudio creativo · Sistema de reportes</div></div>
+      <h1 class="pr-title">${esc(titulo)}</h1>
+      <div class="pr-meta"><div><span>Marca</span><b>${esc(r.marca||mk.nombre||"")}</b></div><div><span>Período</span><b>${esc(r.periodo_label||"")}</b></div><div><span>Cargó</span><b>${esc(r.responsable||"")}</b></div><div><span>Enviado</span><b>${esc(fecha)}</b></div></div>
+      ${r.version>1?`<div class="pr-note">Versión corregida (v${r.version}).</div>`:""}
+      <div class="pr-body">${renderReadOnly(FORMS[r.tipo]||FORMS.sm, r.datos||{})}</div>
+      <div class="pr-foot">Estudio Ideamia · Las marcas se construyen pieza por pieza.</div>`;
+    const t0 = document.title;
+    document.title = `${titulo} · ${r.marca||""} · ${String(r.periodo_label||"").replace(/\//g,"-")}`; // nombre sugerido del archivo
+    document.body.classList.add("printing");
+    const fin = () => { document.body.classList.remove("printing"); document.title = t0; box.innerHTML=""; window.removeEventListener("afterprint", fin); };
+    window.addEventListener("afterprint", fin);
+    // se espera a que carguen las miniaturas de las capturas antes de imprimir
+    const imgs = Array.from(box.querySelectorAll("img")); let listo=false;
+    const imprimir = () => { if(listo) return; listo=true; setTimeout(()=>window.print(), 150); };
+    Promise.all(imgs.map(im => im.complete ? 0 : new Promise(res=>{ im.onload=im.onerror=res; }))).then(imprimir);
+    setTimeout(imprimir, 4000);
+  }
+  // ---------- historial ----------
+  function presUrl(r){ return `presentacion.html?marca=${encodeURIComponent(r.marca_slug)}&periodo=${encodeURIComponent(r.periodo_id)}`; }
+  let histMarca = "todas";
+  const puedeEditar = r => !!FORMS[r.tipo] && tiposDisponibles.includes(r.tipo) && marcasDisponibles().some(m=>m.slug===r.marca_slug);
+  function renderHistorial(){
+    const box=$("#historial");
+    const ms = marcasDisponibles();
+    const list = reports.filter(r=> (histMarca==="todas" ? ms.some(m=>m.slug===r.marca_slug) : r.marca_slug===histMarca) && (!(resp&&U.isCM(resp)) || r.tipo==="cm"))
+      .sort((a,b)=>(b.enviado_en||"").localeCompare(a.enviado_en||""));
+    const TL = {sm:"Social Media", cm:"CM", mensual:"Mensual", periodico:"Periódico"};
+    // agrupar por mes (carpetas), más reciente primero
+    const groups = {};
+    for(const r of list){ const m=U.mesDe(r); (groups[m] ??= []).push(r); }
+    const meses = Object.keys(groups).sort().reverse();
+    const fmtD = s => { const d=new Date(s); return isNaN(d)?esc(s):d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit"}); };
+    const rowHtml = (r,i) => `<tr><td><b>${esc(r.marca)}</b></td><td>${r.tipo==="periodico"&&r.periodo_id.includes("+")?P.parsePeriod(r.periodo_id).tipoNombre:(TL[r.tipo]||esc(r.tipo))}</td><td>${esc(r.periodo_label)}</td><td>${esc(r.responsable)}</td><td class="muted">${fmtD(r.enviado_en)}${r.version>1?` <span class="pill warn" style="padding:2px 7px;font-size:11px">corregido · v${r.version}</span>`:""}${r.datos&&r.datos.importado?` <span class="pill" style="padding:2px 7px;font-size:10px">importado</span>`:""}</td><td style="white-space:nowrap"><button class="btn sm ghost" data-hv="${i}">Ver</button> <button class="btn sm ghost" data-hp="${i}" title="Descargar PDF">PDF</button> ${puedeEditar(r)?`<button class="btn sm ghost" data-he="${i}">Editar</button>`:""} ${r.tipo==="periodico"?`<a class="btn sm" href="${presUrl(r)}" target="_blank">Presentación</a>`:""} ${isProject ? `<button class="btn sm ghost" data-del="${i}" title="Eliminar" style="border-color:rgba(255,107,107,.5);color:var(--bad)">Eliminar</button>`:""}</td></tr><tr class="hidden" data-hd="${i}"><td colspan="6" style="background:var(--surface2)"></td></tr>`;
+    box.innerHTML = `<div class="card">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><h2>Reportes anteriores</h2><select id="histMarca" style="width:auto;min-width:180px"><option value="todas">Todas las marcas</option>${ms.map(m=>`<option value="${m.slug}" ${m.slug===histMarca?"selected":""}>${esc(m.nombre)}</option>`).join("")}</select><span class="small muted">${list.length} reportes</span></div>
+      ${reportsLoaded ? "" : '<div class="small muted">Cargando…</div>'}
+      ${meses.map((m,gi)=>{ const mm=U.monthFromId(m); const rs=groups[m]; return `<details class="sub" open><summary style="cursor:pointer;font-family:var(--f-mono);font-weight:700;font-size:17px;letter-spacing:.04em">📁 ${esc(mm.label)} <span class="muted" style="font-weight:500">· ${rs.length} reporte${rs.length>1?"s":""}</span></summary>
+        <table class="t" style="margin-top:8px"><thead><tr><th>Marca</th><th>Tipo</th><th>Período</th><th>Cargó</th><th>Enviado</th><th></th></tr></thead><tbody>${rs.map(r=>rowHtml(r, list.indexOf(r))).join("")}</tbody></table></details>`; }).join("")}
+      ${list.length?"":'<div class="muted small" style="margin-top:8px">Todavía no hay reportes cargados.</div>'}</div>`;
+    $("#histMarca").addEventListener("change",e=>{ histMarca=e.target.value; renderHistorial(); });
+    box.querySelectorAll("[data-hv]").forEach(b=>b.addEventListener("click",()=>{ const i=b.dataset.hv; const tr=box.querySelector(`[data-hd="${i}"]`); tr.classList.toggle("hidden"); const td=tr.firstElementChild; if(!td.innerHTML){ const r=list[i]; let h=renderReadOnly(FORMS[r.tipo]||FORMS.sm, r.datos||{}); if(isProject && r.versiones&&r.versiones.length){ h = renderCambios(r) + h + `<details style="margin-top:12px"><summary class="muted small" style="cursor:pointer">Versiones anteriores completas (${r.versiones.length})</summary>${r.versiones.map(v=>`<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border2)"><div class="small muted">Enviado ${fmtD(v.enviado_en)} por ${esc(v.responsable)}</div>${renderReadOnly(FORMS[v.tipo]||FORMS.sm, v.datos||{})}</div>`).join("")}</details>`; } td.innerHTML=h; } }));
+    box.querySelectorAll("[data-hp]").forEach(b=>b.addEventListener("click",()=>pdfReporte(list[b.dataset.hp])));
+    box.querySelectorAll("[data-he]").forEach(b=>b.addEventListener("click",()=>{
+      const r=list[b.dataset.he];
+      tipo=r.tipo; marca=r.marca_slug; periodo=r.periodo_id; if(periodo.includes("+")) dur=Number(periodo.split("+")[1]);
+      editMode=false; const nv=document.querySelector('input[name=nav][value=nuevo]'); if(nv) nv.checked=true;
+      showView("nuevo"); const ex=existing(); if(ex) startEdit(ex);
+    }));
+    box.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async()=>{
+      const r=list[b.dataset.del];
+      if(!confirm(`¿Eliminar el reporte ${TL[r.tipo]||r.tipo} de ${r.marca} (${r.periodo_label})?\n\nDeja de verse en el historial, el panel y las comparativas. La fila queda en la planilla como respaldo.`)) return;
+      b.disabled=true; b.textContent="Eliminando…";
+      try{ await U.eliminarReporte(r, "Joaquín"); reports = reports.filter(x=>x!==r); idx=U.indexReports(reports); toast("Reporte eliminado","ok"); renderHistorial(); }
+      catch(e){ b.disabled=false; b.textContent="Eliminar"; toast("No se pudo eliminar: "+e.message,"bad"); }
+    }));
+  }
+
+  // ---------- init ----------
+  initRoles(); if(identified()){ renderSetup(); loadDraft(); renderForm(); applyGate(); } else { renderLogin(); }
+  function cargar(){
+    return Promise.allSettled([U.loadCatalog(), U.loadReports()]).then(([cat, rep])=>{
+      initRoles();
+      if(rep.status==="fulfilled"){ reports=rep.value; idx=U.indexReports(reports); reportsLoaded=true; }
+      if(U.nubeOn()) U.nubeLista().then(l=>{ nubeLst=l; if(identified() && !$("#setup").classList.contains("hidden")) renderSetup(); }).catch(()=>{});
+      if(!identified()) renderLogin(); else showView(document.querySelector('input[name=nav]:checked')?.value || "nuevo");
+      if(rep.status!=="fulfilled" && identified()){
+        const box=$("#errbox"); box.classList.remove("hidden");
+        box.innerHTML = `<b>No se pudo leer la planilla de reportes</b> (${esc(rep.reason&&rep.reason.message||"sin conexión")}). Podés seguir completando: el borrador se guarda igual. Sin la planilla no se ven los reportes ya entregados ni las comparativas. <div style="margin-top:8px"><button class="btn sm" id="reloadRep">Reintentar</button></div>`;
+        $("#reloadRep").addEventListener("click",()=>{ $("#reloadRep").disabled=true; $("#reloadRep").textContent="Leyendo…"; cargar(); });
+      }
+    });
+  }
+  cargar();
+})();
+</script>
+</body>
+</html>
