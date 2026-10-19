@@ -4326,6 +4326,15 @@ function probarPlanB() {
    · Cronómetro de tareas (pestaña "Horarios prueba" del Sheet) y registro de colaboradores (panel-ideamia-prueba.json).
    Página: https://ideamiacontacto-lab.github.io/panel-ideamia/prueba/ */
 const PRUEBA = { slug: 'tritato-prueba', sm: 'joaco', nombre: 'Tritato Prueba', tablero: 'SCL Tritato Prueba' };
+/* Llamada a las APIs de Sheets o Docs con el permiso de Drive que ya tiene el script (SpreadsheetApp.openById y DocumentApp piden permisos nuevos). */
+function gApi_(url, method, body) {
+  const o = { method: method || 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } };
+  if (body) { o.contentType = 'application/json'; o.payload = JSON.stringify(body); }
+  const r = UrlFetchApp.fetch(url, o), t = r.getContentText();
+  if (r.getResponseCode() >= 300) throw new Error('Google respondió ' + r.getResponseCode() + ': ' + t.slice(0, 200));
+  return t ? JSON.parse(t) : {};
+}
+const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets/';
 const pruebaRepSheet_ = () => { try { return String(config_().REP_SHEET_PRUEBA || '').trim(); } catch (e) { return ''; } };
 /* CSV de la planilla de Reportes real, con las filas de la planilla de prueba agregadas al final (en el orden de columnas de la real). */
 function repCsvTexto_() {
@@ -4347,9 +4356,10 @@ function pruebaReporte_(e) {
   const id = pruebaRepSheet_(); if (!id) return json_({ error: 'config', mensaje: 'Falta REP_SHEET_PRUEBA' });
   let b = {}; try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
   if (b.marca_slug !== PRUEBA.slug) return json_({ error: 'permiso', mensaje: 'Esta página es solo para la marca de prueba' });
-  const h = SpreadsheetApp.openById(id).getSheets()[0], cab = h.getRange(1, 1, 1, h.getLastColumn()).getValues()[0];
+  const cab = (gApi_(SHEETS_API + id + '/values/Sheet1!1:1').values || [[]])[0];
+  const fila = cab.map(c => { const v = b[c]; return v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v); });
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
-  try { h.appendRow(cab.map(c => { const v = b[c]; return v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : v; })); } finally { lock.releaseLock(); }
+  try { gApi_(SHEETS_API + id + '/values/Sheet1!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', 'post', { values: [fila] }); } finally { lock.releaseLock(); }
   ['repenv', 'okrrep', 'planrep'].forEach(k => { try { CacheService.getScriptCache().remove(k); } catch (x) {} });
   return json_({ ok: true });
 }
@@ -4424,13 +4434,15 @@ function pruebaPreparar() {
   setCfg('DISCORD_ID_' + PRUEBA.sm.toUpperCase(), idJoaquin_(cfg));
   // 2) planilla de Reportes de prueba (mismas columnas que la real) y compartida por link para que la lea la página
   if (!cfg.REP_SHEET_PRUEBA) {
-    const real = SpreadsheetApp.openById(REP_SHEET), h0 = real.getSheets()[0], cab = h0.getRange(1, 1, 1, h0.getLastColumn()).getValues()[0];
-    const nueva = SpreadsheetApp.create('Reportes PRUEBA · Joaquín (no es del equipo)'), h1 = nueva.getSheets()[0];
-    h1.setName('Sheet1'); h1.getRange(1, 1, 1, cab.length).setValues([cab]).setFontWeight('bold'); h1.setFrozenRows(1); h1.getRange(1, 1, 1000, cab.length).setNumberFormat('@');
-    const cR = real.getSheetByName('Config'), c1 = nueva.insertSheet('Config'); c1.getRange(1, 1, 1, 2).setValues([['clave', 'valor']]);
-    if (cR) { const up = cR.getDataRange().getValues().filter(r => String(r[0]).trim().toUpperCase() === 'UPLOAD_URL'); if (up.length) c1.getRange(2, 1, 1, 2).setValues([[up[0][0], up[0][1]]]); }
-    DriveApp.getFileById(nueva.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    setCfg('REP_SHEET_PRUEBA', nueva.getId()); log.push('Planilla de prueba: ' + nueva.getUrl());
+    // columnas de la planilla real (primera línea del CSV) y la URL de lectura de capturas de su pestaña Config
+    const txtReal = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv', { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+    const cab = Utilities.parseCsv(txtReal.split(/\r?\n/)[0])[0];
+    let up = null; try { const cc = Utilities.parseCsv(UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/gviz/tq?tqx=out:csv&sheet=Config', { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText()); up = cc.filter(r => String(r[0]).trim().toUpperCase() === 'UPLOAD_URL')[0]; } catch (e) {}
+    const nueva = gApi_(SHEETS_API, 'post', { properties: { title: 'Reportes PRUEBA · Joaquín (no es del equipo)' }, sheets: [{ properties: { title: 'Sheet1' } }, { properties: { title: 'Config' } }] });
+    gApi_(SHEETS_API + nueva.spreadsheetId + '/values/Sheet1!A1?valueInputOption=RAW', 'put', { values: [cab] });
+    gApi_(SHEETS_API + nueva.spreadsheetId + '/values/Config!A1?valueInputOption=RAW', 'put', { values: [['clave', 'valor']].concat(up ? [[up[0], up[1]]] : []) });
+    DriveApp.getFileById(nueva.spreadsheetId).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    setCfg('REP_SHEET_PRUEBA', nueva.spreadsheetId); log.push('Planilla de prueba: ' + nueva.spreadsheetUrl + ' (' + cab.length + ' columnas' + (up ? ', con lectura de capturas' : '') + ')');
   }
   // 3) tablero SCL de prueba: copia de listas y etiquetas del SCL de Tritato, sin tarjetas
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), orig = (snap.tableros || []).filter(b => b.tipo === 'scl' && b.marca === 'tritato')[0];
@@ -4447,9 +4459,11 @@ function pruebaPreparar() {
   if (recursos && !hay('Calendario anual')) {
     const doc0 = recursoDoc_(snap, 'tritato', /calendario anual/);
     if (doc0 && doc0.id) {
-      const copia = DriveApp.getFileById(doc0.id).makeCopy('Calendario anual · Tritato PRUEBA'), d = DocumentApp.openById(copia.getId()), body = d.getBody();
-      if (!/sandwich/.test(norm_(body.getText()))) { body.appendParagraph('3 de noviembre → Día del Sándwich (N2): promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos'); log.push('Día del Sándwich agregado al calendario de prueba'); }
-      d.saveAndClose();
+      const copia = DriveApp.getFileById(doc0.id).makeCopy('Calendario anual · Tritato PRUEBA');
+      if (!/sandwich/.test(norm_(docTexto_(copia.getId())))) {
+        gApi_('https://docs.googleapis.com/v1/documents/' + copia.getId() + ':batchUpdate', 'post', { requests: [{ insertText: { endOfSegmentLocation: {}, text: '\n3 de noviembre → Día del Sándwich (N2): promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos\n' } }] });
+        log.push('Día del Sándwich agregado al calendario de prueba');
+      }
       trello_('/cards', { idList: recursos.id, name: 'Calendario anual', desc: 'Copia del calendario anual de Tritato para la prueba: https://docs.google.com/document/d/' + copia.getId() }, 'post');
       log.push('Calendario anual de prueba: ' + copia.getUrl());
     } else log.push('OJO: no encontré el calendario anual de Tritato');
