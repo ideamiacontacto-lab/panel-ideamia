@@ -2430,6 +2430,8 @@ function anualDatos_(snap, cat, forzar) {
     else if (!cal.id) o.nota = 'la tarjeta "Calendario anual" no tiene el link a un documento de Google';
     else try { o.items = calendarioAnualParse_(docTexto_(cal.id)); if (!o.items.length) o.nota = 'no pude leer fechas del calendario (formato distinto al de "fecha → nombre: acción")'; } catch (e) { o.nota = 'calendario: ' + e.message; }
     if (okr && okr.id) try { o.txtOkr = docTexto_(okr.id).slice(0, 12000); } catch (e) {}
+    // marca de prueba de Joaquín: si su calendario (copia del de Tritato) no trae el Día del Sándwich, se suma acá
+    if (m.slug === PRUEBA.slug && o.items && !o.items.some(x => /sandwich/.test(norm_(x.nombre)))) o.items.push({ mes: 10, dia: 3, fecha: '3 de noviembre', nombre: 'Día del Sándwich', nivel: 2, accion: 'Promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos' });
     marcas[m.slug] = o;
   });
   g = { mes: mes, leido: new Date().toISOString(), marcas: marcas };
@@ -4320,48 +4322,53 @@ function probarPlanB() {
    · Tablero de Trello "SCL Tritato Prueba": copia de las listas y etiquetas del SCL de Tritato, sin tarjetas y sin Butler
      (nada se espeja a Diseño). Se le cargan pedidos de prueba y la tarjeta del calendario anual (copia del documento de Tritato
      con el Día del Sándwich).
-   · Reportes: planilla aparte (Config REP_SHEET_PRUEBA) que llena la página de Reportes de prueba (panel-ideamia/prueba/reportes/)
+   · Reportes: pestaña aparte "Reportes prueba" (de esta planilla) que llena la página de Reportes de prueba (panel-ideamia/prueba/reportes/)
      por medio de doPost ?prueba=reportes. El panel la suma a la planilla real solo para leerla (repCsvTexto_).
    · Los privados de Discord del social media "joaco" le llegan a Joaquín (Config DISCORD_ID_JOACO).
    · Cronómetro de tareas (pestaña "Horarios prueba" del Sheet) y registro de colaboradores (panel-ideamia-prueba.json).
    Página: https://ideamiacontacto-lab.github.io/panel-ideamia/prueba/ */
 const PRUEBA = { slug: 'tritato-prueba', sm: 'joaco', nombre: 'Tritato Prueba', tablero: 'SCL Tritato Prueba' };
-/* Llamada a las APIs de Sheets o Docs con el permiso de Drive que ya tiene el script (SpreadsheetApp.openById y DocumentApp piden permisos nuevos). */
-function gApi_(url, method, body) {
-  const o = { method: method || 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } };
-  if (body) { o.contentType = 'application/json'; o.payload = JSON.stringify(body); }
-  const r = UrlFetchApp.fetch(url, o), t = r.getContentText();
-  if (r.getResponseCode() >= 300) throw new Error('Google respondió ' + r.getResponseCode() + ': ' + t.slice(0, 200));
-  return t ? JSON.parse(t) : {};
+/* Los reportes de prueba van a la pestaña "Reportes prueba" de esta misma planilla (abrir otras planillas pide permisos nuevos y la
+   API de Sheets no está habilitada en el proyecto). La página de Reportes de prueba los lee como CSV con doGet ?prueba=csv. */
+const REP_TAB_PRUEBA = 'Reportes prueba';
+const repHojaPrueba_ = () => { try { return SpreadsheetApp.getActive().getSheetByName(REP_TAB_PRUEBA); } catch (e) { return null; } };
+const pruebaRepSheet_ = () => !!repHojaPrueba_();
+const csvCelda_ = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+/* CSV de la pestaña de prueba (cabecera incluida), como lo devolvería el export de una planilla. */
+function pruebaCsv_() {
+  const h = repHojaPrueba_(); if (!h || h.getLastRow() < 1) return '';
+  return h.getRange(1, 1, h.getLastRow(), h.getLastColumn()).getDisplayValues().map(r => r.map(csvCelda_).join(',')).join('\n');
 }
-const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets/';
-const pruebaRepSheet_ = () => { try { return String(config_().REP_SHEET_PRUEBA || '').trim(); } catch (e) { return ''; } };
-/* CSV de la planilla de Reportes real, con las filas de la planilla de prueba agregadas al final (en el orden de columnas de la real). */
+/* CSV de la planilla de Reportes real, con las filas de prueba agregadas al final (en el orden de columnas de la real). */
 function repCsvTexto_() {
-  const get = id => {
-    const url = 'https://docs.google.com/spreadsheets/d/' + id + '/export?format=csv';
-    let t = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
-    if (!/^enviado_en/.test(t)) t = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
-    return /^enviado_en/.test(t) ? t : '';
-  };
-  const txt = get(REP_SHEET), idP = pruebaRepSheet_(); if (!txt || !idP) return txt;
-  let tp = ''; try { tp = get(idP); } catch (e) {} if (!tp) return txt;
-  const h = Utilities.parseCsv(txt.split(/\r?\n/)[0])[0], rp = Utilities.parseCsv(tp), hp = rp[0];
-  const q = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const extra = rp.slice(1).filter(r => r.some(x => x)).map(r => h.map(c => q(hp.indexOf(c) >= 0 ? r[hp.indexOf(c)] : '')).join(','));
+  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
+  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  if (!/^enviado_en/.test(txt)) return txt;
+  const hp = repHojaPrueba_(); if (!hp || hp.getLastRow() < 2) return txt;
+  const rp = hp.getRange(1, 1, hp.getLastRow(), hp.getLastColumn()).getDisplayValues(), cab = rp[0], h = Utilities.parseCsv(txt.split(/\r?\n/)[0])[0];
+  const extra = rp.slice(1).filter(r => r.some(x => x)).map(r => h.map(c => csvCelda_(cab.indexOf(c) >= 0 ? r[cab.indexOf(c)] : '')).join(','));
   return extra.length ? txt.replace(/\s*$/, '') + '\n' + extra.join('\n') : txt;
 }
-/* La página de Reportes de prueba manda acá cada reporte (o baja): se agrega una fila en la planilla de prueba, en el orden de sus columnas. */
+/* La página de Reportes de prueba manda acá cada reporte (o baja): se agrega una fila a la pestaña de prueba. */
 function pruebaReporte_(e) {
-  const id = pruebaRepSheet_(); if (!id) return json_({ error: 'config', mensaje: 'Falta REP_SHEET_PRUEBA' });
+  const h = repHojaPrueba_(); if (!h) return json_({ error: 'config', mensaje: 'Falta la pestaña ' + REP_TAB_PRUEBA + ' (correr pruebaPreparar)' });
   let b = {}; try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
   if (b.marca_slug !== PRUEBA.slug) return json_({ error: 'permiso', mensaje: 'Esta página es solo para la marca de prueba' });
-  const cab = (gApi_(SHEETS_API + id + '/values/Sheet1!1:1').values || [[]])[0];
-  const fila = cab.map(c => { const v = b[c]; return v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v); });
+  const cab = h.getRange(1, 1, 1, h.getLastColumn()).getValues()[0];
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
-  try { gApi_(SHEETS_API + id + '/values/Sheet1!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', 'post', { values: [fila] }); } finally { lock.releaseLock(); }
+  try { h.appendRow(cab.map(c => { const v = b[c]; return v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v); })); } finally { lock.releaseLock(); }
   ['repenv', 'okrrep', 'planrep'].forEach(k => { try { CacheService.getScriptCache().remove(k); } catch (x) {} });
   return json_({ ok: true });
+}
+/* Lo que la página de Reportes de prueba lee de "pestañas" (doGet ?prueba=tab&tab=…): Config trae la lectura de capturas de la planilla real. */
+function pruebaTab_(tab) {
+  if (tab !== 'Config') return '';
+  try {
+    const t = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/gviz/tq?tqx=out:csv&sheet=Config', { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+    const up = Utilities.parseCsv(t).filter(r => String(r[0]).trim().toUpperCase() === 'UPLOAD_URL')[0];
+    return 'clave,valor' + (up ? '\nUPLOAD_URL,' + csvCelda_(up[1]) : '');
+  } catch (e) { return 'clave,valor'; }
 }
 /* ---- cronómetro de tareas (pestaña "Horarios prueba") y colaboradores ---- */
 const HOR_TAB = 'Horarios prueba', HOR_COLS = ['id', 'persona', 'inicio', 'fin', 'minutos', 'tarea', 'categoria', 'marca', 'nota'];
@@ -4432,17 +4439,12 @@ function pruebaPreparar() {
   if (!ma.getRange(2, 1, Math.max(ma.getLastRow() - 1, 1), 1).getValues().some(r => norm_(r[0]) === norm_(PRUEBA.nombre))) { ma.appendRow([PRUEBA.nombre, 'tritato prueba', PRUEBA.sm, '', 'sí', 'Marca de prueba de Joaquín (copia de Tritato). No es un cliente real.']); log.push('Marcas: ' + PRUEBA.nombre); }
   const cfg = config_(), setCfg = (k, v) => { if (cfg[k]) return; cf.appendRow([k, v]); cfg[k] = v; log.push('Config: ' + k); };
   setCfg('DISCORD_ID_' + PRUEBA.sm.toUpperCase(), idJoaquin_(cfg));
-  // 2) planilla de Reportes de prueba (mismas columnas que la real) y compartida por link para que la lea la página
-  if (!cfg.REP_SHEET_PRUEBA) {
-    // columnas de la planilla real (primera línea del CSV) y la URL de lectura de capturas de su pestaña Config
+  // 2) pestaña "Reportes prueba" con las mismas columnas que la planilla real de Reportes
+  if (!repHojaPrueba_()) {
     const txtReal = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv', { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
-    const cab = Utilities.parseCsv(txtReal.split(/\r?\n/)[0])[0];
-    let up = null; try { const cc = Utilities.parseCsv(UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/gviz/tq?tqx=out:csv&sheet=Config', { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText()); up = cc.filter(r => String(r[0]).trim().toUpperCase() === 'UPLOAD_URL')[0]; } catch (e) {}
-    const nueva = gApi_(SHEETS_API, 'post', { properties: { title: 'Reportes PRUEBA · Joaquín (no es del equipo)' }, sheets: [{ properties: { title: 'Sheet1' } }, { properties: { title: 'Config' } }] });
-    gApi_(SHEETS_API + nueva.spreadsheetId + '/values/Sheet1!A1?valueInputOption=RAW', 'put', { values: [cab] });
-    gApi_(SHEETS_API + nueva.spreadsheetId + '/values/Config!A1?valueInputOption=RAW', 'put', { values: [['clave', 'valor']].concat(up ? [[up[0], up[1]]] : []) });
-    DriveApp.getFileById(nueva.spreadsheetId).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    setCfg('REP_SHEET_PRUEBA', nueva.spreadsheetId); log.push('Planilla de prueba: ' + nueva.spreadsheetUrl + ' (' + cab.length + ' columnas' + (up ? ', con lectura de capturas' : '') + ')');
+    const cab = Utilities.parseCsv(txtReal.split(/\r?\n/)[0])[0], h = ss.insertSheet(REP_TAB_PRUEBA);
+    h.getRange(1, 1, 1000, cab.length).setNumberFormat('@'); h.getRange(1, 1, 1, cab.length).setValues([cab]).setFontWeight('bold'); h.setFrozenRows(1);
+    log.push('Pestaña "' + REP_TAB_PRUEBA + '" creada (' + cab.length + ' columnas)');
   }
   // 3) tablero SCL de prueba: copia de listas y etiquetas del SCL de Tritato, sin tarjetas
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), orig = (snap.tableros || []).filter(b => b.tipo === 'scl' && b.marca === 'tritato')[0];
@@ -4460,10 +4462,8 @@ function pruebaPreparar() {
     const doc0 = recursoDoc_(snap, 'tritato', /calendario anual/);
     if (doc0 && doc0.id) {
       const copia = DriveApp.getFileById(doc0.id).makeCopy('Calendario anual · Tritato PRUEBA');
-      if (!/sandwich/.test(norm_(docTexto_(copia.getId())))) {
-        gApi_('https://docs.googleapis.com/v1/documents/' + copia.getId() + ':batchUpdate', 'post', { requests: [{ insertText: { endOfSegmentLocation: {}, text: '\n3 de noviembre → Día del Sándwich (N2): promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos\n' } }] });
-        log.push('Día del Sándwich agregado al calendario de prueba');
-      }
+      // si el documento no tiene el Día del Sándwich, lo suma anualDatos_ para la marca de prueba (pruebaFechaExtra_)
+      log.push(/sandwich/.test(norm_(docTexto_(copia.getId()))) ? 'El calendario de Tritato ya tiene el Día del Sándwich' : 'El Día del Sándwich lo agrega el panel (no está en el documento)');
       trello_('/cards', { idList: recursos.id, name: 'Calendario anual', desc: 'Copia del calendario anual de Tritato para la prueba: https://docs.google.com/document/d/' + copia.getId() }, 'post');
       log.push('Calendario anual de prueba: ' + copia.getUrl());
     } else log.push('OJO: no encontré el calendario anual de Tritato');
@@ -4615,6 +4615,9 @@ function probarTarjetasMes() {
 function doGet(e) {
   const q = e.parameter || {};
   try {
+    // página de Reportes de prueba de Joaquín: lee sus reportes (CSV) y la lectura de capturas, sin tocar la planilla real
+    if (q.prueba === 'csv') return ContentService.createTextOutput(pruebaCsv_()).setMimeType(ContentService.MimeType.CSV);
+    if (q.prueba === 'tab') return ContentService.createTextOutput(pruebaTab_(String(q.tab || ''))).setMimeType(ContentService.MimeType.CSV);
     if (q.action === 'estado') { // diagnóstico: solo cantidades, nada de contenido ni claves
       const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), ia = leerJson_('IA_FILE_ID', 'panel-ideamia-ia.json'), t = {};
       (snap.cards || []).forEach(c => { const k = (c.m[0] || 'sin-marca') + ':' + c.cat; t[k] = (t[k] || 0) + 1; });
