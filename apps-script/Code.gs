@@ -2417,6 +2417,51 @@ function okrParse_(txt, mes) {
   }
   return out;
 }
+/* Nivel de cada fecha según el COLOR con que está resaltada en el calendario anual (pedido de Joaquín, 19/10/2026: en Tritato el
+   3/11 estaba en rojo = nivel 1 y el panel, que solo leía el texto, lo tomaba como N4). Se exporta el documento como HTML: el estilo de
+   cada exportación trae sus propias clases (.c17{background-color:…}), así que se arma el mapa clase → color en cada lectura.
+   Los colores de cada nivel se toman de la leyenda del propio documento (celda "Nivel 1…" y su fondo); si no hay leyenda: rojo 1,
+   amarillo 2, verde 3, gris 4, magenta brainstorming. Devuelve [{ t: texto normalizado del renglón, dia, nivel }]. */
+function docNivelesColor_(id) {
+  const r = UrlFetchApp.fetch('https://docs.google.com/document/d/' + id + '/export?format=html', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) return [];
+  const h = r.getContentText(), css = (h.match(/<style[^>]*>([\s\S]*?)<\/style>/g) || []).join('\n'), bg = {};
+  css.split('}').forEach(x => { const p = x.split('{'); if (p.length < 2 || !/^\s*\.c\d+\s*$/.test(p[0])) return; const b = /background-color:\s*(#[0-9a-f]{6})/i.exec(p[1]); if (b) bg[p[0].trim().slice(1)] = b[1].toLowerCase(); });
+  const ENT = { nbsp: ' ', amp: '&', quot: '"', lt: '<', gt: '>', ldquo: '"', rdquo: '"', lsquo: "'", rsquo: "'", ndash: '-', mdash: '-', hellip: '...' };
+  const texto = s => s.replace(/<[^>]+>/g, '').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&([a-z]+);/gi, (m, n) => ENT[n] != null ? ENT[n] : /^[a-z](acute|grave|tilde|uml|circ)$/i.test(n) ? n.charAt(0) : ' ');
+  const colorDe = s => { const cl = /class="([^"]+)"/.exec(s); return cl ? (cl[1].split(/\s+/).map(c => bg[c]).filter(c => c && c !== '#ffffff')[0] || '') : ''; };
+  // leyenda: celdas de tabla que dicen "Nivel N" (o "Brainstorming") con fondo de color
+  const leyenda = {};
+  (h.match(/<td[^>]*>[\s\S]*?<\/td>/g) || []).forEach(td => {
+    const t = norm_(texto(td)), n = /nivel\s*([1-4])/.exec(t), c = colorDe(td) || colorDe((td.match(/<span[^>]*>/g) || []).join(' '));
+    if (!c) return; if (n) leyenda[c] = Number(n[1]); else if (/brainstorming/.test(t)) leyenda[c] = 0;
+  });
+  const porTono = hex => { const v = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16)), mx = Math.max.apply(null, v), mn = Math.min.apply(null, v);
+    if (mx - mn < 40) return 4;                                   // grises
+    const [R, G, B] = v; if (R > 180 && B > 180 && G < 120) return 0;   // magenta = brainstorming
+    if (R > 180 && G > 180 && B < 120) return 2; if (G > 150 && R < 150) return 3; if (R > 180 && G < 120) return 1; return null; };
+  const nivelColor = c => leyenda[c] != null ? leyenda[c] : porTono(c);
+  const out = [];
+  h.split(/<\/p>|<\/li>/).forEach(seg => {
+    const i = Math.max(seg.lastIndexOf('<p'), seg.lastIndexOf('<li')); if (i < 0) return; const s = seg.slice(i);
+    const t = norm_(texto(s)), d = /^(\d{1,2})\b/.exec(t.replace(/^[^0-9a-z]+/, '')); if (!d) return;
+    const span = (s.match(/<span class="[^"]+">[^<]*\d[^<]*<\/span>/) || [''])[0], c = colorDe(span); if (!c) return;
+    const n = nivelColor(c); if (n == null) return;
+    out.push({ t: t, dia: Number(d[1]), nivel: n });
+  });
+  return out;
+}
+/* Pisa el nivel de cada fecha con el de su color (si el renglón no trae un "(N#)" escrito, que manda). */
+function anualAplicarColores_(items, colores) {
+  if (!colores || !colores.length) return 0; let n = 0;
+  items.forEach(x => {
+    const nom = norm_(x.nombre).slice(0, 40), c = colores.filter(k => k.dia === x.dia && nom && k.t.indexOf(nom) >= 0)[0];
+    if (!c || /\(n[1-4]\)/.test(c.t) || c.nivel === x.nivel) return;
+    if (c.nivel === 0 && !/brainstorming/.test(norm_(x.nombre))) return;   // magenta solo vale para las brainstorming
+    x.nivel = c.nivel; x.porColor = true; n++;
+  });
+  return n;
+}
 /* Lee (una vez por mes) el calendario anual y los OKR de todas las marcas y los deja guardados. forzar = true los vuelve a leer. */
 function anualDatos_(snap, cat, forzar) {
   const mes = ym_(hoyAR_());
@@ -2428,7 +2473,7 @@ function anualDatos_(snap, cat, forzar) {
     const cal = recursoDoc_(snap, m.slug, /calendario anual/), okr = recursoDoc_(snap, m.slug, /okr/), o = { cal: cal, okr: okr, items: [], metas: [], nota: '' };
     if (!cal) o.nota = 'no hay tarjeta "Calendario anual" en Recursos Corporativos';
     else if (!cal.id) o.nota = 'la tarjeta "Calendario anual" no tiene el link a un documento de Google';
-    else try { o.items = calendarioAnualParse_(docTexto_(cal.id)); if (!o.items.length) o.nota = 'no pude leer fechas del calendario (formato distinto al de "fecha → nombre: acción")'; } catch (e) { o.nota = 'calendario: ' + e.message; }
+    else try { o.items = calendarioAnualParse_(docTexto_(cal.id)); try { o.porColor = anualAplicarColores_(o.items, docNivelesColor_(cal.id)); } catch (e) {} if (!o.items.length) o.nota = 'no pude leer fechas del calendario (formato distinto al de "fecha → nombre: acción")'; } catch (e) { o.nota = 'calendario: ' + e.message; }
     if (okr && okr.id) try { o.txtOkr = docTexto_(okr.id).slice(0, 12000); } catch (e) {}
     // marca de prueba de Joaquín: si su calendario (copia del de Tritato) no trae el Día del Sándwich, se suma acá
     // el Día del Sándwich es nivel 1 (Joaquín, 19/10/2026); en el calendario de Tritato figura como N4
@@ -4492,6 +4537,7 @@ function pruebaPreparar() {
 /* Después de "actualizar": vuelve a leer los calendarios anuales para que la marca de prueba tenga sus campañas. */
 function pruebaRefrescar() {
   const g = anualDatos_(leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), catalogo_(), true), o = (g.marcas || {})[PRUEBA.slug] || {};
+  Object.keys(g.marcas || {}).forEach(k => { const x = g.marcas[k]; console.log(k + ': ' + (x.items || []).length + ' fechas, ' + (x.porColor || 0) + ' con el nivel corregido por color' + (x.nota ? ' (' + x.nota + ')' : '') + '. ' + (x.items || []).filter(i => i.porColor).map(i => i.dia + '/' + (i.mes + 1) + ' ' + i.nombre + ' N' + i.nivel).join(', ')); });
   console.log('Calendario anual de la prueba: ' + (o.items || []).length + ' fechas' + (o.nota ? ' (' + o.nota + ')' : '') + '. Noviembre: ' + (o.items || []).filter(x => x.mes === 10).map(x => x.dia + ' ' + x.nombre + ' N' + x.nivel).join(', '));
 }
 /* ---------------- PLAN · Ads: control semanal de la pauta (pedido de Joaquín, 17/10/2026) ----------------
