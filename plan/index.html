@@ -94,7 +94,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=4" defer></script>
+<script src="../ideamia-nav.js?v=5" defer></script>
 <script src="../recordatorios.js?v=1" defer></script>
 </head>
 <body>
@@ -102,13 +102,13 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '12';
-  try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); } }).catch(() => {}); } catch (e) {}
+  const VER = '13';
+  try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
-  const S = { persona: jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {}, vista: lsGet('plan:vista') || 'cumple', ficha: null, draft: {} };
-  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
+  const S = { persona: new URLSearchParams(location.search).get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {}, vista: lsGet('plan:vista') || 'cumple', ficha: null, draft: {} };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín', joaco: 'Joaquín (prueba)' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'], DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   const dm = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '–', diaDe = s => DIA[new Date(s + 'T12:00:00').getDay()];
