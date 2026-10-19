@@ -1039,12 +1039,13 @@ function reportesConfig_() {
     const md = /MONTHLY_DEADLINE_DAY:\s*(\d+)/.exec(t); if (md) cfg.mesDia = +md[1];
     const hh = /DEADLINE_HOUR:\s*(\d+)/.exec(t); if (hh) cfg.hora = +hh[1];
   } catch (e) {}
+  if (cfg.marcas.length && pruebaRepSheet_()) cfg.marcas.push({ slug: PRUEBA.slug, sm: PRUEBA.sm, cm: '' });   // plataforma de prueba de Joaquín
   if (cfg.marcas.length) c.put('repcfg', JSON.stringify(cfg), 21600);
   return cfg;
 }
 
 // Desde qué semana (lunes) se le piden reportes a cada marca que arranca después del resto.
-const REP_DESDE_MARCA = { 'vice-burger': '2026-10-12' };
+const REP_DESDE_MARCA = { 'vice-burger': '2026-10-12', 'tritato-prueba': '2026-10-12' };
 const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const lunes_ = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 
@@ -1052,9 +1053,7 @@ const lunes_ = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDat
 function reportesEnviados_() {
   const c = CacheService.getScriptCache(), hit = c.get('repenv');
   if (hit) return JSON.parse(hit);
-  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
-  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
-  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  let txt = repCsvTexto_();   // planilla real + la de la plataforma de prueba de Joaquín
   if (!/^enviado_en/.test(txt)) return null;
   const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
   const iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), iD = ix('datos_json');
@@ -3154,9 +3153,7 @@ function okrDefs_() {
 /* Reportes vivos (sin los dados de baja; si se corrigió, queda el último): [{tipo, marca, periodo, enviado, d}] */
 function okrReportes_() {
   const c = CacheService.getScriptCache(), hit = c.get('okrrep'); if (hit) return JSON.parse(hit);
-  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
-  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
-  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  let txt = repCsvTexto_();   // planilla real + la de la plataforma de prueba de Joaquín
   if (!/^enviado_en/.test(txt)) return [];
   const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
   const iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), iD = ix('datos_json'), iN = ix('marca'), bajas = {}, ult = {}, nombres = {};
@@ -3564,9 +3561,7 @@ function planRecordatorios_(snap, cat, cfg, ahora) {
 /* Primera carga de cada reporte (para saber si llegó a tiempo): "tipo|marca|período" → fecha ISO */
 function planRepPrimeros_() {
   const c = CacheService.getScriptCache(), hit = c.get('planrep'); if (hit) return JSON.parse(hit);
-  const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
-  let txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
-  if (!/^enviado_en/.test(txt)) txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+  let txt = repCsvTexto_();   // planilla real + la de la plataforma de prueba de Joaquín
   if (!/^enviado_en/.test(txt)) return {};
   const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k), iT = ix('tipo'), iM = ix('marca_slug'), iP = ix('periodo_id'), iE = ix('enviado_en'), out = {};
   rows.slice(1).forEach(r => {
@@ -3848,8 +3843,7 @@ function okrReportesSemanalesCambios_(rs) {
   let todas = hit ? JSON.parse(hit) : null;
   if (!todas) {
     todas = {};
-    const url = 'https://docs.google.com/spreadsheets/d/' + REP_SHEET + '/export?format=csv';
-    const txt = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+    const txt = repCsvTexto_();
     if (/^enviado_en/.test(txt)) {
       const rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
       rows.slice(1).filter(r => r[ix('tipo')] === 'sm').forEach(r => {
@@ -4318,6 +4312,172 @@ function probarPlanB() {
   console.log('Próxima entrega de plan B: ' + (v.entrega || '(no encontrada en el calendario)'));
   v.marcas.forEach(m => console.log(m.nombre + ' · lista Plan B: ' + (m.tieneLista ? 'sí' : 'NO') + ' · reels: ' + m.reels.length + ' (con plan B completo: ' + m.reels.filter(r => r.completo).length + ') · sueltas: ' + m.sueltas.length));
 }
+
+/* ---------------- PLATAFORMA DE PRUEBA de Joaquín (pedido del 19/10/2026) ----------------
+   Joaquín hace durante una semana el trabajo de un social media con una marca de prueba, para medir cuánto lleva cada tarea
+   y presentar la herramienta. Todo va aparte del trabajo real del equipo:
+   · Persona "joaco" (Equipo: "Joaquín (prueba)", rol SM) y marca "Tritato Prueba" (slug tritato-prueba, sm joaco, sin CM).
+   · Tablero de Trello "SCL Tritato Prueba": copia de las listas y etiquetas del SCL de Tritato, sin tarjetas y sin Butler
+     (nada se espeja a Diseño). Se le cargan pedidos de prueba y la tarjeta del calendario anual (copia del documento de Tritato
+     con el Día del Sándwich).
+   · Reportes: planilla aparte (Config REP_SHEET_PRUEBA) que llena la página de Reportes de prueba (panel-ideamia/prueba/reportes/)
+     por medio de doPost ?prueba=reportes. El panel la suma a la planilla real solo para leerla (repCsvTexto_).
+   · Los privados de Discord del social media "joaco" le llegan a Joaquín (Config DISCORD_ID_JOACO).
+   · Cronómetro de tareas (pestaña "Horarios prueba" del Sheet) y registro de colaboradores (panel-ideamia-prueba.json).
+   Página: https://ideamiacontacto-lab.github.io/panel-ideamia/prueba/ */
+const PRUEBA = { slug: 'tritato-prueba', sm: 'joaco', nombre: 'Tritato Prueba', tablero: 'SCL Tritato Prueba' };
+const pruebaRepSheet_ = () => { try { return String(config_().REP_SHEET_PRUEBA || '').trim(); } catch (e) { return ''; } };
+/* CSV de la planilla de Reportes real, con las filas de la planilla de prueba agregadas al final (en el orden de columnas de la real). */
+function repCsvTexto_() {
+  const get = id => {
+    const url = 'https://docs.google.com/spreadsheets/d/' + id + '/export?format=csv';
+    let t = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+    if (!/^enviado_en/.test(t)) t = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getContentText();
+    return /^enviado_en/.test(t) ? t : '';
+  };
+  const txt = get(REP_SHEET), idP = pruebaRepSheet_(); if (!txt || !idP) return txt;
+  let tp = ''; try { tp = get(idP); } catch (e) {} if (!tp) return txt;
+  const h = Utilities.parseCsv(txt.split(/\r?\n/)[0])[0], rp = Utilities.parseCsv(tp), hp = rp[0];
+  const q = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const extra = rp.slice(1).filter(r => r.some(x => x)).map(r => h.map(c => q(hp.indexOf(c) >= 0 ? r[hp.indexOf(c)] : '')).join(','));
+  return extra.length ? txt.replace(/\s*$/, '') + '\n' + extra.join('\n') : txt;
+}
+/* La página de Reportes de prueba manda acá cada reporte (o baja): se agrega una fila en la planilla de prueba, en el orden de sus columnas. */
+function pruebaReporte_(e) {
+  const id = pruebaRepSheet_(); if (!id) return json_({ error: 'config', mensaje: 'Falta REP_SHEET_PRUEBA' });
+  let b = {}; try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
+  if (b.marca_slug !== PRUEBA.slug) return json_({ error: 'permiso', mensaje: 'Esta página es solo para la marca de prueba' });
+  const h = SpreadsheetApp.openById(id).getSheets()[0], cab = h.getRange(1, 1, 1, h.getLastColumn()).getValues()[0];
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try { h.appendRow(cab.map(c => { const v = b[c]; return v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : v; })); } finally { lock.releaseLock(); }
+  ['repenv', 'okrrep', 'planrep'].forEach(k => { try { CacheService.getScriptCache().remove(k); } catch (x) {} });
+  return json_({ ok: true });
+}
+/* ---- cronómetro de tareas (pestaña "Horarios prueba") y colaboradores ---- */
+const HOR_TAB = 'Horarios prueba', HOR_COLS = ['id', 'persona', 'inicio', 'fin', 'minutos', 'tarea', 'categoria', 'marca', 'nota'];
+function horHoja_() {
+  const ss = SpreadsheetApp.getActive(); let h = ss.getSheetByName(HOR_TAB);
+  if (!h) { h = ss.insertSheet(HOR_TAB); h.getRange(1, 1, 1, HOR_COLS.length).setValues([HOR_COLS]).setFontWeight('bold'); h.setFrozenRows(1); h.getRange('A:I').setNumberFormat('@'); }
+  return h;
+}
+function horFilas_() {
+  const h = horHoja_(), n = h.getLastRow(); if (n < 2) return [];
+  return h.getRange(2, 1, n - 1, HOR_COLS.length).getValues().map((r, i) => { const o = { fila: i + 2 }; HOR_COLS.forEach((c, j) => o[c] = String(r[j] == null ? '' : r[j])); o.minutos = Number(o.minutos) || 0; return o; }).filter(o => o.id);
+}
+const horMin_ = (a, b) => Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 6e4));
+function pruebaVista_() {
+  const g = leerJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json');
+  const filas = horFilas_().map(o => { delete o.fila; return o; });
+  return { ok: true, ahora: new Date().toISOString(), horarios: filas, corriendo: filas.filter(o => !o.fin)[0] || null, colabs: g.colabs || [], hechas: g.hechas || {},
+    tablero: (leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json').tableros || []).filter(b => b.marca === PRUEBA.slug).map(b => ({ nombre: b.nombre, url: b.url }))[0] || null };
+}
+function pruebaAccion_(b, quien) {
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const t = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 200), ahora = new Date().toISOString();
+    if (['empezar', 'terminar', 'editar', 'borrar', 'agregar'].indexOf(b.accion) >= 0) {
+      const h = horHoja_(), filas = horFilas_();
+      const cerrar = o => { h.getRange(o.fila, 4, 1, 2).setValues([[ahora, String(horMin_(o.inicio, ahora))]]); };
+      if (b.accion === 'empezar') {
+        filas.filter(o => !o.fin).forEach(cerrar);   // una tarea por vez: la que estaba corriendo se cierra
+        if (!t(b.tarea)) return { error: 'datos', mensaje: 'Escribí qué tarea empezás' };
+        h.appendRow([Utilities.getUuid().slice(0, 8), norm_(quien), ahora, '', '', t(b.tarea), t(b.categoria, 60), PRUEBA.nombre, t(b.nota, 500)]);
+      } else if (b.accion === 'agregar') {   // horario cargado a mano, ya cerrado (no corta el que está corriendo)
+        const ini = new Date(b.inicio), fin = new Date(b.fin);
+        if (!t(b.tarea)) return { error: 'datos', mensaje: 'Escribí la tarea' };
+        if (isNaN(ini.getTime()) || isNaN(fin.getTime()) || fin <= ini) return { error: 'datos', mensaje: 'Revisá las horas: el fin tiene que ser después del inicio' };
+        h.appendRow([Utilities.getUuid().slice(0, 8), norm_(quien), ini.toISOString(), fin.toISOString(), String(horMin_(ini, fin)), t(b.tarea), t(b.categoria, 60), PRUEBA.nombre, t(b.nota, 500)]);
+      } else if (b.accion === 'terminar') {
+        filas.filter(o => !o.fin && (!b.id || o.id === b.id)).forEach(o => { cerrar(o); if (b.nota) h.getRange(o.fila, 9).setValue(t((o.nota ? o.nota + ' · ' : '') + b.nota, 500)); });
+      } else {
+        const o = filas.filter(x => x.id === String(b.id || ''))[0]; if (!o) return { error: 'datos', mensaje: 'No encuentro ese registro' };
+        if (b.accion === 'borrar') h.deleteRow(o.fila);
+        else {
+          const ini = b.inicio ? new Date(b.inicio) : new Date(o.inicio), fin = b.fin ? new Date(b.fin) : (o.fin ? new Date(o.fin) : null);
+          if (isNaN(ini.getTime()) || (fin && (isNaN(fin.getTime()) || fin < ini))) return { error: 'datos', mensaje: 'Revisá las horas: el fin tiene que ser después del inicio' };
+          h.getRange(o.fila, 3, 1, 7).setValues([[ini.toISOString(), fin ? fin.toISOString() : '', fin ? String(horMin_(ini, fin)) : '', t(b.tarea || o.tarea), t(b.categoria || o.categoria, 60), PRUEBA.nombre, t(b.nota != null ? b.nota : o.nota, 500)]]);
+        }
+      }
+    } else if (b.accion === 'colab' || b.accion === 'colabBorrar' || b.accion === 'hecha') {
+      const g = leerJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json'); g.colabs = g.colabs || []; g.hechas = g.hechas || {};
+      if (b.accion === 'hecha') { const k = t(b.id, 40); if (b.valor) g.hechas[k] = ahora; else delete g.hechas[k]; }
+      else if (b.accion === 'colabBorrar') g.colabs = g.colabs.filter(c => c.id !== b.id);
+      else {
+        const c = b.colab || {}, x = { id: t(c.id, 12) || Utilities.getUuid().slice(0, 8), nombre: t(c.nombre, 80), usuario: t(c.usuario, 60), rubro: t(c.rubro, 60), seguidores: t(c.seguidores, 20),
+          contacto: t(c.contacto, 120), propuesta: t(c.propuesta, 400), campana: t(c.campana, 80), fecha: t(c.fecha, 10), estado: ['contactar', 'contactado', 'acepto', 'rechazo', 'publicado'].indexOf(c.estado) >= 0 ? c.estado : 'contactar', t: ahora };
+        if (!x.nombre && !x.usuario) return { error: 'datos', mensaje: 'Poné al menos el nombre o el usuario' };
+        const i = g.colabs.findIndex(y => y.id === x.id); if (i >= 0) g.colabs[i] = x; else g.colabs.push(x);
+      }
+      guardarJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json', g);
+    } else return { error: 'datos', mensaje: 'Acción desconocida' };
+    return pruebaVista_();
+  } finally { lock.releaseLock(); }
+}
+/* UNA SOLA VEZ, desde el editor: arma todo lo de la prueba (se puede volver a correr: no duplica). */
+function pruebaPreparar() {
+  const ss = SpreadsheetApp.getActive(), log = [];
+  // 1) persona y marca de prueba
+  const eq = ss.getSheetByName('Equipo'), ma = ss.getSheetByName('Marcas'), cf = ss.getSheetByName('Config');
+  if (!eq.getRange(2, 2, Math.max(eq.getLastRow() - 1, 1), 1).getValues().some(r => norm_(r[0]) === PRUEBA.sm)) { eq.appendRow(['Joaquín (prueba)', PRUEBA.sm, 'SM', 'joaquin prueba']); log.push('Equipo: Joaquín (prueba)'); }
+  if (!ma.getRange(2, 1, Math.max(ma.getLastRow() - 1, 1), 1).getValues().some(r => norm_(r[0]) === norm_(PRUEBA.nombre))) { ma.appendRow([PRUEBA.nombre, 'tritato prueba', PRUEBA.sm, '', 'sí', 'Marca de prueba de Joaquín (copia de Tritato). No es un cliente real.']); log.push('Marcas: ' + PRUEBA.nombre); }
+  const cfg = config_(), setCfg = (k, v) => { if (cfg[k]) return; cf.appendRow([k, v]); cfg[k] = v; log.push('Config: ' + k); };
+  setCfg('DISCORD_ID_' + PRUEBA.sm.toUpperCase(), idJoaquin_(cfg));
+  // 2) planilla de Reportes de prueba (mismas columnas que la real) y compartida por link para que la lea la página
+  if (!cfg.REP_SHEET_PRUEBA) {
+    const real = SpreadsheetApp.openById(REP_SHEET), h0 = real.getSheets()[0], cab = h0.getRange(1, 1, 1, h0.getLastColumn()).getValues()[0];
+    const nueva = SpreadsheetApp.create('Reportes PRUEBA · Joaquín (no es del equipo)'), h1 = nueva.getSheets()[0];
+    h1.setName('Sheet1'); h1.getRange(1, 1, 1, cab.length).setValues([cab]).setFontWeight('bold'); h1.setFrozenRows(1); h1.getRange(1, 1, 1000, cab.length).setNumberFormat('@');
+    const cR = real.getSheetByName('Config'), c1 = nueva.insertSheet('Config'); c1.getRange(1, 1, 1, 2).setValues([['clave', 'valor']]);
+    if (cR) { const up = cR.getDataRange().getValues().filter(r => String(r[0]).trim().toUpperCase() === 'UPLOAD_URL'); if (up.length) c1.getRange(2, 1, 1, 2).setValues([[up[0][0], up[0][1]]]); }
+    DriveApp.getFileById(nueva.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    setCfg('REP_SHEET_PRUEBA', nueva.getId()); log.push('Planilla de prueba: ' + nueva.getUrl());
+  }
+  // 3) tablero SCL de prueba: copia de listas y etiquetas del SCL de Tritato, sin tarjetas
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), orig = (snap.tableros || []).filter(b => b.tipo === 'scl' && b.marca === 'tritato')[0];
+  let tab = trello_('/members/me/boards', { filter: 'open', fields: 'name,shortUrl' }).filter(b => norm_(b.name) === norm_(PRUEBA.tablero))[0];
+  if (!tab) {
+    if (!orig) throw new Error('No encuentro el SCL de Tritato para copiar');
+    tab = trello_('/boards/', { name: PRUEBA.tablero, idBoardSource: orig.id, keepFromSource: 'none', prefs_permissionLevel: 'private' }, 'post');
+    log.push('Tablero creado: ' + tab.shortUrl);
+  }
+  const listas = trello_('/boards/' + tab.id + '/lists', { fields: 'name' }), lista = re => listas.filter(l => re.test(norm_(l.name)))[0];
+  const cards = trello_('/boards/' + tab.id + '/cards', { fields: 'name' }), hay = n => cards.some(c => norm_(c.name) === norm_(n));
+  // 4) calendario anual: copia del documento de Tritato, con el Día del Sándwich si no está
+  const recursos = lista(/recurso/);
+  if (recursos && !hay('Calendario anual')) {
+    const doc0 = recursoDoc_(snap, 'tritato', /calendario anual/);
+    if (doc0 && doc0.id) {
+      const copia = DriveApp.getFileById(doc0.id).makeCopy('Calendario anual · Tritato PRUEBA'), d = DocumentApp.openById(copia.getId()), body = d.getBody();
+      if (!/sandwich/.test(norm_(body.getText()))) { body.appendParagraph('3 de noviembre → Día del Sándwich (N2): promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos'); log.push('Día del Sándwich agregado al calendario de prueba'); }
+      d.saveAndClose();
+      trello_('/cards', { idList: recursos.id, name: 'Calendario anual', desc: 'Copia del calendario anual de Tritato para la prueba: https://docs.google.com/document/d/' + copia.getId() }, 'post');
+      log.push('Calendario anual de prueba: ' + copia.getUrl());
+    } else log.push('OJO: no encontré el calendario anual de Tritato');
+  }
+  // 5) pedidos de prueba en Inputs (lo que el project le carga al social media)
+  const inputs = lista(/input|pedido/);
+  const pedidos = [
+    ['Día del Sándwich (3/11): el cliente quiere una promo 2x1 en sándwiches de miga', 'Pedido del cliente. Armá el plan de la campaña (Plan → Plan del mes) y definí cómo se comunica la promo en feed, historias y el local.'],
+    ['Fotos nuevas de la carta de sándwiches', 'Llegan el miércoles. Usalas para las historias destacadas y para el carrusel del Día del Sándwich.'],
+    ['Promo fija del miércoles 21/10: 20 % en tostados', 'Mové la promo del día como está en la ficha (precio final y medios de pago).'],
+    ['Buscar 2 influencers gastronómicos de la ciudad para el Día del Sándwich', 'Cargalos en Colaboradores (plataforma de prueba) con la propuesta, y anotá qué se les pide y para cuándo.']];
+  if (inputs) pedidos.forEach(([n, d]) => { if (!hay(n)) { trello_('/cards', { idList: inputs.id, name: n, desc: d, pos: 'bottom' }, 'post'); log.push('Pedido: ' + n.slice(0, 50)); } });
+  // 6) objetivos de prueba: copia del trimestral de Tritato
+  const ok = ss.getSheetByName('OKR');
+  if (ok && !ok.getRange(2, 1, Math.max(ok.getLastRow() - 1, 1), 1).getValues().some(r => /^tp-/.test(String(r[0])))) {
+    const filas = ok.getRange(2, 1, ok.getLastRow() - 1, OKR_COLS.length).getValues().filter(r => /^trit-t4-/.test(String(r[0]))).map(r => { const x = r.slice(); x[0] = 'tp-' + String(r[0]).slice(5); x[1] = PRUEBA.slug; return x; });
+    if (filas.length) { const ini = ok.getLastRow() + 1; ok.getRange(ini, 1, filas.length, OKR_COLS.length).setNumberFormat('@').setValues(filas); ok.getRange(ini, 9, filas.length, 4).setNumberFormat('General').setValues(filas.map(r => r.slice(8, 12))); log.push('OKR de prueba: ' + filas.length + ' objetivos'); }
+  }
+  horHoja_();
+  ['repcfg', 'repenv', 'okrrep', 'planrep', 'okrnom'].forEach(k => { try { CacheService.getScriptCache().remove(k); } catch (x) {} });
+  console.log(log.join('\n') || 'Ya estaba todo armado.');
+  console.log('Siguiente paso: correr "actualizar" (menú 3) y después pruebaRefrescar.');
+}
+/* Después de "actualizar": vuelve a leer los calendarios anuales para que la marca de prueba tenga sus campañas. */
+function pruebaRefrescar() {
+  const g = anualDatos_(leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), catalogo_(), true), o = (g.marcas || {})[PRUEBA.slug] || {};
+  console.log('Calendario anual de la prueba: ' + (o.items || []).length + ' fechas' + (o.nota ? ' (' + o.nota + ')' : '') + '. Noviembre: ' + (o.items || []).filter(x => x.mes === 10).map(x => x.dia + ' ' + x.nombre + ' N' + x.nivel).join(', '));
+}
 /* ---------------- PLAN · Ads: control semanal de la pauta (pedido de Joaquín, 17/10/2026) ----------------
    Cada semana, por cada marca CON pauta, el social media responde: ¿la pauta está corriendo bien?, ¿se está pautando la pieza que
    corresponde esta semana? y ¿hay que cambiar algo? Si algo no está bien, escribe qué cambiar y el botón "Avisale a Juan" copia el
@@ -4325,6 +4485,7 @@ function probarPlanB() {
    Marcas con pauta: Config ADS_MARCAS (slugs separados por coma) o, si no está, Isco, Quality, GV, Upper, 1tal, Vice y Tritato.
    Archivo de Drive panel-ideamia-pauta.json. */
 const PAUTA_CANALES = [   // canal ads de cada marca en el servidor de Ideamia (ID de Discord, no es secreto)
+  [/prueba/, ''],   // la marca de prueba de Joaquín no tiene canal (no le llega nada a Juan)
   [/mayorista|^qm\b/, '1481664281534795796'], [/isco/, '1458861571097886833'], [/quality/, '1458861713163292685'], [/gabriel|varisco|^gv\b/, '1458892582607130815'],
   [/upper/, '1511499613150904320'], [/1tal/, '1514708070905811034'], [/vice/, '1556773653130256485'], [/tritato/, '1509678111896109187'], [/dyb/, '1458861750446461046']];
 const PAUTA_DEFAULT = /isco|gabriel|varisco|upper|1tal|vice|tritato|quality(?!.*mayorista)/;
@@ -4474,6 +4635,11 @@ function doGet(e) {
       if (!yo || (!esProj && !(reportesConfig_().marcas || []).some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'Los objetivos son solo para las social media y el project' }, q.cb);
       return json_(okrVista_(yo.clave, esProj), q.cb);
     }
+    if (q.action === 'prueba') { // plataforma de prueba de Joaquín
+      if (!claveOk_(q.k) && !claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' }, q.cb);
+      if ([PRUEBA.sm, 'project'].indexOf(norm_(q.p || '')) < 0) return json_({ error: 'permiso', mensaje: 'Solo para la plataforma de prueba' }, q.cb);
+      return json_(pruebaVista_(), q.cb);
+    }
     if (q.action === 'recordatorios') { // los recordatorios de la persona (y las alertas que le sonaron en el panel)
       if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
       if (!catalogo_().equipo.some(x => x.clave === norm_(q.p || ''))) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' }, q.cb);
@@ -4501,6 +4667,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  if ((e.parameter || {}).prueba === 'reportes') return pruebaReporte_(e);   // página de Reportes de prueba de Joaquín
   let b = {};
   try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
   try {
@@ -4523,6 +4690,12 @@ function doPost(e) {
         const esProj = /project/i.test(yo.rol);
         if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         return json_(campAccion_(b, yo.clave, esProj));
+      }
+      case 'prueba': { // plataforma de prueba de Joaquín: cronómetro, colaboradores y tareas hechas
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo || (yo.clave !== PRUEBA.sm && !/project/i.test(yo.rol))) return json_({ error: 'permiso', mensaje: 'Solo para la plataforma de prueba' });
+        if (!claveOk_(b.k) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
+        return json_(pruebaAccion_(b, yo.clave));
       }
       case 'planb': { // plan B de cada reel (Fase 5): armar, vincular una tarjeta de Trello, activar o desvincular
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
