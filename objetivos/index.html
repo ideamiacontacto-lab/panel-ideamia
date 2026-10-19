@@ -96,7 +96,7 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 </style>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=4" defer></script>
+<script src="../ideamia-nav.js?v=5" defer></script>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Cargando objetivos…</div></div>
@@ -104,19 +104,19 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
   // si el navegador mostró una copia vieja de la página, se pide la nueva una sola vez (cambiar VER en cada versión)
-  const VER = '6';
+  const VER = '7';
   try {
     fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
       const m = /const VER = '(\d+)'/.exec(t);
-      if (m && m[1] !== VER && sessionStorage.getItem('okr:recargo') !== m[1]) { sessionStorage.setItem('okr:recargo', m[1]); location.replace(location.pathname + '?v=' + m[1]); }
+      if (m && m[1] !== VER && sessionStorage.getItem('okr:recargo') !== m[1]) { sessionStorage.setItem('okr:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); }
     }).catch(() => {});
   } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
-  const S = { persona: jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null,
+  const S = { persona: new URLSearchParams(location.search).get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null,
     marca: lsGet('okr:marca'), per: jget('okr:per') || {}, abiertos: jget('okr:abiertos') || {}, folds: jget('okr:folds') || {} };
-  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín', joaco: 'Joaquín (prueba)' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = n => n == null ? '–' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1 });
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'], MESL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
