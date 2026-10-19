@@ -654,6 +654,10 @@ function asegurarRutinas_() {
     ['GUIONES_RESUMEN_DIAS', 'lunes,viernes', 'Días en que sale a la mañana el resumen de guiones (qué hay para ver, qué debe entregar Fede y quién presenta ideas).'],
     ['DISCORD_ID_FEDE', '466080124303835147', 'ID de Discord de Fede (guiones): se lo arroba en el resumen de guiones.']
   ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
+  // agente copiloto de social media (19/10/2026): en qué marcas corre y cuánto puede gastar por mes en la API de Claude
+  [['AGENTE_MARCAS', 'tritato-prueba', 'Marcas donde corre el agente copiloto (slugs separados por coma, "todas" o "no"). Por ahora solo la de prueba.'],
+    ['AGENTE_TOPE_USD', '20', 'Tope de gasto del agente por mes en la API de Claude, en dólares. Al llegar, el agente no hace más llamadas hasta el 1°.']
+  ].forEach(fila => { if (cf && rows_('Config').map(r => r[0]).indexOf(fila[0]) < 0) cf.appendRow(fila); });
   if (eqs && rows_('Equipo').map(r => norm_(r[1])).indexOf('bauti') < 0) eqs.appendRow(['Bauti', 'bauti', 'Filmmaker', 'bauti, bautista']);
   if (eqs && !String(eqs.getRange(1, 6).getValue()).trim()) eqs.getRange(1, 6).setValue('usuario de Discord');
 }
@@ -4660,6 +4664,332 @@ function probarTarjetasMes() {
   });
 }
 
+/* ---------------- AGENTE COPILOTO DE SOCIAL MEDIA (pedido de Joaquín, 19/10/2026) ----------------
+   Hace la parte operativa en BORRADOR y la persona revisa: nada llega a Trello ni al cliente sin "Aprobar".
+   Cuatro tareas: 1) Pedidos e inputs (propone las piezas y lo que hay que pedir de cada input nuevo del SCL) · 2) Plan del mes
+   (plan general semana por semana con los tópicos de la ficha y el plan de cada campaña atacada) · 3) Plan B de cada reel ·
+   4) Reportes y control (qué está atrasado o falta y en qué orden resolverlo).
+   Al aprobar se usan las mismas acciones de la página Plan: el plan del mes queda guardado como borrador (se termina en Plan, que es
+   donde se crean las tarjetas), el plan B crea su tarjeta en la lista "Plan B" y los inputs crean sus piezas y pedidos en "Para mover
+   en el mes" con un comentario en la tarjeta del input.
+   Solo corre en las marcas de Config → AGENTE_MARCAS (por ahora la de prueba) y con tope de gasto mensual (AGENTE_TOPE_USD, 20):
+   antes de cada llamada se calcula lo máximo que podría costar y, si se pasa del tope, no se llama. Usa la API de Claude con la
+   clave ANTHROPIC_KEY. Archivo de Drive panel-ideamia-agente.json (gasto por mes, registro de llamadas y bandeja de propuestas). */
+const AGENTE_ARCH = ['AGENTE_FILE_ID', 'panel-ideamia-agente.json'];
+const AGENTE_MODELO = 'claude-opus-5-5';
+const AGENTE_PRECIO = { in: 4, out: 20, cw: 5, cr: 0.2 };   // US$ por millón de tokens (Claude Opus 5.5: entrada, salida, escritura y lectura de caché)
+const AGENTE_TAREAS = { inputs: 'Pedidos e inputs', plan: 'Plan del mes', planb: 'Plan B de los reels', control: 'Reportes y control' };
+const AGENTE_SISTEMA = 'Sos el copiloto de social media de Ideamia, un estudio creativo argentino que maneja las redes de varias marcas. ' +
+  'Trabajás para la persona de social media de cada marca: le dejás el trabajo operativo armado en borrador y ella lo revisa, lo corrige y lo aprueba. ' +
+  'Escribís en español rioplatense con voseo, claro y concreto, sin guiones largos (usá punto, coma o dos puntos). ' +
+  'Cómo trabaja el estudio: el social media (SM) arma el calendario de contenidos de cada marca en Trello (tablero SCL) y lo deriva a diseño y producción; el cliente no aprueba el calendario. ' +
+  'Los inputs son pedidos del cliente o del project (la persona que coordina el estudio) que llegan a la lista Inputs del SCL y se procesan dentro de las 24 horas: se decide qué piezas salen, en qué formato y fecha, y qué hay que pedir. ' +
+  'Las efemérides y campañas tienen nivel: N1 y N2 son campañas fuertes (con competencia, producción y pedidos), N3 y N4 son menciones livianas. ' +
+  'La ficha de la marca tiene tópicos fijos (temas que se mueven todas las semanas o tantas veces por mes) con ángulos posibles, pedidos recurrentes y aprendizajes de reportes anteriores: respetala siempre. ' +
+  'El plan B de un reel es lo que se publica si el reel se cae: no puede depender de nadie de afuera (cliente, influencer, proveedor o una promo), se hace con producción propia (Bauti, el filmmaker), diseño o material ya grabado. ' +
+  'Reglas: no inventes datos de la marca (precios, productos, promos, fechas de eventos) que no estén en el contexto; si algo hace falta, ponelo como pedido o como duda. ' +
+  'Proponé ideas concretas y variadas, pensadas para Instagram de una marca argentina, no genéricas. Las fechas van en formato yyyy-MM-dd.';
+
+const agenteLeer_ = () => { const g = leerJson_(AGENTE_ARCH[0], AGENTE_ARCH[1]); g.gasto = g.gasto || {}; g.llamadas = g.llamadas || []; g.props = g.props || {}; g.vistos = g.vistos || {}; return g; };
+const agenteTope_ = cfg => Number(String(cfg.AGENTE_TOPE_USD || '20').replace(',', '.')) || 20;
+function agenteMarcas_(cfg, cat) {
+  const v = norm_(cfg.AGENTE_MARCAS == null || cfg.AGENTE_MARCAS === '' ? PRUEBA.slug : cfg.AGENTE_MARCAS);
+  if (v === 'no') return [];
+  if (v === 'todas') return cat.marcas.filter(m => m.sm);
+  const L = v.split(',').map(s => s.trim()).filter(Boolean);
+  return cat.marcas.filter(m => m.sm && (L.indexOf(m.slug) >= 0 || L.indexOf(norm_(m.nombre)) >= 0));
+}
+/* Una llamada a Claude con salida JSON. Devuelve { ok, datos, usd, ms } o { error, mensaje }. Respeta el tope del mes. */
+function agenteClaude_(tarea, slug, contexto, pedido, schema, effort, maxTokens) {
+  const key = P.getProperty('ANTHROPIC_KEY'); if (!key) return { error: 'clave', mensaje: 'Falta la API key de Claude (ANTHROPIC_KEY)' };
+  const cfg = config_(), tope = agenteTope_(cfg), mes = ym_(hoyAR_());
+  maxTokens = maxTokens || 8000;
+  const estimado = ((AGENTE_SISTEMA.length + contexto.length + pedido.length) / 3 * AGENTE_PRECIO.cw + maxTokens * AGENTE_PRECIO.out) / 1e6;
+  const g0 = agenteLeer_(), usado = g0.gasto[mes] || 0;
+  if (usado + estimado > tope) return { error: 'tope', mensaje: 'El agente llegó al tope del mes (US$ ' + tope + '; van US$ ' + usado.toFixed(2) + '). Se reinicia el 1°, o subí AGENTE_TOPE_USD en Config.' };
+  const body = {
+    model: AGENTE_MODELO, max_tokens: maxTokens,
+    system: [{ type: 'text', text: AGENTE_SISTEMA, cache_control: { type: 'ephemeral' } }],
+    // el contexto de la marca va primero y se cachea: si en un rato se pide otra tarea de la misma marca, se cobra mucho menos
+    messages: [{ role: 'user', content: [{ type: 'text', text: contexto, cache_control: { type: 'ephemeral' } }, { type: 'text', text: pedido }] }],
+    output_config: { effort: effort || 'low', format: { type: 'json_schema', schema: schema } },
+    fallbacks: 'default'   // si los filtros de seguridad frenan el pedido por error, la API lo reintenta con otro modelo
+  };
+  const llamar = conFallback => {
+    const b = Object.assign({}, body), h = { 'x-api-key': key, 'anthropic-version': '2023-06-01' };
+    if (conFallback) h['anthropic-beta'] = 'server-side-fallback-2026-07-01'; else delete b.fallbacks;
+    return UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify(b), headers: h });
+  };
+  const t0 = Date.now();
+  let r = llamar(true);
+  if (r.getResponseCode() === 400 && /fallback/i.test(r.getContentText())) r = llamar(false);
+  const ms = Date.now() - t0;
+  if (r.getResponseCode() >= 300) {
+    const txt = r.getContentText().slice(0, 300); console.warn('Agente ' + r.getResponseCode() + ' ' + txt);
+    return { error: 'claude', mensaje: r.getResponseCode() === 429 || r.getResponseCode() >= 500 ? 'Claude está saturado: probá de nuevo en un rato' : 'Claude respondió con error ' + r.getResponseCode() + ': ' + txt.slice(0, 150) };
+  }
+  const j = JSON.parse(r.getContentText()), u = j.usage || {};
+  const usd = ((u.input_tokens || 0) * AGENTE_PRECIO.in + (u.output_tokens || 0) * AGENTE_PRECIO.out + (u.cache_creation_input_tokens || 0) * AGENTE_PRECIO.cw + (u.cache_read_input_tokens || 0) * AGENTE_PRECIO.cr) / 1e6;
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const g = agenteLeer_();
+    g.gasto[mes] = Math.round(((g.gasto[mes] || 0) + usd) * 1e5) / 1e5;
+    g.llamadas.push({ t: new Date().toISOString(), tarea: tarea, marca: slug, usd: Math.round(usd * 1e5) / 1e5, ms: ms, in: u.input_tokens || 0, out: u.output_tokens || 0, cr: u.cache_read_input_tokens || 0, cw: u.cache_creation_input_tokens || 0, modelo: j.model || AGENTE_MODELO, fin: j.stop_reason });
+    if (g.llamadas.length > 400) g.llamadas = g.llamadas.slice(-400);
+    guardarJson_(AGENTE_ARCH[0], AGENTE_ARCH[1], g);
+  } finally { lock.releaseLock(); }
+  if (j.stop_reason === 'refusal') return { error: 'claude', mensaje: 'Claude no quiso responder este pedido' };
+  if (j.stop_reason === 'max_tokens') return { error: 'claude', mensaje: 'La respuesta salió demasiado larga y se cortó. Probá con menos cosas a la vez.' };
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  try { return { ok: true, datos: JSON.parse(txt), usd: usd, ms: ms }; } catch (e) { return { error: 'claude', mensaje: 'La respuesta de Claude no se pudo leer' }; }
+}
+/* Contexto fijo de una marca: ficha aprobada, efemérides, campañas y últimas piezas. Va en el prompt antes del pedido (se cachea). */
+function agenteContexto_(m, snap) {
+  const hoy = hoyAR_(), hoyS = ymd_(hoy), f = fichaLeer_(), fi = (f.m[m.slug] || {}).ok || null, L = [];
+  L.push('MARCA: ' + m.nombre + (m.rubro ? ' (' + m.rubro + ')' : '') + (m.contexto ? '\n' + m.contexto : ''));
+  if (fi) {
+    L.push('\nFICHA APROBADA\nTópicos fijos:\n' + (fi.topicos || []).filter(t => !t.cm).map(t => '- [' + t.id + '] ' + t.nombre + ': ' + t.veces + ' por ' + t.por + (t.externo ? ' (se mueve fuera de Instagram, en ' + t.canal + ')' : '') + '. Ángulos: ' + (t.angulos || []).join(' / ')).join('\n'));
+    if ((fi.pedidos || []).length) L.push('Pedidos recurrentes:\n' + fi.pedidos.map(p => '- ' + p.que + ' (a ' + p.aQuien + ', cada ' + (p.tipo === 'mes' ? 'mes, día ' + p.dia : 'semana, los ' + DIAS_ES[p.dia]) + ')').join('\n'));
+    const ap = (fi.aprendizajes || []).filter(a => !a.hasta || a.hasta >= hoyS);
+    if (ap.length) L.push('Aprendizajes activos (salen de los reportes):\n' + ap.map(a => '- ' + a.que + ' (' + a.veces + ' por ' + a.por + ', hasta ' + a.hasta + ')').join('\n'));
+  } else L.push('\nLa marca todavía no tiene la ficha aprobada (sin tópicos fijos cargados).');
+  const efem = (snap.cards || []).filter(c => c.m[0] === m.slug && c.cat === 'efem' && c.due && ymd_(new Date(c.due)) >= hoyS).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 15);
+  try {
+    const datos = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), dec = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json')[m.slug] || {};
+    const F = campFechas_(datos, m.slug, hoy).filter(x => x.f >= hoyS);
+    if (F.length) L.push('\nCALENDARIO ANUAL (este mes y el que viene):\n' + F.map(x => '- ' + x.f + ' ' + x.nombre + ' (N' + x.nivel + ')' + (x.accion ? ': ' + x.accion : '') + (dec[x.key] ? ' → ' + (dec[x.key].decision === 'atacar' ? 'SE ATACA' : 'no se ataca') : ' → sin decidir')).join('\n'));
+  } catch (e) {}
+  if (efem.length) L.push('\nEFEMÉRIDES CARGADAS EN EL SCL:\n' + efem.map(c => '- ' + ymd_(new Date(c.due)) + ' ' + c.n).join('\n'));
+  const piezas = (snap.cards || []).filter(c => c.m[0] === m.slug && c.tipo === 'scl' && ['trabajo', 'hecho', 'urgente', 'mover'].indexOf(c.cat) >= 0).sort((a, b) => String(b.due || b.act).localeCompare(String(a.due || a.act))).slice(0, 25);
+  if (piezas.length) L.push('\nÚLTIMAS PIEZAS DEL CALENDARIO (para no repetir):\n' + piezas.map(c => '- ' + (c.due ? ymd_(new Date(c.due)) + ' ' : '') + c.n + (c.lab.length ? ' [' + c.lab.join(', ') + ']' : '')).join('\n'));
+  return L.join('\n');
+}
+const AG_STR = { type: 'string' }, AG_FECHA = { type: 'string', description: 'yyyy-MM-dd, o vacío si no aplica' };
+const agObj_ = props => ({ type: 'object', additionalProperties: false, required: Object.keys(props), properties: props });
+const AG_PEDIDO = agObj_({ que: AG_STR, aQuien: { type: 'string', enum: ['cliente', 'project'] }, fecha: AG_FECHA });
+/* Guarda propuestas nuevas en la bandeja (reemplaza las pendientes de la misma referencia). */
+function agenteGuardarProps_(lista) {
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const g = agenteLeer_();
+    lista.forEach(p => {
+      Object.keys(g.props).forEach(id => { const x = g.props[id]; if (x.ref === p.ref && x.estado === 'pendiente') delete g.props[id]; });
+      p.id = Utilities.getUuid().slice(0, 10); p.estado = 'pendiente'; p.creada = new Date().toISOString(); g.props[p.id] = p;
+    });
+    // las resueltas hace más de 30 días se borran
+    const lim = new Date(Date.now() - 30 * 864e5).toISOString();
+    Object.keys(g.props).forEach(id => { const x = g.props[id]; if (x.estado !== 'pendiente' && (x.resuelta || x.creada) < lim) delete g.props[id]; });
+    guardarJson_(AGENTE_ARCH[0], AGENTE_ARCH[1], g);
+  } finally { lock.releaseLock(); }
+}
+
+/* 1) Pedidos e inputs: lee los inputs del SCL que todavía no vio (hasta 6 por vez, en una sola llamada) y propone piezas y pedidos. */
+function agenteInputs_(m, snap, quien) {
+  const g = agenteLeer_(), vistos = g.vistos[m.slug] || {}, h = c => hash_(c.n + '|' + c.d);
+  const cands = (snap.cards || []).filter(c => c.m[0] === m.slug && c.tipo === 'scl' && c.cat === 'input' && vistos[c.id] !== h(c)).slice(0, 6);
+  if (!cands.length) return { ok: true, nuevas: 0, mensaje: 'No hay inputs nuevos en el SCL de ' + m.nombre };
+  const hoyS = ymd_(hoyAR_());
+  const pedido = 'TAREA: procesar inputs. Hoy es ' + hoyS + '.\nEstos son los inputs nuevos de la lista Inputs del SCL. Para cada uno: un resumen de qué pide (una frase), ' +
+    'las piezas que harías (1 a 4, con formato, fecha de publicación sugerida y la idea concreta), lo que hay que pedir al cliente o al project para poder hacerlo (con fecha límite, antes de la publicación) ' +
+    'y una duda si el input no se entiende (si no hay dudas, vacío). Si un input es solo información (horarios, datos) y no lleva piezas, dejá piezas vacío y explicalo en el resumen.\n\n' +
+    cands.map(c => '[' + c.id + '] ' + c.n + (c.d ? '\nDescripción: ' + String(c.d).slice(0, 1500) : '') + (c.due ? '\nFecha: ' + c.due.slice(0, 10) : '') + (c.lab.length ? '\nEtiquetas: ' + c.lab.join(', ') : '') + (c.att.length ? '\nAdjuntos: ' + c.att.map(a => a.n).join(', ') : '')).join('\n\n');
+  const schema = agObj_({ inputs: { type: 'array', items: agObj_({ id: { type: 'string', enum: cands.map(c => c.id) }, resumen: AG_STR,
+    piezas: { type: 'array', items: agObj_({ titulo: AG_STR, formato: { type: 'string', enum: ['reel', 'carrusel', 'post', 'historias', 'canal', 'otro'] }, fecha: AG_FECHA, idea: AG_STR }) },
+    pedir: { type: 'array', items: AG_PEDIDO }, duda: AG_STR }) } });
+  const r = agenteClaude_('inputs', m.slug, agenteContexto_(m, snap), pedido, schema, 'low', 8000); if (r.error) return r;
+  const porId = {}; cands.forEach(c => porId[c.id] = c);
+  const props = (r.datos.inputs || []).filter(x => porId[x.id]).map(x => ({ tarea: 'inputs', marca: m.slug, ref: 'in|' + x.id, quien: norm_(quien), usd: r.usd / cands.length, ms: r.ms,
+    titulo: 'Input: ' + porId[x.id].n.slice(0, 120), card: { id: x.id, url: porId[x.id].url, n: porId[x.id].n }, datos: { resumen: x.resumen, piezas: x.piezas, pedir: x.pedir, duda: x.duda } }));
+  agenteGuardarProps_(props);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { const g2 = agenteLeer_(), v = g2.vistos[m.slug] = g2.vistos[m.slug] || {}; cands.forEach(c => v[c.id] = h(c)); guardarJson_(AGENTE_ARCH[0], AGENTE_ARCH[1], g2); } finally { lock.releaseLock(); }
+  return { ok: true, nuevas: props.length, usd: r.usd, ms: r.ms };
+}
+function agenteAprobarInputs_(p, d, m) {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), tb = (snap.tableros || []).filter(x => x.tipo === 'scl' && x.marca === m.slug)[0];
+  const lista = tb && (tb.listas || []).filter(l => l.cat === 'mover')[0];
+  if (!lista) return { error: 'datos', mensaje: 'El SCL de ' + m.nombre + ' no tiene la lista "Para mover en el mes"' };
+  const FMT = { reel: 'Reel', carrusel: 'Carrusel', post: 'Post', historias: 'Historias', canal: 'Canal social', otro: '' };
+  let etq = []; try { etq = trello_('/boards/' + tb.id + '/labels', { fields: 'name', limit: 200 }); } catch (e) {}
+  const lab = n => n && (etq.filter(l => norm_(l.name) === norm_(n))[0] || {}).id;
+  const hechas = p.hechas || {}, creadas = [];
+  try {
+    (d.piezas || []).forEach((x, i) => {
+      if (hechas['p' + i] || !String(x.titulo || '').trim()) return;
+      const q = { idList: lista.id, name: String(x.titulo).slice(0, 200), desc: (x.idea ? String(x.idea).slice(0, 2000) + '\n\n' : '') + 'Sale del input: ' + p.card.url + '\nPropuesta del agente, aprobada en el panel.', pos: 'bottom' };
+      if (/^\d{4}-\d{2}-\d{2}$/.test(x.fecha || '')) q.due = x.fecha + 'T12:00:00-03:00';
+      const l = lab(FMT[x.formato]); if (l) q.idLabels = l;
+      const c = trello_('/cards', q, 'post'); hechas['p' + i] = c.shortUrl; creadas.push(c.shortUrl);
+    });
+    (d.pedir || []).forEach((x, i) => {
+      if (hechas['q' + i] || !String(x.que || '').trim()) return;
+      const q = { idList: lista.id, name: '📨 Pedir ' + (x.aQuien === 'project' ? 'al project' : 'al cliente') + ': ' + String(x.que).slice(0, 180), desc: 'El vencimiento es la fecha límite para tenerlo.\nSale del input: ' + p.card.url, pos: 'bottom' };
+      if (/^\d{4}-\d{2}-\d{2}$/.test(x.fecha || '')) q.due = x.fecha + 'T12:00:00-03:00';
+      const c = trello_('/cards', q, 'post'); hechas['q' + i] = c.shortUrl; creadas.push(c.shortUrl);
+    });
+    if (!hechas.com) {
+      trello_('/cards/' + p.card.id + '/actions/comments', { text: ('🤖 Procesado con el agente: ' + (d.resumen || '') + (creadas.length ? '\nSe crearon en "Para mover en el mes":\n' + creadas.join('\n') : '') + (d.duda ? '\nDuda: ' + d.duda : '')).slice(0, 4000) }, 'post');
+      hechas.com = 1;
+    }
+  } catch (e) { p.hechas = hechas; return { error: 'trello', mensaje: 'Trello falló después de ' + creadas.length + ' tarjetas: ' + String(e.message).slice(0, 120) + '. Probá aprobar de nuevo: no se repiten.', parcial: true }; }
+  p.hechas = hechas;
+  return { ok: true, mensaje: creadas.length + ' tarjetas creadas en "Para mover en el mes". Acordate de mover el input donde corresponda.', links: creadas };
+}
+
+/* 2) Plan del mes: plan general (tópicos semana por semana) y plan de cada campaña atacada sin terminar, del mes que viene
+   (o de este mes si todavía no se cerró su plan). Al aprobar queda como borrador en Plan, mezclado con lo que ya estaba escrito. */
+function agentePlanMes_(m, snap, quien, mes) {
+  const hoy = hoyAR_(), cfg = config_();
+  if (!/^\d{4}-\d{2}$/.test(mes || '')) { const este = ym_(hoy); mes = ymd_(hoy) <= planLimite_(cfg, este) ? este : ym_(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)); }
+  const semanas = planSemanas_(mes), topicos = (() => { try { return planTopicosGen_(m.slug); } catch (e) { return []; } })();
+  const planes = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1])[m.slug] || {}, dec = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json')[m.slug] || {};
+  const d0 = new Date(mes + '-01T12:00:00');
+  const camps = campFechas_(leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), m.slug, new Date(d0.getFullYear(), d0.getMonth(), 1)).filter(x => x.f.slice(0, 7) === mes && dec[x.key] && dec[x.key].decision === 'atacar' && !(planes[x.key] && planes[x.key].completo));
+  if (!topicos.length && !camps.length) return { error: 'datos', mensaje: 'Para ' + MESES_ES[Number(mes.slice(5)) - 1] + ' no hay qué planear: la ficha no tiene tópicos aprobados y no hay campañas marcadas para atacar.' };
+  const MES = MESES_ES[Number(mes.slice(5)) - 1];
+  const pedido = 'TAREA: plan del mes de ' + MES + ' ' + mes.slice(0, 4) + '. Hoy es ' + ymd_(hoy) + '.\n' +
+    (topicos.length ? 'PLAN GENERAL: para cada tópico fijo elegí el ángulo de cada semana (las semanas empiezan: ' + semanas.join(', ') + '). Los tópicos semanales llevan ángulo en todas las semanas; los mensuales, en tantas semanas como veces por mes. ' +
+      'Usá los ángulos de la ficha pero bajalos a algo concreto de ese mes (fechas, estación, campañas), sin repetir el mismo ángulo dos semanas seguidas. Sumá los pedidos de ese mes en particular (fotos, precios, promos), con fecha antes de que se necesiten.\n' +
+      'Tópicos: ' + topicos.map(t => '[' + t.id + '] ' + t.nombre + ' (' + planGenReq_(t, semanas.length) + ' semanas)').join(', ') + '\n' : 'La marca no tiene tópicos aprobados: dejá general.topicos vacío.\n') +
+    (camps.length ? 'CAMPAÑAS QUE SE ATACAN: para cada una armá ideas (3 a 6, concretas), si lleva producción especial (estética, banners para la web, cartelería para el local), pedidos con fecha y la distribución: qué idea sale, en qué momento (previa, semana de la fecha o después) y qué día. ' +
+      'La competencia y lo que se hizo el año pasado los completa la persona (no los inventes); en "anterior" poné solo qué conviene averiguar.\n' + camps.map(x => '[' + x.key + '] ' + x.nombre + ' (' + x.f + ', N' + x.nivel + ')' + (x.accion ? ': ' + x.accion : '')).join('\n') : 'No hay campañas para atacar ese mes: dejá campanas vacío.') +
+    '\nCerrá con una nota corta para la persona: qué revisar sí o sí antes de aprobar.';
+  const schema = agObj_({
+    general: agObj_({ topicos: { type: 'array', items: agObj_({ id: topicos.length ? { type: 'string', enum: topicos.map(t => t.id) } : AG_STR, semanas: { type: 'array', items: agObj_({ semana: { type: 'string', enum: semanas }, angulo: AG_STR }) } }) }, pedidos: { type: 'array', items: AG_PEDIDO } }),
+    campanas: { type: 'array', items: agObj_({ key: camps.length ? { type: 'string', enum: camps.map(x => x.key) } : AG_STR, ideas: { type: 'array', items: AG_STR },
+      produccion: agObj_({ estetica: { type: 'boolean' }, banners: { type: 'boolean' }, carteleria: { type: 'boolean' }, notas: AG_STR }), pedidos: { type: 'array', items: AG_PEDIDO },
+      distribucion: { type: 'array', items: agObj_({ idea: AG_STR, cuando: { type: 'string', enum: ['previa', 'semana', 'despues'] }, fecha: AG_FECHA }) }, anterior: AG_STR }) },
+    nota: AG_STR });
+  const r = agenteClaude_('plan', m.slug, agenteContexto_(m, snap), pedido, schema, 'medium', 12000); if (r.error) return r;
+  const nombres = {}; topicos.forEach(t => nombres[t.id] = t.nombre); const cn = {}; camps.forEach(x => cn[x.key] = x);
+  agenteGuardarProps_([{ tarea: 'plan', marca: m.slug, ref: 'plan|' + mes, quien: norm_(quien), usd: r.usd, ms: r.ms, titulo: 'Plan de ' + MES + (camps.length ? ' (' + camps.map(x => x.nombre).join(', ') + ')' : ''),
+    mes: mes, semanas: semanas, nombres: nombres, camps: camps.map(x => ({ key: x.key, nombre: x.nombre, nivel: x.nivel, f: x.f })), datos: r.datos }]);
+  return { ok: true, nuevas: 1, usd: r.usd, ms: r.ms };
+}
+function agenteAprobarPlan_(p, d, m, quien) {
+  const planes = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1])[m.slug] || {}, s = v => String(v || '').trim(), out = [];
+  const gen = d.general || {};
+  if ((gen.topicos || []).length || (gen.pedidos || []).length) {
+    const prev = planes['gen|' + p.mes] || {}, top = {};
+    (gen.topicos || []).forEach(t => { const pv = ((prev.topicos || {})[t.id] || {}).semanas || {}, o = {}; (t.semanas || []).forEach(w => { if (s(w.angulo)) o[w.semana] = s(w.angulo); }); Object.keys(pv).forEach(w => { if (s(pv[w])) o[w] = pv[w]; }); top[t.id] = { semanas: o }; });
+    Object.keys(prev.topicos || {}).forEach(id => { if (!top[id]) top[id] = prev.topicos[id]; });
+    const ya = (prev.pedidos || []).map(x => norm_(x.que));
+    const r = planGeneralAccion_({ mes: p.mes, plan: { topicos: top, pedidos: (prev.pedidos || []).concat((gen.pedidos || []).filter(x => s(x.que) && ya.indexOf(norm_(x.que)) < 0)) } }, m, quien);
+    if (r.error) return r; out.push('plan general');
+  }
+  for (const c of (d.campanas || [])) {
+    const info = (p.camps || []).filter(x => x.key === c.key)[0]; if (!info) continue;
+    const prev = planes[c.key] || {}, pp = prev.produccion || {}, cp = c.produccion || {};
+    const plan = {
+      competencia: prev.competencia || [], anterior: prev.anterior && (prev.anterior.nada || s(prev.anterior.que)) ? prev.anterior : { nada: false, que: '', funciono: '' },
+      ideas: (prev.ideas || []).concat((c.ideas || []).filter(x => s(x) && (prev.ideas || []).indexOf(x) < 0)),
+      produccion: { estetica: typeof pp.estetica === 'boolean' ? pp.estetica : !!cp.estetica, banners: typeof pp.banners === 'boolean' ? pp.banners : !!cp.banners, carteleria: typeof pp.carteleria === 'boolean' ? pp.carteleria : !!cp.carteleria, notas: s(pp.notas) || s(cp.notas) },
+      pedidos: (prev.pedidos || []).concat((c.pedidos || []).filter(x => s(x.que))), distribucion: (prev.distribucion || []).length ? prev.distribucion : (c.distribucion || []).filter(x => s(x.idea))
+    };
+    const r = planMesAccion_({ marca: m.slug, key: c.key, nombre: info.nombre, nivel: info.nivel, plan: plan }, quien, true);
+    if (r.error) return r; out.push(info.nombre);
+  }
+  return { ok: true, mensaje: 'Quedó guardado como borrador en Plan → Plan del mes (' + out.join(', ') + '). Revisalo ahí, completá lo que falte (competencia y año pasado en las N1 y N2) y tocá Terminar: recién ahí se crean las tarjetas.', links: [PLAN_URL] };
+}
+
+/* 3) Plan B: para cada reel de acá a 45 días sin plan B, propone uno (una propuesta por reel). */
+function agentePlanB_(m, snap, quien) {
+  const hoy = hoyAR_(), g = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1])[m.slug] || {};
+  const reels = planbReels_(snap, m.slug, ymd_(hoy), ymd_(new Date(hoy.getTime() + 45 * 864e5))).filter(r => !planbCompleto_(g[r.id])).slice(0, 10);
+  if (!reels.length) return { ok: true, nuevas: 0, mensaje: 'Todos los reels de ' + m.nombre + ' de los próximos 45 días ya tienen plan B' };
+  const cards = {}; (snap.cards || []).forEach(c => cards[c.id] = c);
+  const pedido = 'TAREA: plan B de los reels. Hoy es ' + ymd_(hoy) + '.\nPara cada reel: de qué depende (cliente, colaboración, promo, proveedor o nada de afuera), qué se publica en su lugar si se cae, en qué formato, ' +
+    'qué día (el mismo del reel o cerca) y con qué material. El plan B NUNCA puede depender de terceros. Si el material es "propio", contá cuál en materialTxt.\n\n' +
+    reels.map(r => '[' + r.id + '] ' + r.due + ' · ' + r.n + (cards[r.id] && cards[r.id].d ? '\n' + String(cards[r.id].d).slice(0, 600) : '')).join('\n\n');
+  const schema = agObj_({ reels: { type: 'array', items: agObj_({ reel: { type: 'string', enum: reels.map(r => r.id) }, depReel: { type: 'array', items: { type: 'string', enum: Object.keys(PLANB_DEP) } },
+    que: AG_STR, formato: { type: 'string', enum: Object.keys(PLANB_FORMATOS) }, fecha: AG_FECHA, material: { type: 'string', enum: Object.keys(PLANB_MATERIAL) }, materialTxt: AG_STR }) } });
+  const r = agenteClaude_('planb', m.slug, agenteContexto_(m, snap), pedido, schema, 'low', 8000); if (r.error) return r;
+  const porId = {}; reels.forEach(x => porId[x.id] = x);
+  const props = (r.datos.reels || []).filter(x => porId[x.reel]).map(x => ({ tarea: 'planb', marca: m.slug, ref: 'pb|' + x.reel, quien: norm_(quien), usd: r.usd / reels.length, ms: r.ms,
+    titulo: 'Plan B: ' + porId[x.reel].n.slice(0, 100) + ' (' + porId[x.reel].due.slice(8) + '/' + porId[x.reel].due.slice(5, 7) + ')', card: { id: x.reel, url: porId[x.reel].url, n: porId[x.reel].n, due: porId[x.reel].due }, datos: x }));
+  agenteGuardarProps_(props);
+  return { ok: true, nuevas: props.length, usd: r.usd, ms: r.ms };
+}
+function agenteAprobarPlanB_(p, d, m, quien) {
+  const dep = (d.depReel || []).filter(k => PLANB_DEP[k]);
+  const r = planbAccion_({ marca: m.slug, reel: p.card.id, accion: 'guardar', que: d.que, formato: d.formato, fecha: d.fecha, material: d.material, materialTxt: d.materialTxt, depReel: dep.length ? dep : ['nada'] }, quien, true);
+  if (r.error) return r;
+  return { ok: true, mensaje: 'Plan B guardado: se creó (o actualizó) su tarjeta en la lista "Plan B" del SCL.', links: [PLAN_URL] };
+}
+
+/* 4) Reportes y control: junta lo atrasado y lo que falta (sin IA) y Claude lo ordena por prioridad en un mensaje corto. */
+function agenteControlDatos_(m, snap) {
+  const hoy = hoyAR_(), hoyS = ymd_(hoy), ahora = Date.now(), X = {};
+  const scl = (snap.cards || []).filter(c => c.m[0] === m.slug && c.tipo === 'scl');
+  X.inputs = scl.filter(c => c.cat === 'input' && ahora - parseInt(String(c.id).slice(0, 8), 16) * 1000 > 864e5).map(c => c.n + ' (desde el ' + ymd_(new Date(parseInt(String(c.id).slice(0, 8), 16) * 1000)) + ')');
+  X.vencidas = scl.filter(c => c.due && !c.dc && ymd_(new Date(c.due)) < hoyS && ['trabajo', 'urgente', 'corr', 'espera'].indexOf(c.cat) >= 0).map(c => c.n + ' (vencía ' + ymd_(new Date(c.due)) + ', lista ' + c.lista + ')').slice(0, 20);
+  const fin = ymd_(new Date(hoy.getTime() + 21 * 864e5)), cal = scl.filter(c => c.due && ['trabajo', 'urgente', 'hecho', 'mover'].indexOf(c.cat) >= 0 && ymd_(new Date(c.due)) >= hoyS && ymd_(new Date(c.due)) <= fin);
+  X.calendario = cal.length + ' piezas con fecha en las próximas 3 semanas';
+  const gB = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1])[m.slug] || {};
+  X.sinPlanB = planbReels_(snap, m.slug, hoyS, ymd_(new Date(hoy.getTime() + 30 * 864e5))).filter(r => !planbCompleto_(gB[r.id])).map(r => r.n + ' (' + r.due + ')');
+  try {
+    const cv = campVista_(m.sm, true).marcas.filter(x => x.slug === m.slug)[0];
+    if (cv) {
+      X.campanasSinDecidir = cv.fechas.filter(x => !x.dec && x.f >= hoyS).map(x => x.nombre + ' (' + x.f + ', N' + x.nivel + ')');
+      X.campanasSinPlan = cv.fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= hoyS).map(x => x.nombre + ' (' + x.f + ')');
+      const gp = cv.general.proximo; X.planGeneralProximo = cv.general.topicos.length ? (gp.plan && gp.plan.completo ? 'terminado' : 'sin terminar (' + gp.mes + ')') : 'la marca no tiene tópicos aprobados';
+    }
+  } catch (e) {}
+  try { X.reportes = tareasReportes_(m.sm, 'Social Media').filter(r => r.marca === m.slug).map(r => r.label + ' (vence ' + r.vence.slice(0, 10) + ')'); } catch (e) { X.reportes = []; }
+  return X;
+}
+function agenteControl_(m, snap, quien) {
+  const X = agenteControlDatos_(m, snap), hoyS = ymd_(hoyAR_());
+  const pedido = 'TAREA: control semanal. Hoy es ' + hoyS + '. Este es el estado de ' + m.nombre + ' sacado del panel:\n' + JSON.stringify(X, null, 1) +
+    '\n\nArmá un mensaje corto para la persona de social media: un resumen de una o dos frases de cómo está la marca y las prioridades en orden (máximo 6), cada una con qué hacer concretamente y para cuándo. ' +
+    'Primero lo que vence o ya venció (reportes, inputs de más de 24 h, piezas atrasadas), después lo que se acerca (planes, plan B, campañas sin decidir). Si todo está al día, decilo.';
+  const schema = agObj_({ resumen: AG_STR, prioridades: { type: 'array', items: agObj_({ que: AG_STR, cuando: AG_STR }) } });
+  const r = agenteClaude_('control', m.slug, agenteContexto_(m, snap), pedido, schema, 'low', 4000); if (r.error) return r;
+  agenteGuardarProps_([{ tarea: 'control', marca: m.slug, ref: 'ctl|' + m.slug, quien: norm_(quien), usd: r.usd, ms: r.ms, titulo: 'Control de la semana · ' + hoyS.slice(8) + '/' + hoyS.slice(5, 7), datos: Object.assign({ estado: X }, r.datos) }]);
+  return { ok: true, nuevas: 1, usd: r.usd, ms: r.ms };
+}
+
+/* Vista y acciones (página /agente/). Cada social media ve sus marcas habilitadas; el project, todas. */
+function agenteVista_(quien, esProject) {
+  const cat = catalogo_(), cfg = config_(), g = agenteLeer_(), mes = ym_(hoyAR_());
+  const marcas = agenteMarcas_(cfg, cat).filter(m => esProject || m.sm === norm_(quien)).map(m => ({ slug: m.slug, nombre: m.nombre, sm: m.sm }));
+  const slugs = marcas.map(m => m.slug);
+  const props = Object.keys(g.props).map(id => g.props[id]).filter(p => slugs.indexOf(p.marca) >= 0).sort((a, b) => (a.estado === 'pendiente' ? 0 : 1) - (b.estado === 'pendiente' ? 0 : 1) || b.creada.localeCompare(a.creada)).slice(0, 80);
+  const llam = g.llamadas.filter(l => l.t.slice(0, 7) === mes && slugs.indexOf(l.marca) >= 0), porTarea = {};
+  llam.forEach(l => { const x = porTarea[l.tarea] = porTarea[l.tarea] || { n: 0, usd: 0, ms: 0 }; x.n++; x.usd += l.usd; x.ms += l.ms; });
+  return { ok: true, project: !!esProject, mes: mes, gasto: Math.round((g.gasto[mes] || 0) * 100) / 100, tope: agenteTope_(cfg), tareas: AGENTE_TAREAS, marcas: marcas, props: props, porTarea: porTarea,
+    formatos: PLANB_FORMATOS, material: PLANB_MATERIAL, dep: PLANB_DEP, hayClave: !!P.getProperty('ANTHROPIC_KEY') };
+}
+function agenteAccion_(b, quien, esProject) {
+  const cat = catalogo_(), cfg = config_(), m = agenteMarcas_(cfg, cat).filter(x => x.slug === String(b.marca || ''))[0];
+  if (b.accion === 'correr') {
+    if (!m) return { error: 'permiso', mensaje: 'El agente no está habilitado para esa marca (Config → AGENTE_MARCAS)' };
+    if (!esProject && m.sm !== norm_(quien)) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+    const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
+    const r = b.tarea === 'inputs' ? agenteInputs_(m, snap, quien) : b.tarea === 'plan' ? agentePlanMes_(m, snap, quien, b.mes) : b.tarea === 'planb' ? agentePlanB_(m, snap, quien) : b.tarea === 'control' ? agenteControl_(m, snap, quien) : { error: 'datos', mensaje: 'Tarea desconocida' };
+    if (r.error) return r;
+    return Object.assign(agenteVista_(quien, esProject), { corrida: r });
+  }
+  const g = agenteLeer_(), p = g.props[String(b.id || '')];
+  if (!p) return { error: 'datos', mensaje: 'No encuentro esa propuesta (actualizá la página)' };
+  const mp = cat.marcas.filter(x => x.slug === p.marca)[0];
+  if (!mp || (!esProject && mp.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  if (p.estado !== 'pendiente') return { error: 'datos', mensaje: 'Esa propuesta ya se resolvió' };
+  let res = { ok: true };
+  if (b.accion === 'aprobar') {
+    const d = b.datos && typeof b.datos === 'object' ? b.datos : p.datos;   // la persona puede corregir la propuesta antes de aprobarla
+    res = p.tarea === 'inputs' ? agenteAprobarInputs_(p, d, mp) : p.tarea === 'plan' ? agenteAprobarPlan_(p, d, mp, quien) : p.tarea === 'planb' ? agenteAprobarPlanB_(p, d, mp, quien) : { ok: true, mensaje: 'Listo' };
+    if (res.error && !res.parcial) return res;
+    p.datos = d;
+    if (!res.error) { p.estado = 'aprobada'; p.editada = !!b.editada; }
+  } else if (b.accion === 'descartar') { p.estado = 'descartada'; p.motivo = String(b.motivo || '').slice(0, 300); }
+  else return { error: 'datos', mensaje: 'Acción desconocida' };
+  p.resuelta = new Date().toISOString(); p.porQuien = norm_(quien);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { const g2 = agenteLeer_(); g2.props[p.id] = p; guardarJson_(AGENTE_ARCH[0], AGENTE_ARCH[1], g2); } finally { lock.releaseLock(); }
+  return Object.assign(agenteVista_(quien, esProject), { resultado: res });
+}
+
 function doGet(e) {
   const q = e.parameter || {};
   try {
@@ -4704,6 +5034,12 @@ function doGet(e) {
       if (!claveOk_(q.k) && !claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' }, q.cb);
       if ([PRUEBA.sm, 'project'].indexOf(norm_(q.p || '')) < 0) return json_({ error: 'permiso', mensaje: 'Solo para la plataforma de prueba' }, q.cb);
       return json_(pruebaVista_(), q.cb);
+    }
+    if (q.action === 'agente') { // agente copiloto: bandeja de propuestas de las marcas habilitadas (cada social media las suyas; el project, todas)
+      const yo = catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
+      if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
+      if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' }, q.cb);
+      return json_(agenteVista_(yo.clave, esProj), q.cb);
     }
     if (q.action === 'recordatorios') { // los recordatorios de la persona (y las alertas que le sonaron en el panel)
       if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
@@ -4761,6 +5097,13 @@ function doPost(e) {
         if (!yo || (yo.clave !== PRUEBA.sm && !/project/i.test(yo.rol))) return json_({ error: 'permiso', mensaje: 'Solo para la plataforma de prueba' });
         if (!claveOk_(b.k) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' });
         return json_(pruebaAccion_(b, yo.clave));
+      }
+      case 'agente': { // agente copiloto: correr una tarea, aprobar o descartar una propuesta
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(agenteAccion_(b, yo.clave, esProj));
       }
       case 'planb': { // plan B de cada reel (Fase 5): armar, vincular una tarjeta de Trello, activar o desvincular
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
