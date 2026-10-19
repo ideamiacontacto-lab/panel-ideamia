@@ -2431,9 +2431,9 @@ function anualDatos_(snap, cat, forzar) {
     else try { o.items = calendarioAnualParse_(docTexto_(cal.id)); if (!o.items.length) o.nota = 'no pude leer fechas del calendario (formato distinto al de "fecha → nombre: acción")'; } catch (e) { o.nota = 'calendario: ' + e.message; }
     if (okr && okr.id) try { o.txtOkr = docTexto_(okr.id).slice(0, 12000); } catch (e) {}
     // marca de prueba de Joaquín: si su calendario (copia del de Tritato) no trae el Día del Sándwich, se suma acá
-    // (en el de Tritato figura como N4: para la prueba va como N2, así el plan recorre los 6 pasos)
-    if (m.slug === PRUEBA.slug && o.items) o.items.forEach(x => { if (/dia mundial del sandwich|^dia del sandwich$/.test(norm_(x.nombre)) && x.nivel > 2) x.nivel = 2; });
-    if (m.slug === PRUEBA.slug && o.items && !o.items.some(x => /sandwich/.test(norm_(x.nombre)))) o.items.push({ mes: 10, dia: 3, fecha: '3 de noviembre', nombre: 'Día del Sándwich', nivel: 2, accion: 'Promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos' });
+    // el Día del Sándwich es nivel 1 (Joaquín, 19/10/2026); en el calendario de Tritato figura como N4
+    if (m.slug === PRUEBA.slug && o.items) o.items.forEach(x => { if (/dia mundial del sandwich|^dia del sandwich$/.test(norm_(x.nombre))) x.nivel = 1; });
+    if (m.slug === PRUEBA.slug && o.items && !o.items.some(x => /sandwich/.test(norm_(x.nombre)))) o.items.push({ mes: 10, dia: 3, fecha: '3 de noviembre', nombre: 'Día del Sándwich', nivel: 1, accion: 'Promo de sándwiches de miga, contenido de producto y colaboración con influencers gastronómicos' });
     marcas[m.slug] = o;
   });
   g = { mes: mes, leido: new Date().toISOString(), marcas: marcas };
