@@ -473,6 +473,8 @@
     if(!sec.ref) return "";
     if(sec.ref==="cm"){
       const p = idx[`cm|${marca}|${periodo}`];
+      const mc = C.MARCAS.find(x=>x.slug===marca);
+      if(!p && mc && !mc.cm) return `<div class="ref">Esta marca no tiene CM: no hay reporte para leer. Marcá la confirmación de abajo y seguí con tu reporte.</div>`;
       if(!p) return `<div class="ref">El CM todavía no cargó el reporte de esta semana para esta marca.</div>`;
       const sent=new Date(p.enviado_en);
       return `<div class="ref" style="border-style:solid"><div><b>Reporte del CM · ${esc(p.periodo_label)}</b> <span class="muted">· cargado por ${esc(p.responsable)} el ${isNaN(sent)?"":sent.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit"})}</span></div>${renderReadOnly(FORMS.cm, p.datos||{})}<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><span class="help" style="margin:0">Leelo completo y confirmá abajo para seguir con tu reporte.</span><button type="button" class="btn sm ghost" data-pdf-cm="1">Descargar PDF del CM</button></div></div>`;
@@ -613,7 +615,8 @@
       return;
     }
     if(tipo!=="sm") return;
-    if(reportsLoaded && !idx[`cm|${marca}|${periodo}`]){
+    // marcas sin CM (como la de prueba): no hay reporte del CM que esperar
+    if(reportsLoaded && m && m.cm && !idx[`cm|${marca}|${periodo}`]){
       secs.forEach(s=>s.classList.add("hidden")); $("#bar").classList.add("hidden");
       const per=U.weekFromId(periodo);
       const box=document.createElement("div"); box.id="cmGate"; box.className="card accent";
