@@ -1991,8 +1991,9 @@
     root.querySelectorAll('.mde').forEach(box => {
       const ta = box.querySelector('textarea'), prev = box.querySelector('.mde-prev');
       const envolver = (a, b, ph) => {
-        const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e) || ph;
-        ta.setRangeText(a + sel + b, s, e, 'end'); ta.selectionStart = s + a.length; ta.selectionEnd = s + a.length + sel.length; ta.focus();
+        const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e);
+        // sin selección: quedan las marcas con el cursor en el medio (como en Trello); con selección, se envuelve y queda seleccionado
+        ta.setRangeText(a + sel + b, s, e, 'end'); ta.setSelectionRange(s + a.length, s + a.length + sel.length); ta.focus();
       };
       const linea = pre => {   // agrega el prefijo al principio de cada línea seleccionada
         const v = ta.value, s = v.lastIndexOf('\n', ta.selectionStart - 1) + 1, e0 = v.indexOf('\n', ta.selectionEnd), e = e0 < 0 ? v.length : e0;
