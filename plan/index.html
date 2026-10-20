@@ -91,10 +91,43 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 .wpie{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--ln);background:var(--c1)}.wpie .m{margin-right:auto;font-size:12.5px;color:var(--mu)}
 @media(max-width:600px){.wpie{flex-wrap:wrap}.wpie .m{width:100%}}
 @media(max-width:600px){h1{font-size:34px}}
+/* paso de la estructura (1 anual · 2 mes · 3 entregas · 4 reels) */
+.paso{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
+.paso>i{font:400 26px/34px 'Bebas Neue',sans-serif;font-style:normal;width:34px;height:34px;border-radius:50%;background:var(--y);color:#0A0A0A;text-align:center}
+.paso>div>b{display:block;font-size:15px}.paso>i.s{background:var(--c3);font:400 16px/34px Outfit}.paso p{margin:3px 0 0;color:#cfcfcf;font-size:13.5px;line-height:1.45}
+.vseg .n{font-style:normal;opacity:.55;margin-right:4px}
+/* entregas: cuenta regresiva */
+.heros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}.heros.u1{grid-template-columns:1fr}.heros.u2{grid-template-columns:1fr 1fr}
+@media(max-width:700px){.heros{grid-template-columns:1fr}}
+.hero{background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.hero.main{border-color:rgba(255,242,0,.35)}
+.hero .kick{font-size:10.5px}.hero .big{font:400 44px/1 'Bebas Neue',sans-serif;margin:6px 0 2px}.hero .big small{font-size:18px;color:var(--mu);margin-left:6px}
+.hero .big.y{color:var(--y)}.hero .big.bad{color:var(--bad)}.hero .big.ok{color:var(--ok)}
+.hero .t{font-weight:600;font-size:14px;margin-bottom:8px}.hero .m{color:var(--mu);font-size:12.5px}.hero .pbar{margin-top:auto}
+/* checklist del mes */
+.ck3{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--ln)}.ck3:first-child{border-top:0}
+.ck3 .m{color:var(--mu);font-size:12.5px}.ck3 .seg2{margin:0;flex-wrap:nowrap}
+@media(max-width:600px){.ck3{grid-template-columns:1fr}}
+/* reels */
+.mesr{background:var(--c1);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.mesr .hd{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:14px 16px 10px}
+.mesr .hd .num{font:400 34px/1 'Bebas Neue',sans-serif}.mesr .hd .num small{font:600 13px Outfit;color:var(--mu);margin-left:6px}
+.mesr .q .seg2{flex-wrap:nowrap;flex:none}.mesr .q{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--ln);background:var(--c2)}
+@media(max-width:600px){.mesr .q{flex-direction:column;align-items:flex-start}}
+.rr{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;width:100%;background:none;border:0;border-top:1px solid var(--ln);padding:11px 16px;text-align:left}
+.rr:hover{background:rgba(255,255,255,.02)}.rr .n{font-weight:600;font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rr .m{color:var(--mu);font-size:12.5px;margin-top:2px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.ch{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;background:var(--c3);color:var(--mu)}
+.ch.bad{background:rgba(255,107,107,.14);color:var(--bad)}.ch.mid{background:rgba(255,180,84,.14);color:var(--warn)}.ch.ok{background:rgba(92,227,138,.14);color:var(--ok)}
+.rr .seg2{margin:0;flex-wrap:nowrap}
+.lista-ok{margin:6px 0 0}.lista-ok .li{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:8px 0;border-top:1px solid var(--ln);font-size:14px}.lista-ok .li:first-child{border-top:0}
+.lista-ok .li i{font-style:normal;font-weight:700;text-align:center}.lista-ok .li i.ok{color:var(--ok)}.lista-ok .li i.bad{color:var(--bad)}.lista-ok .li i.mid{color:var(--warn)}
+.lista-ok .li .m{color:var(--mu);font-size:12.5px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=5" defer></script>
+<script src="../ideamia-nav.js?v=6" defer></script>
 <script src="../recordatorios.js?v=1" defer></script>
 </head>
 <body>
@@ -102,12 +135,16 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '13';
+  const VER = '14';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
-  const S = { persona: new URLSearchParams(location.search).get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {}, vista: lsGet('plan:vista') || 'cumple', ficha: null, draft: {} };
+  // las pestañas siguen el orden de trabajo de Joaquín: 1 anual → 2 mes → 3 entregas → 4 reels (+ Ads y Cumplimiento)
+  const VISTAS = ['anual', 'mes', 'entregas', 'reels', 'ads', 'cumple'], ALIAS = { camp: 'anual', ficha: 'mes', planb: 'reels' };
+  const vistaOk = v => { v = ALIAS[v] || v; return VISTAS.indexOf(v) >= 0 ? v : ''; };
+  const QS = new URLSearchParams(location.search);
+  const S = { persona: QS.get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: QS.get('marca') || lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {}, vista: vistaOk(QS.get('vista')) || vistaOk(lsGet('plan:vista')) || 'anual', ficha: null, draft: {}, rvNo: {} };
   const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín', joaco: 'Joaquín (prueba)' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'], DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -153,38 +190,49 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const A = pautaDe(m.slug);
     if (!S.pauta) return '<div class="empty">No se pudo leer la pauta.</div>';
     if (!A) return '<div class="fold"><div class="empty">' + esc(m.nombre) + ' no tiene pauta publicitaria.</div></div>';
-    const r = PA[m.slug] = PA[m.slug] || Object.assign({ corre: '', pieza: '', cambio: '', texto: '' }, A.esta || {});
-    const preg = (k, t) => '<div class="pq"><div>' + t + '</div><div class="seg2" data-pq="' + k + '"><button data-v="si" class="' + (r[k] === 'si' ? 'on' : '') + '">Sí</button><button data-v="no" class="' + (r[k] === 'no' ? 'on' : '') + '">No</button></div></div>';
-    const malo = r.corre === 'no' || r.pieza === 'no' || r.cambio === 'si', resp = r.corre && r.pieza && r.cambio;
-    let h = '<p class="sub">Semana del ' + dm(S.pauta.semana) + '. Es obligatorio revisarla todas las semanas.</p>';
-    h += '<div class="fold open"><div class="rows" style="padding-top:12px">' + (A.esta ? '<div class="m" style="margin-bottom:8px">' + (A.esta.ok ? '✅ Revisada: todo bien' : '⚠️ Revisada: hay que cambiar algo' + (A.esta.avisado ? ' · Juan avisado' : ' · falta avisarle a Juan')) + '</div>' : '') +
-      preg('corre', '¿La pauta está corriendo bien?') + preg('pieza', '¿Se está pautando la pieza que corresponde esta semana?') + preg('cambio', '¿Hay que comunicar o cambiar algo (pieza, presupuesto, segmentación, fechas)?') +
-      (malo ? '<label class="lt">¿Qué hay que cambiar? Se lo pasás a Juan</label><textarea id="paTxt" rows="3" placeholder="Ej.: cambiar el video que se pauta por el reel de la promo del 20/10">' + esc(r.texto || '') + '</textarea>' : '') +
-      '<div class="bts" style="justify-content:flex-end;margin-top:12px">' + (malo ? '<button class="btn g" data-pg="1"' + (resp ? '' : ' disabled') + '>Guardar</button><button class="btn" data-juan="1"' + (resp ? '' : ' disabled') + '>Avisale a Juan ↗</button>' : '<button class="btn" data-pg="1"' + (resp ? '' : ' disabled') + '>Guardar: todo bien</button>') + '</div></div></div>';
-    h += fold('ph:' + m.slug, '', 'Últimas semanas', null, '<div class="rows">' + A.hist.map(x => '<div class="row"><div>Semana del ' + dm(x.sem) + (x.r && x.r.texto ? '<div class="m">' + esc(x.r.texto) + '</div>' : '') + '</div><span class="st ' + (!x.r ? 'bad' : x.r.ok ? 'ok' : 'mid') + '">' + (!x.r ? 'No se revisó' : x.r.ok ? 'Todo bien' : 'Con cambios' + (x.r.avisado ? ' · avisado' : '')) + '</span></div>').join('') + '</div>', false);
+    const r = PA[m.slug] = PA[m.slug] || { texto: A.esta && A.esta.corriendo || '', edit: !(A.esta && A.esta.corriendo), resp: '', jtxt: '' };
+    const RJ = { bien: ['ok', 'Funciona bien'], nuevo: ['mid', 'Hace falta contenido nuevo'], iterar: ['mid', 'Hay que iterar algo'] };
+    let h = paso('📣', 'Ads', 'Cada semana anotás <b>qué se está corriendo</b>. Si anda bien o hay que cambiar la pieza, el presupuesto o la segmentación lo sabe Juan: <b>cada 15 días le preguntás cómo viene</b> y si hace falta otro contenido o iterar algo.');
+    // 1) esta semana: qué se está corriendo
+    h += '<div class="fold open"><div class="rows" style="padding-top:14px"><div class="kick">Esta semana · desde el ' + dm(S.pauta.semana) + '</div>' +
+      (r.edit ? '<label class="lt">¿Qué se está corriendo en ads?</label><textarea id="paTxt" rows="3" placeholder="Ej.: el reel de la promo del miércoles, campaña de mensajes a WhatsApp">' + esc(r.texto) + '</textarea>' +
+        '<div class="bts" style="justify-content:flex-end;margin-top:10px">' + (A.esta && A.esta.corriendo ? '<button class="btn g" data-pcancel>Cancelar</button>' : '') + '<button class="btn" data-pg>Guardar</button></div>'
+        : '<div class="row" style="border:0;padding:8px 0 2px"><div><b>' + esc(A.esta.corriendo) + '</b><div class="m">Anotado el ' + dm(A.esta.t.slice(0, 10)) + '</div></div><button class="btn g" data-pedit>Editar</button></div>') + '</div></div>';
+    // 2) cada 15 días: qué dice Juan
+    const ult = A.juan, cuando = ult ? (A.diasJuan === 0 ? 'hoy' : A.diasJuan === 1 ? 'ayer' : 'hace ' + A.diasJuan + ' días') : '';
+    h += '<div class="fold open' + (A.tocaJuan ? ' amar' : '') + '"><div class="rows" style="padding-top:14px"><div class="kick">Cada 15 días · Juan</div>' +
+      '<div class="row" style="border:0;padding:8px 0"><div><b>' + (ult ? 'Le preguntaste ' + cuando : 'Todavía no le preguntaste a Juan') + '</b>' + (ult ? '<div class="m">Dijo: ' + RJ[ult.resp][1].toLowerCase() + (ult.texto ? ' · ' + esc(ult.texto) : '') + '</div>' : '') +
+      '<div class="m">' + (A.tocaJuan || A.diasJuan == null ? 'Toca preguntarle cómo viene la pauta.' : 'La próxima consulta es en ' + (14 - A.diasJuan) + ' día' + (14 - A.diasJuan === 1 ? '' : 's') + '.') + '</div></div>' +
+      '<button class="btn' + (A.tocaJuan ? '' : ' g') + '" data-juan>Preguntarle a Juan ↗</button></div>' +
+      '<label class="lt">¿Qué te dijo?</label><div class="seg2" data-pj>' + Object.keys(RJ).map(k => '<button data-v="' + k + '" class="' + (r.resp === k ? 'on' : '') + '">' + RJ[k][1] + '</button>').join('') + '</div>' +
+      (r.resp && r.resp !== 'bien' ? '<textarea id="pjTxt" rows="2" style="margin-top:6px" placeholder="' + (r.resp === 'nuevo' ? 'Qué contenido hace falta (ej.: un reel nuevo de la promo, más historias con precio)' : 'Qué hay que iterar (ej.: cambiar el gancho de los primeros segundos)') + '">' + esc(r.jtxt) + '</textarea>' : '') +
+      '<div class="bts" style="justify-content:flex-end;margin-top:10px"><button class="btn" data-pjg' + (r.resp ? '' : ' disabled') + '>Guardar lo que dijo Juan</button></div></div></div>';
+    const fila = x => { const v = x.r; const txt = !v ? '' : v.corriendo || (v.texto || (v.ok ? 'Revisada: todo bien' : '')); return '<div class="row"><div>Semana del ' + dm(x.sem) + (txt ? '<div class="m">' + esc(txt) + '</div>' : '') + '</div><span class="st ' + (v ? 'ok' : 'bad') + '">' + (v ? 'Anotada' : 'Sin anotar') + '</span></div>'; };
+    h += fold('ph:' + m.slug, '', 'Últimas semanas', null, '<div class="rows">' + A.hist.map(fila).join('') + '</div>', false);
+    if (A.juanHist && A.juanHist.length) h += fold('pj:' + m.slug, '', 'Lo que dijo Juan', A.juanHist.length, '<div class="rows">' + A.juanHist.map(j => '<div class="row"><div>' + dm(j.t.slice(0, 10)) + (j.texto ? '<div class="m">' + esc(j.texto) + '</div>' : '') + '</div><span class="st ' + RJ[j.resp][0] + '">' + RJ[j.resp][1] + '</span></div>').join('') + '</div>', false);
     return h;
   }
   function bindPauta() {
     const slug = S.marca, A = pautaDe(slug), r = PA[slug]; if (!A || !r) return;
-    const leerTxt = () => { const t = app.querySelector('#paTxt'); if (t) r.texto = t.value; };
-    app.querySelectorAll('[data-pq]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { leerTxt(); r[g.dataset.pq] = b.dataset.v; pintar(); }));
-    const guardar = async (avisado, b) => {
-      leerTxt(); b.disabled = true;
-      try {
-        const res = await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'pauta', k: clave(), persona: S.persona, marca: slug, corre: r.corre, pieza: r.pieza, cambio: r.cambio, texto: r.texto, avisado: avisado }) }).then(x => x.json());
-        if (res.error) throw new Error(res.mensaje || res.error);
-        A.esta = Object.assign({}, r, { ok: r.corre === 'si' && r.pieza === 'si' && r.cambio === 'no', avisado: avisado || (A.esta && A.esta.avisado) });
-        A.hist[0].r = A.esta; toast(avisado ? 'Guardado: pegá el mensaje en el canal' : 'Guardado'); pintar(); return true;
-      } catch (e) { toast(e.message); b.disabled = false; return false; }
-    };
-    app.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => guardar(false, b));
+    const leer = () => { const t = app.querySelector('#paTxt'); if (t) r.texto = t.value; const j = app.querySelector('#pjTxt'); if (j) r.jtxt = j.value; };
+    const post = body => fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: 'pauta', k: clave(), persona: S.persona, marca: slug }, body)) }).then(x => x.json()).then(x => { if (x.error) throw new Error(x.mensaje || x.error); return x; });
+    app.querySelectorAll('[data-pedit]').forEach(b => b.onclick = () => { r.edit = true; pintar(); });
+    app.querySelectorAll('[data-pcancel]').forEach(b => b.onclick = () => { r.edit = false; r.texto = A.esta.corriendo; pintar(); });
+    app.querySelectorAll('[data-pg]').forEach(b => b.onclick = async () => {
+      leer(); if (r.texto.trim().length < 4) return toast('Contá qué se está corriendo (qué pieza o campaña)');
+      b.disabled = true;
+      try { await post({ texto: r.texto.trim() }); A.esta = { corriendo: r.texto.trim(), t: new Date().toISOString() }; A.hist[0].r = A.esta; r.edit = false; toast('Guardado'); pintar(); } catch (e) { toast(e.message); b.disabled = false; }
+    });
+    app.querySelectorAll('[data-pj] button').forEach(b => b.onclick = () => { leer(); r.resp = b.dataset.v; pintar(); });
     app.querySelectorAll('[data-juan]').forEach(b => b.onclick = async () => {
-      leerTxt(); if (!r.texto || r.texto.trim().length < 5) return toast('Contá qué hay que cambiar');
-      const msg = (S.pauta.juan ? '<@' + S.pauta.juan + '> ' : '@Juan ') + 'Pauta de ' + A.nombre + ': ' + r.texto.trim();
-      try { await navigator.clipboard.writeText(msg); } catch (e) {}
-      const w = A.link ? window.open(A.link, '_blank', 'noopener') : null;
-      if (!A.link) toast('No encuentro el canal ads de la marca: mandale el mensaje a Juan por Discord');
-      await guardar(true, b);
+      const msg = (S.pauta.juan ? '<@' + S.pauta.juan + '> ' : '@Juan ') + '¿Cómo viene la pauta de ' + A.nombre + '? Ahora se está corriendo: ' + (A.esta && A.esta.corriendo ? A.esta.corriendo : '(contame)') + '. ¿Hace falta otro contenido o iterar algo?';
+      try { await navigator.clipboard.writeText(msg); toast('Mensaje copiado: pegalo en el canal'); } catch (e) { prompt('Copiá el mensaje:', msg); }
+      if (A.link) window.open(A.link, '_blank', 'noopener'); else toast('No encuentro el canal ads de la marca: mandáselo a Juan por Discord');
+    });
+    app.querySelectorAll('[data-pjg]').forEach(b => b.onclick = async () => {
+      leer(); if (r.resp !== 'bien' && r.jtxt.trim().length < 5) return toast('Contá qué contenido hace falta o qué hay que iterar');
+      b.disabled = true;
+      try { await post({ accion: 'juan', resp: r.resp, texto: r.resp === 'bien' ? '' : r.jtxt.trim() }); const j = { t: new Date().toISOString(), resp: r.resp, texto: r.resp === 'bien' ? '' : r.jtxt.trim() }; A.juan = j; A.juanHist = [j].concat(A.juanHist || []).slice(0, 4); A.tocaJuan = false; A.diasJuan = 0; r.resp = ''; r.jtxt = ''; toast('Anotado'); pintar(); } catch (e) { toast(e.message); b.disabled = false; }
     });
   }
   /* ---------- campañas del mes (Fase 3) ---------- */
@@ -215,13 +263,21 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     };
     const grupo = c => K.fechas.filter(x => x.cual === c);
     const mesN = c => MES[(new Date().getMonth() + (c === 'este' ? 0 : 1)) % 12];
-    let h = '<p class="sub">Del calendario anual de ' + esc(m.nombre) + '. Por cada fecha decidí si se ataca; si no, contá por qué (lo revisa Joaquín). En las que se atacan, tocá <b>Armar el plan</b>: son unos pasos cortos y al final se crean solas las tarjetas.</p>';
-    const G = K.general, genFalta1 = c => !!(G && G.topicos.length && !(G[c].plan && G[c].plan.completo) && (c === 'proximo' || S.camp.hoy <= G[c].semanas[G[c].semanas.length - 1]));
-    const sinPlan = c => grupo(c).filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).length + (genFalta1(c) ? 1 : 0);
-    const genRow = c => { if (!G) return ''; if (!G.topicos.length) return '<div class="row"><div><b>🗓️ Plan general (tópicos fijos)</b><div class="m">Se arma cuando Joaquín aprueba la ficha de la marca.</div></div></div>'; const pl = G[c].plan, ok = pl && pl.completo; return '<div class="row crow"><div><b>🗓️ Plan general de ' + mesN(c) + '</b><div class="m">Tus tópicos fijos, semana por semana: qué ángulo va cada semana y qué pedir ese mes.</div><div style="margin-top:4px"><span class="st ' + (ok ? 'ok' : pl ? 'mid' : 'bad') + '">' + (ok ? 'Armado' : pl ? 'A medias' : 'Sin armar') + '</span></div></div><div class="bts"><button class="btn' + (ok ? ' g' : '') + '" data-gen="' + c + '">' + (ok ? '✓ Ver' : pl ? 'Seguir' : 'Armar') + '</button></div></div>'; };
-    if (S.camp.limites && sinPlan('proximo')) h += '<div class="aprob"><b>🧭 El plan de ' + mesN('proximo') + ' se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo) + '</b><span class="m">' + sinPlan('proximo') + ' campaña' + (sinPlan('proximo') === 1 ? '' : 's') + ' sin plan (campañas o plan general)</span></div>';
-    ['proximo', 'este'].forEach(c => { const L = grupo(c), sd = L.filter(x => !x.dec && x.f >= S.camp.hoy).length, sp = sinPlan(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), sd ? sd + ' sin decidir' : sp ? sp + ' sin plan' : L.length, '<div class="rows">' + genRow(c) + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos.</div></div>') + '</div>', c === 'proximo'); });
+    let h = paso('1', 'Calendario anual', 'Lo primero: qué fechas del calendario anual de ' + esc(m.nombre) + ' atacás este mes y el que viene. En cada una decidí si se ataca (si no, contá por qué: lo revisa Joaquín). En las que se atacan tocá <b>Armar el plan</b>: mirás qué hizo la competencia y las marcas referentes (Instagram, anuncios), qué hicimos el año pasado, anotás ideas y las repartís en fechas. Al terminar se crean las tarjetas solas.');
+    const sinPlan = c => grupo(c).filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).length;
+    if (S.camp.limites && sinPlan('proximo')) h += '<div class="aprob"><b>🧭 El plan de ' + mesN('proximo') + ' se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo) + '</b><span class="m">' + sinPlan('proximo') + ' campaña' + (sinPlan('proximo') === 1 ? '' : 's') + ' sin plan</span></div>';
+    ['proximo', 'este'].forEach(c => { const L = grupo(c), sd = L.filter(x => !x.dec && x.f >= S.camp.hoy).length, sp = sinPlan(c); h += fold('cp' + c + ':' + m.slug, '', (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c), sd ? sd + ' sin decidir' : sp ? sp + ' sin plan' : L.length, '<div class="rows">' + (L.length ? L.map(fila).join('') : '<div class="row"><div class="m">No hay fechas en el calendario anual: organizá el mes con tus tópicos fijos (paso 2).</div></div>') + '</div>', c === 'proximo'); });
     return h;
+  }
+  /* Paso 2: el plan general de cada mes (los tópicos fijos de la ficha, semana por semana) */
+  function pintarGeneral(m) {
+    const K = campDe(m.slug), G = K && K.general;
+    if (!G) return '';
+    const mesN = c => MES[Number(G[c].mes.slice(5)) - 1];
+    if (!G.topicos.length) return fold('gn:' + m.slug, '', '🗓️ Plan general del mes', null, '<div class="rows"><div class="row"><div class="m">Se arma cuando Joaquín aprueba la ficha (abajo): por cada tópico fijo, qué forma de moverlo va cada semana.</div></div></div>', true);
+    const fila = c => { const pl = G[c].plan, ok = pl && pl.completo; return '<div class="row crow"><div><b>' + (c === 'este' ? 'Este mes · ' : 'El mes que viene · ') + mesN(c) + '</b><div class="m">Qué forma de mover cada tópico va cada semana y qué pedir ese mes' + (c === 'proximo' && S.camp.limites ? ' · se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo) : '') + '</div><div style="margin-top:4px"><span class="st ' + (ok ? 'ok' : pl ? 'mid' : 'bad') + '">' + (ok ? 'Armado' : pl ? 'A medias' : 'Sin armar') + '</span></div></div><div class="bts"><button class="btn' + (ok ? ' g' : '') + '" data-gen="' + c + '">' + (ok ? '✓ Ver' : pl ? 'Seguir' : 'Armar') + '</button></div></div>'; };
+    const falta = ['proximo', 'este'].filter(c => !(G[c].plan && G[c].plan.completo) && (c === 'proximo' || S.camp.hoy <= G[c].semanas[G[c].semanas.length - 1])).length;
+    return fold('gn:' + m.slug, falta ? 'amar' : '', '🗓️ Plan general del mes', falta ? falta + ' sin armar' : '✓', '<div class="rows">' + fila('proximo') + fila('este') + '</div>', true);
   }
   function bindCamp() {
     const K = campDe(S.marca); if (!K) return;
@@ -371,6 +427,8 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   function abrirGeneral(cual) {
     const K = campDe(S.marca), G = K && K.general; if (!G || !G.topicos.length) return toast('Primero tiene que estar aprobada la ficha con sus tópicos fijos');
     const M = G[cual], sem = M.semanas, prev = M.plan || {}, ya = !!prev.completo, mesN = MES[Number(M.mes.slice(5)) - 1];
+    // "volver a usar": el mes que viene puede arrancar con lo mismo que este (ej.: maquinarias de Isco todos los meses)
+    const ant = cual === 'proximo' && G.este.plan ? G.este : null, mesAnt = ant ? MES[Number(ant.mes.slice(5)) - 1] : '';
     const p = { topicos: JSON.parse(JSON.stringify(prev.topicos || {})), pedidos: JSON.parse(JSON.stringify(prev.pedidos || [])) };
     G.topicos.forEach(t => { p.topicos[t.id] = p.topicos[t.id] || { semanas: {} }; });
     const lim = cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo;
@@ -382,7 +440,8 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const pie = () => { const f = genFalta(p, G, sem), b = o.querySelector('[data-gter]'), mm = o.querySelector('.wpie .m'); if (b) b.disabled = !!f; if (mm) mm.textContent = f ? '⚠ ' + f : 'Se crean ' + G.topicos.length + ' tarjeta' + (G.topicos.length === 1 ? '' : 's') + ' de tópicos' + (p.pedidos.length ? ' y ' + p.pedidos.length + ' de pedidos' : ''); };
     const pintarG = () => {
       o.innerHTML = '<div class="box wiz"><div class="wtop"><div><div class="kick">Plan general · ' + esc(K.nombre) + '</div><h3>Tópicos fijos de ' + mesN + '</h3></div><button class="x" data-gx title="Cerrar">✕</button></div>' +
-        '<div class="wbody"><p class="s">Por cada tópico de la ficha, elegí qué ángulo usás cada semana (escribilo o elegí uno de la ficha). Abajo, lo que tenés que pedir este mes en particular. Se cierra el <b>' + diaDe(lim) + ' ' + dm(lim) + '</b>, junto con el plan de las campañas.</p>' +
+        '<div class="wbody"><p class="s">Por cada tópico de la ficha, elegí qué forma de moverlo usás cada semana (escribila o elegí una de las 5 de la ficha). Abajo, lo que tenés que pedir este mes en particular. Se cierra el <b>' + diaDe(lim) + ' ' + dm(lim) + '</b>, junto con el plan de las campañas.</p>' +
+        (ant ? '<button class="btn g" data-grep style="width:100%;margin-bottom:10px">↺ Volver a usar lo de ' + mesAnt + ' (después lo cambiás)</button>' : '') +
         G.topicos.map(t => '<datalist id="dl-' + esc(t.id) + '">' + t.angulos.map(a => '<option value="' + esc(a) + '">').join('') + '</datalist><div class="wrow" style="padding-right:10px"><b>' + esc(t.nombre) + '</b> <span class="m">· ' + t.veces + ' por ' + t.por + (t.externo ? ' · ' + esc(t.canal) : '') + (t.por === 'mes' ? ' · elegí ' + genReq(t, sem.length) + ' semana' + (genReq(t, sem.length) === 1 ? '' : 's') : '') + '</span>' +
           sem.map(w => '<div class="rowf" style="margin-top:6px"><span class="m" style="flex:none;width:92px">Sem. del ' + dm(w) + '</span><input data-sem="' + esc(t.id) + '|' + w + '" list="dl-' + esc(t.id) + '" placeholder="' + (t.por === 'mes' ? 'Ángulo (o vacío si no va esta semana)' : 'Ángulo de esta semana') + '" value="' + esc((p.topicos[t.id].semanas || {})[w] || '') + '" style="margin:0"></div>').join('') + '</div>').join('') +
         '<label class="lt">Pedidos de este mes</label>' + p.pedidos.map(x => '<div class="wrow" data-gped="' + esc(x.id) + '"><input data-k="que" placeholder="Qué hay que pedir (ej.: qué maquinarias de pastelería mostrar)" value="' + esc(x.que) + '"><div class="seg2"><button type="button" data-v="cliente" class="' + (x.aQuien !== 'project' ? 'on' : '') + '">Al cliente</button><button type="button" data-v="project" class="' + (x.aQuien === 'project' ? 'on' : '') + '">Al project</button></div><div class="rowf"><span class="m">Para el</span><input type="date" value="' + esc(x.fecha) + '"></div><button class="x" data-gdel="' + esc(x.id) + '" title="Quitar">✕</button></div>').join('') +
@@ -391,6 +450,13 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
       o.querySelectorAll('[data-sem], [data-gped] input').forEach(i => i.oninput = () => { leer(); pie(); });
       o.querySelectorAll('[data-gped] .seg2 button').forEach(b => b.onclick = function () { this.parentElement.querySelectorAll('button').forEach(z => z.classList.toggle('on', z === this)); leer(); });
       o.querySelector('[data-gadd]').onclick = () => { leer(); p.pedidos.push({ id: uid(), que: '', aQuien: 'cliente', fecha: sem[0] }); pintarG(); };
+      const rep = o.querySelector('[data-grep]'); if (rep) rep.onclick = () => {
+        leer(); const pa = ant.plan, sa = ant.semanas;
+        if (Object.keys(p.topicos).some(k => Object.values(p.topicos[k].semanas || {}).some(tx)) && !confirm('Se reemplaza lo que ya escribiste por lo de ' + mesAnt + '. ¿Seguimos?')) return;
+        G.topicos.forEach(t => { const s = ((pa.topicos || {})[t.id] || {}).semanas || {}; p.topicos[t.id] = { semanas: {} }; sem.forEach((w, i) => { const v = s[sa[Math.min(i, sa.length - 1)]]; if (v && (i < sa.length || t.por === 'semana')) p.topicos[t.id].semanas[w] = v; }); });
+        p.pedidos = (pa.pedidos || []).map(x => ({ id: uid(), que: x.que, aQuien: x.aQuien, fecha: x.fecha ? M.mes + '-' + String(Math.min(Number(x.fecha.slice(8)), new Date(+M.mes.slice(0, 4), +M.mes.slice(5), 0).getDate())).padStart(2, '0') : sem[0] }));
+        pintarG(); pie(); toast('Listo: revisalo y cambiá lo que haga falta');
+      };
       o.querySelectorAll('[data-gdel]').forEach(b => b.onclick = () => { leer(); p.pedidos = p.pedidos.filter(z => z.id !== b.dataset.gdel); pintarG(); });
       const enviar = async (terminar, b) => {
         leer(); b.disabled = true;
@@ -417,28 +483,91 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   async function recargarPB() { if (/[?&]demo=1/.test(location.search)) return pintar(); const c = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'planb' }), { cache: 'no-store' }).then(r => r.json()); if (c && c.ok) { S.pb = c; pintar(); } }
   const mesSig = () => { const d = new Date(); d.setMonth(d.getMonth() + 1, 1); return d.toISOString().slice(0, 7); };
   const pbFaltan = P => P ? P.reels.filter(r => r.due.slice(0, 7) === mesSig() && !r.completo).length : 0;
-  function pintarPB(m) {
+  /* ---------- Paso 4: reels de este mes y del siguiente (qué le falta a cada uno, si se pueden hacer y su plan B) ---------- */
+  const hoyS = () => (S.pb && S.pb.hoy) || new Date().toISOString().slice(0, 10);
+  const diasA = f => Math.round((new Date(f + 'T12:00:00') - new Date(hoyS() + 'T12:00:00')) / 864e5);
+  const enDias = n => n === 0 ? 'hoy' : n === 1 ? 'mañana' : n === -1 ? 'ayer' : n > 0 ? 'en ' + n + ' días' : 'hace ' + (-n) + ' días';
+  /* lo que le falta a un reel, de lo más grave a lo menos: [clase, texto] */
+  function faltasReel(r) {
+    const L = [], n = r.due ? diasA(r.due) : null, ya = r.hecho || (n != null && n < 0), act = r.pb && r.pb.activado;
+    if (act) return [['mid', 'Plan B activado']];
+    if (ya) return [['', 'Ya salió']];
+    if (r.viable === 'no') L.push(['bad', 'No se puede hacer: activá el plan B']);
+    else if (n != null && n <= 15 && r.viable !== 'si') L.push([n <= 7 ? 'bad' : 'mid', 'Confirmá si se hace']);
+    if (!r.due) L.push(['mid', 'Falta fecha']);
+    if (!r.completo) L.push(['bad', r.pb ? 'Plan B a medias' : 'Falta plan B']);
+    if (r.guion === 'falta') L.push(['mid', 'Falta guion']); else if (r.guion === 'fede') L.push(['', 'Guion con Fede']);
+    if (r.copy === 'falta') L.push(['mid', 'Falta copy']);
+    if (n != null && n <= 15 && !r.prod && r.viable !== 'no') L.push([n <= 7 ? 'bad' : 'mid', 'Sin pedido a producción']);
+    return L.length ? L : [['ok', '✓ Todo listo']];
+  }
+  function pintarReels(m) {
     const P = pbDe(m.slug);
-    if (!S.pb) return '<div class="empty">No se pudo leer el plan B.</div>';
-    if (!P) return '<div class="fold"><div class="empty">' + esc(m.nombre) + ' no tiene entrega de reels.</div></div>';
-    let h = '<p class="sub">Cada reel tiene su plan B: qué se publica en su lugar, qué día y con qué. <b>No puede depender de lo mismo que el reel</b> (promo, colaboración, influencer o pedido del cliente): se hace con Bauti, diseño o material ya grabado.</p>';
+    if (!S.pb) return '<div class="empty">No se pudo leer los reels.</div>';
+    let h = paso('4', 'Reels', 'Por lo menos <b>15 días antes</b> de que salga un reel hay que saber si se puede hacer. Si a 15 días no está planificada la producción, ese video no sale: se activa el plan B. Cada reel tiene su plan B y no puede depender de lo mismo que el reel. Tocá un reel para ver qué le falta.');
+    if (!P) return h + '<div class="fold"><div class="empty">' + esc(m.nombre) + ' no tiene entrega de reels.</div></div>';
     if (!P.tieneLista) h += '<div class="aprob"><b>El SCL de ' + esc(m.nombre) + ' todavía no tiene la lista "Plan B"</b><span class="m">Avisale a Joaquín</span></div>';
-    const f = pbFaltan(P); if (S.pb.entrega && f) h += '<div class="aprob"><b>🛟 Entrega de plan B: ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + '</b><span class="m">' + f + ' reel' + (f === 1 ? '' : 'es') + ' del mes que viene sin plan B</span></div>';
-    const fila = r => {
-      const x = r.pb, st = x && x.activado ? ['prox', 'Plan B activado'] : r.completo ? ['ok', 'Plan B listo'] : x ? ['mid', 'Falta completarlo'] : ['bad', 'Sin plan B'];
-      const bts = (x && x.url ? '<a class="btn g" href="' + esc(x.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Ver</a>' : '') +
-        (x && x.activado ? '' : '<button class="btn ' + (r.completo ? 'g' : '') + '" data-pbarmar="' + r.id + '">' + (x ? (r.completo ? 'Editar' : 'Completar') : 'Armar plan B') + '</button>') +
-        (r.completo && !(x && x.activado) && !r.hecho ? '<button class="btn g" data-pbact="' + r.id + '" title="El reel se cayó: pasa el plan B a su lugar">Activar</button>' : '');
-      return '<div class="row crow"><div><b>' + esc(r.n) + '</b> <span class="m">· ' + diaDe(r.due) + ' ' + dm(r.due) + ' · ' + esc(r.lista) + '</span>' +
-        (x && x.que ? '<div class="m">🛟 ' + esc(x.que) + (x.fecha ? ' · ' + dm(x.fecha) : '') + (x.material ? ' · ' + esc(S.pb.material[x.material] || '') : '') + '</div>' : '') +
-        '<div style="margin-top:4px"><span class="st ' + st[0] + '">' + st[1] + '</span></div></div><div class="bts">' + bts + '</div></div>';
+    const f = pbFaltan(P); if (S.pb.entrega && f) h += '<div class="aprob"><b>🛟 Entrega de plan B: ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + ' (' + enDias(diasA(S.pb.entrega)) + ')</b><span class="m">' + f + ' reel' + (f === 1 ? '' : 's') + ' del mes que viene sin plan B</span></div>';
+    const fila = (r, preg) => {
+      const fx = faltasReel(r), vivo = !r.hecho && !(r.pb && r.pb.activado) && !(r.due && diasA(r.due) < 0);
+      return '<div class="rr" role="button" tabindex="0" data-reel="' + r.id + '"><div><div class="n">' + esc(r.n) + '</div><div class="m">' + (r.due ? diaDe(r.due) + ' ' + dm(r.due) + ' · ' + enDias(diasA(r.due)) : 'Sin fecha') + ' · ' + esc(r.lista) + '</div><div class="chips">' + fx.map(x => '<span class="ch ' + x[0] + '">' + x[1] + '</span>').join('') + '</div></div>' +
+        (preg && vivo ? '<div class="seg2" data-rv="' + r.id + '"><button data-v="si" class="' + (r.viable === 'si' ? 'on' : '') + '">Se hace</button><button data-v="no" class="' + (r.viable === 'no' ? 'on' : '') + '">No se puede</button></div>' : '<span class="m" style="color:var(--mu)">›</span>') + '</div>';
     };
-    const sig = P.reels.filter(r => r.due.slice(0, 7) === mesSig()), este = P.reels.filter(r => r.due.slice(0, 7) !== mesSig());
-    const nombreMes = s => MES[Number(s.slice(5, 7)) - 1];
-    h += fold('pbs:' + m.slug, f ? 'amar' : '', 'El mes que viene · ' + nombreMes(mesSig() + '-01'), f ? f + ' sin plan B' : sig.length, '<div class="rows">' + (sig.length ? sig.map(fila).join('') : '<div class="row"><div class="m">Todavía no hay reels del mes que viene en el SCL (llevan "reel" en el nombre o en una etiqueta).</div></div>') + '</div>', true);
-    h += fold('pbe:' + m.slug, '', 'Lo que queda de este mes', este.length, '<div class="rows">' + (este.length ? este.map(fila).join('') : '<div class="row"><div class="m">No quedan reels este mes.</div></div>') + '</div>', false);
-    if (P.sueltas.length) h += fold('pbx:' + m.slug, 'amar', 'Tarjetas de "Plan B" sin vincular', P.sueltas.length, '<div class="rows">' + P.sueltas.map(c => '<div class="row crow"><div><b>' + esc(c.n) + '</b>' + (c.due ? ' <span class="m">· ' + dm(c.due) + '</span>' : '') + '<div class="m">La creaste en Trello: decí de qué reel es.</div></div><div class="bts"><select class="selpb" data-pbsel="' + c.id + '"><option value="">¿De qué reel?</option>' + P.reels.filter(r => !r.pb).map(r => '<option value="' + r.id + '">' + esc(r.n.slice(0, 40)) + ' · ' + dm(r.due) + '</option>').join('') + '</select><button class="btn" data-pbvin="' + c.id + '">Vincular</button></div></div>').join('') + '</div>', true);
+    const bloque = (c, L) => {
+      const mesS = c === 'sig' ? mesSig() : hoyS().slice(0, 7), nom = MES[Number(mesS.slice(5)) - 1], vivos = L.filter(r => !r.hecho && !(r.pb && r.pb.activado) && !(r.due && diasA(r.due) < 0));
+      const todosSi = vivos.length && vivos.every(r => r.viable === 'si'), algunNo = vivos.some(r => r.viable === 'no'), abrir = algunNo || S.rvNo[c];
+      const faltan = c === 'sig' && P.req ? Math.max(0, P.req - L.length) : 0;
+      let x = '<div class="mesr"><div class="hd"><div><div class="kick">' + (c === 'sig' ? 'El mes que viene' : 'Este mes') + '</div><div class="num">' + nom.toUpperCase() + '<small>' + L.length + ' reel' + (L.length === 1 ? '' : 's') + '</small></div></div>' +
+        (faltan ? '<span class="st bad">Tienen que ser ' + P.req + ': falta' + (faltan === 1 ? '' : 'n') + ' ' + faltan + '</span>' : c === 'sig' && P.req ? '<span class="st ok">' + P.req + ' de ' + P.req + '</span>' : '') + '</div>';
+      if (vivos.length) x += '<div class="q"><b>Para ' + nom + ' hay ' + vivos.length + ' reel' + (vivos.length === 1 ? '' : 's') + ' por salir. ¿' + (vivos.length === 1 ? 'Se puede hacer' : 'Todos se pueden hacer') + '?</b><div class="seg2" data-rvall="' + c + '"><button data-v="si" class="' + (todosSi ? 'on' : '') + '">Sí, ' + (vivos.length === 1 ? 'se hace' : 'todos') + '</button><button data-v="no" class="' + (abrir && !todosSi ? 'on' : '') + '">No, ' + (vivos.length === 1 ? 'no se puede' : 'alguno no') + '</button></div></div>';
+      x += L.length ? L.map(r => fila(r, abrir)).join('') : '<div class="rr" style="cursor:default"><div class="m">' + (c === 'sig' ? 'Todavía no hay reels de ' + nom + ' con fecha en el SCL (llevan la etiqueta Reel o "reel" en el nombre).' : 'No hay reels con fecha este mes.') + '</div></div>';
+      return x + '</div>';
+    };
+    const este = P.reels.filter(r => r.due.slice(0, 7) !== mesSig()), sig = P.reels.filter(r => r.due.slice(0, 7) === mesSig());
+    h += bloque('este', este) + bloque('sig', sig);
+    if ((P.sinFecha || []).length) h += fold('rsf:' + m.slug, 'amar', 'Reels sin fecha · ponele fecha para saber de qué mes son', P.sinFecha.length, '<div class="rows">' + P.sinFecha.map(r => '<div class="row crow"><div><b>' + esc(r.n) + '</b><div class="m">' + esc(r.lista) + '</div><div class="chips">' + [r.guion === 'falta' ? ['mid', 'Falta guion'] : r.guion === 'fede' ? ['', 'Guion con Fede'] : ['ok', 'Guion ✓'], r.copy === 'falta' ? ['mid', 'Falta copy'] : ['ok', 'Copy ✓']].map(x => '<span class="ch ' + x[0] + '">' + x[1] + '</span>').join('') + '</div></div><div class="bts"><a class="btn g" href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Ponerle fecha ↗</a></div></div>').join('') + '</div>', true);
+    if (P.sueltas.length) h += fold('pbx:' + m.slug, 'amar', 'Tarjetas de "Plan B" sin vincular a un reel', P.sueltas.length, '<div class="rows">' + P.sueltas.map(c => '<div class="row crow"><div><b>' + esc(c.n) + '</b>' + (c.due ? ' <span class="m">· ' + dm(c.due) + '</span>' : '') + '<div class="m">Está en la lista Plan B pero no dice de qué reel es: vinculala.</div></div><div class="bts"><select class="selpb" data-pbsel="' + c.id + '"><option value="">¿De qué reel?</option>' + P.reels.filter(r => !r.pb).map(r => '<option value="' + r.id + '">' + esc(r.n.slice(0, 40)) + ' · ' + dm(r.due) + '</option>').join('') + '</select><button class="btn" data-pbvin="' + c.id + '">Vincular</button></div></div>').join('') + '</div>', true);
     return h;
+  }
+  /* detalle de un reel: qué tiene y qué le falta, con las acciones */
+  function detalleReel(r) {
+    const P = pbDe(S.marca), x = r.pb, n = r.due ? diasA(r.due) : null, vivo = !r.hecho && !(x && x.activado) && !(n != null && n < 0);
+    const li = (ok, t, m2) => '<div class="li"><i class="' + (ok === true ? 'ok' : ok === false ? 'bad' : 'mid') + '">' + (ok === true ? '✓' : ok === false ? '✕' : '!') + '</i><div>' + t + (m2 ? '<div class="m">' + m2 + '</div>' : '') + '</div></div>';
+    const o = document.createElement('div'); o.className = 'modal';
+    o.innerHTML = '<div class="box"><div class="kick">Reel · ' + esc(P.nombre) + '</div><h3>' + esc(r.n) + '</h3>' +
+      '<div class="lista-ok">' +
+      li(!!r.due, r.due ? 'Sale el ' + diaDe(r.due) + ' ' + dm(r.due) : 'Sin fecha de salida', r.due ? enDias(n) : 'Ponele fecha en Trello') +
+      li(r.guion === 'ok' ? true : r.guion === 'fede' ? null : false, r.guion === 'ok' ? 'Tiene guion' : r.guion === 'fede' ? 'El guion está con Fede' : 'Falta el guion', r.guion === 'falta' ? 'En la descripción de la tarjeta o en el tablero de guiones' : '') +
+      li(r.copy === 'ok', r.copy === 'ok' ? 'Tiene copy' : 'Falta el copy', r.copy === 'ok' ? '' : 'La descripción del posteo: sumala en la tarjeta con "COPY:"') +
+      li(r.prod ? true : n != null && n <= 15 ? false : null, r.prod ? 'Producción pedida' + (r.prod === 'revision' ? ' (grabado, en revisión)' : '') : 'Sin pedido a producción', r.prod ? '' : 'A 15 días de salir tiene que estar planificada la grabación') +
+      li(r.completo ? true : false, r.completo ? 'Plan B listo' + (x && x.que ? ': ' + esc(x.que) : '') : x ? 'Plan B a medias' : 'Sin plan B', x && x.activado ? 'Activado el ' + dm(x.activado.slice(0, 10)) : '') +
+      (vivo ? li(r.viable === 'si' ? true : r.viable === 'no' ? false : null, r.viable === 'si' ? 'Confirmado: se hace' : r.viable === 'no' ? 'No se puede hacer' + (r.motivo ? ': ' + esc(r.motivo) : '') : '¿Se puede hacer?', r.viable ? '' : 'Respondelo abajo') : '') +
+      '</div>' +
+      (vivo ? '<div class="seg2" data-dv style="margin-top:12px"><button data-v="si" class="' + (r.viable === 'si' ? 'on' : '') + '">Sí, se hace</button><button data-v="no" class="' + (r.viable === 'no' ? 'on' : '') + '">No se puede</button></div>' : '') +
+      '<div class="acc" style="flex-wrap:wrap"><a class="btn g" href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Abrir en Trello ↗</a>' +
+      (x && x.url ? '<a class="btn g" href="' + esc(x.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Ver plan B ↗</a>' : '') +
+      (x && x.activado ? '' : '<button class="btn' + (r.completo ? ' g' : '') + '" data-dpb>' + (x ? (r.completo ? 'Editar plan B' : 'Completar plan B') : 'Armar plan B') + '</button>') +
+      (r.completo && vivo && !(x && x.activado) ? '<button class="btn" data-dact>Activar plan B</button>' : '') + '</div></div>';
+    o.onclick = e => { if (e.target === o) o.remove(); };
+    const dpb = o.querySelector('[data-dpb]'); if (dpb) dpb.onclick = () => { o.remove(); formPB(r); };
+    const dact = o.querySelector('[data-dact]'); if (dact) dact.onclick = () => { o.remove(); activarPB(r); };
+    o.querySelectorAll('[data-dv] button').forEach(b => b.onclick = async () => { const ok = await marcarViable([r], b.dataset.v === r.viable ? '' : b.dataset.v); if (ok) o.remove(); });
+    document.body.appendChild(o);
+  }
+  async function marcarViable(L, v) {
+    let motivo = '';
+    if (v === 'no') { motivo = prompt(L.length === 1 ? '¿Por qué no se puede hacer "' + L[0].n.slice(0, 60) + '"? (le llega a Joaquín)' : '¿Por qué no se pueden hacer? (le llega a Joaquín)'); if (motivo == null) return false; if (motivo.trim().length < 4) { toast('Contá por qué'); return false; } }
+    try {
+      if (!/[?&]demo=1/.test(location.search)) await enviarPB({ accion: 'viable', reels: L.map(r => r.id), v: v, motivo: motivo });
+      L.forEach(r => { r.viable = v; r.motivo = motivo; });
+      toast(v === 'si' ? 'Anotado: se hace' : v === 'no' ? 'Anotado. Activá el plan B' + (L.some(r => !r.completo) ? ' (primero armalo)' : '') : 'Desmarcado');
+      pintar(); return true;
+    } catch (e) { toast(e.message); return false; }
+  }
+  async function activarPB(r) {
+    const mo = r.motivo || prompt('¿Por qué se cae "' + r.n + '"? (le llega a Joaquín)\nEl plan B pasa a la lista del reel con su fecha y sigue el flujo de siempre.');
+    if (mo == null) return;
+    try { await enviarPB({ accion: 'activar', reel: r.id, motivo: mo }); toast('Plan B activado: ya está en la lista del reel'); recargarPB(); } catch (e) { toast(e.message); }
   }
   function formPB(r) {
     const P = pbDe(S.marca), x = r.pb || {}, D = S.pb.dep, F = S.pb.formatos, M = S.pb.material;
@@ -484,11 +613,12 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   function bindPB() {
     const P = pbDe(S.marca); if (!P) return;
     const reel = id => P.reels.find(r => r.id === id);
-    app.querySelectorAll('[data-pbarmar]').forEach(b => b.onclick = () => formPB(reel(b.dataset.pbarmar)));
-    app.querySelectorAll('[data-pbact]').forEach(b => b.onclick = async () => {
-      const r = reel(b.dataset.pbact), mo = prompt('¿Por qué se cae "' + r.n + '"? (le llega a Joaquín)\nEl plan B pasa a la lista del reel con su fecha y sigue el flujo de siempre.');
-      if (mo == null) return; b.disabled = true;
-      try { await enviarPB({ accion: 'activar', reel: r.id, motivo: mo }); toast('Plan B activado: ya está en la lista del reel'); recargarPB(); } catch (e) { toast(e.message); b.disabled = false; }
+    app.querySelectorAll('[data-reel]').forEach(d => { const abrir = () => detalleReel(reel(d.dataset.reel)); d.onclick = abrir; d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } }; });
+    app.querySelectorAll('[data-rv] button').forEach(b => b.onclick = e => { e.stopPropagation(); const r = reel(b.parentElement.dataset.rv); marcarViable([r], r.viable === b.dataset.v ? '' : b.dataset.v); });
+    app.querySelectorAll('[data-rvall] button').forEach(b => b.onclick = () => {
+      const c = b.parentElement.dataset.rvall, L = P.reels.filter(r => (r.due.slice(0, 7) === mesSig()) === (c === 'sig') && !r.hecho && !(r.pb && r.pb.activado) && diasA(r.due) >= 0);
+      if (b.dataset.v === 'si') { S.rvNo[c] = false; marcarViable(L, 'si'); }
+      else { S.rvNo[c] = true; if (L.length === 1) marcarViable(L, 'no'); else { pintar(); toast('Marcá en cada reel si se hace o no'); } }
     });
     app.querySelectorAll('[data-pbvin]').forEach(b => b.onclick = async () => {
       const sel = app.querySelector('[data-pbsel="' + b.dataset.pbvin + '"]'); if (!sel.value) return toast('Elegí de qué reel es');
@@ -518,7 +648,10 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   function pintarFicha(m) {
     const F = fichaDe(m.slug); if (!F) return '<div class="empty">No se pudo leer la ficha.</div>';
     const D = borrador(m.slug), e = EST_F[F.estado] || EST_F.borrador, esProj = S.data.project;
-    let h = '<p class="sub">Se arma una vez por marca y la aprueba Joaquín. Con la ficha aprobada, el panel te recuerda los pedidos, te avisa los tópicos de afuera de Instagram y crea las tarjetas del mes en "Para mover en el mes".</p><div class="fhead"><span class="st ' + e[0] + '">' + e[1] + '</span>' + (F.nota && F.estado === 'cambios' ? '<span class="nota">' + esc(F.nota) + '</span>' : '') + '</div>';
+    let h = '<div class="fhead" style="margin-top:14px"><span class="kick" style="margin-right:auto">📋 Ficha de ' + esc(m.nombre) + ' · se repite sola todos los meses</span><span class="st ' + e[0] + '">' + e[1] + '</span>' + (F.nota && F.estado === 'cambios' ? '<span class="nota">' + esc(F.nota) + '</span>' : '') + '</div>';
+    // pedidos con fecha exacta: se marcan "Ya lo pedí"; si no, al día siguiente le llega a Joaquín
+    const hoy = new Date().toISOString().slice(0, 10), PD = (F.pedidosDias || []).filter(p => p.fecha >= sumaDias(hoy, -3) && p.fecha <= sumaDias(hoy, 6));
+    if (F.aprobada && PD.length) { const deb = PD.filter(p => !p.hecho && p.fecha <= hoy).length; h += fold('pdd:' + m.slug, deb ? (PD.some(p => !p.hecho && p.fecha < hoy) ? 'roja' : 'amar') : '', 'Pedidos de estos días', deb ? deb + ' por pedir' : PD.length, '<div class="rows">' + PD.map(p => '<div class="row"><div><b>' + esc(p.que) + '</b><div class="m">' + diaDe(p.fecha) + ' ' + dm(p.fecha) + ' · a ' + esc(p.aQuien) + (p.fecha < hoy && !p.hecho ? ' · <span style="color:var(--bad)">no se marcó: le llegó a Joaquín</span>' : '') + '</div></div>' + (p.fecha > hoy ? '<span class="st nd">' + (diasA(p.fecha) === 1 ? 'Mañana' : 'En ' + diasA(p.fecha) + ' días') + '</span>' : '<button class="btn' + (p.hecho ? ' g' : '') + '" data-pdh="' + esc(p.id) + '|' + p.fecha + '"' + (p.hecho ? ' data-des="1"' : '') + '>' + (p.hecho ? '✓ Pedido' : 'Ya lo pedí') + '</button>') + '</div>').join('') + '<div class="row"><div class="m">Si el día del pedido no lo marcás, al día siguiente le llega a Joaquín que no se pidió.</div></div></div>', true); }
     if (esProj && (F.estado === 'enviada' || F.estado === 'cambiada')) h += '<div class="aprob"><b>Revisá la ficha de ' + esc(m.nombre) + '</b><div><button class="btn g" data-fx="cambios">Pedir cambios</button><button class="btn" data-fx="aprobar">Aprobar</button></div></div>';
     // avance del mes (solo con la ficha aprobada)
     if (F.aprobada && F.avance.length) h += fold('av:' + m.slug, '', 'Tópicos de este mes', F.avance.filter(a => a.ok).length + '/' + F.avance.length, '<div class="rows">' + F.avance.map(a => '<div class="row"><div>' + esc(a.nombre) + (a.externo ? ' <span class="m">· ' + esc(a.canal) + '</span>' : '') +
@@ -528,6 +661,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const rec = recosDe(m, D);
     if (rec.length) h += fold('rc:' + m.slug, 'amar', 'Recomendado para ' + esc(m.nombre), rec.length, '<div class="rows">' + rec.map(r => '<div class="row"><div><b>' + esc(r.v.nombre || r.v.que) + '</b><div class="m">' + (r.t === 'topicos' ? 'Tópico fijo' + (r.v.externo ? ' · ' + esc(r.v.canal) : '') + ' · ' + r.v.veces + ' por ' + r.v.por + ' · trae 5 ángulos para arrancar' : 'Pedido recurrente · a ' + esc(r.v.aQuien)) + '</div></div><button class="btn" data-reco="' + RECOS.indexOf(r) + '">Sumar</button></div>').join('') + '<div class="row"><div class="m">Son ideas para arrancar: al sumarlas las podés cambiar como quieras.</div></div></div>', true);
     const lista = (tipo, arr, fila, vacio) => '<div class="rows">' + (arr.length ? arr.map((x, i) => '<div class="row"><div>' + fila(x) + '</div><div class="bts"><button class="btn g" data-ed="' + tipo + ':' + i + '">Editar</button><button class="btn g" data-del="' + tipo + ':' + i + '" aria-label="Borrar">✕</button></div></div>').join('') : '<div class="row"><div class="m">' + vacio + '</div></div>') + '<button class="btn add" data-nuevo="' + tipo + '">＋ Agregar</button></div>';
+    h += '<p class="sub" style="margin:4px 2px 10px">Se arma una vez y la aprueba Joaquín. Después se repite sola: el día 1 de cada mes se crean en <b>"Para mover en el mes"</b> del SCL una tarjeta por tópico (con sus 5 formas de moverlo y su etiqueta "Tópico · …"), una con los pedidos del mes y una por aprendizaje. No hay que volver a cargarla: si algo cambia, la editás y la mandás de nuevo.</p>';
     h += fold('tp:' + m.slug, '', 'Tópicos fijos', D.topicos.length, lista('topicos', D.topicos, t => '<b>' + esc(t.nombre) + '</b>' + (t.externo ? ' <span class="pill">' + esc(t.canal || 'externo') + '</span>' : '') + '<div class="m">' + t.veces + ' por ' + t.por + (t.dias.length ? ' · ' + ORDEN.filter(d => t.dias.indexOf(d) >= 0).map(d => DSEM[d]).join(', ') : '') + ' · ' + t.angulos.length + ' ángulos' + (t.cm ? ' · también al CM' : '') + '</div>', 'Lo que hay que mover sí o sí todas las semanas o todos los meses (promo del día, envíos, canal de WhatsApp, comunicación interna…).'), true);
     h += fold('pd:' + m.slug, '', 'Pedidos recurrentes', D.pedidos.length, lista('pedidos', D.pedidos, p => '<b>' + esc(p.que) + '</b><div class="m">A ' + esc(p.aQuien) + ' · ' + (p.tipo === 'mes' ? 'el día ' + p.dia + ' de cada mes' : 'cada ' + DSEM[p.dia].toLowerCase()) + (p.siNo ? ' · si no responde: ' + esc(p.siNo) : '') + '</div>', 'Lo que hay que pedir siempre (la promo del miércoles, la promo del mes, la carta…). Te lo recuerdo el día anterior.'), false);
     h += fold('ap:' + m.slug, '', 'Aprendizajes activos', D.aprendizajes.length, lista('aprendizajes', D.aprendizajes, a => '<b>' + esc(a.que) + '</b><div class="m">' + a.veces + ' por ' + a.por + ' · hasta el ' + dm(a.hasta) + (a.origen ? ' · ' + esc(a.origen) : '') + '</div>', 'Lo que aprendiste de los reportes: hacer más, hacer menos o dejar de hacer.'), false);
@@ -555,7 +689,8 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
           '<label>A quién</label><input id="eA" value="' + esc(v.aQuien) + '" placeholder="Ej.: Maxi (cliente), el project">' +
           '<label>Cuándo se pide</label>' + seg('tipo', [['semana', 'Un día de la semana'], ['mes', 'Un día del mes']], v.tipo) +
           (v.tipo === 'semana' ? seg('dia', ORDEN.map(d => [d, DSEM[d]]), v.dia) : '<input id="eD" type="number" min="1" max="28" value="' + v.dia + '">') +
-          '<label>Si no responde, por dónde</label><input id="eS" value="' + esc(v.siNo) + '" placeholder="Ej.: pedirla en el canal de la marca">';
+          '<label>Si no responde, por dónde</label><input id="eS" value="' + esc(v.siNo) + '" placeholder="Ej.: pedirla en el canal de la marca">' +
+          '<p class="m" style="color:var(--mu);font-size:12.5px;margin:10px 0 0">Ese día te aparece en Plan para marcar <b>Ya lo pedí</b> (y el día anterior te llega el recordatorio). Si no lo marcás, al día siguiente le llega a Joaquín que no se pidió.</p>';
       } else {
         h += '<label>Qué hay que hacer</label><input id="eQ" value="' + esc(v.que) + '" placeholder="Ej.: mover más juegos en historias">' +
           '<label>Cuántas veces</label><div class="rowf"><input id="eV" type="number" min="1" max="31" value="' + v.veces + '">' + seg('por', [['semana', 'por semana'], ['mes', 'por mes']], v.por) + '</div>' +
@@ -602,6 +737,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
       if (!b.dataset.no) { const d = new Date(); d.setDate(d.getDate() + 28); D.aprendizajes.push({ que: s.texto, veces: 1, por: 'semana', hasta: d.toISOString().slice(0, 10), origen: s.fuente }); editor(slug, 'aprendizajes', D.aprendizajes.length - 1); }
       try { await enviarFicha({ accion: 'sugerencia', id: s.id, sumar: !b.dataset.no }); fichaDe(slug).sugerencias = fichaDe(slug).sugerencias.filter(x => x.id !== s.id); pintar(); } catch (e) { toast(e.message); }
     });
+    app.querySelectorAll('[data-pdh]').forEach(b => b.onclick = async () => { const [pid, fe] = b.dataset.pdh.split('|'); b.disabled = true; try { await enviarFicha({ accion: 'pedido', pedido: pid, fecha: fe, deshacer: !!b.dataset.des }); const p = (fichaDe(slug).pedidosDias || []).find(x => x.id === pid && x.fecha === fe); if (p) p.hecho = !b.dataset.des; toast(b.dataset.des ? 'Desmarcado' : 'Anotado'); pintar(); } catch (e) { toast(e.message); b.disabled = false; } });
     app.querySelectorAll('[data-movi]').forEach(b => b.onclick = async () => { b.disabled = true; try { await enviarFicha({ accion: 'movido', topico: b.dataset.movi, deshacer: !!b.dataset.des }); toast(b.dataset.des ? 'Desmarcado' : 'Anotado'); recargarFicha(); } catch (e) { toast(e.message); b.disabled = false; } });
     app.querySelectorAll('[data-fx]').forEach(b => b.onclick = async () => {
       const fx = b.dataset.fx; let nota = '';
@@ -621,44 +757,105 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
   const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
   const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
   const fold = (id, cl, t, n, cuerpo, abierto) => { const open = S.folds[id] != null ? S.folds[id] : abierto; return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
+  const paso = (n, t, txt) => '<div class="paso"><i' + (/^\d$/.test(n) ? '' : ' class="s"') + '>' + (n || '·') + '</i><div><b>' + t + '</b><p>' + txt + '</p></div></div>';
+  const hoyD = () => new Date().toISOString().slice(0, 10);
+  const entre = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+  /* ---------- entregas: nombre y detalle de cada una ---------- */
+  const ORD = ['Primera', 'Segunda', 'Tercera', 'Cuarta', 'Quinta'];
+  const nombreEnt = (e, ent) => e.tipo === 'calendario' ? (ORD[ent.filter(x => x.tipo === 'calendario').indexOf(e)] || '') + ' entrega de calendario' : e.tipo === 'planb' ? 'Entrega de plan B' : 'Entrega de reels';
+  function detalleEnt(e) {
+    const prox = e.estado === 'proxima', mesR = MES[Number(e.f.slice(5, 7)) % 12];
+    if (e.tipo === 'calendario') return (prox ? 'Tenés que cargar hasta el ' : 'Tenías que cargar hasta el ') + dm(e.obj) + (e.hasta ? ' · ' + (prox ? 'hoy llega al ' : 'llegó al ') + dm(e.hasta) : prox ? ' · hoy no hay nada cargado' : '');
+    if (e.tipo === 'planb') return 'El plan B de cada reel de ' + mesR + (e.obj != null ? ' · ' + (prox ? 'hoy ' : '') + e.n + ' de ' + e.obj : '');
+    return (prox ? 'Tenés que tener ' : 'Tenías que tener ') + 'los ' + e.obj + ' reels de ' + mesR + (e.n != null ? ' · ' + (prox ? 'hoy hay ' : 'había ') + e.n : '');
+  }
+  const filaE = (e, ent) => { const s = ESTE[e.estado] || ESTE['sin medir'], n = entre(hoyD(), e.f); return '<div class="row"><div><b>' + nombreEnt(e, ent) + '</b> <span class="m">· ' + diaDe(e.f) + ' ' + dm(e.f) + (e.estado === 'proxima' ? ' · ' + enDias(n) : '') + '</span><div class="m">' + detalleEnt(e) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
+  /* ---------- Paso 3: entregas (cuenta regresiva + lo del mes) ---------- */
+  const CHK = [['reunion', 'Reunión con el cliente', 'Del 1 al 10: cómo viene la marca, qué se viene y qué necesitás de ellos.', 10],
+    ['visita', 'Visita presencial al local', 'Una vez por mes: ver cómo está el local, sacar material y hablar con el equipo.', 0],
+    ['trimestral', 'Producción presencial trimestral', 'Si este mes toca, que esté coordinada con Bauti y con el cliente.', 0],
+    ['publica', 'Revisar que se publicó todo', 'Que todo lo del calendario haya salido bien y en su día.', 0],
+    ['colab', 'Colaboradores', 'Si hace falta un colaborador o influencer, buscalo y cargalo en Colaboradores del panel.', 0]];
+  function pintarEntregas(m) {
+    const D = S.data, P = m.prox || {}, hoy = hoyD();
+    let h = paso('3', 'Entregas', 'Qué tenés que entregar, cuándo y hasta dónde. El calendario se entrega dos viernes por mes y tiene que quedar cargado hasta la misma fecha del mes siguiente. Además, cada mes se resuelve: reunión con el cliente (del 1 al 10), visita al local, producción trimestral si toca, revisar que se publicó todo y colaboradores.');
+    const big = n => n <= 0 ? 'HOY' : n === 1 ? 'MAÑANA' : n + '<small>días</small>', heros = [];
+    if (P.cal) {
+      const n = entre(hoy, P.cal.f), ok = P.cal.hasta && P.cal.hasta >= P.cal.obj, pct = P.cal.hasta ? Math.max(0, Math.min(100, entre(P.cal.f, P.cal.hasta) / Math.max(1, entre(P.cal.f, P.cal.obj)) * 100)) : 0;
+      heros.push('<div class="hero main"><div class="kick">Próxima entrega de calendario</div><div class="big ' + (ok ? 'ok' : n <= 2 ? 'bad' : 'y') + '">' + big(n) + '</div><div class="t">' + diaDe(P.cal.f) + ' ' + dm(P.cal.f) + ' · tenés que cargar hasta el ' + dm(P.cal.obj) + '</div>' +
+        '<div class="pbar"><i class="' + (ok ? 'ok' : '') + '" style="width:' + pct + '%"></i></div><div class="m">' + (ok ? '✓ Ya está cargado hasta el ' + dm(P.cal.hasta) : P.cal.hasta ? 'Hoy llega al ' + dm(P.cal.hasta) + ': faltan ' + entre(P.cal.hasta, P.cal.obj) + ' días por cargar' : 'Todavía no hay nada cargado') + '</div></div>');
+    }
+    if (P.reels) { const n = entre(hoy, P.reels.f), ok = P.reels.n >= P.reels.obj; heros.push('<div class="hero"><div class="kick">Próxima entrega de reels</div><div class="big ' + (ok ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.reels.f) + ' ' + dm(P.reels.f) + ' · ' + P.reels.obj + ' reels de ' + MES[Number(P.reels.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (ok ? 'ok' : '') + '" style="width:' + Math.min(100, P.reels.n / Math.max(1, P.reels.obj) * 100) + '%"></i></div><div class="m">' + (ok ? '✓ Ya están los ' + P.reels.obj : 'Hoy hay ' + P.reels.n + ' de ' + P.reels.obj) + '</div></div>'); }
+    if (P.planb) { const n = entre(hoy, P.planb.f), PB = pbDe(m.slug), fal = pbFaltan(PB), tot = PB ? PB.reels.filter(r => r.due.slice(0, 7) === mesSig()).length : 0; heros.push('<div class="hero"><div class="kick">Próxima entrega de plan B</div><div class="big ' + (!fal ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.planb.f) + ' ' + dm(P.planb.f) + ' · plan B de cada reel de ' + MES[Number(P.planb.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (!fal ? 'ok' : '') + '" style="width:' + (tot ? (tot - fal) / tot * 100 : 0) + '%"></i></div><div class="m">' + (fal ? fal + ' reel' + (fal === 1 ? '' : 's') + ' sin plan B' : '✓ Todos con plan B') + '</div></div>'); }
+    if (heros.length) h += '<div class="heros u' + heros.length + '">' + heros.join('') + '</div>';
+    const ent = m.entregas;
+    h += fold('ee:' + m.slug, '', 'Entregas de ' + MES[Number(D.mes.slice(5)) - 1], ent.length, '<div class="rows">' + (ent.length ? ent.map(e => filaE(e, ent)).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', true);
+    // lo del mes
+    const ck = m.chk || {}, dia = Number(hoy.slice(8)), pend = CHK.filter(c => !ck[c[0]]).length;
+    const PB = pbDe(m.slug), r15 = PB ? PB.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoy, r.due) >= 0 && entre(hoy, r.due) <= 15 && r.viable !== 'si').length : 0;
+    h += fold('ck:' + m.slug, pend ? 'amar' : '', 'Lo del mes · ' + MES[Number(D.mes.slice(5)) - 1], pend ? pend + ' por resolver' : '✓', '<div class="rows">' + CHK.map(([id, t, d, lim]) => {
+      const x = ck[id], tarde = !x && lim && dia > lim;
+      return '<div class="ck3"><div><b>' + t + '</b>' + (tarde ? ' <span class="ch bad">venció el ' + lim + '</span>' : '') + '<div class="m">' + (x ? (x.v === 'hecho' ? '✓ Hecho' : 'No aplica este mes') + ' · ' + dm(x.t.slice(0, 10)) : d) + '</div></div><div class="seg2" data-chk="' + id + '"><button data-v="hecho" class="' + (x && x.v === 'hecho' ? 'on' : '') + '">Hecho</button><button data-v="na" class="' + (x && x.v === 'na' ? 'on' : '') + '">No aplica</button></div></div>';
+    }).join('') + (PB ? '<div class="ck3"><div><b>Reels: confirmar 15 días antes</b>' + (r15 ? ' <span class="ch mid">' + r15 + ' por confirmar</span>' : '') + '<div class="m">' + (r15 ? 'Hay reels que salen en 15 días o menos sin confirmar si se hacen.' : 'Todos los reels de los próximos 15 días están confirmados.') + '</div></div><button class="btn g" data-ir="' + m.slug + '|reels">Ir a Reels</button></div>' : '') + '</div>', true);
+    h += fold('re:' + m.slug, '', 'Reportes', m.reportes.length, '<div class="rows">' + (m.reportes.length ? m.reportes.map(filaR).join('') : '<div class="row"><div class="m">Esta marca no tiene reportes en el sistema de Reportes.</div></div>') + '</div>', true);
+    return h;
+  }
+  const filaR = r => { const s = ESTR[r.estado]; return '<div class="row"><div>Reporte ' + r.tipo + (r.tipo === 'semanal' ? ' · semana del ' + dm(r.per) : ' · ' + esc(r.per)) + '<div class="m">Vence ' + diaDe(r.vence.slice(0, 10)) + ' ' + dm(r.vence.slice(0, 10)) + (r.env ? ' · cargado el ' + dm(r.env.slice(0, 10)) : '') + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
+  function bindEntregas(m) {
+    app.querySelectorAll('[data-chk] button').forEach(b => b.onclick = async () => {
+      const id = b.parentElement.dataset.chk, cur = (m.chk || {})[id], v = cur && cur.v === b.dataset.v ? '' : b.dataset.v;
+      b.parentElement.querySelectorAll('button').forEach(z => z.disabled = true);
+      try {
+        const r = /[?&]demo=1/.test(location.search) ? { ok: true, chk: Object.assign({}, m.chk, { [id]: v ? { v: v, t: new Date().toISOString() } : undefined }) } : await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'planCheck', k: clave(), persona: S.persona, marca: m.slug, mes: S.data.mes, id: id, v: v }) }).then(x => x.json());
+        if (r.error) throw new Error(r.mensaje || r.error);
+        m.chk = r.chk || {}; pintar();
+      } catch (e) { toast(e.message); b.parentElement.querySelectorAll('button').forEach(z => z.disabled = false); }
+    });
+  }
   /* ---------- "Para hacer": lo que le toca a la persona, de todas sus marcas, con un botón que lleva directo ---------- */
   function paraHacer() {
-    const D = S.data, L = [], nom = slug => (D.marcas.find(x => x.slug === slug) || {}).nombre || slug, hoy = new Date().toISOString().slice(0, 10), en7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const D = S.data, L = [], hoy = hoyD(), en7 = sumaDias(hoy, 7);
     const it = (prio, txt, slug, vista) => L.push({ prio, txt, slug, vista });
     D.marcas.forEach(m => (m.entregas || []).forEach(e => {
-      if (e.estado === 'incumplida') it(0, (e.tipo === 'calendario' ? 'Completar el calendario de ' : 'Cargar los reels del mes que viene de ') + m.nombre + ' (la entrega del ' + dm(e.f) + ' quedó incumplida)', m.slug, 'cumple');
-      else if (e.estado === 'proxima' && e.f <= en7) it(2, (e.tipo === 'calendario' ? 'Entrega de calendario de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': dejalo cargado hasta el ' + dm(e.obj) + (e.hasta ? ' (hoy llega al ' + dm(e.hasta) + ')' : '') : 'Entrega de reels de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': ' + e.obj + ' reels del mes que viene' + (e.n != null ? ' (hoy hay ' + e.n + ')' : '')), m.slug, 'cumple');
+      if (e.estado === 'incumplida') it(0, (e.tipo === 'calendario' ? 'Completar el calendario de ' : e.tipo === 'planb' ? 'Completar el plan B de los reels de ' : 'Cargar los reels del mes que viene de ') + m.nombre + ' (la entrega del ' + dm(e.f) + ' quedó incumplida)', m.slug, 'entregas');
+      else if (e.estado === 'proxima' && e.f <= en7 && e.tipo !== 'planb') it(2, (e.tipo === 'calendario' ? 'Entrega de calendario de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': tenés que cargar hasta el ' + dm(e.obj) + (e.hasta ? ' (hoy llega al ' + dm(e.hasta) + ')' : '') : 'Entrega de reels de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': ' + e.obj + ' reels del mes que viene' + (e.n != null ? ' (hoy hay ' + e.n + ')' : '')), m.slug, 'entregas');
     }));
-    if (S.pb && !D.project) S.pb.marcas.forEach(k => { const n = pbFaltan(k); if (n) it(S.pb.entrega && S.pb.entrega <= en7 ? 1 : 3, 'Armar el plan B de ' + n + ' reel' + (n === 1 ? '' : 'es') + ' de ' + k.nombre + (S.pb.entrega ? ' (entrega el ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + ')' : ''), k.slug, 'planb'); });
-    if (S.pauta) S.pauta.marcas.forEach(a => { if (!a.esta) it(1, 'Revisar la pauta de esta semana de ' + a.nombre, a.slug, 'ads'); else if (!a.esta.ok && !a.esta.avisado) it(0, 'Avisarle a Juan lo que hay que cambiar en la pauta de ' + a.nombre, a.slug, 'ads'); });
-    if (S.camp && !D.project) S.camp.marcas.forEach(k => { const G = k.general; if (G && G.topicos.length && !(G.proximo.plan && G.proximo.plan.completo)) it(S.camp.limites.proximo <= en7 ? 1 : 2, 'Armar el plan general de ' + MES[Number(G.proximo.mes.slice(5)) - 1] + ' de ' + k.nombre + ' (tópicos semana por semana): se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo), k.slug, 'camp'); });
-    if (S.camp && !D.project) S.camp.marcas.forEach(k => k.fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).forEach(x => { const lim = x.cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo; it(lim <= en7 ? 1 : 2, 'Armar el plan de ' + x.nombre + ' (' + k.nombre + ', ' + dm(x.f) + ')' + (lim >= hoy ? ': se cierra el ' + diaDe(lim) + ' ' + dm(lim) : ''), k.slug, 'camp'); }));
-    if (S.camp) S.camp.marcas.forEach(k => { if (D.project) { if (k.revisar) it(1, 'Revisar ' + k.revisar + ' descarte' + (k.revisar === 1 ? '' : 's') + ' de campañas de ' + k.nombre, k.slug, 'camp'); } else if (k.pendientes) it(2, 'Decidir ' + k.pendientes + ' fecha' + (k.pendientes === 1 ? '' : 's') + ' de campañas de ' + k.nombre + ' (¿la atacamos o no?)', k.slug, 'camp'); });
+    if (!D.project && S.data.mes === hoy.slice(0, 7)) D.marcas.forEach(m => { const ck = m.chk || {}; if (!ck.reunion) it(Number(hoy.slice(8)) > 10 ? 1 : 2, 'Reunión del mes con el cliente de ' + m.nombre + (Number(hoy.slice(8)) > 10 ? ' (era del 1 al 10)' : ' (del 1 al 10)'), m.slug, 'entregas'); });
+    if (S.pb && !D.project) S.pb.marcas.forEach(k => {
+      const n = pbFaltan(k); if (n) it(S.pb.entrega && S.pb.entrega <= en7 ? 1 : 3, 'Armar el plan B de ' + n + ' reel' + (n === 1 ? '' : 's') + ' de ' + k.nombre + (S.pb.entrega ? ' (entrega el ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + ')' : ''), k.slug, 'reels');
+      k.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoy, r.due) >= 0).forEach(r => { const d = entre(hoy, r.due);
+        if (r.viable === 'no') it(0, 'Activar el plan B de "' + r.n.slice(0, 50) + '" (' + k.nombre + '): no se puede hacer', k.slug, 'reels');
+        else if (d <= 15 && r.viable !== 'si') it(d <= 7 ? 0 : 1, 'Confirmar si se hace el reel "' + r.n.slice(0, 50) + '" (' + k.nombre + ', sale el ' + dm(r.due) + ')', k.slug, 'reels'); });
+    });
+    if (S.pauta) S.pauta.marcas.forEach(a => { if (!a.esta) it(1, 'Anotar qué se está corriendo en ads de ' + a.nombre, a.slug, 'ads'); if (a.tocaJuan) it(2, 'Preguntarle a Juan cómo viene la pauta de ' + a.nombre + ' (cada 15 días)', a.slug, 'ads'); });
+    if (S.camp && !D.project) S.camp.marcas.forEach(k => { const G = k.general; if (G && G.topicos.length && !(G.proximo.plan && G.proximo.plan.completo)) it(S.camp.limites.proximo <= en7 ? 1 : 2, 'Armar el plan general de ' + MES[Number(G.proximo.mes.slice(5)) - 1] + ' de ' + k.nombre + ' (tópicos semana por semana): se cierra el ' + diaDe(S.camp.limites.proximo) + ' ' + dm(S.camp.limites.proximo), k.slug, 'mes'); });
+    if (S.camp && !D.project) S.camp.marcas.forEach(k => k.fechas.filter(x => x.dec && x.dec.decision === 'atacar' && !(x.plan && x.plan.completo) && x.f >= S.camp.hoy).forEach(x => { const lim = x.cual === 'este' ? S.camp.limites.este : S.camp.limites.proximo; it(lim <= en7 ? 1 : 2, 'Armar el plan de ' + x.nombre + ' (' + k.nombre + ', ' + dm(x.f) + ')' + (lim >= hoy ? ': se cierra el ' + diaDe(lim) + ' ' + dm(lim) : ''), k.slug, 'anual'); }));
+    if (S.camp) S.camp.marcas.forEach(k => { if (D.project) { if (k.revisar) it(1, 'Revisar ' + k.revisar + ' descarte' + (k.revisar === 1 ? '' : 's') + ' de campañas de ' + k.nombre, k.slug, 'anual'); } else if (k.pendientes) it(2, 'Decidir ' + k.pendientes + ' fecha' + (k.pendientes === 1 ? '' : 's') + ' del calendario anual de ' + k.nombre + ' (¿la atacamos o no?)', k.slug, 'anual'); });
     if (S.ficha) S.ficha.marcas.forEach(f => {
-      if (D.project) { if (f.estado === 'enviada' || f.estado === 'cambiada') it(1, 'Aprobar la ficha de ' + f.nombre, f.slug, 'ficha'); return; }
-      if (f.estado === 'cambios') it(0, 'Corregir la ficha de ' + f.nombre + ': Joaquín pidió cambios', f.slug, 'ficha');
-      else if (!f.topicos.length && f.estado === 'borrador') it(3, 'Armar la ficha de ' + f.nombre + ' (tópicos fijos, pedidos y aprendizajes)', f.slug, 'ficha');
-      (f.avance || []).filter(a => a.externo && !a.estaSemana).forEach(a => it(2, 'Mover ' + a.nombre + ' de ' + f.nombre + ' esta semana (' + a.canal + ')', f.slug, 'ficha'));
+      if (D.project) { if (f.estado === 'enviada' || f.estado === 'cambiada') it(1, 'Aprobar la ficha de ' + f.nombre, f.slug, 'mes'); return; }
+      if (f.estado === 'cambios') it(0, 'Corregir la ficha de ' + f.nombre + ': Joaquín pidió cambios', f.slug, 'mes');
+      else if (!f.topicos.length && f.estado === 'borrador') it(3, 'Armar la ficha de ' + f.nombre + ' (tópicos fijos, pedidos y aprendizajes)', f.slug, 'mes');
+      (f.pedidosDias || []).filter(p => !p.hecho && p.fecha <= hoy && p.fecha >= sumaDias(hoy, -3)).forEach(p => it(p.fecha < hoy ? 0 : 1, (p.fecha < hoy ? 'No marcaste el pedido del ' + dm(p.fecha) + ': ' : 'Hoy le pedís a ' + p.aQuien + ': ') + p.que + ' (' + f.nombre + ')', f.slug, 'mes'));
+      (f.avance || []).filter(a => a.externo && !a.estaSemana).forEach(a => it(2, 'Mover ' + a.nombre + ' de ' + f.nombre + ' esta semana (' + a.canal + ')', f.slug, 'mes'));
     });
     return L.sort((a, b) => a.prio - b.prio);
   }
-  const GUIA = '<h3>Cómo funciona Plan</h3><p class="s"><a href="recorrido/">▶ Mirá el recorrido animado</a>: cómo se arma un mes, paso a paso, con el ejemplo de Isco y el Día del Dulce de Leche.</p><p class="s">Es tu tablero para organizar el mes. Arriba tenés <b>Para hacer</b> con lo que te toca, de todas tus marcas: tocá <b>Ir</b> y te lleva directo.</p>' +
-    '<div class="gsec"><b>📊 Cumplimiento</b><p>Lo mide el panel solo: entregas de calendario (los viernes de entrega tiene que quedar cargado hasta la misma fecha del mes siguiente), entregas de reels, reportes a tiempo e inputs procesados en 24 h. No cargás nada acá: solo mirás cómo venís.</p></div>' +
-    '<div class="gsec"><b>🗓️ Campañas</b><p>Las fechas del calendario anual de este mes y del siguiente. En cada una elegís <b>La atacamos</b> o <b>No la atacamos</b> (con el motivo). Joaquín aprueba o rechaza los descartes.</p></div>' +
-    '<div class="gsec"><b>🧭 Plan del mes</b><p>Tiene dos partes. <b>El plan general</b>: por cada tópico fijo de la ficha, qué ángulo va cada semana y qué hay que pedir ese mes (genera una tarjeta por tópico con las semanas adentro). Y <b>el plan de cada campaña</b>: en cada una que se ataca tocás <b>Armar el plan</b>. Las N1 y N2 llevan 6 pasos: <b>competencia</b> (3 a 5 marcas y qué hicieron), <b>año pasado</b>, <b>ideas</b> (con <b>Preguntale a Claude</b>), <b>producción</b> (estética, banners, cartelería), <b>pedidos</b> al cliente o al project y <b>distribución</b> (qué idea y qué día). Las N3 y N4, solo ideas y distribución. Se guarda en cada paso, así podés cortarlo y seguir después. Al terminar se crean las tarjetas solas. El plan de un mes se cierra en la <b>última entrega de calendario antes de que empiece</b> (para noviembre, el viernes 30/10).</p></div>' +
-    '<div class="gsec"><b>🛟 Plan B</b><p>Cada reel tiene su plan B: qué se publica en su lugar, qué día y con qué. <b>No puede depender de lo mismo que el reel</b> (promo, colaboración, influencer o pedido del cliente): va con Bauti, diseño o material ya grabado. Se arma acá o en Trello, en la lista <b>"Plan B"</b> del SCL (si la creás en Trello, acá la vinculás con un toque). Si el reel se cae, tocá <b>Activar</b>: la tarjeta pasa a la lista del reel con su fecha y sigue el flujo de siempre. Se entrega el segundo lunes de reels del mes.</p></div>' +
-    '<div class="gsec"><b>📣 Ads</b><p>Una vez por semana, en cada marca con pauta: ¿corre bien?, ¿se pauta la pieza que corresponde?, ¿hay que cambiar algo? Si hay que cambiar, escribís qué y tocás <b>Avisale a Juan</b>: se copia el mensaje y se abre el canal ads de la marca para pegarlo.</p></div>' +
-    '<div class="gsec"><b>📋 Ficha</b><p>Se arma una vez por marca: <b>tópicos fijos</b> (lo que se mueve sí o sí, con 5 ángulos), <b>pedidos recurrentes</b> (qué pedir, a quién y cuándo) y <b>aprendizajes</b> (lo que sale de tus reportes). La mandás a Joaquín; cuando la aprueba, el panel te recuerda los pedidos el día anterior, te avisa los tópicos de afuera de Instagram y cuenta lo que movés.</p></div>' +
-    '<div class="gsec"><b>🗂️ ¿Qué pasa con las tarjetas?</b><p>Al principio de cada mes (y cuando decidís o se aprueba algo) el panel crea tarjetas en la lista <b>"Para mover en el mes"</b> del SCL: 🎯 campañas a atacar y cada pieza de su plan (con su fecha), 🎨 lo de Diseño (con la etiqueta Diseño: al aprobarla sigue el flujo de siempre), 📌 tópicos del mes (con sus ángulos y la etiqueta "Tópico · …"), 📨 pedidos del mes y 💡 aprendizajes. Desde ahí las pasás a tu calendario como siempre. Las piezas de un tópico llevan su etiqueta "Tópico · …" para que el panel las cuente.</p></div>' +
-    '<div class="gsec"><b>🔔 Avisos por Discord</b><p>Lunes: pauta y aprendizajes. Dos días antes de cada entrega: qué tenés que entregar. La noche de la entrega: si quedó incumplida. El día 1: campañas del mes. Y tus recordatorios propios con la campanita 🔔 (abajo a la derecha).</p></div>' +
+  const GUIA = '<h3>Cómo funciona Plan</h3><p class="s"><a href="recorrido/">▶ Mirá el recorrido animado</a>. Plan sigue el orden en que se arma un mes. Arriba tenés <b>Para hacer</b> con lo que te toca de todas tus marcas: tocá <b>Ir</b> y te lleva directo.</p>' +
+    '<div class="gsec"><b>1 · Calendario anual</b><p>Las fechas del calendario anual de este mes y del siguiente. En cada una elegís si se ataca (si no, con el motivo: lo revisa Joaquín). En las que se atacan armás el plan: qué hizo la competencia y las marcas referentes, qué hicimos el año pasado, ideas (con <b>Preguntale a Claude</b>), producción, pedidos y en qué fechas va cada idea. Al terminar se crean las tarjetas solas en "Para mover en el mes".</p></div>' +
+    '<div class="gsec"><b>2 · Calendario mensual</b><p>Lo que tenés que mover sí o sí todas las semanas: los <b>tópicos fijos</b> de la ficha, cada uno con 5 formas distintas de moverlo. Al principio de cada mes armás el <b>plan general</b> (qué forma va cada semana; podés volver a usar lo del mes anterior). La ficha también tiene los <b>pedidos recurrentes</b> con su fecha exacta (ese día marcás "Ya lo pedí"; si no, le llega a Joaquín) y los <b>aprendizajes</b> de tus reportes. La ficha se repite sola todos los meses.</p></div>' +
+    '<div class="gsec"><b>3 · Entregas</b><p>Cuánto falta para la próxima entrega y hasta qué día tenés que cargar. Los viernes de entrega el calendario tiene que quedar cargado hasta la misma fecha del mes siguiente. Y lo del mes: reunión con el cliente del 1 al 10, visita al local, producción trimestral, revisar que se publicó todo y colaboradores.</p></div>' +
+    '<div class="gsec"><b>4 · Reels</b><p>Los reels de este mes y del que viene, con lo que le falta a cada uno: plan B, guion, copy y pedido a producción. Por mes respondés si todos se pueden hacer. <b>A 15 días de salir</b> tiene que estar confirmado; si no se puede, se activa el plan B (que no puede depender de lo mismo que el reel).</p></div>' +
+    '<div class="gsec"><b>📣 Ads</b><p>Cada semana anotás qué se está corriendo. Cada 15 días le preguntás a Juan cómo viene y si hace falta otro contenido o iterar algo.</p></div>' +
+    '<div class="gsec"><b>📊 Cumplimiento</b><p>Lo mide el panel solo: entregas, reportes a tiempo, inputs en 24 h, plan del mes y tópicos. No cargás nada ahí.</p></div>' +
+    '<div class="gsec"><b>🔔 Avisos por Discord</b><p>Dos días antes de cada entrega, la noche de la entrega si quedó incumplida, el día anterior a cada pedido, los lunes Ads y aprendizajes, y el día 1 las campañas del mes.</p></div>' +
     '<div class="acc"><button class="btn" data-cerrar>Entendido</button></div>';
-  function guia() { const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box guia">' + GUIA + '</div>'; o.onclick = e => { if (e.target === o || e.target.closest('[data-cerrar]')) o.remove(); }; document.body.appendChild(o); lsSet('plan:guia', '1'); }
+  function guia() { const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box guia">' + GUIA + '</div>'; o.onclick = e => { if (e.target === o || e.target.closest('[data-cerrar]')) o.remove(); }; document.body.appendChild(o); lsSet('plan:guia', '2'); }
   function pintar() {
     const D = S.data, M = D.marcas;
     if (!M.some(m => m.slug === S.marca)) S.marca = M.length ? M[0].slug : '';
     const m = M.filter(x => x.slug === S.marca)[0];
     const prom = x => { const v = [x.ind.entregas, x.ind.inputs, x.ind.reportes].filter(y => y != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
-    let h = '<div class="top"><div><div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1><b>Plan</b></h1></div><div class="bts"><a class="btn ayuda" href="recorrido/" style="text-decoration:none">▶ Cómo se arma un mes</a><button class="btn g ayuda" data-guia>¿Cómo funciona?</button></div></div><p class="sub">Tu tablero para organizar el mes: qué te toca, cómo venís y qué se mide.</p>';
+    let h = '<div class="top"><div><div class="kick">— ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1><b>Plan</b></h1></div><div class="bts"><a class="btn ayuda" href="recorrido/" style="text-decoration:none">▶ Cómo se arma un mes</a><button class="btn g ayuda" data-guia>¿Cómo funciona?</button></div></div><p class="sub">Tu mes en orden: 1 calendario anual, 2 calendario mensual, 3 entregas y 4 reels.</p>';
     const PH = paraHacer();
     h += fold('ph', PH.length ? (PH.some(x => x.prio === 0) ? 'roja' : 'amar') : '', PH.length ? 'Para hacer' : '✅ Estás al día', PH.length || null, PH.length ? '<div class="rows">' + (S.phAll ? PH : PH.slice(0, 5)).map(x => '<div class="row tarea"><div><span class="pdot p' + x.prio + '"></span>' + esc(x.txt) + '</div><button class="btn g" data-ir="' + esc(x.slug) + '|' + x.vista + '">Ir</button></div>').join('') + (PH.length > 5 ? '<button class="btn add" data-phall>' + (S.phAll ? 'Ver menos' : 'Ver las ' + (PH.length - 5) + ' que faltan') + '</button>' : '') + '</div>' : '<div class="rows"><div class="row"><div class="m">No tenés nada pendiente en Plan. Mirá igual cómo venís en Cumplimiento.</div></div></div>', true);
     h += '<div class="marcas">' + M.map(x => { const p = prom(x); return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + (p || 0) + '"><i>' + (p == null ? '–' : p) + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (D.project ? esc(PERMITIDAS[x.sm] || x.sm) + ' · ' : '') + (p == null ? 'sin datos todavía' : 'cumplimiento ' + p + ' %') + '</span></span></button>'; }).join('') + '</div>';
@@ -666,29 +863,29 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     const Fm = fichaDe(m.slug), pend = S.ficha ? S.ficha.marcas.filter(x => x.estado === 'enviada' || x.estado === 'cambiada').length : 0;
     const Km = campDe(m.slug), cPend = D.project ? (S.camp ? S.camp.marcas.reduce((a, x) => a + x.revisar, 0) : 0) : (Km ? Km.pendientes : 0);
     const paPend = S.pauta ? S.pauta.marcas.filter(x => !x.esta).length : 0;
-    const pbPend = D.project || !S.pb ? 0 : S.pb.marcas.reduce((a, x) => a + pbFaltan(x), 0);
-    h += '<div class="seg vseg"><button data-vista="cumple" class="' + (['ficha', 'camp', 'ads', 'planb'].indexOf(S.vista) < 0 ? 'on' : '') + '"><span class="lg">Cumplimiento</span><span class="ct">Cumple</span></button><button data-vista="camp" class="' + (S.vista === 'camp' ? 'on' : '') + '"><span class="lg">Plan del mes</span><span class="ct">Mes</span>' + (cPend ? ' <em class="bdg">' + cPend + '</em>' : '') + '</button><button data-vista="ads" class="' + (S.vista === 'ads' ? 'on' : '') + '">Ads' + (paPend ? ' <em class="bdg">' + paPend + '</em>' : '') + '</button><button data-vista="planb" class="' + (S.vista === 'planb' ? 'on' : '') + '">Plan B' + (pbPend ? ' <em class="bdg">' + pbPend + '</em>' : '') + '</button><button data-vista="ficha" class="' + (S.vista === 'ficha' ? 'on' : '') + '">Ficha' + (D.project && pend ? ' <em class="bdg">' + pend + '</em>' : Fm && Fm.estado === 'cambios' ? ' <em class="bdg">!</em>' : '') + '</button></div>';
-    if (S.vista === 'ficha') { app.innerHTML = h + pintarFicha(m); bind(); bindFicha(); return; }
-    if (S.vista === 'camp') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
+    const PBm = pbDe(m.slug), rPend = D.project || !PBm ? 0 : pbFaltan(PBm) + PBm.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoyD(), r.due) >= 0 && (r.viable === 'no' || (entre(hoyD(), r.due) <= 15 && r.viable !== 'si'))).length;
+    const mPend = D.project ? pend : (Fm && Fm.estado === 'cambios' ? '!' : (Fm && (Fm.pedidosDias || []).filter(p => !p.hecho && p.fecha <= hoyD() && p.fecha >= sumaDias(hoyD(), -3)).length) || 0);
+    const eProx = m.prox && m.prox.cal ? entre(hoyD(), m.prox.cal.f) : null;
+    const tab = (v, n, lg, ct, bdg) => '<button data-vista="' + v + '" class="' + (S.vista === v ? 'on' : '') + '">' + (n ? '<i class="n">' + n + '</i>' : '') + '<span class="lg">' + lg + '</span><span class="ct">' + ct + '</span>' + (bdg ? ' <em class="bdg">' + bdg + '</em>' : '') + '</button>';
+    h += '<div class="seg vseg">' + tab('anual', '1', 'Anual', 'Anual', cPend) + tab('mes', '2', 'Mes', 'Mes', mPend) + tab('entregas', '3', 'Entregas', 'Entregas', eProx != null && eProx <= 2 ? (eProx <= 0 ? 'hoy' : eProx + 'd') : '') + tab('reels', '4', 'Reels', 'Reels', rPend) + tab('ads', '', 'Ads', 'Ads', paPend) + tab('cumple', '', 'Cumplimiento', 'Cumple', '') + '</div>';
+    if (S.vista === 'anual') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
+    if (S.vista === 'mes') { app.innerHTML = h + paso('2', 'Calendario mensual', 'Qué tenés que mover este mes: tus tópicos fijos (lo que va sí o sí todas las semanas, con 5 formas distintas de moverlo, que se anotan a principio de mes y se vuelven tarjetas), la información que necesitás pedir para hacer bien tu trabajo y lo que aprendiste de los reportes.') + pintarGeneral(m) + pintarFicha(m); bind(); bindCamp(); bindFicha(); return; }
+    if (S.vista === 'entregas') { app.innerHTML = h + pintarEntregas(m); bind(); bindEntregas(m); return; }
     if (S.vista === 'ads') { app.innerHTML = h + pintarPauta(m); bind(); bindPauta(); return; }
-    if (S.vista === 'planb') { app.innerHTML = h + pintarPB(m); bind(); bindPB(); return; }
+    if (S.vista === 'reels') { app.innerHTML = h + pintarReels(m); bind(); bindPB(); return; }
     // Cumplimiento: el mes que se mira (este o el pasado) se elige acá adentro
     h += '<div class="seg"><button data-mes="actual" class="' + (S.mes === 'actual' ? 'on' : '') + '">Este mes</button><button data-mes="anterior" class="' + (S.mes === 'anterior' ? 'on' : '') + '">Mes pasado</button></div><p class="sub">Cumplimiento de ' + MES[Number(D.mes.slice(5)) - 1] + ': lo mide el panel solo con Trello, el calendario y los reportes. No tenés que cargar nada acá.</p>';
     const topPct = Fm && Fm.aprobada && Fm.avance.length ? Math.round(Fm.avance.filter(a => a.ok).length / Fm.avance.length * 100) : null;
     const ent = m.entregas, cal = ent.filter(e => e.tipo === 'calendario'), ree = ent.filter(e => e.tipo === 'reels');
     h += '<div class="kpis">' + kpi(m.ind.entregas, 'Entregas', cal.length + ' de calendario' + (m.reels ? ' · ' + ree.length + ' de reels' : '')) + kpi(m.ind.reportes, 'Reportes a tiempo', m.reportes.length + ' en el mes') +
       kpi(m.ind.inputs, 'Inputs en 24 h', m.inputs.total ? m.inputs.ok + ' de ' + m.inputs.total : 'sin inputs medidos') + kpiPlan(m) + (topPct != null ? kpi(topPct, 'Tópicos fijos', Fm.avance.filter(a => a.ok).length + ' de ' + Fm.avance.length + ' al día') : kpi(null, 'Tópicos fijos', Fm && Fm.estado !== 'aprobada' ? 'falta aprobar la ficha' : 'armá la ficha de la marca', true)) + '</div>';
-    // alertas en rojo
     const al = [];
-    ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? 'Entrega de calendario del ' + diaDe(e.f) + ' ' + dm(e.f) + ': quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : 'Entrega de reels del ' + diaDe(e.f) + ' ' + dm(e.f) + ': había ' + e.n + ' de ' + e.obj + '.'));
+    ent.filter(e => e.estado === 'incumplida').forEach(e => al.push(e.tipo === 'calendario' ? nombreEnt(e, ent) + ' (' + diaDe(e.f) + ' ' + dm(e.f) + '): quedó cargado hasta el ' + dm(e.hasta) + ' y tenía que llegar al ' + dm(e.obj) + '.' : nombreEnt(e, ent) + ' (' + diaDe(e.f) + ' ' + dm(e.f) + '): había ' + e.n + ' de ' + e.obj + '.'));
     m.reportes.filter(r => r.estado === 'falta').forEach(r => al.push('Falta el reporte ' + r.tipo + ' (' + (r.tipo === 'semanal' ? 'semana del ' + dm(r.per) : r.per) + '), vencía el ' + dm(r.vence.slice(0, 10)) + '.'));
     if (m.inputs.tarde.length) al.push(m.inputs.tarde.length + ' input' + (m.inputs.tarde.length === 1 ? '' : 's') + ' se marcaron después de 24 h (o todavía no se marcaron).');
     if (al.length) h += fold('al:' + m.slug, 'roja', 'Alertas', al.length, '<div class="al"><ul>' + al.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>', true);
-    // entregas
-    const filaE = e => { const s = ESTE[e.estado] || ESTE['sin medir']; return '<div class="row"><div>' + (e.tipo === 'calendario' ? 'Calendario' : 'Reels del mes que viene') + ' · ' + diaDe(e.f) + ' ' + dm(e.f) + '<div class="m">' + (e.tipo === 'calendario' ? 'Cargado hasta el ' + dm(e.obj) + (e.hasta ? ' · ' + (e.estado === 'proxima' ? 'hoy llega al ' : 'llegaba al ') + dm(e.hasta) : '') : e.obj + ' reels' + (e.n != null ? ' · ' + (e.estado === 'proxima' ? 'hoy hay ' : 'había ') + e.n : '')) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
-    h += fold('en:' + m.slug, '', 'Entregas del mes', ent.length, '<div class="rows">' + (ent.length ? ent.map(filaE).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', false);
-    // reportes
-    h += fold('re:' + m.slug, '', 'Reportes', m.reportes.length, '<div class="rows">' + (m.reportes.length ? m.reportes.map(r => { const s = ESTR[r.estado]; return '<div class="row"><div>Reporte ' + r.tipo + (r.tipo === 'semanal' ? ' · semana del ' + dm(r.per) : ' · ' + esc(r.per)) + '<div class="m">Vence ' + diaDe(r.vence.slice(0, 10)) + ' ' + dm(r.vence.slice(0, 10)) + (r.env ? ' · cargado el ' + dm(r.env.slice(0, 10)) : '') + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; }).join('') : '<div class="row"><div class="m">Esta marca no tiene reportes en el sistema de Reportes.</div></div>') + '</div>', false);
+    h += fold('en:' + m.slug, '', 'Entregas del mes', ent.length, '<div class="rows">' + (ent.length ? ent.map(e => filaE(e, ent)).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', false);
+    h += fold('re:' + m.slug, '', 'Reportes', m.reportes.length, '<div class="rows">' + (m.reportes.length ? m.reportes.map(filaR).join('') : '<div class="row"><div class="m">Esta marca no tiene reportes en el sistema de Reportes.</div></div>') + '</div>', false);
     h += '<p class="pie">El panel mide desde el ' + dm(D.desde) + '/2026: las entregas anteriores figuran "sin medir". Estos números todavía no cuentan para el bono (eso arranca en enero de 2027).</p>';
     app.innerHTML = h; bind();
   }
@@ -697,9 +894,11 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     app.querySelectorAll('[data-mes]').forEach(b => b.onclick = () => { if (S.mes === b.dataset.mes) return; S.mes = b.dataset.mes; cargar(); });
     app.querySelectorAll('[data-guia]').forEach(b => b.onclick = guia);
     app.querySelectorAll('[data-phall]').forEach(b => b.onclick = () => { S.phAll = !S.phAll; pintar(); });
-    app.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { const [slug, v] = b.dataset.ir.split('|'); S.marca = slug; S.vista = v; lsSet('plan:marca', slug); lsSet('plan:vista', v); pintar(); const vs = app.querySelector('.vseg'); if (vs) vs.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-    if (!lsGet('plan:guia') && !document.querySelector('.modal')) setTimeout(guia, 400);
-    app.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { if (S.vista === b.dataset.vista) return; if (S.vista === 'ficha' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; S.vista = b.dataset.vista; lsSet('plan:vista', S.vista); pintar(); });
+    // fuera de Cumplimiento siempre se mira el mes actual (el "mes pasado" es solo para medir)
+    const irA = v => { S.vista = v; lsSet('plan:vista', v); if (v !== 'cumple' && S.mes !== 'actual') { S.mes = 'actual'; return cargar(); } pintar(); };
+    app.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { const [slug, v] = b.dataset.ir.split('|'); S.marca = slug; lsSet('plan:marca', slug); if (S.vista === 'mes' && v !== 'mes' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; irA(vistaOk(v) || 'anual'); const vs = app.querySelector('.vseg'); if (vs) vs.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    if (lsGet('plan:guia') !== '2' && !document.querySelector('.modal')) setTimeout(guia, 400);
+    app.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { if (S.vista === b.dataset.vista) return; if (S.vista === 'mes' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; irA(b.dataset.vista); });
     app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement; f.classList.toggle('open'); S.folds[b.dataset.fold] = f.classList.contains('open'); lsSet('plan:folds', JSON.stringify(S.folds)); });
   }
   cargar();
