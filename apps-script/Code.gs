@@ -237,7 +237,7 @@ function catalogo_() {
   const equipo = rows_('Equipo').map(r => ({ nombre: r[0], clave: norm_(r[1]), rol: String(r[2]).trim(), alias: lista_(r[3]).concat([norm_(r[0])]), email: String(r[4] || MAILS[norm_(r[1])] || '').trim().toLowerCase(), discord: lista_(r[5]).map(x => x.replace(/^@/, '')) }));
   const marcas = rows_('Marcas').map(r => ({
     nombre: r[0], slug: norm_(r[0]).replace(/[^a-z0-9]+/g, '-'), alias: lista_(r[1]).concat([norm_(r[0])]),
-    sm: norm_(r[2]), cm: norm_(r[3]), canal: si_(r[4]), contexto: r[5] || ''
+    sm: norm_(r[2]), cm: norm_(r[3]), canal: si_(r[4]), contexto: r[5] || '', driveFotos: String(r[6] || '').trim()   // columna G: carpeta de Drive de las producciones de fotos
   }));
   const rutinas = rows_('Rutinas').map(r => ({ id: r[0], tarea: r[1], cuando: norm_(r[2]), porMarca: norm_(r[3]), rol: String(r[4]).trim(), ayuda: r[5], enlace: r[6] }));
   const reuniones = rows_('Reuniones').map(r => ({ id: r[0], nombre: r[1], con: r[2], cuando: norm_(r[3]), porMarca: si_(r[4]), rol: String(r[5]).trim(), avisar: Number(r[6]) || 5, duracion: Number(r[7]) || 45 }));
@@ -974,7 +974,7 @@ function panel_(personaClave, ctx) {
     yo: { clave: yo.clave, nombre: yo.nombre, rol: yo.rol },
     equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })),
     feriados: ctx.feriados || [],
-    marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ id: b.id, tipo: b.tipo, url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] })) })),
+    marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', driveFotos: m.driveFotos || String(cfg.DRIVE_FOTOS || '').trim(), tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ id: b.id, tipo: b.tipo, url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] })) })),
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
@@ -1857,18 +1857,20 @@ function guionesResumenArmar_(snap, cat, cfg, ahora) {
   let nVer = 0, nFede = 0, nCorr = 0; const lineas = [], personas = {};
   Object.keys(marcas).sort().forEach(slug => {
     const g = marcas[slug], m = cat.marcas.filter(x => x.slug === slug)[0] || {}, sm = arroba(m.sm);
-    nVer += g.ver.length; nFede += g.fede.length; nCorr += g.corr.length; if (sm) personas[sm] = 1;
-    lineas.push('', '**' + nombreMarca_(cat, slug).toUpperCase() + '**' + (sm ? ' · ' + sm + ' presenta las ideas nuevas' : ' · se presentan las ideas nuevas'));
+    nVer += g.ver.length; nFede += g.fede.length; nCorr += g.corr.length;
+    // marcas sin guiones para ver, en corrección ni por entregar no se nombran (antes decía "presenta las ideas nuevas" igual y confundía, pedido de Joaquín 20/10/2026)
+    if (!g.ver.length && !g.corr.length && !g.fede.length) return;
+    if (sm) personas[sm] = 1;
+    lineas.push('', '**' + nombreMarca_(cat, slug).toUpperCase() + '**' + (sm ? ' · ' + sm : ''));
     if (g.ver.length) { lineas.push('Para ver hoy (' + g.ver.length + '):'); g.ver.forEach(x => lineas.push(x)); }
     if (g.corr.length) { lineas.push(arroba('fede') + ' en corrección (' + g.corr.length + '):'); g.corr.forEach(x => lineas.push(x)); }
     if (g.fede.length) { lineas.push(arroba('fede') + ' por entregar (' + g.fede.length + '):'); g.fede.sort((a, b) => a.d - b.d).forEach(x => lineas.push(x.t)); }
-    if (!g.ver.length && !g.corr.length && !g.fede.length) lineas.push('Sin guiones pendientes.');
   });
   const film = cat.equipo.filter(p => /film|audiovis/i.test(p.rol)).map(p => arroba(p.clave)).filter(Boolean);
   const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const cabeza = '📋 **Reunión de guiones · ' + dias[hoy.getDay()] + ' ' + Utilities.formatDate(hoy, TZ, 'dd/MM') + ' · ' + String(cfg.GUIONES_HORA || '16:00') + ' h**\n' +
     (nVer ? 'Hoy tenemos que ver **' + nVer + (nVer === 1 ? ' guion' : ' guiones') + '**' : 'Hoy no hay guiones entregados para ver') +
-    (nCorr ? ', hay ' + nCorr + ' en corrección' : '') + (nFede ? ' y ' + nFede + ' por entregar' : '') + '. Además cada social media presenta sus ideas nuevas.\n' +
+    (nCorr ? ', hay ' + nCorr + ' en corrección' : '') + (nFede ? ' y ' + nFede + ' por entregar' : '') + '.' + (lineas.length ? ' Si alguna social media tiene ideas nuevas, las presenta en la reunión.' : ' No hay guiones pendientes en ninguna marca.') + '\n' +
     [arroba('fede')].concat(Object.keys(personas), film).filter(Boolean).join(' ');
   return { textos: trozos_(cabeza, lineas), ver: nVer, fede: nFede, corr: nCorr };
 }
@@ -5205,7 +5207,7 @@ function doPost(e) {
         return json_(pedidoRapido_(b));
       case 'crearTarjeta': { // crea la tarjeta en Trello (y opcionalmente la manda a otra lista, que es lo que dispara las automatizaciones)
         if (!b.listId || !b.nombre) return json_({ error: 'datos', mensaje: 'Falta el nombre o la lista' });
-        const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 1500), pos: 'top' };
+        const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 16000), pos: 'top' };
         if (b.due) q.due = b.due;
         if (b.labels && b.labels.length) q.idLabels = b.labels.join(',');
         const card = trello_('/cards', q, 'post');
@@ -5240,10 +5242,10 @@ function doPost(e) {
       }
       case 'subirAdjunto': { // quien revisa sube una imagen a la tarjeta (a la original si la de Diseño/Producción es un espejo, que es la que se ve en Trello)
         const yoS = catalogo_().equipo.filter(p => p.clave === norm_(quien))[0];
-        if (!yoS || !/project|direcc|creativ/i.test(yoS.rol)) return json_({ error: 'permiso', mensaje: 'Solo dirección y el project pueden subir archivos a una tarjeta' });
+        if (!yoS) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });   // desde el 20/10/2026 sube todo el equipo (crear tarjeta, recursos, revisión)
         const mime = String(b.mime || ''), nombreA = String(b.archivo || 'imagen').replace(/[\/:*?"<>|]+/g, ' ').slice(0, 120);
         if (!b.cardId || !b.data) return json_({ error: 'datos', mensaje: 'Falta la tarjeta o el archivo' });
-        if (!/^image\/(png|jpe?g|gif|webp)$/i.test(mime)) return json_({ error: 'datos', mensaje: 'Solo se pueden subir imágenes (PNG, JPG, GIF o WEBP)' });
+        if (!/^(image\/(png|jpe?g|gif|webp)|application\/pdf)$/i.test(mime)) return json_({ error: 'datos', mensaje: 'Solo se pueden subir imágenes (PNG, JPG, GIF o WEBP) o PDF' });
         const bytes = Utilities.base64Decode(String(b.data));
         if (bytes.length > 9.5 * 1024 * 1024) return json_({ error: 'datos', mensaje: 'La imagen pesa más de 9 MB: subila desde Trello' });
         const destino = tarjetaQueSeVe_(b.cardId), kT = P.getProperty('TRELLO_KEY'), tkT = P.getProperty('TRELLO_TOKEN');
