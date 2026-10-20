@@ -18,104 +18,40 @@
   const cuando = pre => row("g2",[ seg(`${pre}_dia`,"Día de publicación",DIAS,{req:false}), txt(`${pre}_hora`,"Hora de publicación",{ph:"19:30",help:"Sirve para ver qué horario rinde más."}) ]);
 
   // ---------- SOCIAL MEDIA · SEMANAL ----------
+  // Versión compacta (pedido de Joaquín, 20/10/2026): solo lo que se usa. ¿Se publicó todo?, qué dejó el CM y qué se aplica,
+  // los números de la semana (desde la captura) y los cambios para la semana siguiente. El análisis de cada reel, feed e
+  // historias pasó al mensual, cuando los reels ya terminaron de juntar visualizaciones.
   const SM = {
     tipo:"sm", titulo:"Reporte Social Media", periodo:"semana",
     secciones:[
-      { num:1, titulo:"Resumen ejecutivo", hint:"Máx. 5 líneas", fields:[
-        ta("resumen","Síntesis de la semana: qué pasó, qué destacó, tendencia general",{req:true,max:700})
-      ]},
-      { num:2, titulo:"Aplicación del reporte CM", ref:"cm", fields:[
-        { id:"leyo_cm_ok", label:"Leí el reporte del CM completo", type:"confirm", req:true, gate:true },
-        ta("aplicar_cm","¿Qué destacás de positivo, de lo que dejó el CM, para aplicar en el contenido?",{req:true,help:"Ej: preguntaron mucho por precios → historia informativa. Si no hay nada aplicable, escribí por qué."})
-      ]},
-      { num:3, titulo:"Resultados generales", hint:"La comparativa con la semana anterior se calcula sola", ref:"semana",
-        compare:[
-          {k:"Espectadores", id:"alcance_total"},           {k:"Visualizaciones", id:"views"}, {k:"Visualizaciones de pago", id:"views_pauta"},
-          {k:"Visualizaciones orgánicas", calc:d=>{const t=d.views; return (t===""||t==null)?null:Number(t)-Number(d.views_pauta||0);}},
-          {k:"Visualizaciones de seguidores", id:"views_seg"}, {k:"Visualizaciones de no seguidores", id:"views_noseg"},
-          {k:"Interacciones", id:"interacciones"}, {k:"Seguidores sumados", id:"seg_sumados"}, {k:"Seguidores perdidos", id:"seg_perdidos", inverse:true},
-          {k:"Seguidores netos", calc:d=>{const a=d.seg_sumados,b=d.seg_perdidos; return (a===""||a==null||b===""||b==null)?null:Number(a)-Number(b);}},
-          {k:"Reels publicados", id:"reels_n"}, {k:"Publicaciones de feed", id:"feed_n"}
-        ], fields:[
-        { type:"sublabel", text:"Espectadores (cuentas únicas que vieron el contenido; en Meta, antes se llamaba alcance)" },
-        row("g2",[ n("alcance_total","Espectadores totales",{req:true}) ]),
-        { type:"sublabel", text:"Visualizaciones (las veces que se vio el contenido) · Meta las divide en orgánicas y de pago, y en seguidores y no seguidores. La orgánica se calcula sola: total menos pago" },
-        row("g2",[ n("views","Visualizaciones totales",{req:true}), n("views_pauta","Visualizaciones de pago (pauta)",{help:"Vacío si esa semana no hubo pauta"}) ]),
-        row("g2",[ n("views_seg","Visualizaciones de seguidores",{req:true}), n("views_noseg","Visualizaciones de no seguidores",{req:true}) ]),
-        row("g2",[ n("interacciones","Interacciones totales",{req:true}) ]),
-        row("g2",[ n("seg_sumados","Seguidores sumados",{req:true}), n("seg_perdidos","Seguidores perdidos",{req:true}) ]),
-        { type:"fotos", id:"fotos_resultados", label:"Capturas de Estadísticas de la cuenta (espectadores, visualizaciones, seguidores, interacciones)", help:"Instagram → Panel profesional → Estadísticas, filtro 'Últimos 7 días'." },
-        { type:"diag", target:"semana" }
-      ]},
-      { num:4, titulo:"Reels", fields:[
-        seg("reels_n","¿Cuántos reels se publicaron esta semana?",["0","1","2","3"]),
-        { type:"repeat", id:"reel", countField:"reels_n", title:i=>`Reel ${i}`, item:i=>[
-          txt(`reel${i}_nombre`,"Nombre o tema del reel",{req:true}),
-          ...post(`reel${i}`),
-          row("g2",[ seg(`reel${i}_tipo`,"Tipo de reel",["Orgánico","Pautado","Colaboración"]), seg(`reel${i}_stats_ok`,"¿Instagram muestra retención y origen de las views?",["Sí","No"],{req:false,help:"En colaboraciones y en algunos pautados Instagram no muestra retención, gráficos ni origen. Marcá No y cargá solo lo que veas."}) ]),
-          seg(`reel${i}_pilar`,"Tipo de contenido",PILARES,{help:"Un clic. Con esto el mensual arma solo qué tipo de contenido rinde más."}),
-          cuando(`reel${i}`),
-          { type:"sublabel", text:"Objetivo cuantitativo (se define antes de publicar)" },
-          row("g6",[ n(`reel${i}_obj_views`,"Visualizaciones",{req:true}), n(`reel${i}_obj_mg`,"MG",{req:true}), n(`reel${i}_obj_com`,"Comentarios"), n(`reel${i}_obj_comp`,"Compartidos"), n(`reel${i}_obj_guard`,"Guardados"), n(`reel${i}_obj_rep`,"Reposts") ]),
-          { type:"fotos", id:`reel${i}_fotos`, label:"Capturas de las estadísticas del reel · subilas primero y los números se completan solos", help:"Instagram → Estadísticas del reel: el resumen (views, me gusta, compartidos…), el gráfico 'Durante cuánto tiempo las personas vieron tu reel' y el de me gusta. La IA completa los campos vacíos de abajo; revisalos." },
-          { type:"sublabel", text:"Resultados" },
-          row("g6",[ n(`reel${i}_res_views`,"Visualizaciones",{req:true}), txt(`reel${i}_res_tiempo`,"Tiempo reprod.",{ph:"Ej: 10s"}), n(`reel${i}_res_mg`,"MG",{req:true}), n(`reel${i}_res_com`,"Comentarios"), n(`reel${i}_res_comp`,"Compartidos"), n(`reel${i}_res_guard`,"Guardados") ]),
-          { type:"sublabel", text:"Retención y alcance (opcional, suma al diagnóstico) · Instagram → Estadísticas del reel" },
-          row("g3",[ n(`reel${i}_duracion`,"Duración del reel (seg.)",{ph:"53"}), n(`reel${i}_tiempo_prom`,"Tiempo promedio de reproducción (seg.)",{ph:"10"}), n(`reel${i}_omisiones`,"% de omisiones",{ph:"71,5"}) ]),
-          row("g4",[ n(`reel${i}_nuevos_seg`,"Seguidores que generó"), n(`reel${i}_visitas`,"Visitas al perfil"), n(`reel${i}_reposts`,"Reposts"), n(`reel${i}_clics`,"Clics en el enlace") ]),
-          { type:"sublabel", text:"Origen de las visualizaciones (%)" },
-          row("g5",[ n(`reel${i}_org_feed`,"Feed"), n(`reel${i}_org_historias`,"Historias"), n(`reel${i}_org_reels`,"Pestaña Reels"), n(`reel${i}_org_perfil`,"Perfil"), n(`reel${i}_org_explorar`,"Explorar") ]),
-          { type:"sublabel", text:"Lectura de los gráficos (opcional, aproximado a ojo)" },
-          row("g3",[ n(`reel${i}_ret_3s`,"% que seguía viendo a los 3 seg.",{ph:"40",help:"Gráfico 'Durante cuánto tiempo las personas vieron tu reel'"}), n(`reel${i}_ret_fin`,"% que llegó al final",{ph:"10"}), txt(`reel${i}_picos_mg`,"Momentos con pico de me gusta",{ph:"0:03 y 0:50",help:"Gráfico 'Cuándo indicaron que les gusta'"}) ]),
-          { type:"diag", target:"reel", i },
-          seg(`reel${i}_alcanzado`,"¿Se alcanzó el objetivo?",["Sí","No","Parcialmente"],{req:false,help:"Si lo dejás sin marcar, se calcula solo comparando objetivo y resultado."}),
-          ta(`reel${i}_analisis`,"Análisis: qué funcionó, qué no, por qué",{req:true,help:"El diagnóstico automático es un punto de partida; acá va tu lectura."})
-        ]}
-      ]},
-      { num:5, titulo:"Feed", fields:[
-        seg("feed_n","¿Cuántas publicaciones de feed se publicaron?",["0","1","2","3","4"]),
-        { type:"repeat", id:"pub", countField:"feed_n", title:i=>`Publicación ${i}`, item:i=>[
-          txt(`pub${i}_nombre`,"Nombre o tema de la publicación",{req:true}),
-          ...post(`pub${i}`),
-          row("g2",[ seg(`pub${i}_formato`,"Formato",["Carrusel","Foto","Diseño gráfico","Video en feed"],{req:false}), seg(`pub${i}_pauta`,"¿Orgánica o pautada?",["Orgánica","Pautada"],{req:false}) ]),
-          seg(`pub${i}_pilar`,"Tipo de contenido",PILARES,{help:"Un clic. Con esto el mensual arma solo qué tipo de contenido rinde más."}),
-          cuando(`pub${i}`),
-          { type:"sublabel", text:"Objetivo cuantitativo" },
-          row("g5",[ n(`pub${i}_obj_views`,"Visualizaciones",{req:true}), n(`pub${i}_obj_mg`,"MG",{req:true}), n(`pub${i}_obj_com`,"Comentarios"), n(`pub${i}_obj_comp`,"Compartidos"), n(`pub${i}_obj_guard`,"Guardados") ]),
-          { type:"fotos", id:`pub${i}_fotos`, label:"Captura de las estadísticas de la publicación · subila primero y los números se completan solos", help:"La IA completa los campos vacíos de abajo y te deja una devolución; revisalos." },
-          { type:"sublabel", text:"Resultados" },
-          row("g5",[ n(`pub${i}_res_views`,"Visualizaciones",{req:true}), n(`pub${i}_res_mg`,"MG",{req:true}), n(`pub${i}_res_guard`,"Guardados"), n(`pub${i}_res_com`,"Comentarios"), n(`pub${i}_res_comp`,"Compartidos") ]),
-          row("g3",[ n(`pub${i}_nuevos_seg`,"Seguidores que generó",{help:"Estadísticas de la publicación → Seguimientos"}), n(`pub${i}_alcance`,"Cuentas alcanzadas"), n(`pub${i}_visitas`,"Visitas al perfil") ]),
-          { type:"diag", target:"pub", i },
-          seg(`pub${i}_alcanzado`,"¿Se alcanzó el objetivo?",["Sí","No","Parcialmente"],{req:false,help:"Si lo dejás sin marcar, se calcula solo comparando objetivo y resultado."}),
-          ta(`pub${i}_conclusion`,"Conclusión (opcional)",{help:"El diagnóstico automático ya resume los números: sumá solo lo que no se ve ahí."})
-        ]}
-      ]},
-      { num:6, titulo:"Historias", fields:[
-        seg("hist_todo","¿Se publicó todo el contenido de historias planificado?",["Sí, todo","No, hubo faltantes"]),
-        ta("hist_faltantes","¿Qué no se publicó y por qué?",{req:true,showIf:is("hist_todo","No, hubo faltantes")}),
-        row("g3",[ n("hist_n","Historias publicadas en la semana"), n("hist_alc_prom","Alcance promedio por historia",{help:"Estadísticas → Historias"}), n("hist_resp","Respuestas e interacciones") ]),
-        ta("hist_mejor","Historia con mejor performance",{req:true,help:"Cuál fue, cuántas visualizaciones tuvo y por qué creés que funcionó"}),
-        { type:"fotos", id:"hist_fotos", label:"Capturas de historias destacadas (opcional)" },
-        chk("hist_interactivas","Historias con interacción publicadas esta semana",["Encuesta","Caja de preguntas","Emoji slider","Barrita","Cuenta regresiva","Ninguna"],{req:true}),
-        seg("hist_respondidas","¿Se respondieron todas las interacciones de las historias?",["Sí","No","No hubo interacciones"]),
-        ta("hist_resp_det","Indicá cuál no se respondió y por qué",{req:true,showIf:is("hist_respondidas","No")}),
-        { type:"sublabel", text:"Canal social", showIf:v=>!!v._canal },
+      { num:1, titulo:"¿Se publicó todo?", fields:[
+        seg("pub_todo","¿Se publicó todo el contenido planificado de la semana? (reels, feed e historias)",["Sí, todo","No, hubo faltantes"]),
+        ta("pub_faltantes","¿Qué no se publicó y por qué?",{req:true,showIf:is("pub_todo","No, hubo faltantes")}),
         seg("canal_movido","¿Se movió el canal social esta semana?",["Sí","No"],{showIf:v=>!!v._canal}),
         txt("canal_que","¿Qué se publicó en el canal?",{req:true,showIf:v=>!!v._canal&&v.canal_movido==="Sí"}),
         txt("canal_por_que","¿Por qué no se movió?",{req:true,showIf:v=>!!v._canal&&v.canal_movido==="No"})
       ]},
-      { num:7, titulo:"Stickers de enlace en historias", hint:"Evaluamos si los links tienen impacto real", fields:[
-        seg("stick_uso","¿Se usaron stickers de enlace esta semana?",SN),
-        row("g2",[ txt("stick_mejor","Historia con más clicks",{req:true,showIf:is("stick_uso","Sí")}), n("stick_clicks","Cantidad de clicks",{req:true,showIf:is("stick_uso","Sí")}) ]),
-        ta("stick_cero","Historias con 0 clicks",{showIf:is("stick_uso","Sí")}),
-        ta("stick_vale","¿Vale la pena seguir usando stickers de enlace? ¿En qué tipo de historias funcionan mejor?",{req:true,showIf:is("stick_uso","Sí")})
+      { num:2, titulo:"Lo que dejó el CM", ref:"cm", fields:[
+        { id:"leyo_cm_ok", label:"Leí el reporte del CM completo", type:"confirm", req:true, gate:true },
+        ta("aplicar_cm","¿Qué preguntó o pidió la gente y qué vas a aplicar en el contenido?",{req:true,help:"Ej: preguntaron mucho por precios → una historia con precios el martes. Si no hay nada aplicable, escribí por qué."})
       ]},
-      { num:8, titulo:"Cambios para la semana siguiente", hint:"Mínimo 2 puntos accionables y concretos", fields:[
-        txt("cambio1","Cambio 1",{req:true}), txt("cambio2","Cambio 2",{req:true}), txt("cambio3","Cambio 3")
+      { num:3, titulo:"Números de la semana", hint:"Subí la captura y se completan solos. La comparativa con la semana anterior se calcula sola", ref:"semana",
+        compare:[
+          {k:"Espectadores", id:"alcance_total"}, {k:"Visualizaciones", id:"views"}, {k:"Visualizaciones de pago", id:"views_pauta"},
+          {k:"Visualizaciones orgánicas", calc:d=>{const t=d.views; return (t===""||t==null)?null:Number(t)-Number(d.views_pauta||0);}},
+          {k:"Visualizaciones de seguidores", id:"views_seg"}, {k:"Visualizaciones de no seguidores", id:"views_noseg"},
+          {k:"Interacciones", id:"interacciones"}, {k:"Seguidores sumados", id:"seg_sumados"}, {k:"Seguidores perdidos", id:"seg_perdidos", inverse:true},
+          {k:"Seguidores netos", calc:d=>{const a=d.seg_sumados,b=d.seg_perdidos; return (a===""||a==null||b===""||b==null)?null:Number(a)-Number(b);}}
+        ], fields:[
+        { type:"fotos", id:"fotos_resultados", label:"Captura de Estadísticas de la cuenta, últimos 7 días · subila primero y los números se completan solos", help:"Instagram → Panel profesional → Estadísticas, filtro 'Últimos 7 días'. Revisá lo que completa la IA." },
+        row("g2",[ n("alcance_total","Espectadores totales",{req:true}), n("interacciones","Interacciones totales",{req:true}) ]),
+        row("g2",[ n("views","Visualizaciones totales",{req:true}), n("views_pauta","Visualizaciones de pago (pauta)",{help:"Vacío si esa semana no hubo pauta"}) ]),
+        row("g2",[ n("views_seg","Visualizaciones de seguidores"), n("views_noseg","Visualizaciones de no seguidores") ]),
+        row("g2",[ n("seg_sumados","Seguidores sumados",{req:true}), n("seg_perdidos","Seguidores perdidos",{req:true}) ]),
+        { type:"diag", target:"semana" }
       ]},
-      { num:9, titulo:"Promos, precios y productos", fields:[
-        ta("promos","Control preventivo: productos agotados, cambios de precio, promos activas, lanzamientos próximos",{help:"Dejar vacío si no hubo novedades"})
+      { num:4, titulo:"Para la semana que viene", hint:"Lo que vas a cambiar: el panel te lo recuerda", fields:[
+        txt("cambio1","Cambio 1",{req:true}), txt("cambio2","Cambio 2 (opcional)")
       ]}
     ]
   };

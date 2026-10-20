@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
 <script src="shared.js?v=20261020"></script>
-<script src="forms.js?v=20261020b"></script>
+<script src="forms.js?v=20261020c"></script>
 <script src="periodico.js?v=20261020"></script>
 <script src="analisis.js?v=20261020"></script>
 <script src="importar.js"></script>
@@ -933,7 +933,7 @@
     const off = -now.getTimezoneOffset(); const sg = off>=0?"+":"-"; const oh=U.pad(Math.floor(Math.abs(off)/60)), om=U.pad(Math.abs(off)%60);
     const enviado = `${U.iso(now)}T${U.pad(now.getHours())}:${U.pad(now.getMinutes())}:${U.pad(now.getSeconds())}${sg}${oh}:${om}`;
     let resumen="", alcance=null, netos=null, inter=null, reels=null;
-    if(tipo==="sm"){ resumen=d.resumen||""; alcance=U.num(d.alcance_total); netos=U.num(d.seg_sumados)-U.num(d.seg_perdidos); inter=U.num(d.interacciones); reels=U.num(d.reels_n); }
+    if(tipo==="sm"){ resumen=d.resumen||[d.pub_todo==="No, hubo faltantes"?"Faltantes: "+(d.pub_faltantes||""):(d.pub_todo?"Se publicó todo":""), d.aplicar_cm?"CM: "+d.aplicar_cm:"", d.cambio1?"Cambio: "+d.cambio1:""].filter(Boolean).join(" · ").slice(0,700); alcance=U.num(d.alcance_total); netos=U.num(d.seg_sumados)-U.num(d.seg_perdidos); inter=U.num(d.interacciones); reels=U.num(d.reels_n); }
     else if(tipo==="cm"){ resumen=`Mensajes: ${d.msg_total||0} · Tema: ${d.msg_tema||""}${d.cal_todo==="No, hubo faltantes"?" · HUBO FALTANTES":""}${d.inconv?" · Inconveniente: "+d.inconv:""}`; }
     else if(tipo==="periodico"){ resumen=`${per.tipoNombre}: ${d.s_texto||""}`; alcance=U.num(d.p_alc_total); netos=U.num(d.p_seg_sumados)-U.num(d.p_seg_perdidos); inter=U.num(d.p_inter); }
     else { resumen=d.resumen_mes||""; alcance=U.num(d.m_alc_total); netos=U.num(d.seg_sumados)-U.num(d.seg_perdidos); inter=U.num(d.m_inter); }
