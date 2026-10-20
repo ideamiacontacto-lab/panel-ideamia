@@ -7,6 +7,11 @@
   const DEMO = !C.API_URL || qs.get('demo') === '1';
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  // descripción de una tarjeta con los links clickeables (los sueltos y los [texto](url) de Trello): abren en otra pestaña
+  const escL = s => esc(s).replace(/\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g, (m, t, u, v) => {
+    const url = (u || v).replace(/&amp;/g, '&');
+    return '<a href="' + esc(url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="word-break:break-all">' + (t || v) + '</a>';
+  });
   const LS = {
     get(k, d) { try { const v = localStorage.getItem('pi:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('pi:' + k, JSON.stringify(v)); } catch (e) {} }
@@ -727,8 +732,8 @@
     const chks = (o.chk || []).concat(p.chk || []).filter(k => k.items && k.items.length);
     const html = '<div class="pz-2"><div class="pz-info">' +
       '<div class="mt" style="margin-bottom:12px">' + tagM(c.m[0]) + '<span class="pill">' + esc(c.tablero || '') + '</span>' + (c.salida ? '<span>sale ' + cuando(new Date(c.salida)) + '</span>' : '') + '</div>' +
-      (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + esc(o.d) + '</div>' : '') +
-      (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + esc(p.d) + '</div>' : '') +
+      (o.d ? '<div class="dw-l">Brief / copy (tarjeta de SCL)</div><div class="pz-desc">' + escL(o.d) + '</div>' : '') +
+      (p.d ? '<div class="dw-l">Nota de la entrega</div><div class="pz-desc">' + escL(p.d) + '</div>' : '') +
       chks.map(k => '<div class="dw-l">Checklist · ' + esc(k.n) + ' <b>' + k.items.filter(x => x.ok).length + '/' + k.items.length + '</b></div><div class="pz-chk">' + k.items.map(x => '<div class="' + (x.ok ? 'ok' : '') + '"><i>' + (x.ok ? '✓' : '') + '</i><span>' + esc(x.n) + '</span></div>').join('') + '</div>').join('') +
       PZ_PIE_() + '</div><div class="pz-gal">' +
       '<div class="pz-sub"><button class="btn ghost" id="pzsubir">＋ Subir imagen</button><input type="file" id="pzfile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><span id="pzsubq">Se sube a la tarjeta de Trello. PNG, JPG, GIF o WEBP, hasta 9 MB.</span></div>' +
@@ -881,7 +886,7 @@
     const lec = c.ia || ideaRapida(c);
     panelLateral(esc(c.n),
       '<div class="mt" style="display:flex;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)">' + tagM(c.m[0]) + '<span>' + esc(c.tablero) + ' · ' + esc(c.lista) + '</span>' + (c.due ? '<span>' + (diasA(new Date(c.due)) < 0 ? '<span class="pill bad">' + cuando(new Date(c.due)) + '</span>' : 'vence ' + cuando(new Date(c.due))) + '</span>' : '') + '</div>' +
-      (c.d ? '<p class="dw-p" style="white-space:pre-line">' + esc(c.d) + '</p>' : '') +
+      (c.d ? '<p class="dw-p" style="white-space:pre-line">' + escL(c.d) + '</p>' : '') +
       (c.att && c.att.length ? '<div class="att" style="padding:0;margin:10px 0">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
       (['input', 'brainstorming', 'efem', 'corr'].includes(c.cat) || c.tipo === 'project' ? '<div class="ia' + (lec.auto ? ' auto' : '') + '" style="margin:14px 0 0"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + lec.acciones.map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol></div>' : '') +
       '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a><button class="btn" data-mover="' + esc(c.id) + '">Mover</button>' + (c.cat === 'input' || c.tipo === 'project' || c.cat === 'efem' || c.cat === 'brainstorming' ? '<button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button>' : '') + btnClaude(c.id) + '</div>');
@@ -942,7 +947,7 @@
     const ia = '<div class="ia' + (lec.auto ? ' auto' : '') + '"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + (lec.acciones || []).map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol>' + ((lec.pedir || []).length ? '<div class="pd"><b>Pedile al cliente o al project:</b> ' + lec.pedir.map(esc).join(' · ') + '</div>' : '') + (lec.auto ? '<div class="pd" style="margin-top:8px">Para una idea a medida, tocá <b>Preguntale a Claude</b>.</div>' : '') + '</div>';
     const st = c.estado ? '<span class="state">' + (c.estado.estado === 'recordar' ? 'Pospuesto hasta el ' + corto(new Date(c.estado.detalle)) + ' ' + hm(new Date(c.estado.detalle)) : ({ procesado: 'Lo procesaste', project: 'Hablaste con el project', hecho: 'Hecho' }[c.estado.estado] || c.estado.estado) + ' ' + hace(c.estado.fecha)) + (/tarjeta creada: (\S+)/.test(c.estado.detalle || '') ? ' · <a href="' + esc(/tarjeta creada: (\S+)/.exec(c.estado.detalle)[1]) + '" target="_blank" rel="noopener" style="color:var(--y)">ver tarjeta ↗</a>' : '') + '</span>' : '<span class="state">Sin tocar · cargado ' + hace(c.act) + '</span>';
     return '<article class="cardx" id="in-' + esc(c.id) + '"><div class="hd"><div><div class="mt" style="font-size:12.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">' + tagM(c.m[0]) + '<span>' + esc(c.lista) + '</span>' + (c.due ? '<span>para ' + cuando(new Date(c.due)) + '</span>' : '') + (c.ia ? '<span class="pill ' + (c.ia.prioridad === 'alta' ? 'bad' : c.ia.prioridad === 'media' ? 'warn' : '') + '">prioridad ' + esc(c.ia.prioridad) + '</span>' : '') + '</div><h4>' + esc(c.n) + '</h4></div><a class="go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a></div>' +
-      (c.d ? '<div class="ds">' + esc(c.d) + '</div>' : '') +
+      (c.d ? '<div class="ds">' + escL(c.d) + '</div>' : '') +
       (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + ia +
       (p ? '<div class="nudge"><div class="nq"><b>' + (p === 'nuevo' ? 'Input nuevo.' : p === 'pospuesto' ? 'Te pediste acordarte de esto.' : 'Hace unos días que no lo tocás.') + '</b> ¿Ya lo procesaste?</div>' +
         '<div class="nb"><button class="btn y" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Sí, ya está</button><button class="btn" data-todavia="' + esc(c.id) + '">Todavía no</button></div>' +
