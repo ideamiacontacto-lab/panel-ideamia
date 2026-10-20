@@ -950,7 +950,7 @@
       (c.d ? '<div class="ds">' + escL(c.d) + '</div>' : '') +
       (c.att.length ? '<div class="att">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') + ia +
       (p ? '<div class="nudge"><div class="nq"><b>' + (p === 'nuevo' ? 'Input nuevo.' : p === 'pospuesto' ? 'Te pediste acordarte de esto.' : 'Hace unos días que no lo tocás.') + '</b> ¿Ya lo procesaste?</div>' +
-        '<div class="nb"><button class="btn y" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Sí, ya está</button><button class="btn" data-todavia="' + esc(c.id) + '">Todavía no</button></div>' +
+        '<div class="nb"><button class="btn' + (S.todavia === c.id ? '' : ' y') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Sí, ya está</button><button class="btn' + (S.todavia === c.id ? ' y' : '') + '" data-todavia="' + esc(c.id) + '">Todavía no</button></div>' +
         (S.todavia === c.id ? '<div class="nb no"><span>Dejalo listo ahora o te lo recuerdo:</span><button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear la tarjeta</button><button class="btn" data-recordar="2h" data-id="' + esc(c.id) + '">⏰ En 2 h</button><button class="btn" data-recordar="manana" data-id="' + esc(c.id) + '">Mañana 9 h</button><button class="btn" data-recordar="lunes" data-id="' + esc(c.id) + '">El lunes</button></div>' : '') + '</div>' : '') +
       '<div class="ft"><button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
   }
@@ -1856,7 +1856,7 @@
     root.querySelectorAll('[data-copiar-clave]').forEach(b => b.onclick = () => copiar(S.data.links.claveBrain, 'Contraseña copiada: pegala con Ctrl+V.'));
     root.querySelectorAll('[data-copiar-plan]').forEach(b => b.onclick = () => copiar(promptPlan()));
     const ms = $('#mas', root); if (ms) ms.onclick = () => { S.todasSug = true; render(); };
-    root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = b.dataset.todavia; render(); if ($('#drawer')) { const c = S.data.cards.find(x => x.id === S.todavia); if (c) detalleInput(c); } });
+    root.querySelectorAll('[data-todavia]').forEach(b => b.onclick = () => { S.todavia = S.todavia === b.dataset.todavia ? null : b.dataset.todavia; render(); if ($('#drawer')) { const c = S.data.cards.find(x => x.id === S.todavia); if (c) detalleInput(c); } });
     root.querySelectorAll('[data-reloj]').forEach(b => b.onclick = () => { S.reloj = b.dataset.reloj || null; render(); });
     root.querySelectorAll('[data-pliegue]').forEach(b => b.onclick = () => { S.abiertos[b.dataset.pliegue] = !S.abiertos[b.dataset.pliegue]; render(); });
     root.querySelectorAll('[data-det-input]').forEach(b => b.onclick = () => { const c = S.data.cards.find(x => x.id === b.dataset.detInput); if (c) detalleInput(c); });
