@@ -12,7 +12,10 @@
     { id: 'plan', n: 'Plan', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/plan/', solo: ['orne', 'rama', 'project'] }
   ];
   // plataforma de prueba de Joaquín (?p=joaco o /prueba/): todos los links quedan dentro de la prueba
-  const PRUEBA = new URLSearchParams(location.search).get('p') === 'joaco' || /\/prueba\//.test(location.pathname);
+  // también si en el panel se eligió "Joaquín (prueba)" (persona guardada joaco), aunque la dirección no diga ?p=joaco
+  const guardada = (() => { try { const v = localStorage.getItem('pi:persona'); return (v ? JSON.parse(v) : '') || localStorage.getItem('ideamia:persona') || ''; } catch (e) { return ''; } })();
+  const qp = new URLSearchParams(location.search).get('p');
+  const PRUEBA = qp === 'joaco' || /\/prueba\//.test(location.pathname) || (!qp && guardada === 'joaco' && /panel-ideamia/.test(location.pathname));
   if (PRUEBA) {
     const B = 'https://ideamiacontacto-lab.github.io/panel-ideamia/';
     SITIOS.splice(0, SITIOS.length,
