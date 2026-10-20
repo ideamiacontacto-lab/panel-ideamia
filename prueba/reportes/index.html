@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
 <script src="shared.js?v=20261020"></script>
-<script src="forms.js?v=20261020"></script>
+<script src="forms.js?v=20261020b"></script>
 <script src="periodico.js?v=20261020"></script>
 <script src="analisis.js?v=20261020"></script>
 <script src="importar.js"></script>
@@ -742,7 +742,7 @@
   function contextoIA(campo){
     const mk = C.MARCAS.find(x=>x.slug===marca); const pre=(/^(reel|pub)\d+/.exec(campo)||[])[0];
     const ctx = { marca: mk ? mk.nombre : marca };
-    if(pre){ ctx.nombre = vals[`${pre}_nombre`]||""; const o=[["obj_views","visualizaciones"],["obj_mg","me gusta"],["obj_com","comentarios"],["obj_comp","compartidos"],["obj_guard","guardados"]].filter(([k])=>vals[`${pre}_${k}`]).map(([k,l])=>`${vals[`${pre}_${k}`]} ${l}`); if(o.length) ctx.objetivo=o.join(", "); }
+    if(pre){ ctx.nombre = vals[`${pre}_nombre`]||""; const o=[["obj_views","visualizaciones"],["obj_mg","me gusta"],["obj_com","comentarios"],["obj_comp","compartidos"],["obj_guard","guardados"],["obj_rep","reposts"]].filter(([k])=>vals[`${pre}_${k}`]).map(([k,l])=>`${vals[`${pre}_${k}`]} ${l}`); if(o.length) ctx.objetivo=o.join(", "); }
     return ctx;
   }
   function aplicarLectura(campo, datos){
@@ -823,7 +823,7 @@
     if(!prev) return; const d=prev.datos||{};
     const tomar = (pre, n, campos) => { // primer objetivo cargado de ese tipo en la semana anterior
       const out={}; for(const c of campos){ for(let k=1;k<=n;k++){ const v=d[`${pre}${k}_${c}`]; if(v!=null && v!==""){ out[c]=v; break; } } } return out; };
-    const oR = tomar("reel", Number(d.reels_n||0), ["obj_views","obj_mg","obj_com","obj_comp","obj_guard"]);
+    const oR = tomar("reel", Number(d.reels_n||0), ["obj_views","obj_mg","obj_com","obj_comp","obj_guard","obj_rep"]);
     const oP = tomar("pub", Number(d.feed_n||0), ["obj_views","obj_mg","obj_com","obj_comp","obj_guard"]);
     for(let i=1;i<=Number(vals.reels_n||0);i++) for(const [c,v] of Object.entries(oR)) if(vals[`reel${i}_${c}`]==null||vals[`reel${i}_${c}`]==="") vals[`reel${i}_${c}`]=String(v);
     for(let i=1;i<=Number(vals.feed_n||0);i++) for(const [c,v] of Object.entries(oP)) if(vals[`pub${i}_${c}`]==null||vals[`pub${i}_${c}`]==="") vals[`pub${i}_${c}`]=String(v);

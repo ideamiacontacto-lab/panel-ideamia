@@ -56,7 +56,7 @@
           seg(`reel${i}_pilar`,"Tipo de contenido",PILARES,{help:"Un clic. Con esto el mensual arma solo qué tipo de contenido rinde más."}),
           cuando(`reel${i}`),
           { type:"sublabel", text:"Objetivo cuantitativo (se define antes de publicar)" },
-          row("g5",[ n(`reel${i}_obj_views`,"Visualizaciones",{req:true}), n(`reel${i}_obj_mg`,"MG",{req:true}), n(`reel${i}_obj_com`,"Comentarios"), n(`reel${i}_obj_comp`,"Compartidos"), n(`reel${i}_obj_guard`,"Guardados") ]),
+          row("g6",[ n(`reel${i}_obj_views`,"Visualizaciones",{req:true}), n(`reel${i}_obj_mg`,"MG",{req:true}), n(`reel${i}_obj_com`,"Comentarios"), n(`reel${i}_obj_comp`,"Compartidos"), n(`reel${i}_obj_guard`,"Guardados"), n(`reel${i}_obj_rep`,"Reposts") ]),
           { type:"fotos", id:`reel${i}_fotos`, label:"Capturas de las estadísticas del reel · subilas primero y los números se completan solos", help:"Instagram → Estadísticas del reel: el resumen (views, me gusta, compartidos…), el gráfico 'Durante cuánto tiempo las personas vieron tu reel' y el de me gusta. La IA completa los campos vacíos de abajo; revisalos." },
           { type:"sublabel", text:"Resultados" },
           row("g6",[ n(`reel${i}_res_views`,"Visualizaciones",{req:true}), txt(`reel${i}_res_tiempo`,"Tiempo reprod.",{ph:"Ej: 10s"}), n(`reel${i}_res_mg`,"MG",{req:true}), n(`reel${i}_res_com`,"Comentarios"), n(`reel${i}_res_comp`,"Compartidos"), n(`reel${i}_res_guard`,"Guardados") ]),
