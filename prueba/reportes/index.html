@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
 <script src="shared.js?v=20261020"></script>
-<script src="forms.js?v=20261020c"></script>
+<script src="forms.js?v=20261020d"></script>
 <script src="periodico.js?v=20261020"></script>
 <script src="analisis.js?v=20261020"></script>
 <script src="importar.js"></script>
@@ -570,6 +570,7 @@
       if(f.type==="table"||f.type==="list"||f.type==="fotos") return;
       if(f.showIf && !f.showIf(vals)) return; if(!isReq(f)) return; total++;
       const v = vals[f.id]; if(v==null||v===""||(Array.isArray(v)&&!v.length)||(f.type==="number"&&U.num(v)==null)||(f.type==="url"&&!/^https?:\/\/\S+$/i.test(String(v).trim()))) errs.push({id:f.id, msg:(ctx.repeat?`${ctx.repeat.title(ctx.i)} · `:"")+f.label});
+      else if(f.minLen && String(v).trim().length<f.minLen) errs.push({id:f.id, msg:(ctx.repeat?`${ctx.repeat.title(ctx.i)} · `:"")+f.label+` (mínimo ${f.minLen} caracteres)`});
     });
     errs.total = total;
     return errs;

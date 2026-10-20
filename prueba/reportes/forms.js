@@ -33,7 +33,7 @@
       ]},
       { num:2, titulo:"Lo que dejó el CM", ref:"cm", fields:[
         { id:"leyo_cm_ok", label:"Leí el reporte del CM completo", type:"confirm", req:true, gate:true },
-        ta("aplicar_cm","¿Qué preguntó o pidió la gente y qué vas a aplicar en el contenido?",{req:true,help:"Ej: preguntaron mucho por precios → una historia con precios el martes. Si no hay nada aplicable, escribí por qué."})
+        ta("aplicar_cm","Tu conclusión del reporte de Ale: ¿qué preguntó o pidió la gente y qué vas a aplicar en el contenido?",{req:true,minLen:40,help:"Obligatorio, mínimo 40 caracteres. Ej: preguntaron mucho por precios → una historia con precios el martes. Si no hay nada aplicable, explicá por qué."})
       ]},
       { num:3, titulo:"Números de la semana", hint:"Subí la captura y se completan solos. La comparativa con la semana anterior se calcula sola", ref:"semana",
         compare:[
