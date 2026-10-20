@@ -380,9 +380,10 @@
   }
   // "crear:produccion" en la columna enlace de Rutinas = botón para crear la tarjeta en ese tablero de la marca
   // las rutinas cuya ayuda dice "cargalo como input" (ej. activaciones externas) muestran un botón que crea la tarjeta en Inputs del SCL
-  const enlaceDe = x => x.enlace || (/como input/i.test(x.hint || x.nota || '') ? 'crear:input' : /correcci/i.test(x.t || x.tarea || '') ? 'ver:corr' : '');
+  const enlaceDe = x => { const t = x.t || x.tarea || ''; return x.enlace || (/como input/i.test(x.hint || x.nota || x.ayuda || '') ? 'crear:input' : /correcci/i.test(t) ? 'ver:corr' : /pendientes/i.test(t) && /project/i.test(t) ? 'anotar:pend' : ''); };
   function botonEnlace(enlace, marcas) {
     if (!enlace) return '';
+    if (/^anotar:pend/.test(enlace)) return '<button class="btn y" data-pend>📝 Anotar pendientes</button>';   // arma la lista y le llega al project (Bandeja de Project + privado)
     if (/^ver:corr/.test(enlace)) return '<button class="btn" data-ver-corr>Ver correcciones</button>';   // lleva a Hoy y abre Correcciones y Tarjetas por vencer
     const m = /^crear:(\w+)/.exec(enlace);
     if (m) return '<button class="btn" data-crear-en="' + esc(m[1]) + '" data-marcas="' + esc((marcas || []).filter(Boolean).join(',')) + '">' + (m[1] === 'input' ? '＋ Cargar como input' : '＋ Tarjeta en ' + esc(NOM_T[m[1]] || m[1])) + '</button>';
@@ -1051,7 +1052,7 @@
     const tablaDias = diarias.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + cols.map((d, i) => '<th' + (d === hoyY ? ' class="hoy"' : '') + '>' + DN[i] + ' ' + Number(d.slice(8)) + '</th>').join('') + '</tr></thead><tbody>' +
       diarias.map(r => (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => '<tr><td>' + esc(r.tarea) + (s !== '-' ? ' ' + tagM(s) : '') + (r.cuando !== 'diaria' ? '<small>' + esc(r.cuando.slice(5).replace(/,/g, ' y ')) + '</small>' : '') + '</td>' + cols.map((d, i) => '<td>' + (diasRegla(r).indexOf(i + 1) >= 0 ? celda('rut:' + r.id + ':' + s + ':' + d, d > hoyY) : '<span class="na">·</span>') + '</td>').join('') + '</tr>').join('')).join('') + '</tbody></table></div>' : '';
     const tablaMarcas = (defs, per) => defs.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + marcasV.map(m => '<th><i class="dotm" style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</th>').join('') + '</tr></thead><tbody>' +
-      defs.map(r => '<tr><td>' + esc(r.tarea) + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
+      defs.map(r => '<tr><td>' + esc(r.tarea) + (/^anotar:/.test(enlaceDe(r)) ? ' ' + botonEnlace(enlaceDe(r), r.marcas) : '') + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
         (r.marcas.length ? marcasV.map(m => '<td>' + (r.marcas.indexOf(m.slug) >= 0 ? celda('rut:' + r.id + ':' + m.slug + ':' + per, false) : '<span class="na">·</span>') + '</td>').join('')
           : '<td colspan="' + marcasV.length + '" class="gen">' + celda('rut:' + r.id + ':-:' + per, false) + ' <span>general</span></td>') + '</tr>').join('') + '</tbody></table></div>' : '';
     const reps = (D.reportes || []).filter(r => pasa(r.marca));
@@ -1126,7 +1127,14 @@
     const prox = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && c.etapa === 'pendiente').map(c => Object.assign({}, c, { plazo: plazoEntrega(c) })).filter(c => c.plazo && c.plazo < limite).sort((a, b) => a.plazo - b.plazo);
     const lun = proxLunes(), finSem = new Date(lun.getTime() + 7 * 864e5);
     const gui = guiones().filter(g => !g.salio && (g.gest === 'revisar' || (g.gest === 'pendiente' && g.entrega && new Date(g.entrega) < finSem)));
-    return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun };
+    // urgentes (pedido de Joaquín, 20/10/2026): lo pendiente en Diseño y Producción con la etiqueta Urgente, que sale en 3 días o menos,
+    // o que se cargó en las últimas 48 h (aunque no tenga fecha: así Ivo ve lo nuevo y puede pedir la fecha)
+    const cargada = c => new Date(parseInt(String(c.id).slice(0, 8), 16) * 1000), en3 = new Date(NOW.getTime() + 3 * 864e5), hace48 = new Date(NOW.getTime() - 48 * 36e5);
+    const urg = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && (c.etapa === 'pendiente' || c.etapa === 'correccion') &&
+      ((c.lab || []).some(l => /urgente/i.test(l)) || (c.salida && new Date(c.salida) <= en3) || cargada(c) >= hace48))
+      .map(c => Object.assign({}, c, { cargada: cargada(c), urgente: (c.lab || []).some(l => /urgente/i.test(l)) }))
+      .sort((a, b) => (b.urgente - a.urgente) || (new Date(a.salida || 9e15) - new Date(b.salida || 9e15)) || (b.cargada - a.cargada));
+    return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun, urg };
   }
   /* ---------------- revisión en vivo ----------------
      Para quien revisa: se pide a Trello lo que está AHORA en "En revisión" y se combina con lo ya cargado,
@@ -1180,11 +1188,15 @@
     };
     const vacio = t => '<div class="empty">' + t + '</div>';
     // los contadores son las pestañas: se ve una sección a la vez
-    const segs = [['dis', 'diseños', 'en revisión', R.revDis.length, 'y'], ['vid', 'videos', 'en revisión', R.revVid.length, 'y'], ['ent', 'entregas', R.atras.length ? 'faltó entregar' : 'próximas', R.atras.length || R.prox.length, R.atras.length ? 'bad' : ''], ['gui', 'guiones', 'lunes ' + dm(R.lun), R.gui.length, '']];
+    const segs = [['urg', 'urgentes', 'nuevo y para ya', R.urg.length, 'bad'], ['dis', 'diseños', 'en revisión', R.revDis.length, 'y'], ['vid', 'videos', 'en revisión', R.revVid.length, 'y'], ['ent', 'entregas', R.atras.length ? 'faltó entregar' : 'próximas', R.atras.length || R.prox.length, R.atras.length ? 'bad' : ''], ['gui', 'guiones', 'lunes ' + dm(R.lun), R.gui.length, '']];
     let seg = LS.get('revseg', null);
-    if (!segs.some(s => s[0] === seg)) seg = R.atras.length ? 'ent' : R.revDis.length ? 'dis' : R.revVid.length ? 'vid' : 'ent';
+    if (!segs.some(s => s[0] === seg)) seg = R.urg.length ? 'urg' : R.atras.length ? 'ent' : R.revDis.length ? 'dis' : R.revVid.length ? 'vid' : 'ent';
     const tabs = '<div class="rapidos revtabs">' + segs.map(s => '<button class="rp' + (s[3] ? ' ' + s[4] : '') + (seg === s[0] ? ' sel' : '') + '" data-revseg="' + s[0] + '"><b>' + s[3] + '</b><span>' + s[1] + '<br><small>' + s[2] + '</small></span></button>').join('') + '</div>';
     let cuerpo = '';
+    if (seg === 'urg') {
+      const dato = c => (c.urgente ? '<span class="pill bad">Urgente</span>' : '') + (c.salida ? '' : '<span class="pill warn">sin fecha de salida</span>') + (c.cargada >= new Date(NOW.getTime() - 48 * 36e5) ? '<span>cargada ' + cuando(c.cargada) + '</span>' : '') + '<span>' + esc(c.tablero || '') + ' · ' + esc(c.lista || '') + '</span>';
+      cuerpo = R.urg.length ? '<p class="sub" style="margin:0 0 10px">Lo pendiente de diseño y producción que es urgente, sale en 3 días o menos, o se cargó en las últimas 48 h. Si no tiene fecha, pedísela a quien lo cargó.</p>' + porMarca('ru', R.urg, c => fila(c, dato(c)), c => c.urgente || (c.salida && diasA(new Date(c.salida)) <= 1)) : vacio('No hay nada urgente ni cargado en las últimas 48 h.');
+    } else
     if (seg === 'dis') cuerpo = R.revDis.length ? porMarca('rd', R.revDis, c => fila(c, '')) : vacio('No hay diseños esperando revisión.');
     else if (seg === 'vid') cuerpo = R.revVid.length ? porMarca('rv', R.revVid, c => fila(c, '')) : vacio('No hay videos esperando revisión.');
     else if (seg === 'gui') cuerpo = R.gui.length ? porMarca('rg', R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), g => g.gest === 'pendiente' && diasA(new Date(g.entrega)) < 0) : vacio('No hay guiones para ver esta semana.');
@@ -1872,6 +1884,7 @@
     });
     root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
+    root.querySelectorAll('[data-pend]').forEach(b => b.onclick = () => anotarPendientes());
     root.querySelectorAll('[data-ver-corr]').forEach(b => b.onclick = () => {
       S.tab = 'hoy'; LS.set('hoymodo', 'tipo'); S.abiertos['h-corr'] = true; S.abiertos['h-card'] = true; render();
       const el = document.querySelector('[data-mcar="h-corr"]') || document.querySelector('[data-mcar="h-card"]');
@@ -2115,6 +2128,29 @@
     pintar();
     $('#cT', m).onchange = () => { t = ts.find(x => x.id === $('#cT', m).value); pintar(); };
     $('#cM', m).onchange = () => { const nts = tablerosDe($('#cM', m).value); if (!nts.length) return; ts.length = 0; nts.forEach(x => ts.push(x)); t = (tipoPref && ts.find(x => x.tipo === tipoPref)) || ts.find(x => x.tipo === 'scl') || ts[0]; pintar(); };
+  }
+
+  /* Rutina "Coordinar con el project los pendientes de la semana próxima": se anotan los temas (y si hace falta, una reunión) y le
+     llegan al project solos: tarjeta en Bandeja de Project con la etiqueta "Ver en minuta" (y la fecha de la reunión) y privado de Discord. */
+  function anotarPendientes() {
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const vie = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + (((5 - NOW.getDay()) + 7) % 7 || 7));
+    const m = modal('<h3>Pendientes para el project</h3><p>Anotá lo que tenés pendiente o querés ver con el project. Le llega solo: queda en su Bandeja de Project para la minuta y le avisa por privado.</p>' +
+      '<label class="field"><span>Pendientes · uno por línea</span><textarea id="pP" rows="6" placeholder="Ej: falta el precio del combo de Halloween de Quality&#10;Confirmar si Isco abre el feriado&#10;Definir el plan B del reel de Vice"></textarea></label>' +
+      '<label class="field" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pR" style="width:auto" checked> <span style="margin:0">Propongo reunirnos para verlos</span></label>' +
+      '<div class="two" id="pRF"><label class="field"><span>Día</span><input type="date" id="pD" value="' + iso(vie) + '"></label><label class="field"><span>Hora</span><input type="time" id="pH" value="10:00"></label></div>' +
+      '<label class="field"><span>Algo más (opcional)</span><input id="pN" placeholder="Ej: si se puede antes de las 12"></label><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Enviar al project</button></div>', async mm => {
+      const items = $('#pP', mm).value.split('\n').map(s => s.replace(/^\s*[-•*\d.)]+\s*/, '').trim()).filter(Boolean);
+      if (!items.length) throw new Error('Anotá al menos un pendiente.');
+      const reunion = $('#pR', mm).checked && $('#pD', mm).value ? new Date($('#pD', mm).value + 'T' + ($('#pH', mm).value || '10:00') + ':00').toISOString() : '';
+      const r = await post({ action: 'pendientesProject', items, reunion, nota: $('#pN', mm).value.trim() });
+      const rut = (S.data.rutinas || []).find(x => x.id === 'coordinar' && !(x.estado && x.estado.estado === 'hecho'));
+      if (rut) { try { await marcarCelda(rut.clave); } catch (e) {} }
+      toast((r.pasos || ['Enviado al project']).map(p => '✓ ' + esc(p)).join('<br>'));
+    });
+    const sync = () => { $('#pRF', m).style.display = $('#pR', m).checked ? '' : 'none'; };
+    $('#pR', m).onchange = sync; sync(); $('#pP', m).focus();
   }
 
   function moverTarjeta(id) {
