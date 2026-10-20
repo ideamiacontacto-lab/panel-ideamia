@@ -976,6 +976,7 @@ function panel_(personaClave, ctx) {
     feriados: ctx.feriados || [],
     marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', driveFotos: m.driveFotos || String(cfg.DRIVE_FOTOS || '').trim(), tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ id: b.id, tipo: b.tipo, url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] })) })),
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
+    colabs: colabsDe_(slugs),
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
     anual: esFilm || (esCM && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy, snap), // calendario anual: solo social media, dirección y project (no filmmaker ni CM)
@@ -4442,7 +4443,7 @@ const horMin_ = (a, b) => Math.max(0, Math.round((new Date(b).getTime() - new Da
 function pruebaVista_() {
   const g = leerJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json');
   const filas = horFilas_().map(o => { delete o.fila; return o; });
-  return { ok: true, ahora: new Date().toISOString(), horarios: filas, corriendo: filas.filter(o => !o.fin)[0] || null, colabs: g.colabs || [], hechas: g.hechas || {},
+  return { ok: true, ahora: new Date().toISOString(), horarios: filas, corriendo: filas.filter(o => !o.fin)[0] || null, colabs: colabsDe_([PRUEBA.slug]), hechas: g.hechas || {},
     tablero: (leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json').tableros || []).filter(b => b.marca === PRUEBA.slug).map(b => ({ nombre: b.nombre, url: b.url }))[0] || null };
 }
 function pruebaAccion_(b, quien) {
@@ -4475,17 +4476,41 @@ function pruebaAccion_(b, quien) {
     } else if (b.accion === 'colab' || b.accion === 'colabBorrar' || b.accion === 'hecha') {
       const g = leerJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json'); g.colabs = g.colabs || []; g.hechas = g.hechas || {};
       if (b.accion === 'hecha') { const k = t(b.id, 40); if (b.valor) g.hechas[k] = ahora; else delete g.hechas[k]; }
-      else if (b.accion === 'colabBorrar') g.colabs = g.colabs.filter(c => c.id !== b.id);
-      else {
-        const c = b.colab || {}, x = { id: t(c.id, 12) || Utilities.getUuid().slice(0, 8), nombre: t(c.nombre, 80), usuario: t(c.usuario, 60), rubro: t(c.rubro, 60), seguidores: t(c.seguidores, 20),
-          contacto: t(c.contacto, 120), propuesta: t(c.propuesta, 400), campana: t(c.campana, 80), fecha: t(c.fecha, 10), estado: ['contactar', 'contactado', 'acepto', 'rechazo', 'publicado'].indexOf(c.estado) >= 0 ? c.estado : 'contactar', t: ahora };
-        if (!x.nombre && !x.usuario) return { error: 'datos', mensaje: 'Poné al menos el nombre o el usuario' };
-        const i = g.colabs.findIndex(y => y.id === x.id); if (i >= 0) g.colabs[i] = x; else g.colabs.push(x);
-      }
+      else { const r = colabGuardar_(b, PRUEBA.slug, quien, true); if (r.error) return r; }   // colaboradores: archivo compartido con el panel (desde el 20/10/2026)
       guardarJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json', g);
     } else return { error: 'datos', mensaje: 'Acción desconocida' };
     return pruebaVista_();
   } finally { lock.releaseLock(); }
+}
+/* ---------------- COLABORADORES (influencers, cuentas afines) por marca (pedido de Joaquín, 20/10/2026) ----------------
+   Archivo de Drive panel-ideamia-colabs.json: { lista: [{ id, marca, nombre, usuario, rubro, seguidores, contacto, propuesta, campana, fecha, estado, quien, t }] }.
+   Cada social media ve y edita los de sus marcas; el project, todos. La plataforma de prueba usa el mismo archivo (marca tritato-prueba). */
+const COLAB_ARCH = ['COLAB_FILE_ID', 'panel-ideamia-colabs.json'], COLAB_ESTADOS = ['contactar', 'contactado', 'acepto', 'rechazo', 'publicado'];
+function colabLeer_() {
+  const g = leerJson_(COLAB_ARCH[0], COLAB_ARCH[1]); g.lista = g.lista || [];
+  if (!g.migrado) {   // una vez: lo que ya estaba cargado en la plataforma de prueba pasa al archivo compartido
+    try { const p = leerJson_('PRUEBA_FILE_ID', 'panel-ideamia-prueba.json'); (p.colabs || []).forEach(c => { if (!g.lista.some(x => x.id === c.id)) g.lista.push(Object.assign({ marca: PRUEBA.slug, quien: PRUEBA.sm }, c)); }); } catch (e) {}
+    g.migrado = true; guardarJson_(COLAB_ARCH[0], COLAB_ARCH[1], g);
+  }
+  return g;
+}
+const colabsDe_ = slugs => { try { return colabLeer_().lista.filter(c => slugs.indexOf(c.marca) >= 0).sort((a, b) => String(a.fecha || '9').localeCompare(String(b.fecha || '9'))); } catch (e) { return []; } };
+function colabGuardar_(b, marca, quien, sinLock) {
+  const lock = sinLock ? null : LockService.getScriptLock(); if (lock) lock.waitLock(15000);
+  try {
+    const g = colabLeer_(), t = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 200);
+    if (b.accion === 'colabBorrar' || b.accion === 'borrar') g.lista = g.lista.filter(c => !(c.id === b.id && c.marca === marca));
+    else {
+      const c = b.colab || {}, prev = g.lista.filter(y => y.id === c.id && y.marca === marca)[0];
+      const x = { id: t(c.id, 12) || Utilities.getUuid().slice(0, 8), marca: marca, nombre: t(c.nombre, 80), usuario: t(c.usuario, 60), rubro: t(c.rubro, 60), seguidores: t(c.seguidores, 20),
+        contacto: t(c.contacto, 120), propuesta: t(c.propuesta, 600), campana: t(c.campana, 80), fecha: /^\d{4}-\d{2}-\d{2}$/.test(c.fecha || '') ? c.fecha : '', estado: COLAB_ESTADOS.indexOf(c.estado) >= 0 ? c.estado : 'contactar',
+        quien: prev ? prev.quien : norm_(quien), t: new Date().toISOString() };
+      if (!x.nombre && !x.usuario) return { error: 'datos', mensaje: 'Poné al menos el nombre o el usuario' };
+      const i = g.lista.findIndex(y => y.id === x.id && y.marca === marca); if (i >= 0) g.lista[i] = x; else g.lista.push(x);
+    }
+    guardarJson_(COLAB_ARCH[0], COLAB_ARCH[1], g);
+    return { ok: true };
+  } finally { if (lock) lock.releaseLock(); }
 }
 /* UNA SOLA VEZ, desde el editor: arma todo lo de la prueba (se puede volver a correr: no duplica). */
 function pruebaPreparar() {
@@ -5180,6 +5205,13 @@ function doPost(e) {
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
         if (!/project|direcc|creativ/i.test(((catalogo_().equipo.filter(x => x.clave === norm_(quien))[0]) || {}).rol || '')) return json_({ error: 'permiso', mensaje: 'La agenda privada es solo para el project y dirección' });
         try { return json_(invitadosPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudieron cambiar los invitados: ' + String(e.message || e).slice(0, 200) }); }
+      case 'colab': { // colaboradores de una marca: guardar o borrar (social media de la marca o project)
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0], m = catalogo_().marcas.filter(x => x.slug === String(b.marca || ''))[0];
+        if (!yo || !m) return json_({ error: 'datos', mensaje: 'Falta la marca' });
+        if (!/project/i.test(yo.rol) && m.sm !== yo.clave && m.cm !== yo.clave) return json_({ error: 'permiso', mensaje: 'Esa marca no es tuya' });
+        const r = colabGuardar_(b, m.slug, quien); if (r.error) return json_(r);
+        return json_({ ok: true, colabs: colabsDe_(/project/i.test(yo.rol) ? catalogo_().marcas.map(x => x.slug) : catalogo_().marcas.filter(x => x.sm === yo.clave || x.cm === yo.clave).map(x => x.slug)) });
+      }
       case 'pendientesProject': { // rutina "Coordinar con el project": el social media anota pendientes (y propone reunión) y le llegan al project
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
         if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
