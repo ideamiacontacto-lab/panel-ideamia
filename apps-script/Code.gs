@@ -5249,7 +5249,14 @@ function doPost(e) {
       }
       case 'revisarPieza': { // Ivo aprueba o manda a corregir: se mueve dentro del tablero de Diseño/Producción (y el comentario queda en la tarjeta)
         // el tablero se toma de la tarjeta misma (no de lo que mande la web)
-        const card = trello_('/cards/' + b.cardId, { fields: 'idBoard,idList,name' });
+        let card = trello_('/cards/' + b.cardId, { fields: 'idBoard,idList,name,closed' });
+        // si Butler archivó esta tarjeta y creó otra igual mientras Ivo tenía el panel abierto (pasó el 20/10: la aprobación movía la
+        // archivada y la nueva quedaba en revisión), se usa la copia abierta del mismo tablero que enlaza a la misma tarjeta de SCL
+        if (card.closed) {
+          const viva = /trello\.com\/c\//.test(card.name || '') ? (trello_('/boards/' + card.idBoard + '/cards', { filter: 'open', fields: 'name,idList,idBoard' }) || []).filter(x => x.name === card.name)[0] : null;
+          if (!viva) return json_({ error: 'archivada', mensaje: 'Esa tarjeta ya no está en revisión (la archivaron en Trello). Actualizá el panel con ↻ y volvé a abrirla.' });
+          b.cardId = viva.id; card = viva;
+        }
         const listas = trello_('/boards/' + card.idBoard + '/lists', { fields: 'name' });
         const dest = listaRevision_(listas, b.accion === 'aprobar' ? 'aprobar' : 'corregir');
         const firma = nombreDe_(quien), coment = String(b.comentario || '').trim(), pasos = [], donde = b.tablero ? ' de ' + b.tablero : '';
