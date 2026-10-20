@@ -212,8 +212,37 @@ function reinstalarDisparador() { instalarDisparador_(); }
 function actualizarProgramado() {
   const h = Number(Utilities.formatDate(new Date(), TZ, 'H')), m = Number(Utilities.formatDate(new Date(), TZ, 'm'));
   if ((h < 8 || h >= 21) && m >= 10) return;
+  const t0 = Date.now();
   actualizar();
+  if (h >= 8 && h < 21) try { planCalentar_(t0); } catch (e) { console.warn('planCalentar_: ' + e.message); }
 }
+/* ---------------- PLAN · respuestas guardadas (pedido de Joaquín, 20/10/2026: la página Plan tardaba 6 a 16 s por consulta) ----------------
+   Cada respuesta de la página Plan se guarda 10 min en el CacheService. La clave lleva PLAN_VER, que cambia cada vez que alguien guarda
+   algo del plan (planmes, planb, campana, ficha, pauta…): así nunca se ve un dato viejo después de guardar. La actualización de cada
+   10 min las deja armadas para las social media y el project (mientras quede tiempo de ejecución). */
+function planRespuesta_(clave, esProj, que, mes) {
+  if (que === 'ficha') return fichaVista_(clave, esProj);   // ficha operativa de cada marca (Fase 2)
+  if (que === 'campanas') return campVista_(clave, esProj);   // campañas de este mes y del siguiente (Fase 3)
+  if (que === 'pauta') return pautaVista_(clave, esProj);   // control semanal de la pauta (Ads)
+  if (que === 'planb') return planbVista_(clave, esProj);   // plan B de cada reel (Fase 5)
+  return planVista_(clave, esProj, mes || undefined);
+}
+const planCK_ = (clave, esProj, que, mes) => 'plv|' + (P.getProperty('PLAN_VER') || '0') + '|' + clave + '|' + (esProj ? 1 : 0) + '|' + que + '|' + (mes || '');
+function planCacheado_(clave, esProj, que, mes, forzar) {
+  const c = CacheService.getScriptCache(), k = planCK_(clave, esProj, que, mes);
+  if (!forzar) { const h = c.get(k); if (h) { try { return JSON.parse(h); } catch (e) {} } }
+  const r = planRespuesta_(clave, esProj, que, mes);
+  try { const s = JSON.stringify(r); if (r && r.ok !== false && !r.error && s.length < 95000) c.put(k, s, 600); } catch (e) {}
+  return r;
+}
+function planCalentar_(t0) {
+  const cat = catalogo_(), quienes = cat.equipo.filter(p => /project/i.test(p.rol) || cat.marcas.some(m => m.sm === p.clave));
+  for (const p of quienes) for (const que of ['', 'campanas', 'ficha', 'planb', 'pauta']) {
+    if (Date.now() - t0 > 4 * 60 * 1000) return;   // no pasarse del límite de 6 min de la ejecución
+    planCacheado_(p.clave, /project/i.test(p.rol), que, '', true);
+  }
+}
+const PLAN_ACCIONES = ['planmes', 'planb', 'campana', 'ficha', 'pauta', 'okrAnotar', 'agente'];   // solo lo que cambia el plan (los tildes del día no: si no, el cache no duraba nada)
 
 /* ---------------- lectura de pestañas ---------------- */
 function rows_(name) {
@@ -231,7 +260,15 @@ const norm_ = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-�
 const lista_ = s => String(s || '').split(',').map(x => norm_(x)).filter(Boolean);
 const si_ = s => /^(si|sí|s|x|true|1)$/i.test(String(s).trim());
 
+/* Equipo, marcas, rutinas y reuniones salen de la planilla: se guardan 2 min en el cache (leer las pestañas tardaba ~3 s en cada pedido). */
 function catalogo_() {
+  const c = CacheService.getScriptCache(), h = c.get('catalogo');
+  if (h) { try { return JSON.parse(h); } catch (e) {} }
+  const r = catalogoLeer_();
+  try { const s = JSON.stringify(r); if (s.length < 95000) c.put('catalogo', s, 120); } catch (e) {}
+  return r;
+}
+function catalogoLeer_() {
   // Mails de cada uno (para saber a quién invitaron a cada evento del calendario del equipo). Columna E de Equipo; si está vacía, estos.
   const MAILS = { orne: 'ornebrasca@gmail.com', rama: 'ramiro.ideamia@gmail.com' };
   const equipo = rows_('Equipo').map(r => ({ nombre: r[0], clave: norm_(r[1]), rol: String(r[2]).trim(), alias: lista_(r[3]).concat([norm_(r[0])]), email: String(r[4] || MAILS[norm_(r[1])] || '').trim().toLowerCase(), discord: lista_(r[5]).map(x => x.replace(/^@/, '')) }));
@@ -5081,11 +5118,7 @@ function doGet(e) {
       const cat = catalogo_(), yo = cat.equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
       if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
       if (!yo || (!esProj && !cat.marcas.some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'El plan es solo para las social media y el project' }, q.cb);
-      if (q.que === 'ficha') return json_(fichaVista_(yo.clave, esProj), q.cb);   // ficha operativa de cada marca (Fase 2)
-      if (q.que === 'campanas') return json_(campVista_(yo.clave, esProj), q.cb);   // campañas de este mes y del siguiente (Fase 3)
-      if (q.que === 'pauta') return json_(pautaVista_(yo.clave, esProj), q.cb);   // control semanal de la pauta (Ads)
-      if (q.que === 'planb') return json_(planbVista_(yo.clave, esProj), q.cb);   // plan B de cada reel (Fase 5)
-      return json_(planVista_(yo.clave, esProj, q.mes), q.cb);
+      return json_(planCacheado_(yo.clave, esProj, q.que || '', q.mes || ''), q.cb);   // ficha, campañas, pauta, plan B o indicadores (con cache: ver planCacheado_)
     }
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
@@ -5098,7 +5131,12 @@ function doGet(e) {
   } catch (err) { return json_({ error: 'servidor', mensaje: String(err.message || err) }, q.cb); }
 }
 
-function doPost(e) {
+function doPost(e) {   // después de guardar algo del plan, las respuestas guardadas de la página Plan dejan de valer
+  const r = doPost__(e);
+  try { const a = JSON.parse(e.postData.contents).action; if (PLAN_ACCIONES.indexOf(a) >= 0) P.setProperty('PLAN_VER', String(Date.now())); } catch (x) {}
+  return r;
+}
+function doPost__(e) {
   if ((e.parameter || {}).prueba === 'reportes') return pruebaReporte_(e);   // página de Reportes de prueba de Joaquín
   let b = {};
   try { b = JSON.parse(e.postData.contents); } catch (x) { return json_({ error: 'json' }); }
