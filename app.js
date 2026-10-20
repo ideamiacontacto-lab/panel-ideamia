@@ -253,7 +253,7 @@
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
@@ -383,7 +383,7 @@
   const enlaceDe = x => { const t = x.t || x.tarea || ''; return x.enlace || (/como input/i.test(x.hint || x.nota || x.ayuda || '') ? 'crear:input' : /correcci/i.test(t) ? 'ver:corr' : /pendientes/i.test(t) && /project/i.test(t) ? 'anotar:pend' : ''); };
   function botonEnlace(enlace, marcas) {
     if (!enlace) return '';
-    if (/^anotar:pend/.test(enlace)) return '<button class="btn y" data-pend>📝 Anotar pendientes</button>';   // arma la lista y le llega al project (Bandeja de Project + privado)
+    if (/^anotar:pend/.test(enlace)) return '<button class="btn" data-pend>📝 Anotar pendientes</button>';   // arma la lista y le llega al project (Bandeja de Project + privado)
     if (/^ver:corr/.test(enlace)) return '<button class="btn" data-ver-corr>Ver correcciones</button>';   // lleva a Hoy y abre Correcciones y Tarjetas por vencer
     const m = /^crear:(\w+)/.exec(enlace);
     if (m) return '<button class="btn" data-crear-en="' + esc(m[1]) + '" data-marcas="' + esc((marcas || []).filter(Boolean).join(',')) + '">' + (m[1] === 'input' ? '＋ Cargar como input' : '＋ Tarjeta en ' + esc(NOM_T[m[1]] || m[1])) + '</button>';
@@ -1058,10 +1058,27 @@
     const DN = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const tablaDias = diarias.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + cols.map((d, i) => '<th' + (d === hoyY ? ' class="hoy"' : '') + '>' + DN[i] + ' ' + Number(d.slice(8)) + '</th>').join('') + '</tr></thead><tbody>' +
       diarias.map(r => (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => '<tr><td>' + esc(r.tarea) + (s !== '-' ? ' ' + tagM(s) : '') + (r.cuando !== 'diaria' ? '<small>' + esc(r.cuando.slice(5).replace(/,/g, ' y ')) + '</small>' : '') + '</td>' + cols.map((d, i) => '<td>' + (diasRegla(r).indexOf(i + 1) >= 0 ? celda('rut:' + r.id + ':' + s + ':' + d, d > hoyY) : '<span class="na">·</span>') + '</td>').join('') + '</tr>').join('')).join('') + '</tbody></table></div>' : '';
+    // cuándo toca cada rutina, en castellano (antes salía "del mes: ultima-semana", "desde el vie")
+    const DIAN = { lun: 'lunes', mar: 'martes', mie: 'miércoles', jue: 'jueves', vie: 'viernes', sab: 'sábado', dom: 'domingo' };
+    const cuandoTxt = c => {
+      c = String(c || ''); let m;
+      if ((m = /^semana:(\w+)/.exec(c))) return 'desde el ' + (DIAN[m[1]] || m[1]);
+      if ((m = /^(?:mes|meses:[\d,]+\/?):?(.*)$/.exec(c))) {
+        const v = m[1].replace(/^:/, ''), r2 = /^(\d+)-(\d+)$/.exec(v);
+        if (/ultima/.test(v)) return 'la última semana del mes';
+        if (v === '1-31') return 'en cualquier momento del mes';
+        return r2 ? 'del ' + r2[1] + ' al ' + r2[2] + ' del mes' : v;
+      }
+      return c;
+    };
+    // fila: título, cuándo y (si hay) una línea de acciones debajo; los casilleros siempre centrados en su columna
     const tablaMarcas = (defs, per) => defs.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + marcasV.map(m => '<th><i class="dotm" style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</th>').join('') + '</tr></thead><tbody>' +
-      defs.map(r => '<tr><td>' + esc(r.tarea) + (/^anotar:/.test(enlaceDe(r)) ? ' ' + botonEnlace(enlaceDe(r), r.marcas) : '') + (r.id === 'trimestral-check' && entregaTrim() ? ' <span class="pill warn">entrega ' + dm(new Date(entregaTrim().vence)) + '</span>' : '') + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
-        (r.marcas.length ? marcasV.map(m => '<td>' + (r.marcas.indexOf(m.slug) >= 0 ? celda('rut:' + r.id + ':' + m.slug + ':' + per, false) : '<span class="na">·</span>') + '</td>').join('')
-          : '<td colspan="' + marcasV.length + '" class="gen">' + celda('rut:' + r.id + ':-:' + per, false) + ' <span>general</span></td>') + '</tr>').join('') + '</tbody></table></div>' : '';
+      defs.map(r => {
+        const acc = (/^anotar:/.test(enlaceDe(r)) ? botonEnlace(enlaceDe(r), r.marcas) : '') + (r.id === 'trimestral-check' && entregaTrim() ? '<span class="pill warn">entrega ' + dm(new Date(entregaTrim().vence)) + '</span>' : '');
+        return '<tr><td><span class="rt-t">' + esc(r.tarea) + '</span><small>' + esc(cuandoTxt(r.cuando)) + '</small>' + (acc ? '<div class="rt-acc">' + acc + '</div>' : '') + '</td>' +
+          (r.marcas.length ? marcasV.map(m => '<td>' + (r.marcas.indexOf(m.slug) >= 0 ? celda('rut:' + r.id + ':' + m.slug + ':' + per, false) : '<span class="na">·</span>') + '</td>').join('')
+            : '<td colspan="' + marcasV.length + '" class="gen">' + celda('rut:' + r.id + ':-:' + per, false) + '<span>general</span></td>') + '</tr>';
+      }).join('') + '</tbody></table></div>' : '';
     const reps = (D.reportes || []).filter(r => pasa(r.marca));
     // reuniones del mes (brainstorming, cliente, entrega de reportes, Ads): con fecha ✓ o "organizar"
     const grupos = {};
@@ -1083,7 +1100,7 @@
         const ms = r.marcas.length ? marcasV.filter(m => r.marcas.indexOf(m.slug) >= 0) : null;
         if (ms && !ms.length) return '';
         const ks = ms ? ms.map(m => ['rut:' + r.id + ':' + m.slug + ':' + per, m.slug, m.nombre]) : [['rut:' + r.id + ':-:' + per, '', 'general']];
-        return filaR(r, ks.map(x => chipK(x[0], x[1], x[2])).join(''), ks.filter(x => ok(x[0])).length, ks.length, r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días '));
+        return filaR(r, ks.map(x => chipK(x[0], x[1], x[2])).join(''), ks.filter(x => ok(x[0])).length, ks.length, cuandoTxt(r.cuando));
       }).join('');
       const iHoy = Math.max(0, cols.indexOf(hoyY)), di = S.diaSem == null ? iHoy : Math.min(S.diaSem, cols.length - 1), dsel = cols[di];
       const delDia = diarias.filter(r => diasRegla(r).indexOf(di + 1) >= 0).map(r => {
@@ -1294,7 +1311,7 @@
     const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
     return '<div class="mas-g">' +
       (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + (nVen === 1 ? ' tarjeta pasada de fecha' : ' tarjetas pasadas de fecha') : 'nada vencido') +
-      t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') +
+      t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-claude-plan', I.msg, 'Plan del día', 'con Claude') +
       '</div>' + costado(true);
   }
@@ -1323,6 +1340,40 @@
   }
 
   /* ---------------- vista RECURSOS ---------------- */
+  /* ---------------- COLABORADORES por marca (influencers, cuentas afines) (pedido de Joaquín, 20/10/2026) ---------------- */
+  const COLAB_EST = { contactar: ['#8C8C8C', 'Por contactar'], contactado: ['#FFB454', 'Contactado'], acepto: ['#5CE38A', 'Aceptó'], rechazo: ['#FF6B6B', 'No aceptó'], publicado: ['#6FC3FF', 'Publicado'] };
+  function vColabs() {
+    const L = (S.data.colabs || []).filter(c => pasa([c.marca])), g = {};
+    L.forEach(c => (g[c.marca] = g[c.marca] || []).push(c));
+    const fila = c => { const e = COLAB_EST[c.estado] || COLAB_EST.contactar, ig = String(c.usuario || '').replace(/^@/, '');
+      return '<div class="row"><span class="ico">' + I.users + '</span><div><div class="tt"><b>' + esc(c.nombre || c.usuario) + '</b>' + (c.usuario ? ' <a class="lnk" href="https://instagram.com/' + esc(ig) + '" target="_blank" rel="noopener" style="color:var(--muted)">@' + esc(ig) + '</a>' : '') + ' <span class="pill" style="background:' + e[0] + '22;color:' + e[0] + '">' + e[1] + '</span></div>' +
+        '<div class="mt">' + [c.rubro, c.seguidores ? c.seguidores + ' seguidores' : '', c.campana, c.fecha ? 'para el ' + dm(new Date(c.fecha + 'T12:00:00')) : '', c.contacto].filter(Boolean).map(x => '<span>' + esc(x) + '</span>').join('') + '</div>' +
+        (c.propuesta ? '<div class="hint">' + esc(c.propuesta) + '</div>' : '') + '</div><div><button class="btn" data-colab-ed="' + esc(c.marca + '|' + c.id) + '">Editar</button></div></div>'; };
+    return '<div class="sec"><div class="sec-h"><h2>Colaboradores<small>' + L.length + '</small></h2><button class="btn y" data-colab-ed="">＋ Sumar colaborador</button></div>' +
+      '<p class="sub" style="margin:0 0 12px;color:var(--muted)">Influencers, emprendedores o cuentas afines para colaborar en campañas: quiénes son, qué se les propone y en qué quedó.</p>' +
+      (L.length ? Object.keys(g).map(s => '<div class="sec"><div class="sec-h"><h2 style="font-size:16px"><span class="dotm" style="background:' + color(s) + '"></span> ' + esc((marca(s) || {}).nombre || s) + '<small>' + g[s].length + '</small></h2></div><div class="list">' + g[s].map(fila).join('') + '</div></div>').join('')
+        : '<div class="empty">Todavía no cargaste colaboradores. Tocá "＋ Sumar colaborador".</div>') + '</div>';
+  }
+  function editarColab(clave) {
+    const [slug0, id] = String(clave || '').split('|'), c = (S.data.colabs || []).find(x => x.marca === slug0 && x.id === id) || { estado: 'contactar' };
+    const marcas = S.data.marcas.filter(m => pasa([m.slug])), f = (i, l, ph, v, t) => '<label class="field"><span>' + l + '</span><input id="' + i + '"' + (t ? ' type="' + t + '"' : '') + ' placeholder="' + esc(ph) + '" value="' + esc(v || '') + '"></label>';
+    const m = modal('<h3>' + (c.id ? 'Editar colaborador' : 'Sumar colaborador') + '</h3>' +
+      '<label class="field"><span>Marca</span><select id="kM"' + (c.id ? ' disabled' : '') + '>' + marcas.map(x => '<option value="' + esc(x.slug) + '"' + (x.slug === (c.marca || (S.marca !== 'todas' ? S.marca : '')) ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></label>' +
+      '<div class="two">' + f('kN', 'Nombre', 'Ej.: Sofi Gastro', c.nombre) + f('kU', 'Usuario de Instagram', '@usuario', c.usuario) + '</div>' +
+      '<div class="two">' + f('kR', 'Rubro', 'Ej.: gastronomía local', c.rubro) + f('kS', 'Seguidores', 'Ej.: 25.000', c.seguidores) + '</div>' +
+      f('kC', 'Contacto', 'Mail, WhatsApp o "por MD"', c.contacto) +
+      '<div class="two">' + f('kP', 'Campaña', 'Ej.: Día del Sándwich', c.campana) + f('kF', 'Para cuándo', '', c.fecha, 'date') + '</div>' +
+      '<label class="field"><span>Qué se le propone</span><textarea id="kX" rows="3" placeholder="Ej.: le mandamos una caja para que la pruebe y suba un reel en colaboración">' + esc(c.propuesta || '') + '</textarea></label>' +
+      '<label class="field"><span>Estado</span><select id="kE">' + Object.keys(COLAB_EST).map(k => '<option value="' + k + '"' + (c.estado === k ? ' selected' : '') + '>' + COLAB_EST[k][1] + '</option>').join('') + '</select></label><div class="err"></div>' +
+      '<div class="acts">' + (c.id ? '<button class="btn ghost" data-borrar style="margin-right:auto;color:var(--bad)">Borrar</button>' : '') + '<button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Guardar</button></div>', async mm => {
+      const v = s => $(s, mm).value;
+      const r = await post({ action: 'colab', accion: 'guardar', marca: c.marca || v('#kM'), colab: { id: c.id, nombre: v('#kN'), usuario: v('#kU'), rubro: v('#kR'), seguidores: v('#kS'), contacto: v('#kC'), campana: v('#kP'), fecha: v('#kF'), propuesta: v('#kX'), estado: v('#kE') } });
+      S.data.colabs = r.colabs || S.data.colabs; render(); toast('✓ Guardado');
+    });
+    const bb = $('[data-borrar]', m);
+    if (bb) bb.onclick = async () => { if (!confirm('¿Borrar a ' + (c.nombre || c.usuario) + '?')) return; try { const r = await post({ action: 'colab', accion: 'borrar', marca: c.marca, id: c.id }); S.data.colabs = r.colabs || S.data.colabs; m.remove(); render(); toast('Borrado'); } catch (e) { $('.err', m).textContent = e.message; } };
+  }
+
   function vRecursos() {
     const f = S.filtroRes.toLowerCase();
     const L = S.data.cards.filter(c => ['recursos', 'fichas', 'datos', 'standby'].indexOf(c.cat) >= 0 && pasa(c.m) && (!f || (c.n + ' ' + c.d + ' ' + c.att.map(a => a.n).join(' ')).toLowerCase().includes(f)));
@@ -1925,6 +1976,7 @@
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
     root.querySelectorAll('[data-pend]').forEach(b => b.onclick = () => anotarPendientes());
     root.querySelectorAll('[data-subir-rec]').forEach(b => b.onclick = () => subirRecurso());
+    root.querySelectorAll('[data-colab-ed]').forEach(b => b.onclick = () => editarColab(b.dataset.colabEd));
     root.querySelectorAll('[data-ver-corr]').forEach(b => b.onclick = () => {
       S.tab = 'hoy'; LS.set('hoymodo', 'tipo'); S.abiertos['h-corr'] = true; S.abiertos['h-card'] = true; render();
       const el = document.querySelector('[data-mcar="h-corr"]') || document.querySelector('[data-mcar="h-card"]');
