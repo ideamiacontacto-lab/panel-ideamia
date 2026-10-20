@@ -807,8 +807,8 @@
     const subir = $('#pzsubir'), archivo = $('#pzfile');
     if (subir && archivo) {
       subir.onclick = () => archivo.click();
-      archivo.onchange = async () => {
-        const files = [...archivo.files]; if (!files.length) return;
+      const subirLista = async files => {
+        files = [...files]; if (!files.length || subir.disabled) return;
         const q = $('#pzsubq'); subir.disabled = true; let ok = 0; const mal = [];
         for (const f of files) {
           if (!/^image\/(png|jpe?g|gif|webp)$/i.test(f.type)) { mal.push(f.name + ': solo imágenes PNG, JPG, GIF o WEBP'); continue; }
@@ -824,6 +824,13 @@
         toast((ok ? '✓ ' + ok + (ok === 1 ? ' imagen subida' : ' imágenes subidas') + ' a la tarjeta de Trello.' : '') + mal.map((m, i) => (ok || i ? '<br>' : '') + '✗ ' + esc(m)).join(''));
         if (ok && !DEMO) abrirPieza(id); else if (q) q.textContent = DEMO && ok ? 'Modo demo: no se subió nada de verdad.' : 'Se sube a la tarjeta de Trello. PNG, JPG, GIF o WEBP, hasta 9 MB.';
       };
+      archivo.onchange = () => subirLista(archivo.files);
+      // también se puede arrastrar o pegar (Ctrl+V) una imagen en la pieza abierta
+      b.ondragover = e => e.preventDefault();
+      b.ondrop = (e => { if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); subirLista(e.dataTransfer.files); } });
+      const pegar = e => { if (!document.body.contains(b)) { document.removeEventListener('paste', pegar); return; } const fs = [...((e.clipboardData || {}).items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean); if (fs.length) { e.preventDefault(); subirLista(fs.map(f => f.name && !/^image.w+$/.test(f.name) ? f : new File([f], 'captura-' + Date.now() + '.png', { type: f.type || 'image/png' }))); } };
+      if (window.__pzPegar) document.removeEventListener('paste', window.__pzPegar);
+      window.__pzPegar = pegar; document.addEventListener('paste', pegar);
     }
     // tocar una imagen (o "Ver completa") la abre acá mismo, entera; adentro se pasa a la siguiente y se puede ver a tamaño real
     b.addEventListener('click', e => {
@@ -893,7 +900,7 @@
       (c.d ? '<p class="dw-p" style="white-space:pre-line">' + escL(c.d) + '</p>' : '') +
       (c.att && c.att.length ? '<div class="att" style="padding:0;margin:10px 0">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
       (['input', 'brainstorming', 'efem', 'corr'].includes(c.cat) || c.tipo === 'project' ? '<div class="ia' + (lec.auto ? ' auto' : '') + '" style="margin:14px 0 0"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + lec.acciones.map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol></div>' : '') +
-      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a><button class="btn" data-mover="' + esc(c.id) + '">Mover</button>' + (c.cat === 'input' || c.tipo === 'project' || c.cat === 'efem' || c.cat === 'brainstorming' ? '<button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button>' : '') + btnClaude(c.id) + '</div>');
+      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a>' + (/foto/i.test(c.n + ' ' + (c.d || '')) && (marca(c.m[0]) || {}).driveFotos ? '<a class="btn" href="' + esc(marca(c.m[0]).driveFotos) + '" target="_blank" rel="noopener">📁 Drive de fotos</a>' : '') + '<button class="btn" data-mover="' + esc(c.id) + '">Mover</button>' + (c.cat === 'input' || c.tipo === 'project' || c.cat === 'efem' || c.cat === 'brainstorming' ? '<button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button>' : '') + btnClaude(c.id) + '</div>');
   }
 
   /* ---------------- "Idea rápida": sugerencia automática y gratis según lo que dice la tarjeta (sin IA) ---------------- */
@@ -956,7 +963,7 @@
       (p ? '<div class="nudge"><div class="nq"><b>' + (p === 'nuevo' ? 'Input nuevo.' : p === 'pospuesto' ? 'Te pediste acordarte de esto.' : 'Hace unos días que no lo tocás.') + '</b> ¿Ya lo procesaste?</div>' +
         '<div class="nb"><button class="btn' + (S.todavia === c.id ? '' : ' y') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Sí, ya está</button><button class="btn' + (S.todavia === c.id ? ' y' : '') + '" data-todavia="' + esc(c.id) + '">Todavía no</button></div>' +
         (S.todavia === c.id ? '<div class="nb no"><span>Dejalo listo ahora o te lo recuerdo:</span><button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear la tarjeta</button><button class="btn" data-recordar="2h" data-id="' + esc(c.id) + '">⏰ En 2 h</button><button class="btn" data-recordar="manana" data-id="' + esc(c.id) + '">Mañana 9 h</button><button class="btn" data-recordar="lunes" data-id="' + esc(c.id) + '">El lunes</button></div>' : '') + '</div>' : '') +
-      '<div class="ft"><button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
+      '<div class="ft">' + (/foto/i.test(c.n + ' ' + (c.d || '')) && (marca(c.m[0]) || {}).driveFotos ? '<a class="btn" href="' + esc(marca(c.m[0]).driveFotos) + '" target="_blank" rel="noopener">📁 Drive de fotos</a>' : '') + '<button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
   }
   /* Inputs en formato compacto: una línea cada uno, 3 acciones rápidas y el detalle completo al tocar el título. */
   function filaInput(c) {
@@ -1052,7 +1059,7 @@
     const tablaDias = diarias.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + cols.map((d, i) => '<th' + (d === hoyY ? ' class="hoy"' : '') + '>' + DN[i] + ' ' + Number(d.slice(8)) + '</th>').join('') + '</tr></thead><tbody>' +
       diarias.map(r => (r.marcas.length ? r.marcas.filter(s => pasa(s)) : ['-']).map(s => '<tr><td>' + esc(r.tarea) + (s !== '-' ? ' ' + tagM(s) : '') + (r.cuando !== 'diaria' ? '<small>' + esc(r.cuando.slice(5).replace(/,/g, ' y ')) + '</small>' : '') + '</td>' + cols.map((d, i) => '<td>' + (diasRegla(r).indexOf(i + 1) >= 0 ? celda('rut:' + r.id + ':' + s + ':' + d, d > hoyY) : '<span class="na">·</span>') + '</td>').join('') + '</tr>').join('')).join('') + '</tbody></table></div>' : '';
     const tablaMarcas = (defs, per) => defs.length ? '<div class="tw"><table class="chk-t"><thead><tr><th></th>' + marcasV.map(m => '<th><i class="dotm" style="background:' + color(m.slug) + '"></i>' + esc(m.nombre) + '</th>').join('') + '</tr></thead><tbody>' +
-      defs.map(r => '<tr><td>' + esc(r.tarea) + (/^anotar:/.test(enlaceDe(r)) ? ' ' + botonEnlace(enlaceDe(r), r.marcas) : '') + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
+      defs.map(r => '<tr><td>' + esc(r.tarea) + (/^anotar:/.test(enlaceDe(r)) ? ' ' + botonEnlace(enlaceDe(r), r.marcas) : '') + (r.id === 'trimestral-check' && entregaTrim() ? ' <span class="pill warn">entrega ' + dm(new Date(entregaTrim().vence)) + '</span>' : '') + '<small>' + esc(r.cuando.replace('semana:', 'desde el ').replace(/^mes:/, 'del mes: ').replace(/^meses:[\d,]+\//, 'días ')) + '</small></td>' +
         (r.marcas.length ? marcasV.map(m => '<td>' + (r.marcas.indexOf(m.slug) >= 0 ? celda('rut:' + r.id + ':' + m.slug + ':' + per, false) : '<span class="na">·</span>') + '</td>').join('')
           : '<td colspan="' + marcasV.length + '" class="gen">' + celda('rut:' + r.id + ':-:' + per, false) + ' <span>general</span></td>') + '</tr>').join('') + '</tbody></table></div>' : '';
     const reps = (D.reportes || []).filter(r => pasa(r.marca));
@@ -1098,7 +1105,38 @@
     }
     return '<div class="semana-h"><div><div class="kick">— Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
   }
-  async function marcarCelda(k) {
+  /* Rutinas que no se tildan sin más (pedido de Joaquín, 20/10/2026):
+     · activaciones-externas: se responde Sí o No; con Sí se abre directo la carga del input en el SCL de la marca.
+     · trimestral-check: muestra la fecha de entrega del trimestral y ofrece "Llego", "Recordarme 72 h antes" o "Pedirle al project reprogramar". */
+  const entregaTrim = slug => (S.data.reportes || []).filter(r => r.tipo === 'periodico' && (!slug || slug === '-' || r.marca === slug) && pasa(r.marca)).sort((a, b) => new Date(a.vence) - new Date(b.vence))[0] || null;
+  function rutinaEspecial(rid, slug, hacer) {
+    const nomM = slug && slug !== '-' ? ((marca(slug) || {}).nombre || slug) : '';
+    if (rid === 'activaciones-externas') {
+      const m = modal('<h3>¿Este mes hay alguna activación externa o comunicación interna' + (nomM ? ' en ' + esc(nomM) : '') + '?</h3><p>Canal social, material para el área comercial, promos para vendedores, eventos o activaciones.</p><div class="err"></div>' +
+        '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn" data-no>No hay</button><button class="btn y" data-ok>Sí, cargarla</button></div>', async () => {
+        await hacer(); crearTarjeta(null, nomM ? slug : null, 'scl', 'input');
+      });
+      $('[data-no]', m).onclick = async () => { m.remove(); await hacer(); toast('Anotado: este mes no hay' + (nomM ? ' en ' + esc(nomM) : '') + '.'); };
+      return true;
+    }
+    if (rid === 'trimestral-check') {
+      const e = entregaTrim(slug), v = e ? new Date(e.vence) : null;
+      const m = modal('<h3>Reporte trimestral</h3><p>' + (v ? 'Se entrega el <b>' + DIAS_L[v.getDay()].toLowerCase() + ' ' + dm(v) + '</b> (' + esc(e.label) + ').' : 'Este mes no encontré un trimestral por entregar en tus marcas.') + ' ¿Cómo venís?</p><div class="err"></div>' +
+        '<div class="acts" style="flex-wrap:wrap"><button class="btn ghost" data-x>Cancelar</button><button class="btn" data-rep>Pedirle al project reprogramar</button>' + (v ? '<button class="btn" data-rec>Recordarme 72 h antes</button>' : '') + '<button class="btn y" data-ok>Llego</button></div>', async () => { await hacer(); });
+      const rep = $('[data-rep]', m), rec = $('[data-rec]', m);
+      rep.onclick = async () => {
+        const motivo = prompt('¿Para qué fecha lo necesitás y por qué? (le llega al project)'); if (!motivo) return;
+        rep.disabled = true; try { await post({ action: 'pendientesProject', items: ['Pedido de reprogramar la entrega del reporte trimestral' + (e ? ' (' + e.label + ', vence ' + dm(v) + ')' : '') + ': ' + motivo] }); m.remove(); await hacer(); toast('✓ Se lo pedí al project: le llegó a su Bandeja y por privado.'); } catch (er) { rep.disabled = false; $('.err', m).textContent = er.message; }
+      };
+      if (rec) rec.onclick = async () => {
+        rec.disabled = true; try { await post({ action: 'recCrear', texto: 'Entregar el reporte trimestral (' + e.label + ')', tipo: 'antes', due: v.toISOString(), dias: 3, canal: 'ambos', hora: '9:00' }); m.remove(); await hacer(); toast('✓ Te lo recuerdo 3 días antes (' + dm(new Date(v.getTime() - 3 * 864e5)) + ').'); } catch (er) { rec.disabled = false; $('.err', m).textContent = er.message; }
+      };
+      return true;
+    }
+    return false;
+  }
+  async function marcarCelda(k, forzar) {
+    { const p = k.split(':'), D0 = S.data, er0 = D0.estRut || {}; if (!forzar && !(er0[k] && er0[k].estado === 'hecho') && rutinaEspecial(p[1], p[2], () => marcarCelda(k, true))) return; }
     const D = S.data, er = D.estRut || (D.estRut = {}), antes = er[k] || null, ya = !!(antes && antes.estado === 'hecho');
     if (ya) delete er[k]; else { er[k] = { estado: 'hecho', fecha: ahoraTxt() }; confeti(); }
     const r = D.rutinas.find(x => x.clave === k); if (r) r.estado = ya ? null : er[k];
@@ -1129,11 +1167,12 @@
     const gui = guiones().filter(g => !g.salio && (g.gest === 'revisar' || (g.gest === 'pendiente' && g.entrega && new Date(g.entrega) < finSem)));
     // urgentes (pedido de Joaquín, 20/10/2026): lo pendiente en Diseño y Producción con la etiqueta Urgente, que sale en 3 días o menos,
     // o que se cargó en las últimas 48 h (aunque no tenga fecha: así Ivo ve lo nuevo y puede pedir la fecha)
-    const cargada = c => new Date(parseInt(String(c.id).slice(0, 8), 16) * 1000), en3 = new Date(NOW.getTime() + 3 * 864e5), hace48 = new Date(NOW.getTime() - 48 * 36e5);
+    const cargada = c => new Date(parseInt(String(c.id).slice(0, 8), 16) * 1000), en3 = new Date(NOW.getTime() + 3 * 864e5), en7 = new Date(NOW.getTime() + 7 * 864e5), hace48 = new Date(NOW.getTime() - 48 * 36e5);
+    const fsal = c => (c.salida || c.due) ? new Date(c.salida || c.due) : null;   // recién cargadas: solo si salen en 7 días o no tienen fecha (no los calendarios enteros del mes que viene)
     const urg = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && (c.etapa === 'pendiente' || c.etapa === 'correccion') &&
-      ((c.lab || []).some(l => /urgente/i.test(l)) || (c.salida && new Date(c.salida) <= en3) || cargada(c) >= hace48))
+      ((c.lab || []).some(l => /urgente/i.test(l)) || (fsal(c) && fsal(c) <= en3) || (cargada(c) >= hace48 && (!fsal(c) || fsal(c) <= en7))))
       .map(c => Object.assign({}, c, { cargada: cargada(c), urgente: (c.lab || []).some(l => /urgente/i.test(l)) }))
-      .sort((a, b) => (b.urgente - a.urgente) || (new Date(a.salida || 9e15) - new Date(b.salida || 9e15)) || (b.cargada - a.cargada));
+      .sort((a, b) => (b.urgente - a.urgente) || ((fsal(a) || 9e15) - (fsal(b) || 9e15)) || (b.cargada - a.cargada));
     return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun, urg };
   }
   /* ---------------- revisión en vivo ----------------
@@ -1194,8 +1233,8 @@
     const tabs = '<div class="rapidos revtabs">' + segs.map(s => '<button class="rp' + (s[3] ? ' ' + s[4] : '') + (seg === s[0] ? ' sel' : '') + '" data-revseg="' + s[0] + '"><b>' + s[3] + '</b><span>' + s[1] + '<br><small>' + s[2] + '</small></span></button>').join('') + '</div>';
     let cuerpo = '';
     if (seg === 'urg') {
-      const dato = c => (c.urgente ? '<span class="pill bad">Urgente</span>' : '') + (c.salida ? '' : '<span class="pill warn">sin fecha de salida</span>') + (c.cargada >= new Date(NOW.getTime() - 48 * 36e5) ? '<span>cargada ' + cuando(c.cargada) + '</span>' : '') + '<span>' + esc(c.tablero || '') + ' · ' + esc(c.lista || '') + '</span>';
-      cuerpo = R.urg.length ? '<p class="sub" style="margin:0 0 10px">Lo pendiente de diseño y producción que es urgente, sale en 3 días o menos, o se cargó en las últimas 48 h. Si no tiene fecha, pedísela a quien lo cargó.</p>' + porMarca('ru', R.urg, c => fila(c, dato(c)), c => c.urgente || (c.salida && diasA(new Date(c.salida)) <= 1)) : vacio('No hay nada urgente ni cargado en las últimas 48 h.');
+      const dato = c => (c.urgente ? '<span class="pill bad">Urgente</span>' : '') + ((c.salida || c.due) ? '' : '<span class="pill warn">sin fecha de salida</span>') + (c.cargada >= new Date(NOW.getTime() - 48 * 36e5) ? '<span>cargada ' + (diasA(c.cargada) === 0 ? 'hoy' : 'ayer') + '</span>' : '') + '<span>' + esc(c.tablero || '') + ' · ' + esc(c.lista || '') + '</span>';
+      cuerpo = R.urg.length ? '<p class="sub" style="margin:0 0 10px">Lo pendiente de diseño y producción con la etiqueta Urgente o que sale en 3 días o menos, y lo cargado en las últimas 48 h que sale esta semana o no tiene fecha (pedísela a quien lo cargó).</p>' + porMarca('ru', R.urg, c => fila(c, dato(c)), c => c.urgente || ((c.salida || c.due) && diasA(new Date(c.salida || c.due)) <= 1)) : vacio('No hay nada urgente ni cargado en las últimas 48 h.');
     } else
     if (seg === 'dis') cuerpo = R.revDis.length ? porMarca('rd', R.revDis, c => fila(c, '')) : vacio('No hay diseños esperando revisión.');
     else if (seg === 'vid') cuerpo = R.revVid.length ? porMarca('rv', R.revVid, c => fila(c, '')) : vacio('No hay videos esperando revisión.');
@@ -1301,7 +1340,7 @@
       return '<div class="rbox' + (ab ? ' on' : '') + '"><button class="rhead" data-res-m="' + esc(s) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><span class="rchips">' + orden.map(t => '<em>' + t.split(/[ ,]/)[0] + ' ' + grupos[t].length + '</em>').join('') + '</span><i>' + (ab ? '−' : '+') + '</i></button>' +
         (ab ? '<div class="rbody">' + orden.map(t => '<div class="dw-l">' + t + '</div>' + grupos[t].map(fila).join('')).join('') + '</div>' : '') + '</div>';
     };
-    return '<input class="search" id="qres" placeholder="Buscar logo, manual, ficha, menú…" value="' + esc(S.filtroRes) + '">' +
+    return '<div style="display:flex;gap:8px;align-items:center"><input class="search" id="qres" style="flex:1" placeholder="Buscar logo, manual, ficha, menú…" value="' + esc(S.filtroRes) + '"><button class="btn y" data-subir-rec style="white-space:nowrap">＋ Subir recurso</button></div>' +
       (marcas.length ? marcas.map(bloque).join('') : '<div class="empty">' + (f ? 'No encontré nada con "' + esc(S.filtroRes) + '".' : 'Todavía no hay recursos corporativos ni fichas técnicas en los tableros SCL.') + '</div>');
   }
 
@@ -1885,6 +1924,7 @@
     root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
     root.querySelectorAll('[data-pend]').forEach(b => b.onclick = () => anotarPendientes());
+    root.querySelectorAll('[data-subir-rec]').forEach(b => b.onclick = () => subirRecurso());
     root.querySelectorAll('[data-ver-corr]').forEach(b => b.onclick = () => {
       S.tab = 'hoy'; LS.set('hoymodo', 'tipo'); S.abiertos['h-corr'] = true; S.abiertos['h-card'] = true; render();
       const el = document.querySelector('[data-mcar="h-corr"]') || document.querySelector('[data-mcar="h-card"]');
@@ -1955,9 +1995,10 @@
     });
   }
 
-  async function marcar(k) {
+  async function marcar(k, forzar) {
     const x = tareasHoy().find(t => t.k === k); if (!x) return;
     const o = x.obj, antes = o.estado || null, ya = hecho(o);
+    if (!forzar && !ya && x.tipo === 'rutina' && rutinaEspecial(o.id, x.marca || '-', () => marcar(k, true))) return;
     o.estado = ya ? null : { estado: 'hecho', fecha: ahoraTxt(), persona: S.data.yo.clave };
     if (!ya) confeti();
     render();
@@ -2034,6 +2075,55 @@
     });
   }
 
+  /* ---------- adjuntos: elegir, arrastrar o pegar (Ctrl+V de una captura o de una imagen copiada) (pedido de Joaquín, 20/10/2026) ----------
+     adjZona(id) arma la caja; adjBind(root) la activa y devuelve la lista; adjSubir(lista, cardId) los sube a la tarjeta de Trello. */
+  const ADJ_OK = /^(image\/(png|jpe?g|gif|webp)|application\/pdf)$/i;
+  const adjZona = id => '<div class="adjz" data-adj="' + id + '"><div class="adjz-lst"></div><div class="adjz-drop">Arrastrá acá, pegá con Ctrl+V una captura o una imagen copiada, o <button type="button" class="lnk" data-adj-pick>elegí archivos</button><small>Imágenes (PNG, JPG, GIF, WEBP) o PDF, hasta 9 MB cada uno</small></div><input type="file" multiple hidden accept="image/png,image/jpeg,image/gif,image/webp,application/pdf"></div>';
+  function adjBind(root) {
+    const box = root.querySelector('.adjz'); if (!box) return null;
+    const lista = [], inp = box.querySelector('input[type=file]'), lst = box.querySelector('.adjz-lst');
+    const pintarL = () => { lst.innerHTML = lista.map((f, i) => '<div class="adjz-it">' + (/^image\//.test(f.type) ? '<img src="' + f._url + '" alt="">' : '<span class="adjz-pdf">PDF</span>') + '<span>' + esc(f.name) + '</span><button type="button" data-adj-x="' + i + '" title="Sacar">✕</button></div>').join(''); lst.querySelectorAll('[data-adj-x]').forEach(b => b.onclick = () => { lista.splice(Number(b.dataset.adjX), 1); pintarL(); }); };
+    const sumar = files => { let mal = 0; [...files].forEach(f => { if (!ADJ_OK.test(f.type) || f.size > 9 * 1024 * 1024) { mal++; return; } if (!f.name || /^image\.\w+$/.test(f.name)) { try { f = new File([f], 'captura-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg'), { type: f.type }); } catch (e) {} } f._url = URL.createObjectURL(f); lista.push(f); }); pintarL(); if (mal) toast(mal + (mal === 1 ? ' archivo no se sumó' : ' archivos no se sumaron') + ': solo imágenes o PDF de hasta 9 MB.'); };
+    box.querySelector('[data-adj-pick]').onclick = () => inp.click();
+    inp.onchange = () => { sumar(inp.files); inp.value = ''; };
+    box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('sobre'); });
+    box.addEventListener('dragleave', () => box.classList.remove('sobre'));
+    box.addEventListener('drop', e => { e.preventDefault(); box.classList.remove('sobre'); if (e.dataTransfer && e.dataTransfer.files.length) sumar(e.dataTransfer.files); });
+    // pegar: en cualquier parte del formulario (si lo pegado es texto, se pega normal)
+    root.addEventListener('paste', e => { const fs = [...((e.clipboardData || {}).items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean); if (fs.length) { e.preventDefault(); sumar(fs); } });
+    return lista;
+  }
+  async function adjSubir(lista, cardId, marca, nombre) {
+    let ok = 0; const mal = [];
+    for (const f of lista || []) {
+      try {
+        const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('no pude leer el archivo')); fr.readAsDataURL(f); });
+        if (!DEMO) await post({ action: 'subirAdjunto', cardId, archivo: f.name, mime: f.type, data, marca: marca || '', nombre: nombre || '' });
+        ok++;
+      } catch (e) { mal.push(f.name + ': ' + e.message); }
+    }
+    return { ok, mal };
+  }
+  /* Recursos: subir un recurso nuevo (logo, menú, fotos, manual…) a la lista de recursos del SCL de la marca. */
+  function subirRecurso() {
+    const marcas = S.data.marcas.filter(m => pasa([m.slug]));
+    const m = modal('<h3>Subir un recurso</h3><p>Queda como tarjeta en la lista de recursos del SCL de la marca, con los archivos adjuntos. Así lo encuentra todo el equipo.</p>' +
+      '<label class="field"><span>Marca</span><select id="rM">' + marcas.map(x => '<option value="' + esc(x.slug) + '"' + (x.slug === S.marca ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></label>' +
+      '<label class="field"><span>Qué es</span><input id="rN" placeholder="Ej: Logo nuevo en PNG · Menú de octubre · Fotos del local"></label>' +
+      '<div class="field"><span>Descripción (opcional)</span>' + mdEditor('rD', '', 3) + '</div>' +
+      '<div class="field"><span>Archivos</span>' + adjZona('rA') + '</div><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Subir recurso</button></div>', async mm => {
+      const nombre = $('#rN', mm).value.trim(); if (!nombre) throw new Error('Poné qué es.');
+      const slug = $('#rM', mm).value, scl = tablerosDe(slug).find(t => t.tipo === 'scl'), l = scl && scl.listas.find(x => x.cat === 'recursos');
+      if (!l) throw new Error('El SCL de esa marca no tiene una lista de recursos. Avisale a Joaquín.');
+      if (!lista.length && !$('#rD', mm).value.trim()) throw new Error('Sumá al menos un archivo o una descripción.');
+      const r = await post({ action: 'crearTarjeta', listId: l.id, nombre, desc: $('#rD', mm).value, marca: slug });
+      const s = lista.length ? await adjSubir(lista, r.id, slug, nombre) : { ok: 0, mal: [] };
+      toast('✓ Recurso subido' + (s.ok ? ' con ' + s.ok + (s.ok === 1 ? ' archivo' : ' archivos') : '') + '. <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:underline">Abrirlo en Trello</a>' + s.mal.map(x => '<br>✗ ' + esc(x)).join(''));
+    });
+    m.querySelector('.mb').classList.add('ancho'); mdBind(m); const lista = adjBind(m);
+  }
+
   function modal(html, onOk) {
     const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = '<div class="mb">' + html + '</div>';
     document.body.appendChild(m);
@@ -2102,6 +2192,7 @@
       '<label class="field"><span>Lista donde se crea</span><select id="cL"></select></label>' +
       '<label class="field"><span>Título</span><input id="cN" value="' + esc(titulo) + '" placeholder="Ej: Carrusel receta Halloween"></label>' +
       '<div class="field"><span>Descripción</span>' + mdEditor('cD', desc, esProd ? 9 : 6) + '</div>' +
+      '<div class="field"><span>Adjuntos</span>' + adjZona('cX') + '</div>' +
       '<div class="two"><label class="field"><span>' + (esProd ? 'Fecha de la producción' : 'Fecha de salida') + '</span><input type="date" id="cF" value="' + iso(fechaDef) + '"></label><label class="field"><span>Hora</span><input type="time" id="cH" value="10:00"></label></div>' +
       '<div class="field"><span>Etiquetas</span><div class="labs" id="cE"></div></div>' +
       '<label class="field"><span>Después de crearla, mandarla a</span><select id="cA"></select></label><div class="err"></div>' +
@@ -2111,12 +2202,14 @@
       const labels = Array.from(mm.querySelectorAll('.lab.on')).map(x => x.dataset.l);
       const moverA = $('#cA', mm).value;
       const r = await post({ action: 'crearTarjeta', listId: $('#cL', mm).value, nombre, desc: $('#cD', mm).value, due: f ? new Date(f + 'T' + h + ':00').toISOString() : '', labels, moverA, marca: $('#cM', mm).value, inputId: c ? c.id : '' });
+      const sa = adjL && adjL.length ? await adjSubir(adjL, r.id, $('#cM', mm).value, nombre) : { ok: 0, mal: [] };
       if (c) c.estado = { estado: 'procesado', fecha: ahoraTxt(), detalle: 'tarjeta creada: ' + (r.url || '') };
       S.todavia = null; render();
-      toast('Tarjeta creada' + (moverA ? ' y enviada' : '') + '. ' + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:underline">Abrirla en Trello</a>' : ''));
+      toast('Tarjeta creada' + (moverA ? ' y enviada' : '') + (sa.ok ? ' con ' + sa.ok + (sa.ok === 1 ? ' adjunto' : ' adjuntos') : '') + '. ' + sa.mal.map(x => '✗ ' + esc(x) + '<br>').join('') + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:underline">Abrirla en Trello</a>' : ''));
     });
     m.querySelector('.mb').classList.add('ancho');
     mdBind(m);
+    const adjL = adjBind(m);
     const pintar = () => {
       $('#cT', m).innerHTML = ts.map(x => '<option value="' + esc(x.id) + '"' + (x.id === t.id ? ' selected' : '') + '>' + esc(NOM_T[x.tipo] || x.tipo) + ' · ' + esc(x.nombre) + '</option>').join('');
       $('#cL', m).innerHTML = opcionesListas(t, listaDef(t));
