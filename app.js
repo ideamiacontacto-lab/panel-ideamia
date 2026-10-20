@@ -376,13 +376,16 @@
       return '<button class="mk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '"><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
     }).join('');
     const ico = x.sub === 'reunion' ? '<span class="ico">' + I.users + '</span>' : '<span class="prog' + (done ? ' full' : '') + '">' + n + '/' + x.items.length + '</span>';
-    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(x.enlace, x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
+    return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(enlaceDe(x), x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
   }
   // "crear:produccion" en la columna enlace de Rutinas = botón para crear la tarjeta en ese tablero de la marca
+  // las rutinas cuya ayuda dice "cargalo como input" (ej. activaciones externas) muestran un botón que crea la tarjeta en Inputs del SCL
+  const enlaceDe = x => x.enlace || (/como input/i.test(x.hint || x.nota || '') ? 'crear:input' : /correcci/i.test(x.t || x.tarea || '') ? 'ver:corr' : '');
   function botonEnlace(enlace, marcas) {
     if (!enlace) return '';
+    if (/^ver:corr/.test(enlace)) return '<button class="btn" data-ver-corr>Ver correcciones</button>';   // lleva a Hoy y abre Correcciones y Tarjetas por vencer
     const m = /^crear:(\w+)/.exec(enlace);
-    if (m) return '<button class="btn" data-crear-en="' + esc(m[1]) + '" data-marcas="' + esc((marcas || []).filter(Boolean).join(',')) + '">＋ Tarjeta en ' + esc(NOM_T[m[1]] || m[1]) + '</button>';
+    if (m) return '<button class="btn" data-crear-en="' + esc(m[1]) + '" data-marcas="' + esc((marcas || []).filter(Boolean).join(',')) + '">' + (m[1] === 'input' ? '＋ Cargar como input' : '＋ Tarjeta en ' + esc(NOM_T[m[1]] || m[1])) + '</button>';
     return '<a class="go" href="' + esc(enlace) + '" target="_blank" rel="noopener">' + I.out + '</a>';
   }
   function fila(x) {
@@ -394,7 +397,7 @@
     else if (x.tipo === 'guion') accion = '<a class="btn" href="' + esc(x.url) + '" target="_blank" rel="noopener">Abrir ↗</a>';
     else if (x.tipo === 'input') accion = '<button class="btn" data-det-input="' + esc(x.obj.id) + '">Revisar</button>';
     else if (x.url) accion = '<a class="go" href="' + esc(x.url) + '" target="_blank" rel="noopener" title="Abrir en Trello">' + I.out + '</a>';
-    else if (x.enlace) accion = botonEnlace(x.enlace, [x.marca]);
+    else if (enlaceDe(x)) accion = botonEnlace(enlaceDe(x), [x.marca]);
     // las piezas sin fecha se pueden tildar como resueltas (queda guardado como cualquier tarjeta); los guiones y cumpleaños solo informan
     const chk = (x.tipo === 'reunion' || x.tipo === 'input' || x.tipo === 'reporte' || (x.tipo === 'guion' && !/^sf/.test(x.sub || '')))
       ? '<span class="ico">' + (x.tipo === 'reunion' ? I.users : x.tipo === 'reporte' ? I.flag : x.sub === 'sfvid' ? I.reel : x.sub === 'sfdis' ? I.grid : x.sub === 'cum' ? I.star : x.tipo === 'guion' ? I.pen : I.inbox) + '</span>'
@@ -1067,7 +1070,7 @@
     if (S.movil) {
       // celular: una sección a la vez, filas con botones por marca en vez de tablas anchas
       const chipK = (k, s, nom) => '<button class="mk' + (ok(k) ? ' on' : '') + '" data-celda="' + esc(k) + '"><i style="background:' + color(s) + '"></i>' + esc(nom) + '</button>';
-      const filaR = (r, chips, n, de, cuando) => '<div class="row' + (n === de ? ' done' : '') + '"><span class="prog' + (n === de ? ' full' : '') + '">' + n + '/' + de + '</span><div><div class="tt">' + esc(r.tarea) + '</div>' + (cuando ? '<div class="mt"><span>' + esc(cuando) + '</span></div>' : '') + '<div class="mks">' + chips + '</div></div><div>' + botonEnlace(r.enlace, r.marcas) + '</div></div>';
+      const filaR = (r, chips, n, de, cuando) => '<div class="row' + (n === de ? ' done' : '') + '"><span class="prog' + (n === de ? ' full' : '') + '">' + n + '/' + de + '</span><div><div class="tt">' + esc(r.tarea) + '</div>' + (cuando ? '<div class="mt"><span>' + esc(cuando) + '</span></div>' : '') + '<div class="mks">' + chips + '</div></div><div>' + botonEnlace(enlaceDe(r), r.marcas) + '</div></div>';
       const listaM = (defs, per) => defs.map(r => {
         const ms = r.marcas.length ? marcasV.filter(m => r.marcas.indexOf(m.slug) >= 0) : null;
         if (ms && !ms.length) return '';
@@ -1869,7 +1872,12 @@
     });
     root.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearTarjeta(b.dataset.crear || null));
     root.querySelectorAll('[data-crear-nueva]').forEach(b => b.onclick = () => crearTarjeta(null));
-    root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn));
+    root.querySelectorAll('[data-ver-corr]').forEach(b => b.onclick = () => {
+      S.tab = 'hoy'; LS.set('hoymodo', 'tipo'); S.abiertos['h-corr'] = true; S.abiertos['h-card'] = true; render();
+      const el = document.querySelector('[data-mcar="h-corr"]') || document.querySelector('[data-mcar="h-card"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast('Hoy no tenés correcciones ni tarjetas por vencer.');
+    });
+    root.querySelectorAll('[data-crear-en]').forEach(b => b.onclick = () => crearTarjeta(null, (b.dataset.marcas || '').split(',').filter(Boolean)[0] || null, b.dataset.crearEn === 'input' ? 'scl' : b.dataset.crearEn, b.dataset.crearEn === 'input' ? 'input' : ''));
     root.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => moverTarjeta(b.dataset.mover));
     root.querySelectorAll('[data-dc]').forEach(a => a.addEventListener('click', () => { dcVer([a.dataset.dc]); setTimeout(render, 300); }));
     // cualquier título de sección (— FEDE TIENE QUE ENTREGAR, — EN EL DÍA…) se pliega al tocarlo; queda recordado
@@ -2061,13 +2069,13 @@
   const NOM_T = { scl: 'SCL', cm: 'CM', diseno: 'Diseño', produccion: 'Producción', guiones: 'Guiones', project: 'Project' };
   function opcionesListas(t, sel) { return t.listas.map(l => '<option value="' + esc(l.id) + '"' + (l.id === sel ? ' selected' : '') + '>' + esc(l.n) + '</option>').join(''); }
 
-  function crearTarjeta(inputId, slugForzado, tipoPref) {
+  function crearTarjeta(inputId, slugForzado, tipoPref, listaPref) {
     const c = inputId ? S.data.cards.find(x => x.id === inputId) : null;
     const slug = slugForzado || (c && c.m[0]) || (S.marca !== 'todas' ? S.marca : S.data.marcas[0].slug);
     const ts = tablerosDe(slug);
     if (!ts.length) { toast('Todavía no tengo las listas de los tableros. Tocá ↻ Actualizar y probá de nuevo.'); return; }
     let t = (tipoPref && ts.find(x => x.tipo === tipoPref)) || ts.find(x => x.tipo === 'scl') || ts[0];
-    const listaDef = tb => (tb.listas.find(l => /calendario editorial/i.test(l.n)) || tb.listas.find(l => /calendario/i.test(l.n) && l.cat !== 'efem') || tb.listas.find(l => l.cat === 'trabajo') || tb.listas[0]).id;
+    const listaDef = tb => ((listaPref && tb.listas.find(l => l.cat === listaPref)) || tb.listas.find(l => /calendario editorial/i.test(l.n)) || tb.listas.find(l => /calendario/i.test(l.n) && l.cat !== 'efem') || tb.listas.find(l => l.cat === 'trabajo') || tb.listas[0]).id;
     const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const lunesProx = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + ((8 - NOW.getDay()) % 7 || 7));
     const esProd = !c && tipoPref === 'produccion';
