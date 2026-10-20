@@ -1959,6 +1959,59 @@
     } catch (e) { c.estado = antes; render(); toast('No se guardó: ' + esc(e.message)); }
   }
 
+  /* ---------- editor de descripción como el de Trello (pedido de Joaquín, 20/10/2026) ----------
+     Trello guarda la descripción en markdown: lo que se escribe acá con la barra (negrita, itálica, `Historia 1`, listas…) se ve igual allá. */
+  const MD_BOTONES = [
+    ['h', 'Título', '<b>T</b>'], ['b', 'Negrita (Ctrl+B)', '<b>B</b>'], ['i', 'Itálica (Ctrl+I)', '<i>I</i>'], ['s', 'Tachado', '<s>S</s>'],
+    ['c', 'Código, como `Historia 1`', '&lt;/&gt;'], ['hist', 'Siguiente historia (`Historia N`)', 'Historia'], ['ul', 'Lista', '•'], ['ol', 'Lista numerada', '1.'],
+    ['q', 'Cita', '❝'], ['hr', 'Separador', '—'], ['a', 'Link', '🔗']
+  ];
+  const mdEditor = (id, valor, filas) => '<div class="mde" data-mde="' + id + '"><div class="mde-bar">' + MD_BOTONES.map(([k, t, i]) => '<button type="button" data-md="' + k + '" title="' + esc(t) + '">' + i + '</button>').join('') +
+    '<span class="mde-esp"></span><button type="button" data-md="ver" class="mde-ver">Vista previa</button></div><textarea id="' + id + '" rows="' + (filas || 5) + '">' + esc(valor || '') + '</textarea><div class="mde-prev" hidden></div></div>';
+  function mdRender(txt) {
+    const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^\w])_([^_]+)_(?!\w)/g, '$1<i>$2</i>').replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<i>$2</i>')
+      .replace(/~~([^~]+)~~/g, '<s>$1</s>').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    const out = []; let lista = null;
+    const cerrar = () => { if (lista) { out.push('</' + lista + '>'); lista = null; } };
+    String(txt || '').split('\n').forEach(l => {
+      let m;
+      if ((m = /^\s*[-*+]\s+(.*)/.exec(l))) { if (lista !== 'ul') { cerrar(); out.push('<ul>'); lista = 'ul'; } out.push('<li>' + inl(m[1]) + '</li>'); return; }
+      if ((m = /^\s*\d+[.)]\s+(.*)/.exec(l))) { if (lista !== 'ol') { cerrar(); out.push('<ol>'); lista = 'ol'; } out.push('<li>' + inl(m[1]) + '</li>'); return; }
+      cerrar();
+      if ((m = /^(#{1,6})\s+(.*)/.exec(l))) out.push('<h' + Math.min(6, m[1].length + 2) + '>' + inl(m[2]) + '</h' + Math.min(6, m[1].length + 2) + '>');
+      else if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l)) out.push('<hr>');
+      else if ((m = /^>\s?(.*)/.exec(l))) out.push('<blockquote>' + inl(m[1]) + '</blockquote>');
+      else if (!l.trim()) out.push('<div class="mde-sp"></div>');
+      else out.push('<p>' + inl(l) + '</p>');
+    });
+    cerrar();
+    return out.join('');
+  }
+  function mdBind(root) {
+    root.querySelectorAll('.mde').forEach(box => {
+      const ta = box.querySelector('textarea'), prev = box.querySelector('.mde-prev');
+      const envolver = (a, b, ph) => {
+        const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e) || ph;
+        ta.setRangeText(a + sel + b, s, e, 'end'); ta.selectionStart = s + a.length; ta.selectionEnd = s + a.length + sel.length; ta.focus();
+      };
+      const linea = pre => {   // agrega el prefijo al principio de cada línea seleccionada
+        const v = ta.value, s = v.lastIndexOf('\n', ta.selectionStart - 1) + 1, e0 = v.indexOf('\n', ta.selectionEnd), e = e0 < 0 ? v.length : e0;
+        let n = 0; const nuevo = v.slice(s, e).split('\n').map(l => (typeof pre === 'function' ? pre(++n) : pre) + l).join('\n');
+        ta.setRangeText(nuevo, s, e, 'end'); ta.focus();
+      };
+      const acc = {
+        h: () => linea('### '), b: () => envolver('**', '**', 'texto'), i: () => envolver('_', '_', 'texto'), s: () => envolver('~~', '~~', 'texto'), c: () => envolver('`', '`', 'Historia 1'),
+        hist: () => { const n = (ta.value.match(/`\s*historia\s*\d+\s*:?\s*`/gi) || []).length + 1, s = ta.selectionStart, antes = ta.value.slice(0, s); ta.setRangeText((antes && !/\n\n$/.test(antes) ? (/\n$/.test(antes) ? '\n' : '\n\n') : '') + '`Historia ' + n + '`\n\n', s, ta.selectionEnd, 'end'); ta.focus(); },
+        ul: () => linea('- '), ol: () => linea(n => n + '. '), q: () => linea('> '),
+        hr: () => { const s = ta.selectionStart; ta.setRangeText((s && ta.value[s - 1] !== '\n' ? '\n' : '') + '\n---\n\n', s, ta.selectionEnd, 'end'); ta.focus(); },
+        a: () => { const u = prompt('Pegá el link'); if (u) envolver('[', '](' + u.trim() + ')', 'texto del link'); },
+        ver: b => { const ver = prev.hidden; prev.hidden = !ver; ta.hidden = ver; if (ver) prev.innerHTML = mdRender(ta.value) || '<p class="mde-vacio">Sin descripción</p>'; b.textContent = ver ? 'Escribir' : 'Vista previa'; box.classList.toggle('viendo', ver); }
+      };
+      box.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { if (b.dataset.md !== 'ver' && ta.hidden) acc.ver(box.querySelector('.mde-ver')); acc[b.dataset.md](b); });
+      ta.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && !e.shiftKey && /^[bi]$/i.test(e.key)) { e.preventDefault(); acc[e.key.toLowerCase()](); } });
+    });
+  }
+
   function modal(html, onOk) {
     const m = document.createElement('div'); m.className = 'modal'; m.innerHTML = '<div class="mb">' + html + '</div>';
     document.body.appendChild(m);
@@ -2026,7 +2079,7 @@
       '<label class="field"><span>Tablero</span><select id="cT"></select></label></div>' +
       '<label class="field"><span>Lista donde se crea</span><select id="cL"></select></label>' +
       '<label class="field"><span>Título</span><input id="cN" value="' + esc(titulo) + '" placeholder="Ej: Carrusel receta Halloween"></label>' +
-      '<label class="field"><span>Descripción</span><textarea id="cD" rows="' + (esProd ? 9 : 4) + '">' + esc(desc) + '</textarea></label>' +
+      '<div class="field"><span>Descripción</span>' + mdEditor('cD', desc, esProd ? 9 : 6) + '</div>' +
       '<div class="two"><label class="field"><span>' + (esProd ? 'Fecha de la producción' : 'Fecha de salida') + '</span><input type="date" id="cF" value="' + iso(fechaDef) + '"></label><label class="field"><span>Hora</span><input type="time" id="cH" value="10:00"></label></div>' +
       '<div class="field"><span>Etiquetas</span><div class="labs" id="cE"></div></div>' +
       '<label class="field"><span>Después de crearla, mandarla a</span><select id="cA"></select></label><div class="err"></div>' +
@@ -2041,6 +2094,7 @@
       toast('Tarjeta creada' + (moverA ? ' y enviada' : '') + '. ' + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:underline">Abrirla en Trello</a>' : ''));
     });
     m.querySelector('.mb').classList.add('ancho');
+    mdBind(m);
     const pintar = () => {
       $('#cT', m).innerHTML = ts.map(x => '<option value="' + esc(x.id) + '"' + (x.id === t.id ? ' selected' : '') + '>' + esc(NOM_T[x.tipo] || x.tipo) + ' · ' + esc(x.nombre) + '</option>').join('');
       $('#cL', m).innerHTML = opcionesListas(t, listaDef(t));

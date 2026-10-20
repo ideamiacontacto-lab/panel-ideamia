@@ -1399,3 +1399,21 @@ select{color-scheme:dark}
 .leyenda{align-items:center;gap:8px 16px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--s1)}
 .leyenda .lg{font-weight:500}
 .leyenda .lg:last-child{flex-basis:100%;font-weight:400;color:var(--dim);white-space:normal!important}
+/* editor de descripción tipo Trello (crear tarjeta) */
+.mde{border:1px solid var(--line2);border-radius:var(--r);background:var(--s2);overflow:hidden}
+.mde:focus-within{border-color:var(--muted)}
+.mde-bar{display:flex;flex-wrap:wrap;gap:2px;padding:5px;border-bottom:1px solid var(--line2);background:var(--s1)}
+.mde-bar button{background:none;border:0;color:var(--text);min-width:30px;height:28px;padding:0 7px;border-radius:7px;font-size:13px;cursor:pointer}
+.mde-bar button:hover{background:var(--s2)}
+.mde-bar [data-md="hist"]{font-size:11.5px;font-family:ui-monospace,Consolas,monospace;color:var(--muted)}
+.mde-esp{flex:1}
+.mde-bar .mde-ver{font-size:12px;color:var(--muted)}
+.field .mde textarea{border:0;border-radius:0;background:transparent;min-height:120px;resize:vertical;font-size:14px}
+.mde-prev{padding:11px 13px;font-size:14px;line-height:1.5;min-height:120px;max-height:340px;overflow:auto}
+.mde-prev p{margin:0}.mde-prev .mde-sp{height:9px}
+.mde-prev code{background:rgba(255,255,255,.1);border-radius:4px;padding:1px 5px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:#ff8a8a}
+.mde-prev h3,.mde-prev h4,.mde-prev h5{margin:6px 0 4px;font-size:15px}
+.mde-prev ul,.mde-prev ol{margin:4px 0;padding-left:22px}
+.mde-prev blockquote{margin:4px 0;padding-left:10px;border-left:3px solid var(--line2);color:var(--muted)}
+.mde-prev hr{border:0;border-top:1px solid var(--line2);margin:10px 0}
+.mde-prev a{color:var(--y,#FFF200)}.mde-vacio{color:var(--muted)}
