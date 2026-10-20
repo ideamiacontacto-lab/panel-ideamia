@@ -1799,10 +1799,11 @@
   }
   function filmListo(id) {
     const c = S.data.cards.find(x => x.id === id); if (!c) return;
-    modal('<h3>¿Listo "' + esc(c.n.slice(0, 60)) + '"?</h3><p>La tarjeta pasa a <b>En revisión</b> en ' + esc(c.tablero) + ' y le llega a quien revisa.</p><label class="field"><span>Nota (opcional)</span><textarea id="flN" rows="2" maxlength="1000" placeholder="Link al video, aclaraciones…"></textarea></label>' +
-      '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Sí, pasar a revisión</button></div>', async m => {
-      const r = await post({ action: 'entregarPieza', cardId: c.id, nota: $('#flN', m).value.trim(), marca: c.m[0], nombre: c.n, tablero: c.tablero });
-      c.etapa = 'revision'; if (r.lista) c.lista = r.lista;
+    const hist = c.formato === 'historia' || /histori/i.test(c.lista || '');   // las historias van directo a aprobado, sin revisión
+    modal('<h3>¿Listo "' + esc(c.n.slice(0, 60)) + '"?</h3><p>' + (hist ? 'Es una historia: pasa directo a <b>Material listo para entregar</b> en ' + esc(c.tablero) + ', sin revisión.' : 'La tarjeta pasa a <b>En revisión</b> en ' + esc(c.tablero) + ' y le llega a quien revisa.') + '</p><label class="field"><span>Nota (opcional)</span><textarea id="flN" rows="2" maxlength="1000" placeholder="Link al video, aclaraciones…"></textarea></label>' +
+      '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>' + (hist ? 'Sí, pasar a listo' : 'Sí, pasar a revisión') + '</button></div>', async m => {
+      const r = await post({ action: 'entregarPieza', cardId: c.id, nota: $('#flN', m).value.trim(), marca: c.m[0], nombre: c.n, tablero: c.tablero, formato: hist ? 'historia' : (c.formato || '') });
+      if (r.historia) S.data.cards = S.data.cards.filter(x => x.id !== c.id); else { c.etapa = 'revision'; if (r.lista) c.lista = r.lista; }
       render(); if (!r.ya) confeti();
       toast((r.pasos || ['Pasada a En revisión']).map(p => '✓ ' + esc(p)).join('<br>'));
     });
