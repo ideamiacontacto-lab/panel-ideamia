@@ -241,6 +241,7 @@
       '<div class="mpop-l hidden" role="listbox">' + ['todas'].concat(D.marcas.map(m => m.slug)).map(s => '<button class="mpop-i' + (S.marca === s ? ' on' : '') + '" data-marca="' + s + '" role="option"><span class="dot" style="background:' + (s === 'todas' ? 'var(--y)' : color(s)) + '"></span>' + (s === 'todas' ? 'Todas las marcas' : esc(marca(s).nombre)) + (S.marca === s ? '<em>✓</em>' : '') + '</button>').join('') + '</div></div>';
     // Ivo: solo Revisión, Guiones y Discord; entra directo a Revisión
     const ivo = esRevisa(), film = esFilm();
+    if (!ivo && !film && !S._popDia) { S._popDia = 1; setTimeout(popDia, 1200); }   // una vez por día: ¿Claude te ordena el día?
     // filmmaker: solo Mi semana y Discord
     const TABS_F = ['film', 'fhist', 'fgui', 'fpres', 'discord'];
     if (film && TABS_F.indexOf(S.tab) < 0) S.tab = 'film';
@@ -550,9 +551,6 @@
     const seVienen = fs.filter(f => f.tipo !== 'feriado' || diasA(f.d) <= 14).slice(0, chico ? 4 : 6);
     return (seVienen.length ? '<div class="box sv-box"><h3><span class="spark">✦</span>Se vienen</h3><div class="sv-car">' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '</div><div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
       (() => { const sg = sugerencias(), max = S.todasSug ? 99 : chico ? 3 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
-      (chico ? '' : '<div class="box"><h3><span class="spark">✦</span>Plan del día con Claude</h3><div class="plan">' +
-      '<p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Le paso a Claude todo lo que tenés pendiente y las alertas, y te dice por dónde arrancar.</p><div style="padding-bottom:14px"><button class="btn y" data-claude-plan>Armame el plan en Claude</button> <button class="btn ghost" data-copiar-plan>Copiar</button></div>' +
-      '</div></div>') +
       '<div class="box"><h3>Accesos</h3><div class="links">' +
       [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
       '</div></div>';
@@ -937,11 +935,32 @@
       (efs.length ? '\n\nPróximas efemérides de la marca: ' + efs.map(x => x.n + ' (' + new Date(x.due).toLocaleDateString('es-AR') + ')').join(', ') : '') +
       '\n\nHoy es ' + NOW.toLocaleDateString('es-AR') + '. Decime en voseo y concreto:\n1. Qué piezas haría (carrusel, reel, historias, canal social, oferta, sorteo) y con qué enfoque.\n2. Un copy sugerido para la pieza principal.\n3. Qué le pido al cliente o al project (promos, productos, fotos, precios).\n4. Para cuándo lo programaría.';
   }
+  /* Lo que se le pasa a Claude para ordenar el día: lo de hoy, lo que queda de la semana y del mes, reportes, inputs, atrasos y fechas que se vienen.
+     Le pide que lo ordene como un compañero ("yo empezaría por acá, después…, acordate de…"). */
   function promptPlan() {
-    const pend = agrupado().filter(x => !hecho(x.obj));
-    return 'Sos especialista senior en redes sociales de un estudio creativo argentino. Armame el plan del día en 5 viñetas ordenadas por prioridad, en voseo, cada una con una acción concreta. Soy ' + S.data.yo.nombre + ' (' + S.data.yo.rol + ') y hoy es ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '.\n\nPendientes:\n' +
-      pend.map(x => '- ' + x.t + (x.marca ? ' [' + ((marca(x.marca) || {}).nombre || '') + ']' : '') + (x.items ? ' [' + x.items.filter(i => !hecho(i.obj)).map(i => (marca(i.marca) || {}).nombre).join(', ') + ']' : '') + ' · ' + x.meta.join(' · ').replace(/<[^>]+>/g, '')).join('\n') +
-      '\n\nAlertas:\n' + sugerencias().map(s => '- ' + s.h.replace(/<[^>]+>/g, '')).join('\n');
+    const D = S.data, nm = s => (marca(s) || {}).nombre || '', limpio = s => String(s || '').replace(/<[^>]+>/g, '');
+    const hoyL = agrupado().filter(x => !hecho(x.obj)).map(x => '- ' + x.t + (x.marca ? ' [' + nm(x.marca) + ']' : '') + (x.items ? ' [' + x.items.filter(i => !hecho(i.obj)).map(i => nm(i.marca)).join(', ') + ']' : '') + (x.meta && x.meta.length ? ' · ' + limpio(x.meta.join(' · ')) : ''));
+    const si = D.semanaInfo || {}, er = D.estRut || {}, falta = (r, per) => (r.marcas.length ? r.marcas.filter(s => pasa([s])) : ['-']).filter(s => !(er['rut:' + r.id + ':' + s + ':' + per] || {}).estado);
+    const rutP = (re, per) => (D.rutinasDef || []).filter(r => re.test(r.cuando)).map(r => ({ r, f: falta(r, per) })).filter(o => o.f.length).map(o => '- ' + o.r.tarea + (o.f[0] !== '-' ? ' [' + o.f.map(nm).join(', ') + ']' : ''));
+    const sem = rutP(/^semana:/, si.semana), mes = rutP(/^(mes|meses):/, si.mes);
+    const reps = (D.reportes || []).filter(r => pasa(r.marca)).map(r => '- ' + r.label + ' [' + nm(r.marca) + '] · vence ' + dm(new Date(r.vence)));
+    const inps = inputs().filter(c => inputPide(c) && pasa(c.m)).map(c => '- ' + c.n + ' [' + nm(c.m[0]) + ']');
+    const venc = vencidas().map(c => '- ' + c.n + ' [' + nm(c.m[0]) + '] · venció el ' + dm(new Date(c.due)));
+    const fechas = proximasFechas(30).filter(f => f.tipo !== 'feriado').slice(0, 10).map(f => '- ' + f.n + ' · ' + dm(f.d) + (f.marcas && f.marcas.length ? ' [' + f.marcas.map(nm).join(', ') + ']' : ''));
+    const bloque = (t, L) => L.length ? '\n\n' + t + ':\n' + L.join('\n') : '';
+    return 'Sos mi compañero de trabajo con experiencia en redes sociales en un estudio creativo argentino. Soy ' + D.yo.nombre + ' (' + D.yo.rol + ') y hoy es ' + DIAS_L[NOW.getDay()].toLowerCase() + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '.\n' +
+      'Te paso todo lo que tengo pendiente. Ordenámelo como me lo diría alguien que conoce el trabajo, en voseo y corto: "yo empezaría por esto porque…, después seguiría con…, y acordate de…". ' +
+      'Primero lo que vence o ya venció, después lo de hoy, y al final lo que conviene adelantar de la semana y del mes. Si algo se puede hacer junto, decímelo. Nada de listas larguísimas: máximo 8 puntos.' +
+      bloque('Para hoy', hoyL) + bloque('Atrasado', venc) + bloque('Reportes por cargar', reps) + bloque('Inputs sin procesar', inps) + bloque('Lo que queda de la semana', sem) + bloque('Lo que queda del mes', mes) + bloque('Fechas que se vienen (30 días)', fechas) +
+      bloque('Alertas del panel', sugerencias().map(s => '- ' + limpio(s.h)));
+  }
+  // al entrar, una vez por día: "¿Querés que Claude te ayude a ordenar tu día?" (pedido de Joaquín, 20/10/2026)
+  function popDia() {
+    const hoyK = NOW.getFullYear() + '-' + (NOW.getMonth() + 1) + '-' + NOW.getDate();
+    if (LS.get('popdia', '') === hoyK || $('.modal')) return;
+    LS.set('popdia', hoyK);
+    const m = modal('<h3>¿Querés que Claude te ayude a ordenar tu día?</h3><p>Le paso todo lo que tenés pendiente hoy, en la semana y en el mes, y te dice por dónde arrancar, qué sigue y de qué no olvidarte. Se abre en tu Claude.</p><div class="err"></div>' +
+      '<div class="acts"><button class="btn ghost" data-x>Ahora no</button><button class="btn y" data-ok>Sí, ordenámelo</button></div>', async () => { abrirClaude(promptPlan()); });
   }
   // Abre claude.ai en el navegador de quien usa el panel (su propia cuenta). "Copiar" sirve para pegarlo en un chat o en la app que ya tenga abierta.
   const btnClaude = id => '<button class="btn" data-claude="' + esc(id) + '" title="Abre tu Claude con la consulta escrita"><span style="color:var(--y)">✦</span> Preguntale a Claude</button><button class="btn ghost" data-copiar="' + esc(id) + '" title="Copia la consulta para pegarla en tu Claude">Copiar</button>';
@@ -1312,7 +1331,7 @@
     return '<div class="mas-g">' +
       (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + (nVen === 1 ? ' tarjeta pasada de fecha' : ' tarjetas pasadas de fecha') : 'nada vencido') +
       t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
-      t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-claude-plan', I.msg, 'Plan del día', 'con Claude') +
+      t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') +
       '</div>' + costado(true);
   }
 
