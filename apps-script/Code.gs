@@ -5178,6 +5178,28 @@ function doPost(e) {
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
         if (!/project|direcc|creativ/i.test(((catalogo_().equipo.filter(x => x.clave === norm_(quien))[0]) || {}).rol || '')) return json_({ error: 'permiso', mensaje: 'La agenda privada es solo para el project y dirección' });
         try { return json_(invitadosPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudieron cambiar los invitados: ' + String(e.message || e).slice(0, 200) }); }
+      case 'pendientesProject': { // rutina "Coordinar con el project": el social media anota pendientes (y propone reunión) y le llegan al project
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const items = (b.items || []).map(s => String(s || '').trim().slice(0, 300)).filter(Boolean).slice(0, 30);
+        if (!items.length) return json_({ error: 'datos', mensaje: 'Anotá al menos un pendiente' });
+        const reun = b.reunion ? new Date(b.reunion) : null, ok = reun && !isNaN(reun.getTime());
+        const fr = d => DIAS_ES[Number(Utilities.formatDate(d, TZ, 'u')) % 7] + ' ' + Utilities.formatDate(d, TZ, "dd/MM 'a las' HH:mm");
+        const nota = String(b.nota || '').trim().slice(0, 500);
+        const desc = 'Pendientes que anotó ' + yo.nombre + ' para la semana próxima:\n' + items.map(i => '- ' + i).join('\n') + (nota ? '\n\n' + nota : '') +
+          (ok ? '\n\nPropone reunirse el ' + fr(reun) + '.' : '') + '\n\nCargado desde el panel (rutina "Coordinar con el project los pendientes de la semana próxima").';
+        const r = pedidoRapido_({ texto: (ok ? '📅 ' : '📝 ') + 'Pendientes de ' + yo.nombre + (ok ? ' · reunión ' + Utilities.formatDate(reun, TZ, 'dd/MM HH:mm') : ''), nota: desc, due: ok ? reun.toISOString() : '', minuta: true });
+        if (r.error) return json_(r);
+        try {
+          const cfg = config_(), id = idJoaquin_(cfg);
+          if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) {
+            discordPrivado_(id, '📝 **' + yo.nombre + '** anotó pendientes para la semana próxima:\n' + items.map(i => '• ' + i).join('\n') + (nota ? '\n' + nota : '') + (ok ? '\n📅 Propone reunirse el ' + fr(reun) : '') + '\nQuedó en la Bandeja de Project: ' + ((r.card || {}).url || ''));
+            r.pasos.push('Aviso por privado al project');
+          }
+        } catch (e) {}
+        registrar_(quien, 'pendientes', 'proj:' + ((r.card || {}).id || ''), '', 'enviado', items.join(' · ').slice(0, 300), '');
+        return json_(r);
+      }
       case 'pedidoRapido': // carga rápida del project: solo con su clave
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
         return json_(pedidoRapido_(b));
