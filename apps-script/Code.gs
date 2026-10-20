@@ -1386,9 +1386,13 @@ function moverEnSnapshot_(cardId, etapa, lista) {
 function entregarPieza_(b, quien) {
   const card = trello_('/cards/' + b.cardId, { fields: 'idBoard,idList,name' });
   const listas = trello_('/boards/' + card.idBoard + '/lists', { fields: 'name' });
-  const actual = listas.filter(l => l.id === card.idList)[0], dest = listas.filter(l => /revisi/.test(norm_(l.name)))[0];
-  if (actual && /revisi/.test(norm_(actual.name))) { moverEnSnapshot_(b.cardId, 'revision', actual.name); return { ok: true, ya: true, lista: actual.name, pasos: ['Ya estaba en "' + actual.name + '": no hizo falta moverla'] }; }
-  if (!dest) return { error: 'lista', mensaje: 'No encontré la lista "En revisión" en ese tablero, así que no moví nada. Listas que tiene: ' + listas.map(l => l.name).join(', ') };
+  const actual = listas.filter(l => l.id === card.idList)[0];
+  // las historias no pasan por revisión: van directo a la lista de aprobados ("Material Listo para Entregar") (pedido de Joaquín, 20/10/2026)
+  const historia = b.formato === 'historia' || (actual && /histori/.test(norm_(actual.name)));
+  const dest = historia ? listaRevision_(listas, 'aprobar') : listas.filter(l => /revisi/.test(norm_(l.name)))[0];
+  if (!historia && actual && /revisi/.test(norm_(actual.name))) { moverEnSnapshot_(b.cardId, 'revision', actual.name); return { ok: true, ya: true, lista: actual.name, pasos: ['Ya estaba en "' + actual.name + '": no hizo falta moverla'] }; }
+  if (historia && dest && actual && actual.id === dest.id) { quitarDeSnapshot_(b.cardId); return { ok: true, ya: true, historia: true, lista: actual.name, pasos: ['Ya estaba en "' + actual.name + '": no hizo falta moverla'] }; }
+  if (!dest) return { error: 'lista', mensaje: 'No encontré la lista ' + (historia ? 'de material listo (aprobado)' : '"En revisión"') + ' en ese tablero, así que no moví nada. Listas que tiene: ' + listas.map(l => l.name).join(', ') };
   const pasos = [], nota = String(b.nota || '').trim();
   if (nota) {
     try { trello_('/cards/' + b.cardId + '/actions/comments', { text: ('🎬 Entregado por ' + nombreDe_(quien) + ': ' + nota).slice(0, 16000) }, 'post'); pasos.push('Nota puesta en la tarjeta de Trello'); }
@@ -1398,9 +1402,9 @@ function entregarPieza_(b, quien) {
   try { movida = trello_('/cards/' + b.cardId, { idList: dest.id }, 'put'); } catch (e) { return { error: 'mover', pasos: pasos, mensaje: (pasos.length ? 'La nota SÍ quedó en Trello, pero ' : '') + 'no se pudo mover la tarjeta a "' + dest.name + '": ' + String(e.message).slice(0, 150) }; }
   if (!movida || movida.idList !== dest.id) return { error: 'mover', pasos: pasos, mensaje: 'Trello no confirmó el cambio de lista. Revisala en Trello.' };
   pasos.push('Tarjeta movida a "' + dest.name + '"' + (b.tablero ? ' de ' + b.tablero : ''));
-  registrar_(quien, 'entrega', 'card:' + b.cardId, b.marca, 'entregado', String(b.nombre || '').slice(0, 100) + (nota ? ' · ' + nota.slice(0, 150) : ''), '');
-  moverEnSnapshot_(b.cardId, 'revision', dest.name);
-  return { ok: true, lista: dest.name, pasos: pasos };
+  registrar_(quien, 'entrega', 'card:' + b.cardId, b.marca, 'entregado', String(b.nombre || '').slice(0, 100) + (historia ? ' · historia, directo a aprobado' : '') + (nota ? ' · ' + nota.slice(0, 150) : ''), '');
+  if (historia) quitarDeSnapshot_(b.cardId); else moverEnSnapshot_(b.cardId, 'revision', dest.name);
+  return { ok: true, historia: historia, lista: dest.name, pasos: pasos };
 }
 /* Prueba de solo lectura: qué marcas quedaron configuradas y qué vería el filmmaker hoy. */
 function probarFilm() {
