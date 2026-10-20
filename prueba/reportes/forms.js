@@ -30,15 +30,21 @@
       ]},
       { num:3, titulo:"Resultados generales", hint:"La comparativa con la semana anterior se calcula sola", ref:"semana",
         compare:[
-          {k:"Alcance total", id:"alcance_total"}, {k:"Alcance seguidores", id:"alcance_seg"}, {k:"Alcance no seguidores", id:"alcance_noseg"},
+          {k:"Espectadores", id:"alcance_total"},           {k:"Visualizaciones", id:"views"}, {k:"Visualizaciones de pago", id:"views_pauta"},
+          {k:"Visualizaciones orgánicas", calc:d=>{const t=d.views; return (t===""||t==null)?null:Number(t)-Number(d.views_pauta||0);}},
+          {k:"Visualizaciones de seguidores", id:"views_seg"}, {k:"Visualizaciones de no seguidores", id:"views_noseg"},
           {k:"Interacciones", id:"interacciones"}, {k:"Seguidores sumados", id:"seg_sumados"}, {k:"Seguidores perdidos", id:"seg_perdidos", inverse:true},
           {k:"Seguidores netos", calc:d=>{const a=d.seg_sumados,b=d.seg_perdidos; return (a===""||a==null||b===""||b==null)?null:Number(a)-Number(b);}},
           {k:"Reels publicados", id:"reels_n"}, {k:"Publicaciones de feed", id:"feed_n"}
         ], fields:[
-        row("g2",[ n("alcance_total","Alcance total",{req:true}), n("interacciones","Interacciones totales",{req:true}) ]),
-        row("g2",[ n("alcance_seg","Alcance seguidores",{req:true}), n("alcance_noseg","Alcance no seguidores",{req:true}) ]),
+        { type:"sublabel", text:"Espectadores (cuentas únicas que vieron el contenido; en Meta, antes se llamaba alcance)" },
+        row("g2",[ n("alcance_total","Espectadores totales",{req:true}) ]),
+        { type:"sublabel", text:"Visualizaciones (las veces que se vio el contenido) · Meta las divide en orgánicas y de pago, y en seguidores y no seguidores. La orgánica se calcula sola: total menos pago" },
+        row("g2",[ n("views","Visualizaciones totales",{req:true}), n("views_pauta","Visualizaciones de pago (pauta)",{help:"Vacío si esa semana no hubo pauta"}) ]),
+        row("g2",[ n("views_seg","Visualizaciones de seguidores",{req:true}), n("views_noseg","Visualizaciones de no seguidores",{req:true}) ]),
+        row("g2",[ n("interacciones","Interacciones totales",{req:true}) ]),
         row("g2",[ n("seg_sumados","Seguidores sumados",{req:true}), n("seg_perdidos","Seguidores perdidos",{req:true}) ]),
-        { type:"fotos", id:"fotos_resultados", label:"Capturas de Estadísticas de la cuenta (alcance, seguidores, interacciones)", help:"Instagram → Panel profesional → Estadísticas, filtro 'Últimos 7 días'." },
+        { type:"fotos", id:"fotos_resultados", label:"Capturas de Estadísticas de la cuenta (espectadores, visualizaciones, seguidores, interacciones)", help:"Instagram → Panel profesional → Estadísticas, filtro 'Últimos 7 días'." },
         { type:"diag", target:"semana" }
       ]},
       { num:4, titulo:"Reels", fields:[
@@ -155,27 +161,30 @@
       { num:1, titulo:"Lectura del mes y OKR", fields:[
         ta("okr_lectura","¿Estamos en ritmo para cumplir el OKR trimestral / semestral? ¿Hay algún desvío que requiera ajuste?",{req:true}),
         { type:"sublabel", text:"Tracker de OKR · acumulado al cierre del mes" },
-        row("g3",[ n("okr_seg_acum","Seguidores netos acumulados",{req:true}), n("okr_alc_acum","Alcance total acumulado",{req:true}), n("okr_cont_acum","Contactos nuevos acumulados",{req:true}) ]),
+        row("g3",[ n("okr_seg_acum","Seguidores netos acumulados",{req:true}), n("okr_alc_acum","Espectadores acumulados",{req:true}), n("okr_cont_acum","Contactos nuevos acumulados",{req:true}) ]),
         row("g3",[ n("okr_cont_prom","Contactos promedio este mes",{req:true}), n("okr_n1","Campañas Nivel 1 ejecutadas (acum.)"), n("okr_n2","Campañas Nivel 2 ejecutadas (acum.)") ])
       ]},
       { num:2, titulo:"Resultados del mes", hint:"La comparativa con el mes anterior se calcula sola", ref:"mes",
         compare:[
-          {k:"Alcance total", id:"m_alc_total"}, {k:"Alcance seguidores", id:"m_alc_seg"}, {k:"Alcance no seguidores", id:"m_alc_noseg"}, {k:"Alcance por pauta", id:"m_alc_pauta"},
-          {k:"Visualizaciones", id:"m_views"}, {k:"Interacciones", id:"m_inter"}, {k:"Contactos nuevos", id:"m_contactos"},
+          {k:"Espectadores", id:"m_alc_total"},           {k:"Visualizaciones", id:"m_views"}, {k:"Visualizaciones de pago", id:"m_views_pauta"},
+          {k:"Visualizaciones orgánicas", calc:d=>{const t=d.m_views; return (t===""||t==null)?null:Number(t)-Number(d.m_views_pauta||0);}},
+          {k:"Visualizaciones de seguidores", id:"m_views_seg"}, {k:"Visualizaciones de no seguidores", id:"m_views_noseg"},
+          {k:"Interacciones", id:"m_inter"}, {k:"Contactos nuevos", id:"m_contactos"},
           {k:"Seguidores sumados", id:"seg_sumados"}, {k:"Seguidores perdidos", id:"seg_perdidos", inverse:true},
           {k:"Seguidores netos", calc:d=>{const a=d.seg_sumados,b=d.seg_perdidos; return (a===""||a==null||b===""||b==null)?null:Number(a)-Number(b);}},
           {k:"Total al cierre", id:"seg_cierre"},
-          {k:"Conversión alcance → seguidores", pct:true, calc:d=>{const a=Number(d.m_alc_total),n=(d.seg_sumados===""||d.seg_sumados==null)?null:Number(d.seg_sumados)-Number(d.seg_perdidos||0); return (a&&n!=null)?n/a*100:null;}}
+          {k:"Conversión espectadores → seguidores", pct:true, calc:d=>{const a=Number(d.m_alc_total),n=(d.seg_sumados===""||d.seg_sumados==null)?null:Number(d.seg_sumados)-Number(d.seg_perdidos||0); return (a&&n!=null)?n/a*100:null;}}
         ], fields:[
-        { type:"sublabel", text:"Alcance y visualizaciones · separar orgánico de pauta" },
-        row("g3",[ n("m_alc_seg","Alcance seguidores",{req:true}), n("m_alc_noseg","Alcance no seguidores",{req:true}), n("m_alc_total","Alcance total",{req:true}) ]),
-        row("g3",[ n("m_alc_pauta","Alcance por pauta"), n("m_views","Visualizaciones totales",{req:true}), n("m_views_pauta","Visualizaciones por pauta") ]),
+        { type:"sublabel", text:"Espectadores (cuentas únicas; en Meta, antes alcance) y visualizaciones · la visualización orgánica se calcula sola: total menos pago" },
+        row("g2",[ n("m_alc_total","Espectadores totales",{req:true}) ]),
+        row("g2",[ n("m_views","Visualizaciones totales",{req:true}), n("m_views_pauta","Visualizaciones de pago (pauta)",{help:"Vacío si ese mes no hubo pauta"}) ]),
+        row("g2",[ n("m_views_seg","Visualizaciones de seguidores",{req:true}), n("m_views_noseg","Visualizaciones de no seguidores",{req:true}) ]),
         row("g2",[ n("m_inter","Interacciones totales",{req:true}), n("m_contactos","Contactos nuevos del mes",{req:true,help:"Mensajes directos y leads. Solo contactos nuevos."}) ]),
         txt("m_contactos_origen","Origen principal de los contactos"),
         { type:"sublabel", text:"Seguidores" },
         row("g4",[ n("seg_inicio","Al inicio del mes",{req:true}), n("seg_sumados","Sumados",{req:true}), n("seg_perdidos","Perdidos",{req:true}), n("seg_cierre","Total al cierre",{req:true}) ]),
-        ta("conv_lectura","Lectura de la tasa de conversión alcance → seguidores",{req:true,help:"La tasa se calcula sola: seguidores netos / alcance total"}),
-        { type:"fotos", id:"m_fotos", label:"Capturas de Estadísticas del mes (alcance, visualizaciones, seguidores, contactos)", help:"Instagram → Estadísticas, filtro 'Últimos 30 días' o rango del mes." }
+        ta("conv_lectura","Lectura de la tasa de conversión espectadores → seguidores",{req:true,help:"La tasa se calcula sola: seguidores netos / espectadores totales"}),
+        { type:"fotos", id:"m_fotos", label:"Capturas de Estadísticas del mes (espectadores, visualizaciones, seguidores, contactos)", help:"Instagram → Estadísticas, filtro 'Últimos 30 días' o rango del mes." }
       ]},
       { num:3, titulo:"Campañas del mes", fields:[
         { type:"sublabel", text:"Campaña Nivel 1 · 1 por semestre" },

@@ -93,10 +93,10 @@
     const porMes = /por mes|mensual|prom/.test(o);
     if(/conversi/.test(o)) return { v: (alc&&netos!=null)? netos/alc*100 : null, fuente:"Seguidores netos / alcance total", pct:true };
     if(/alcance/.test(o)){
-      if(/no seg/.test(o)) return { v:num(d.p_alc_noseg), fuente:"Alcance no seguidores" };
-      if(/seguidor/.test(o)) return { v:num(d.p_alc_seg), fuente:"Alcance seguidores" };
-      if(/pauta|pago/.test(o)) return { v:num(d.p_alc_pauta), fuente:"Alcance por pauta" };
-      if(/organic/.test(o)) return { v:num(d.p_alc_org), fuente:"Alcance orgánico" };
+      if(/no seg/.test(o)) return d.p_views_noseg!=null&&d.p_views_noseg!=="" ? { v:num(d.p_views_noseg), fuente:"Visualizaciones de no seguidores" } : { v:num(d.p_alc_noseg), fuente:"Alcance no seguidores" };
+      if(/seguidor/.test(o)) return d.p_views_seg!=null&&d.p_views_seg!=="" ? { v:num(d.p_views_seg), fuente:"Visualizaciones de seguidores" } : { v:num(d.p_alc_seg), fuente:"Alcance seguidores" };
+      if(/pauta|pago/.test(o)) return { v:num(d.p_alc_pauta), fuente:"Espectadores por pauta" };
+      if(/organic/.test(o)) return { v: d.p_alc_org!=null&&d.p_alc_org!=="" ? num(d.p_alc_org) : (alc!=null ? alc-(num(d.p_alc_pauta)||0) : null), fuente:"Espectadores orgánicos" };
       return { v: porMes&&alc!=null ? Math.round(alc/n) : alc, fuente: porMes?"Alcance total / meses":"Alcance total del período" };
     }
     if(/visualiz|views|reproduc/.test(o)){ const v=num(d.p_views); return { v: porMes&&v!=null?Math.round(v/n):v, fuente:"Visualizaciones" }; }
@@ -126,17 +126,20 @@
       ]},
       { num:3, titulo:"Resultados del período", hint:"Lo que viene de los mensuales ya está precargado; revisá y completá", ref:"periodo",
         compare:[
-          {k:"Alcance total (cuentas únicas)", id:"p_alc_total"}, {k:"Visualizaciones", id:"p_views"}, {k:"Interacciones", id:"p_inter"},
+          {k:"Espectadores (cuentas únicas)", id:"p_alc_total"},           {k:"Visualizaciones", id:"p_views"}, {k:"Visualizaciones de pago", id:"p_views_pauta"},
+          {k:"Visualizaciones orgánicas", calc:d=>{const t=d.p_views; return (t===""||t==null)?null:Number(t)-Number(d.p_views_pauta||0);}},
+          {k:"Visualizaciones de seguidores", id:"p_views_seg"}, {k:"Visualizaciones de no seguidores", id:"p_views_noseg"}, {k:"Interacciones", id:"p_inter"},
           {k:"Seguidores sumados", id:"p_seg_sumados"}, {k:"Seguidores perdidos", id:"p_seg_perdidos", inverse:true},
           {k:"Seguidores netos", calc:d=>{const a=d.p_seg_sumados,b=d.p_seg_perdidos; return (a===""||a==null||b===""||b==null)?null:Number(a)-Number(b);}},
           {k:"Contactos nuevos", id:"p_contactos"},
-          {k:"Conversión alcance → seguidores", pct:true, calc:d=>{const a=Number(d.p_alc_total),n=(d.p_seg_sumados===""||d.p_seg_sumados==null)?null:Number(d.p_seg_sumados)-Number(d.p_seg_perdidos||0); return (a&&n!=null)?n/a*100:null;}}
+          {k:"Conversión espectadores → seguidores", pct:true, calc:d=>{const a=Number(d.p_alc_total),n=(d.p_seg_sumados===""||d.p_seg_sumados==null)?null:Number(d.p_seg_sumados)-Number(d.p_seg_perdidos||0); return (a&&n!=null)?n/a*100:null;}}
         ], fields:[
         { type:"sublabel", text:"Mes a mes · se precarga desde los mensuales; si faltan, completalo a mano (va a la presentación)" },
-        { type:"list", id:"mm", label:"Resultados por mes", item:"Mes", rows:12, fixed:true, cols:[{id:"mes",l:"Mes"},{id:"alc",l:"Alcance",t:"number"},{id:"views",l:"Visualizaciones",t:"number"},{id:"netos",l:"Seguidores netos",t:"number"},{id:"inter",l:"Interacciones",t:"number"},{id:"cont",l:"Contactos",t:"number"}] },
-        { type:"sublabel", text:"Alcance y visualizaciones · desde Meta, para el período completo (cuentas únicas, no suma de meses)" },
-        row("g3",[ n("p_alc_total","Alcance total",{req:true}), n("p_alc_seg","Alcance seguidores"), n("p_alc_noseg","Alcance no seguidores") ]),
-        row("g3",[ n("p_alc_org","Alcance orgánico"), n("p_alc_pauta","Alcance por pauta"), n("p_views","Visualizaciones",{req:true}) ]),
+        { type:"list", id:"mm", label:"Resultados por mes", item:"Mes", rows:12, fixed:true, cols:[{id:"mes",l:"Mes"},{id:"alc",l:"Espectadores",t:"number"},{id:"views",l:"Visualizaciones",t:"number"},{id:"netos",l:"Seguidores netos",t:"number"},{id:"inter",l:"Interacciones",t:"number"},{id:"cont",l:"Contactos",t:"number"}] },
+        { type:"sublabel", text:"Espectadores y visualizaciones · desde Meta, para el período completo (los espectadores son cuentas únicas: no se suman los meses). La visualización orgánica se calcula sola: total menos pago" },
+        row("g2",[ n("p_alc_total","Espectadores totales",{req:true}) ]),
+        row("g2",[ n("p_views","Visualizaciones totales",{req:true}), n("p_views_pauta","Visualizaciones de pago (pauta)",{help:"Vacío si no hubo pauta"}) ]),
+        row("g2",[ n("p_views_seg","Visualizaciones de seguidores"), n("p_views_noseg","Visualizaciones de no seguidores") ]),
         { type:"sublabel", text:"Comunidad y contactos" },
         row("g4",[ n("p_seg_inicio","Seguidores al inicio",{req:true}), n("p_seg_sumados","Sumados",{req:true}), n("p_seg_perdidos","Perdidos",{req:true}), n("p_seg_cierre","Total al cierre",{req:true}) ]),
         row("g3",[ n("p_contactos","Contactos nuevos",{req:true}), n("p_inter","Interacciones",{req:true}), n("p_seg_propios","Seguidores atribuibles a gestión propia",{help:"Opcional, si hubo virales o colaboraciones externas"}) ]),

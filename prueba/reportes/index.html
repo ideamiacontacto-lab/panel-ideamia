@@ -6,10 +6,10 @@
 <title>Reporte semanal · Ideamia</title>
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
-<script src="shared.js"></script>
-<script src="forms.js"></script>
-<script src="periodico.js"></script>
-<script src="analisis.js"></script>
+<script src="shared.js?v=20261020"></script>
+<script src="forms.js?v=20261020"></script>
+<script src="periodico.js?v=20261020"></script>
+<script src="analisis.js?v=20261020"></script>
 <script src="importar.js"></script>
 <script src="fx.js"></script>
 <script src="../../ideamia-nav.js?v=5" defer></script>
@@ -733,9 +733,9 @@
   // Las claves son genéricas; acá se traducen al campo del formulario según de qué captura se trate. Solo se completan campos vacíos.
   const LECTURA_REEL = { views:"res_views", visualizaciones:"res_views", mg:"res_mg", me_gusta:"res_mg", comentarios:"res_com", compartidos:"res_comp", guardados:"res_guard", duracion:"duracion", tiempo_prom:"tiempo_prom", tiempo_promedio:"tiempo_prom", omisiones:"omisiones", nuevos_seg:"nuevos_seg", seguidores_nuevos:"nuevos_seg", visitas:"visitas", reposts:"reposts", clics:"clics", org_feed:"org_feed", org_historias:"org_historias", org_reels:"org_reels", org_perfil:"org_perfil", org_explorar:"org_explorar", ret_3s:"ret_3s", ret_fin:"ret_fin", picos_mg:"picos_mg", picos:"picos_mg" };
   const LECTURA_PUB = { views:"res_views", visualizaciones:"res_views", alcance:"alcance", mg:"res_mg", me_gusta:"res_mg", guardados:"res_guard", comentarios:"res_com", compartidos:"res_comp", nuevos_seg:"nuevos_seg", seguidores_nuevos:"nuevos_seg", visitas:"visitas" };
-  const LECTURA_CUENTA = { alcance_total:"alcance_total", alcance:"alcance_total", alcance_seg:"alcance_seg", alcance_seguidores:"alcance_seg", alcance_noseg:"alcance_noseg", alcance_no_seguidores:"alcance_noseg", interacciones:"interacciones", seg_sumados:"seg_sumados", seguidores_sumados:"seg_sumados", seg_perdidos:"seg_perdidos", seguidores_perdidos:"seg_perdidos" };
-  const LECTURA_MES = { alcance_total:"m_alc_total", alcance:"m_alc_total", alcance_seg:"m_alc_seg", alcance_noseg:"m_alc_noseg", interacciones:"m_inter", seg_sumados:"seg_sumados", seg_perdidos:"seg_perdidos", visualizaciones:"m_views", views:"m_views", contactos:"m_contactos" };
-  const LECTURA_PER = { alcance_total:"p_alc_total", alcance:"p_alc_total", alcance_seg:"p_alc_seg", alcance_noseg:"p_alc_noseg", interacciones:"p_inter", seg_sumados:"p_seg_sumados", seg_perdidos:"p_seg_perdidos", visualizaciones:"p_views", views:"p_views", contactos:"p_contactos" };
+  const LECTURA_CUENTA = { alcance_total:"alcance_total", alcance:"alcance_total", alcance_seg:"alcance_seg", alcance_seguidores:"alcance_seg", alcance_noseg:"alcance_noseg", alcance_no_seguidores:"alcance_noseg", espectadores:"alcance_total", alc_pauta:"alc_pauta", visualizaciones:"views", views:"views", views_pauta:"views_pauta", views_seg:"views_seg", views_noseg:"views_noseg", interacciones:"interacciones", seg_sumados:"seg_sumados", seguidores_sumados:"seg_sumados", seg_perdidos:"seg_perdidos", seguidores_perdidos:"seg_perdidos" };
+  const LECTURA_MES = { alcance_total:"m_alc_total", alcance:"m_alc_total", alcance_seg:"m_alc_seg", alcance_noseg:"m_alc_noseg", espectadores:"m_alc_total", alc_pauta:"m_alc_pauta", views_pauta:"m_views_pauta", views_seg:"m_views_seg", views_noseg:"m_views_noseg", interacciones:"m_inter", seg_sumados:"seg_sumados", seg_perdidos:"seg_perdidos", visualizaciones:"m_views", views:"m_views", contactos:"m_contactos" };
+  const LECTURA_PER = { alcance_total:"p_alc_total", alcance:"p_alc_total", alcance_seg:"p_alc_seg", alcance_noseg:"p_alc_noseg", espectadores:"p_alc_total", alc_pauta:"p_alc_pauta", views_pauta:"p_views_pauta", views_seg:"p_views_seg", views_noseg:"p_views_noseg", interacciones:"p_inter", seg_sumados:"p_seg_sumados", seg_perdidos:"p_seg_perdidos", visualizaciones:"p_views", views:"p_views", contactos:"p_contactos" };
   const LECTURA_AUD = { a_mujeres:"a_mujeres", a_franja:"a_franja", a_c1:"a_c1", a_c1p:"a_c1p", a_c2:"a_c2", a_c2p:"a_c2p", a_c3:"a_c3", a_c3p:"a_c3p", a_pais:"a_pais", a_pais_nombre:"a_pais_nombre" };
   // Capturas que se mandan a la IA (lectura de números + devolución escrita)
   const IA_CAMPOS = /^(reel\d+_fotos|pub\d+_fotos|reel\d+_portada|pub\d+_portada|fotos_resultados|m_fotos|p_fotos|a_fotos)$/;

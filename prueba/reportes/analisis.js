@@ -140,12 +140,14 @@
   // Diagnóstico general de la semana (sección 3)
   function diagSemana(d, prev){
     const items=[];
-    const alc=num(d.alcance_total), seg=num(d.alcance_seg), noseg=num(d.alcance_noseg), inter=num(d.interacciones), sum=num(d.seg_sumados), per=num(d.seg_perdidos);
+    // desde el 20/10/2026 la división seguidores / no seguidores se carga en visualizaciones (Meta ya no la da en espectadores); los reportes viejos la tienen en alcance
+    const nuevo = d.views_seg!=null && d.views_seg!=="";
+    const alc=num(d.alcance_total), seg=num(nuevo?d.views_seg:d.alcance_seg), noseg=num(nuevo?d.views_noseg:d.alcance_noseg), inter=num(d.interacciones), sum=num(d.seg_sumados), per=num(d.seg_perdidos);
     if(alc==null) return items;
-    if(seg!=null && noseg!=null && (seg+noseg)>0){ const p=noseg/(seg+noseg)*100; items.push({k:"Descubrimiento",lvl:p>=60?"ok":p>=35?"info":"warn",txt:`${f1(p)} % del alcance fue a no seguidores${p>=60?": semana de descubrimiento.":p>=35?": equilibrio entre comunidad y gente nueva.":": el contenido circuló sobre todo entre quienes ya siguen la cuenta."}`}); }
-    if(sum!=null){ const netos=sum-(per||0); const conv=netos/alc*100; items.push({k:"Conversión",lvl:conv>=1.5?"ok":conv>=0.7?"info":"warn",txt:`${netos>=0?"+":""}${f0(netos)} seguidores netos sobre ${f0(alc)} de alcance (${f1(conv)} %)${conv>=1.5?": muy buena conversión.":conv>=0.7?": conversión normal.":": alcance que no se convierte en seguidores."}`}); if(per!=null && sum>0 && per/sum>0.5) items.push({k:"Pérdidas",lvl:"warn",txt:`Se perdieron ${f0(per)} seguidores contra ${f0(sum)} ganados: revisar frecuencia y tipo de historias.`}); }
-    if(inter!=null){ const e=inter/alc*100; items.push({k:"Interacción",lvl:e>=5?"ok":e>=2?"info":"warn",txt:`${f0(inter)} interacciones sobre el alcance (${f1(e)} %)${e>=5?": comunidad activa.":e>=2?": nivel normal.":": poca respuesta al contenido."}`}); }
-    if(prev){ const pa=num(prev.alcance_total); if(pa){ const dv=(alc-pa)/pa*100; items.push({k:"Tendencia",lvl:dv>=15?"ok":dv<=-25?"warn":"info",txt:`Alcance ${dv>=0?"+":""}${f0(dv)} % contra la semana anterior (${f0(pa)}).`}); } }
+    if(seg!=null && noseg!=null && (seg+noseg)>0){ const p=noseg/(seg+noseg)*100; items.push({k:"Descubrimiento",lvl:p>=60?"ok":p>=35?"info":"warn",txt:`${f1(p)} % ${nuevo?"de las visualizaciones fueron de":"del alcance fue a"} no seguidores${p>=60?": semana de descubrimiento.":p>=35?": equilibrio entre comunidad y gente nueva.":": el contenido circuló sobre todo entre quienes ya siguen la cuenta."}`}); }
+    if(sum!=null){ const netos=sum-(per||0); const conv=netos/alc*100; items.push({k:"Conversión",lvl:conv>=1.5?"ok":conv>=0.7?"info":"warn",txt:`${netos>=0?"+":""}${f0(netos)} seguidores netos sobre ${f0(alc)} espectadores (${f1(conv)} %)${conv>=1.5?": muy buena conversión.":conv>=0.7?": conversión normal.":": alcance que no se convierte en seguidores."}`}); if(per!=null && sum>0 && per/sum>0.5) items.push({k:"Pérdidas",lvl:"warn",txt:`Se perdieron ${f0(per)} seguidores contra ${f0(sum)} ganados: revisar frecuencia y tipo de historias.`}); }
+    if(inter!=null){ const e=inter/alc*100; items.push({k:"Interacción",lvl:e>=5?"ok":e>=2?"info":"warn",txt:`${f0(inter)} interacciones sobre los espectadores (${f1(e)} %)${e>=5?": comunidad activa.":e>=2?": nivel normal.":": poca respuesta al contenido."}`}); }
+    if(prev){ const pa=num(prev.alcance_total); if(pa){ const dv=(alc-pa)/pa*100; items.push({k:"Tendencia",lvl:dv>=15?"ok":dv<=-25?"warn":"info",txt:`Espectadores ${dv>=0?"+":""}${f0(dv)} % contra la semana anterior (${f0(pa)}).`}); } }
     return items;
   }
 
