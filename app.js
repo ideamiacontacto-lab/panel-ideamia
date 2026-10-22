@@ -229,7 +229,7 @@
   /* ---------------- render general ---------------- */
   function render() {
     const app = $('#app');
-    if (S.proj) { document.body.classList.toggle('movil', S.movil); document.body.classList.remove('nav6'); app.innerHTML = vistaProject(); const vw = document.getElementById('view'); if (vw && S._ultTab !== 'p:' + S.projTab) { vw.classList.add('entra'); S._ultTab = 'p:' + S.projTab; } if (!S._revelado) { const h = app.querySelector('.mhead h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } } bind(app); return; }
+    if (S.proj) { document.body.classList.toggle('movil', S.movil); document.body.classList.remove('nav6'); app.innerHTML = vistaProject(); const vw = document.getElementById('view'); if (vw && S._ultTab !== 'p:' + S.projTab) { vw.classList.add('entra'); S._ultTab = 'p:' + S.projTab; setTimeout(() => contar(app), 0); } if (!S._revelado) { const h = app.querySelector('.mhead h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } } bind(app); return; }
     const D = S.data; if (!D) return;
     const t = agrupado(), tot = t.length, ok = t.filter(x => hecho(x.obj)).length;
     const hoyD = NOW, nombre = apodo(), pfYo = perfilDe(D.yo.clave);
@@ -284,15 +284,28 @@
     document.body.classList.toggle('nav6', nav.length === 6);
     // movimiento (v2): la vista entra escalonada solo al cambiar de pestaña, y el saludo se revela una sola vez por sesión
     const vw = document.getElementById('view');
-    if (vw && S._ultTab !== S.tab) { vw.classList.add('entra'); S._ultTab = S.tab; }
+    if (vw && S._ultTab !== S.tab) { vw.classList.add('entra'); S._ultTab = S.tab; setTimeout(() => contar(app), 0); }
     if (!S._revelado) { const h = app.querySelector('.mhead h1, .hero h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } }
     bind(app);
     if (S.tab === 'mas') cajasEnPestanas($('#view'), 'mas');
     if (S.tab === 'guiones' || S.tab === 'fgui') carpetasEnPestanas($('#view'), S.tab);
+    if (S.tab === 'fgui') seccionesEnPestanas($('#view'), 'fgui', 2);   // Bauti: Reuniones y Guiones, una por vez
     if (S.tab === 'semana' && !S.movil) seccionesEnPestanas($('#view'), 'semana');
     if (S.tab === 'reuniones' || S.tab === 'equipo') seccionesEnPestanas($('#view'), S.tab);
     renderTop();
     embSync();
+  }
+  // los números grandes cuentan desde 0 al entrar a una pestaña (650 ms, curva que frena al final)
+  function contar(root) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    root.querySelectorAll('.hoy-sts .mio-st b, .gtab b, .fl-sts .mio-st b, .revtabs .rp b, .anillo b, .semana-h b').forEach(el => {
+      const t = el.firstChild; if (!t || t.nodeType !== 3) return;
+      const n = parseInt(t.textContent, 10); if (!(n > 1) || n > 999 || String(n) !== t.textContent.trim()) return;
+      const t0 = performance.now(), d = 650;
+      const paso = ahora => { const k = Math.min(1, (ahora - t0) / d); t.textContent = Math.round(n * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(paso); };
+      t.textContent = '0'; requestAnimationFrame(paso);
+      setTimeout(() => { t.textContent = String(n); }, d + 150);   // por si la pestaña del navegador está en segundo plano (ahí no corre la animación)
+    });
   }
   function anillo(ok, tot) {
     const p = tot ? Math.round(ok / tot * 100) : 0;
@@ -1394,10 +1407,13 @@
   function embFrame(t) {
     let capa = document.getElementById('embCapa');
     if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (S.tab === 'plan' || S.tab === 'okr') embSync(); }); }
+    // privacidad (22/10/2026): cada ventana se abre SIEMPRE con la persona actual; si quedó una de otra persona, se tira
+    const yoC = (S.data.yo || {}).clave || '';
+    capa.querySelectorAll('iframe').forEach(x => { if (x.dataset.p !== yoC) x.remove(); });
     let f = capa.querySelector('iframe[data-t="' + t + '"]');
     if (!f) {
-      f = document.createElement('iframe'); f.dataset.t = t; f.title = t === 'plan' ? 'Plan' : 'Objetivos';
-      f.src = (t === 'plan' ? 'plan/' : 'objetivos/') + '?embed=1' + ((S.data.yo || {}).clave === 'joaco' ? '&p=joaco' : '') + (DEMO ? '&demo=1&p=' + encodeURIComponent((S.data.yo || {}).clave || '') : '') + ((S.embExtra || {})[t] || '');
+      f = document.createElement('iframe'); f.dataset.t = t; f.dataset.p = yoC; f.title = t === 'plan' ? 'Plan' : 'Objetivos';
+      f.src = (t === 'plan' ? 'plan/' : 'objetivos/') + '?embed=1&p=' + encodeURIComponent(yoC) + (DEMO ? '&demo=1' : '') + ((S.embExtra || {})[t] || '');
       f.onload = () => embFondo(f);   // el mismo color de fondo que eligió la persona
       capa.appendChild(f);
     }
@@ -1451,9 +1467,9 @@
     mostrar(Math.min(LS.get('carp:' + key, 0), cs.length - 1));
   }
   // y con secciones con título (Semana en la compu: Reportes, Todos los días, Una vez por semana, Este mes)
-  function seccionesEnPestanas(root, key) {
+  function seccionesEnPestanas(root, key, minimo) {
     if (!root) return;
-    const ss = [...root.querySelectorAll(':scope > .sec')].filter(x => x.querySelector(':scope > .sec-h h2')); if (ss.length < 3) return;
+    const ss = [...root.querySelectorAll(':scope > .sec')].filter(x => x.querySelector(':scope > .sec-h h2')); if (ss.length < (minimo || 3)) return;
     const dato = x => { const h = x.querySelector(':scope > .sec-h h2'); return { t: [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(), n: ((h.querySelector('small') || {}).textContent || '').replace(/[^\d].*$/, '') }; };
     const nav = document.createElement('div'); nav.className = 'gtabs sp-tabs'; nav.setAttribute('role', 'tablist');
     nav.innerHTML = ss.map((x, i) => { const d = dato(x); return '<button role="tab" class="gtab" data-sp="' + i + '"><i class="gtab-n">' + String(i + 1).padStart(2, '0') + '</i><span class="gtab-t">' + esc(d.t) + '</span><b>' + esc(d.n) + '</b></button>'; }).join('');
@@ -2822,6 +2838,8 @@
   function salirPersona() {
     LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; AGP.data = null; AGP.error = '';
     try { localStorage.removeItem('ideamia:persona'); } catch (e) {}
+    const capa = document.getElementById('embCapa'); if (capa) capa.remove();   // Plan y Objetivos de la persona anterior no quedan abiertos
+    S._precargo = 0; document.body.classList.remove('con-emb');
     perfilAplicar(null); history.replaceState(null, '', location.pathname); gate();
   }
 
