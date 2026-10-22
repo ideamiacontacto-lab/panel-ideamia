@@ -1401,14 +1401,14 @@ function filmConfig_(cfg, cat) {
   return { reels: reels, historias: historias, visitas: visitas, hora: String(cfg.FILM_REUNION_HORA || FILM_DEF.hora).trim(), todas: reels.concat(historias.filter(s => reels.indexOf(s) < 0)) };
 }
 /* ---------------- Producciones del filmmaker (pedido de Joaquín, 21/10/2026) ----------------
-   El filmmaker anota qué va a grabar: día, hora, marca, qué (reel, historias, fotos, presencial) y con quién. En los reels hay un
+   El filmmaker anota qué va a grabar: día, hora, marca, qué (reel, historias, presencial) y con quién. En los reels hay un
    checklist (coordinó con quienes actúan, mandó el guion, avisó qué tienen que llevar) y en las marcas con recetas (Config FILM_RECETAS)
    también "le avisé a la encargada qué insumos preparar", una semana antes. Así Joaquín sabe horarios y con quién, y puede chequear con
    el cliente. Los viernes, si no cargó la semana siguiente o le falta algo del checklist, se lo pide por Discord. Cuando un reel de sus
    marcas pasa a Publicado en el CM, el panel le ofrece anotarlo en su lista de reels (Config FILM_LISTA_<PERSONA>, el link de su planilla).
    Archivo de Drive panel-ideamia-producciones.json: { l: [producciones], anot: { persona: { cardId: 'anotado'|'no' } } }. */
 const PROD_ARCH = ['PROD_FILE_ID', 'panel-ideamia-producciones.json'];
-const PROD_TIPOS = { reel: 'Reel', historias: 'Historias', fotos: 'Fotos', presencial: 'Presencial', otro: 'Otro' };
+const PROD_TIPOS = { reel: 'Reel', historias: 'Historias', presencial: 'Presencial', otro: 'Otro' };   // sin fotos: Bauti no hace fotografía (21/10/2026)
 const PROD_CHK = { actores: 'Coordiné con quienes actúan', guion: 'Les mandé el guion', llevar: 'Les avisé si tienen que llevar algo', encargada: 'Le avisé a la encargada qué insumos preparar' };
 function prodLeer_() {
   const c = CacheService.getScriptCache(), h = c.get('prod'); if (h) { try { return JSON.parse(h); } catch (e) {} }
