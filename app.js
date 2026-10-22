@@ -2595,6 +2595,52 @@
     m.querySelector('.mb').classList.add('ancho'); mdBind(m); const lista = adjBind(m);
   }
 
+  /* ---------------- soltar imágenes sobre una tarjeta (22/10/2026, como en Trello) ----------------
+     Arrastrás una o varias imágenes (o un PDF) sobre cualquier tarjeta de una lista y se suben a esa tarjeta de Trello, sin abrirla.
+     La ficha de una pieza abierta tiene su propia zona para soltar (la de revisión), así que con esa ventana abierta no se mete. */
+  const ATR_CARD = ['data-mio-card', 'data-pieza', 'data-card-det', 'data-det-input', 'data-film-listo', 'data-archivar', 'data-id'];
+  const tarjetaBajo = el => {
+    const fila = el && el.closest && el.closest('.row, .mio-r, .fl-r'); if (!fila) return null;
+    for (const a of ATR_CARD) { const x = fila.matches('[' + a + ']') ? fila : fila.querySelector('[' + a + ']'); const v = x && x.getAttribute(a); if (v && (DEMO ? /^[\w-]+$/ : /^[0-9a-f]{24}$/).test(v)) return { fila, id: v }; }   // en demo los ids son inventados
+    return null;
+  };
+  async function subirATarjeta(id, files, fila) {
+    const c = ((S.data || {}).cards || []).concat(((S.proj || {}).mio || {}).cards || []).find(x => x.id === id) || {};
+    files = files.filter(f => /^(image\/(png|jpe?g|gif|webp)|application\/pdf)$/i.test(f.type));
+    if (!files.length) return toast('Solo imágenes (PNG, JPG, GIF, WEBP) o PDF.');
+    if (fila) fila.classList.add('drop-sube');
+    let ok = 0; const mal = [];
+    for (const f of files) {
+      if (f.size > 9 * 1024 * 1024) { mal.push(f.name + ': pesa más de 9 MB'); continue; }
+      try {
+        const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('no pude leer el archivo')); fr.readAsDataURL(f); });
+        if (!DEMO) await post({ action: 'subirAdjunto', cardId: id, archivo: f.name, mime: f.type, data, marca: (c.m || [])[0] || '', nombre: c.n || '' });
+        ok++;
+      } catch (e) { mal.push(f.name + ': ' + e.message); }
+    }
+    if (fila) fila.classList.remove('drop-sube');
+    toast((ok ? '✓ ' + ok + (ok === 1 ? ' archivo subido' : ' archivos subidos') + ' a "' + esc((c.n || 'la tarjeta').slice(0, 50)) + '"' + (DEMO ? ' (demo: no se subió de verdad)' : '') : '') + mal.map((m, i) => (ok || i ? '<br>' : '') + '✗ ' + esc(m)).join(''));
+  }
+  (function () {
+    let marcada = null;
+    const conArchivos = e => [...((e.dataTransfer || {}).types || [])].indexOf('Files') >= 0;
+    const soltar = () => { if (marcada) { marcada.classList.remove('drop-on'); marcada = null; } };
+    document.addEventListener('dragover', e => {
+      if (!conArchivos(e) || $('#drawer')) return;
+      e.preventDefault();   // si no, el navegador abre la imagen y se sale del panel
+      const t = tarjetaBajo(e.target);
+      if (marcada && (!t || t.fila !== marcada)) soltar();
+      if (t) { e.dataTransfer.dropEffect = 'copy'; t.fila.classList.add('drop-on'); marcada = t.fila; } else e.dataTransfer.dropEffect = 'none';
+    });
+    document.addEventListener('dragleave', e => { if (marcada && !marcada.contains(e.relatedTarget)) soltar(); });
+    document.addEventListener('drop', e => {
+      if (!conArchivos(e) || $('#drawer')) return;
+      e.preventDefault(); soltar();
+      const t = tarjetaBajo(e.target);
+      if (t) subirATarjeta(t.id, [...e.dataTransfer.files], t.fila); else toast('Soltá la imagen encima de una tarjeta.');
+    });
+  })();
+
   // con una ventana abierta el fondo queda quieto (se scrollea solo la ventana); vale para todas, se cierren como se cierren
   new MutationObserver(() => document.documentElement.classList.toggle('con-modal', !!document.querySelector('body > .modal'))).observe(document.body, { childList: true });
   function modal(html, onOk) {

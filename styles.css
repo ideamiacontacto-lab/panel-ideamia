@@ -2079,3 +2079,7 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 .lin-i p{margin:4px 0 0;font-size:13px;color:var(--muted);white-space:pre-wrap}
 .fi-ayu{display:block;font-size:11.5px;color:var(--dim);margin-top:6px}
 .fi-env button{border-style:dashed}
+/* ---------- soltar una imagen sobre una tarjeta ---------- */
+.row.drop-on,.mio-r.drop-on,.fl-r.drop-on{outline:2px dashed var(--y);outline-offset:-2px;background:var(--y-soft)!important;position:relative}
+.row.drop-on:after,.mio-r.drop-on:after,.fl-r.drop-on:after{content:"Soltá para subir a esta tarjeta"!important;position:absolute;right:10px;top:50%;transform:translateY(-50%)!important;opacity:1!important;font-family:var(--f-t);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--y-ink);background:var(--y);padding:4px 8px;border-radius:3px;pointer-events:none}
+.row.drop-sube,.mio-r.drop-sube,.fl-r.drop-sube{opacity:.55;pointer-events:none}
