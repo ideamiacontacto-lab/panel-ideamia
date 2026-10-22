@@ -258,26 +258,27 @@
     if ((S.tab === 'plan' || S.tab === 'okr') && !conPlan) S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb, equipo: vEquipoSM }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Agenda', I.pin, Df.visPend.length + prodPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
-      : S.movil && conPlan ? [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]
-      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
-    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
+      : S.movil ? [['hoy', 'Hoy', I.check, tot - ok], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], conPlan && D.anual ? [] : [['discord', 'Discord', I.msg, dcSinVer().length, true]], [['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]).slice(0, 6)
+      : [['hoy', 'Hoy', I.check, tot - ok], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, nReu > 0], ['equipo', 'Equipo', I.users, 0]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
+    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'mas', 'colabs'].concat(S.movil ? ['reuniones', 'equipo'] : []).indexOf(S.tab) >= 0;
+    const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
-      : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
+      : '<div class="mtit">' + (!ivo && (['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'colabs'].indexOf(S.tab) >= 0 || (S.movil && ['reuniones', 'equipo'].indexOf(S.tab) >= 0)) ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
-    const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
+    const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas) || (x[0] === 'hoy' && S.tab === 'semana')) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
+    const hoySem = !ivo && !film && (S.tab === 'hoy' || S.tab === 'semana') ? '<div class="hoysem" role="tablist"><button role="tab" class="' + (S.tab === 'hoy' ? 'on' : '') + '" data-tab="hoy">Hoy<em>' + (tot - ok) + '</em></button><button role="tab" class="' + (S.tab === 'semana' ? 'on' : '') + '" data-tab="semana">Semana' + (nRep ? '<em class="hot">' + nRep + '</em>' : '') + '</button></div>' : '';
     app.innerHTML = S.movil
-      ? headF + (S.tab === 'mas' ? '' : ctrl) + '<div class="view" id="view">' + bannerEstado() + vista + '</div><nav class="bnav">' + nav.map(botonNav).join('') + '</nav>'
-      : ctrl + headF + '<div class="view" id="view">' + bannerEstado() + vista + '</div>';
+      ? headF + (S.tab === 'mas' ? '' : ctrl) + '<div class="view" id="view">' + hoySem + bannerEstado() + vista + '</div><nav class="bnav">' + nav.map(botonNav).join('') + '</nav>'
+      : ctrl + headF + '<div class="view" id="view">' + hoySem + bannerEstado() + vista + '</div>';
     document.body.classList.toggle('movil', S.movil);
     document.body.classList.toggle('ivo', esRevisa());
     document.body.classList.toggle('nav6', nav.length === 6);
@@ -289,6 +290,7 @@
     if (S.tab === 'mas') cajasEnPestanas($('#view'), 'mas');
     if (S.tab === 'guiones') carpetasEnPestanas($('#view'), S.tab);
     if (S.tab === 'semana' && !S.movil) seccionesEnPestanas($('#view'), 'semana');
+    if (S.tab === 'reuniones' || S.tab === 'equipo') seccionesEnPestanas($('#view'), S.tab);
     renderTop();
     embSync();
   }
@@ -389,7 +391,7 @@
     const chips = x.items.map(i => {
       const ok = hecho(i.obj), m = marca(i.marca) || { nombre: i.marca };
       if (x.sub === 'reunion') return '<button class="mk' + (ok ? ' on' : '') + (i.u >= 3 && !ok ? ' late' : '') + '" ' + (ok ? 'disabled' : 'data-agendar="' + esc(i.k) + '"') + '><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + (ok && i.obj.estado.detalle ? ' · ' + corto(ymdD(i.obj.estado.detalle.slice(0, 10))) : '') + '</button>';
-      return '<button class="mk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '"><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
+      return '<button class="mk chk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '" aria-pressed="' + ok + '"><b class="mk-c">' + (ok ? '✓' : '') + '</b><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
     }).join('');
     const ico = x.sub === 'reunion' ? '<span class="ico">' + I.users + '</span>' : '<span class="prog' + (done ? ' full' : '') + '">' + n + '/' + x.items.length + '</span>';
     return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(enlaceDe(x), x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
@@ -530,8 +532,8 @@
     const grupos = TIPOS_HOY.map(tp => { const L = hoyL.filter(x => !usados[x.k] && tp[3](x)); L.forEach(x => usados[x.k] = 1); return [tp, L.sort((a, b) => b.u - a.u)]; })
       .filter(g => g[1].length).sort((a, b) => Math.max.apply(null, b[1].map(x => x.u)) - Math.max.apply(null, a[1].map(x => x.u)));
     let abrio = false;
-    const modoHoy = LS.get('hoymodo', 'tipo');
-    const segHoy = '<div class="seg hoy-seg"><button class="' + (modoHoy === 'tipo' ? 'on' : '') + '" data-hoymodo="tipo">Por tipo</button><button class="' + (modoHoy === 'marca' ? 'on' : '') + '" data-hoymodo="marca">Por marca</button></div>';
+    const modoHoy = S.marca !== 'todas' ? 'tipo' : LS.get('hoymodo', 'tipo');   // con una marca elegida, "Por marca" no tiene sentido
+    const segHoy = S.marca !== 'todas' ? '' : '<div class="seg hoy-seg"><button class="' + (modoHoy === 'tipo' ? 'on' : '') + '" data-hoymodo="tipo">Por tipo</button><button class="' + (modoHoy === 'marca' ? 'on' : '') + '" data-hoymodo="marca">Por marca</button></div>';
     // v2 (22/10/2026): "Por tipo" ya no son carpetas una abajo de la otra sino pestañas: se ve un grupo por vez (menos scroll),
     // con Mañana, Esta semana y Hecho como pestañas más. Arranca en el grupo más urgente y recuerda el último elegido.
     const man = sinHora.filter(x => diaDe(x) === 1), sem = sinHora.filter(x => diaDe(x) >= 2);
@@ -1071,20 +1073,44 @@
 
   /* ---------------- vista REUNIONES ---------------- */
   function vReuniones() {
-    const L = S.data.reuniones.filter(r => pasa(r.marca || S.marca));
+    const D = S.data, L = D.reuniones.filter(r => pasa(r.marca || S.marca));
     const pend = L.filter(r => !hecho(r)).sort((a, b) => (b.vencida - a.vencida) || (a.hasta - b.hasta));
     const ok = L.filter(hecho).sort((a, b) => String(a.estado.detalle || '').localeCompare(String(b.estado.detalle || '')));
     const row = r => {
       const ag = hecho(r), det = r.estado && r.estado.detalle ? r.estado.detalle : '';
       const d = det ? ymdD(det.slice(0, 10)) : null;
-      return '<div class="row reu' + (ag ? '' : '') + '"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(r.nombre) + '</div><div class="mt">' + tagM(r.marca) + '<span>con ' + esc(r.con) + '</span><span>' + (ag ? 'agendada ' + hace(r.estado.fecha || '') : r.vencida ? '<span class="pill bad">se pasó: tenía que ser del ' + r.desde + ' al ' + r.hasta + '</span>' : 'tiene que ser del ' + r.desde + ' al ' + r.hasta + ' de ' + MESES[NOW.getMonth()]) + '</span></div></div>' +
+      return '<div class="row reu"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(r.nombre) + '</div><div class="mt">' + tagM(r.marca) + '<span>con ' + esc(r.con) + '</span><span>' + (ag ? 'agendada ' + hace(r.estado.fecha || '') : r.vencida ? '<span class="pill bad">se pasó: tenía que ser hasta el ' + r.hasta + '</span>' : 'hasta el ' + r.hasta) + '</span></div></div>' +
         '<div>' + (ag ? '<div class="when">' + (d ? corto(d) : '') + '<small>' + esc(det.slice(11, 16)) + (/evento creado/.test(det) ? ' · en calendario' : '') + '</small></div>' : '<button class="btn y" data-agendar="' + esc(r.clave) + '">' + I.cal + 'Ponerle fecha</button>') + '</div></div>';
     };
-    // por marca en cards: se abre sola la que tiene una reunión que se pasó de fecha
-    return '<div class="sec"><div class="sec-h"><h2>Por organizar<small>' + pend.length + '</small></h2></div>' +
-      (pend.length ? cardsPorMarca('reu', pend, row, r => r.vencida).replace(/(\d+) nuevos?</g, (x, n) => n + (n === '1' ? ' vencida' : ' vencidas') + '<') : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
-      (ok.length ? '<div class="sec">' + tarjeta('reu-ok', 'Agendadas', ok.length, '', false, () => ok.map(row).join(''), I.check) + '</div>' : '') +
+    // v6 (22/10/2026): Reuniones es una pestaña con lo que viene (calendario y brainstormings), lo que falta agendar y lo agendado
+    const prox = (D.eventos || []).filter(e => { const n = diasA(new Date(e.s)); return n >= 0 && n <= 14 && pasa(e.marcas && e.marcas.length ? e.marcas : [S.marca]); })
+      .map(e => ({ d: new Date(e.s), dia: e.dia, t: e.t, m: (e.marcas || [])[0] || '', tipo: /brainstorm/i.test(e.t) ? 'Brainstorming' : 'Calendario' }))
+      .concat((D.cards || []).filter(c => c.cat === 'brainstorming' && c.due && diasA(new Date(c.due)) >= 0 && pasa(c.m)).map(c => ({ d: new Date(c.due), dia: true, t: c.n, m: c.m[0], tipo: 'Brainstorming', url: c.url })))
+      .sort((a, b) => a.d - b.d);
+    const filaP = x => '<div class="row"><div class="when wl"><b>' + (diasA(x.d) === 0 ? 'Hoy' : diasA(x.d) === 1 ? 'Mañana' : DIAS[x.d.getDay()] + ' ' + x.d.getDate()) + '</b><small>' + (x.dia ? 'todo el día' : hm(x.d)) + '</small></div><div><div class="tt">' + (x.url ? '<a class="lnk" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.t) + '</a>' : esc(x.t)) + '</div><div class="mt">' + (x.m ? tagM(x.m) : '') + '<span class="pill' + (x.tipo === 'Brainstorming' ? ' y' : '') + '">' + x.tipo + '</span></div></div></div>';
+    return '<div class="sec"><div class="sec-h"><h2>Próximas<small>' + prox.length + '</small></h2></div>' + (prox.length ? '<div class="list">' + prox.map(filaP).join('') + '</div>' : '<div class="empty">Nada en el calendario en las próximas dos semanas.</div>') + '</div>' +
+      '<div class="sec"><div class="sec-h"><h2>Por agendar<small>' + pend.length + '</small></h2></div>' + (pend.length ? '<div class="list">' + pend.map(row).join('') + '</div>' : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
+      '<div class="sec"><div class="sec-h"><h2>Agendadas<small>' + ok.length + '</small></h2></div>' + (ok.length ? '<div class="list">' + ok.map(row).join('') + '</div>' : '<div class="empty">Todavía no agendaste ninguna este mes.</div>') + '</div>' +
       '<p class="ayuda">Ads: última semana del mes · mensual con el cliente y entrega de reportes: primeros 10 días. Al ponerle fecha, el project la ve y se crea el evento en el calendario del equipo.</p>';
+  }
+
+  /* ---------------- EQUIPO (social media y CM, 22/10/2026) ----------------
+     Qué tiene el resto del equipo con mis marcas: cuándo y con quién graba Bauti, y qué entregan Diseño y Producción y para cuándo.
+     Sirve para pedirles algo a tiempo o tener en cuenta sus tiempos. */
+  const ETAPA_TXT = { pendiente: ['por entregar', ''], revision: ['en revisión', 'y'], corr: ['a corregir', 'warn'] };
+  function vEquipoSM() {
+    const D = S.data, P = ((D.prodsEq || {}).items || []).filter(x => pasa(x.marca)), E = (D.entregas || []).filter(c => pasa(c.m));
+    const TIPO = { reel: 'Reel', historias: 'Historias', presencial: 'Presencial', otro: 'Otro' };
+    const dia = f => { const d = ymdD(f); return diasA(d) === 0 ? 'Hoy' : diasA(d) === 1 ? 'Mañana' : DIAS[d.getDay()] + ' ' + d.getDate(); };
+    const filaProd = x => '<div class="row"><div class="when wl"><b>' + dia(x.fecha) + '</b><small>' + esc(x.hora) + '</small></div><div><div class="tt">' + esc(x.que) + '</div><div class="mt">' + tagM(x.marca) + '<span class="pill">' + (TIPO[x.tipo] || 'Otro') + '</span><span>' + esc(x.nombre || '') + (x.conQuien ? ' con ' + esc(x.conQuien) : '') + '</span>' + (x.estado === 'hecho' ? '<span class="pill ok">hecha</span>' : '') + '</div></div></div>';
+    const filaE = c => { const r = c.due ? new Date(c.due) : null, s = c.salida ? new Date(c.salida) : null, et = ETAPA_TXT[c.etapa] || [c.etapa || '', ''], tarde = r && diasA(r) < 0 && c.etapa === 'pendiente';
+      return '<div class="row"><div class="when wl"><b>' + (r ? (diasA(r) === 0 ? 'Hoy' : diasA(r) === 1 ? 'Mañana' : DIAS[r.getDay()] + ' ' + r.getDate()) : '—') + '</b><small>' + (r ? 'entrega' : 'sin fecha') + '</small></div><div><div class="tt"><a class="lnk" href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a></div><div class="mt">' + tagM(c.m) + '<span class="pill ' + (tarde ? 'bad' : et[1]) + '">' + (tarde ? 'atrasada' : et[0]) + '</span>' + (s ? '<span>sale ' + dm(s) + '</span>' : '') + '</div></div></div>'; };
+    const dis = E.filter(c => c.tipo === 'diseno'), vid = E.filter(c => c.tipo !== 'diseno');
+    const sec = (t, L, f, vacio) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + L.length + '</small></h2></div>' + (L.length ? '<div class="list">' + L.map(f).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
+    return sec('Grabaciones', P, filaProd, 'Bauti todavía no anotó grabaciones de tus marcas.') +
+      sec('Diseño', dis, filaE, 'Nada pendiente de diseño en tus marcas.') +
+      sec('Video', vid, filaE, 'Nada pendiente de edición en tus marcas.') +
+      '<p class="ayuda">Si necesitás algo para una grabación (un producto, un guion, alguien que actúe), avisale con tiempo. Las fechas de entrega salen de Trello.</p>';
   }
 
   /* ---------------- vista SEMANA: checklist de la semana ---------------- */
@@ -1144,7 +1170,7 @@
     const pct = total ? Math.round(hechos / total * 100) : 0;
     if (S.movil) {
       // celular: una sección a la vez, filas con botones por marca en vez de tablas anchas
-      const chipK = (k, s, nom) => '<button class="mk' + (ok(k) ? ' on' : '') + '" data-celda="' + esc(k) + '"><i style="background:' + color(s) + '"></i>' + esc(nom) + '</button>';
+      const chipK = (k, s, nom) => '<button class="mk chk' + (ok(k) ? ' on' : '') + '" data-celda="' + esc(k) + '" aria-pressed="' + ok(k) + '"><b class="mk-c">' + (ok(k) ? '✓' : '') + '</b><i style="background:' + color(s) + '"></i>' + esc(nom) + '</button>';
       const filaR = (r, chips, n, de, cuando) => '<div class="row' + (n === de ? ' done' : '') + '"><span class="prog' + (n === de ? ' full' : '') + '">' + n + '/' + de + '</span><div><div class="tt">' + esc(r.tarea) + '</div>' + (cuando ? '<div class="mt"><span>' + esc(cuando) + '</span></div>' : '') + '<div class="mks">' + chips + '</div></div><div>' + botonEnlace(enlaceDe(r), r.marcas) + '</div></div>';
       const listaM = (defs, per) => defs.map(r => {
         const ms = r.marcas.length ? marcasV.filter(m => r.marcas.indexOf(m.slug) >= 0) : null;
@@ -1167,10 +1193,10 @@
         sem: semanales.length ? '<div class="list">' + listaM(semanales, si.semana) + '</div>' : '<div class="empty">No hay tareas semanales.</div>',
         mes: (mensuales.length ? '<div class="list">' + listaM(mensuales, si.mes) + '</div>' : '') + (reus ? '<div class="dw-l" style="margin-top:18px">Reuniones del mes</div><div class="list">' + reus + '</div>' : '')
       }[seg];
-      return '<div class="semana-h m"><b>' + hechos + '<small>/' + total + '</small></b><span>tildados esta semana</span><div class="bar"><i style="width:' + pct + '%"></i></div></div>' +
+      return '<div class="tip-chk"><span class="cel"></span><span>Es tu <b>checklist</b>: tocá el cuadrito cuando hagas cada tarea y queda registrado.</span></div>' + '<div class="semana-h m"><b>' + hechos + '<small>/' + total + '</small></b><span>tildados esta semana</span><div class="bar"><i style="width:' + pct + '%"></i></div></div>' +
         '<div class="seg">' + segs.map(x => '<button class="' + (seg === x[0] ? 'on' : '') + '" data-seg="' + x[0] + '">' + x[1] + (x[2] ? '<em>' + x[2] + '</em>' : '') + '</button>').join('') + '</div>' + body;
     }
-    return '<div class="semana-h"><div><div class="kick">/ Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
+    return '<div class="tip-chk"><span class="cel"></span><span>Es tu <b>checklist</b>: tocá el cuadrito cuando hagas cada tarea y queda registrado.</span></div>' + '<div class="semana-h"><div><div class="kick">/ Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
   }
   /* Rutinas que no se tildan sin más (pedido de Joaquín, 20/10/2026):
      · activaciones-externas: se responde Sí o No; con Sí se abre directo la carga del input en el SCL de la marca.
@@ -1436,6 +1462,14 @@
     nav.querySelectorAll('button').forEach(b => b.onclick = () => mostrar(+b.dataset.sp));
     mostrar(Math.min(LS.get('secs:' + key, 0), ss.length - 1));
   }
+  function hoja(titulo, html) {
+    const m = document.createElement('div'); m.className = 'modal lado ficha hoja';
+    m.innerHTML = '<div class="mb"><div class="pf-h"><div class="kick">/ ' + esc(titulo) + '</div><button class="pf-x" data-cerrar aria-label="Cerrar">×</button></div>' + html + '</div>';
+    const cerrar = () => { if (m.classList.contains('sale')) return; m.classList.add('sale'); setTimeout(() => m.remove(), 220); document.removeEventListener('keydown', tecla); };
+    const tecla = e => { if (e.key === 'Escape') cerrar(); };
+    m.onclick = e => { if (e.target === m) cerrar(); }; $('[data-cerrar]', m).onclick = cerrar; document.addEventListener('keydown', tecla);
+    document.body.appendChild(m); bind(m); return m;
+  }
   function vMas() {
     const nVen = vencidas().length, nF = proximasFechas(30).length;
     const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
@@ -1444,8 +1478,10 @@
       t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
       (S.data.prods ? t('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), n = S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length; return n + ' esta semana'; })()) : '') +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-perfil', I.users, 'Mi perfil', 'apodo, foto y color de fondo') +
-      (S.movil ? t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' sin leer' : 'menciones al día') + (S.data.anual ? t('data-tab="anual"', I.star, 'Anual', 'calendario del año') : '')  : '') +
-      '</div>' + costado(true);
+      (S.movil ? t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' sin leer' : 'menciones al día') + (S.data.anual ? t('data-tab="anual"', I.star, 'Anual', 'calendario del año') : '') + t('data-tab="equipo"', I.users, 'Equipo', 'grabaciones y entregas') +
+        // en el celu, Más entra en una pantalla: lo que iba abajo (Se vienen, Sugerencias, Accesos) se abre en una hoja
+        [['0', I.star, 'Se vienen', 'fechas próximas'], ['1', I.flag, 'Sugerencias', 'qué conviene hacer'], ['2', I.link, 'Accesos', 'reportes, Trello, Notion']].map(x => t('data-mas-caja="' + x[0] + '"', x[1], x[2], x[3])).join('') : '') +
+      '</div>' + (S.movil ? '' : costado(true));
   }
 
   /* ---------------- vista AGENDA ---------------- */
@@ -2332,6 +2368,7 @@
     root.querySelectorAll('[data-hoyg]').forEach(x => x.onclick = () => { LS.set('hoygrupo', x.dataset.hoyg); render(); const p = $('.gpanel'); if (p) { p.classList.add('entra'); } });
     root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
     root.querySelectorAll('[data-perfil]').forEach(x => x.onclick = () => perfilEditar(false));
+    root.querySelectorAll('[data-mas-caja]').forEach(x => x.onclick = () => { const d = document.createElement('div'); d.innerHTML = costado(true); const b = d.querySelectorAll('.box')[+x.dataset.masCaja]; if (b) hoja(x.querySelector('b').textContent, b.outerHTML); });
     root.querySelectorAll('[data-prod]').forEach(x => { const abrir = e => { if (e.target.closest('button')) return; const it = ((S.data.film || {}).prod || { items: [] }).items.find(z => z.id === x.dataset.prod); if (it) prodEditar(it); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
     root.querySelectorAll('[data-prod-est]').forEach(x => x.onclick = () => prodEstado(x.dataset.prodEst, x.dataset.v));
     if (esFilm() && !S._pubVisto) { S._pubVisto = 1; setTimeout(prodPublicados, 1500); }

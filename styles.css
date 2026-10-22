@@ -1960,3 +1960,40 @@ html.con-modal,html.con-modal body{overflow:hidden}
 }
 @media (max-width:760px){.ctrl{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(var(--bg-rgb,10,10,10),.97)!important}}
 @media (max-width:760px){.toast{width:calc(100% - 32px);max-width:440px;justify-content:space-between}}
+/* ---------- checklist: que se vea que se tilda ---------- */
+.tip-chk{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin:0 0 14px;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r)}
+.tip-chk .cel{pointer-events:none;flex:none}
+.tip-chk b{color:var(--text)}
+.cel{border-color:var(--muted)!important}
+.cel:not(.on):not(.fut):hover{background:var(--y-soft)}
+.mk.chk{display:inline-flex;align-items:center;gap:7px}
+.mk-c{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;display:inline-grid;place-items:center;font-size:11px;line-height:1;color:var(--y-ink);flex:none;transition:background-color .2s var(--ease),border-color .2s var(--ease)}
+.mk.chk.on .mk-c{background:var(--y);border-color:var(--y)}
+/* ---------- filas con fecha a la izquierda (Reuniones, Equipo) ---------- */
+.when.wl{flex:none;width:64px;text-align:left;margin-right:4px}
+.when.wl b{display:block;font-family:var(--f-d);font-weight:700;font-size:20px;line-height:1;text-transform:uppercase}
+.when.wl small{font-size:11.5px;color:var(--muted)}
+.hoja .box{border:0;padding:0;background:none}
+.hoja .box h3{display:none}
+/* Más en el celu: 15 accesos en 5 filas, entra en una pantalla */
+@media (max-width:760px){
+  .mt-t{padding:10px 9px 11px!important;gap:5px}
+  .mt-t b{font-size:12px}
+  .mt-t small{font-size:10px}
+  .mt-t .ic svg{width:16px;height:16px}
+}
+/* ---------- Hoy y Semana: una sola pestaña con un switch ---------- */
+.hoysem{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line2);border-radius:var(--r);padding:3px;margin:0 0 16px;max-width:420px;gap:3px}
+.hoysem button{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 10px;border-radius:3px!important;font-family:var(--f-t);font-weight:600;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);transition:background-color .3s var(--ease),color .3s var(--ease)}
+.hoysem button.on{background:var(--y);color:var(--y-ink)}
+.hoysem em{font-style:normal;font-family:var(--f-b);font-size:11px;letter-spacing:0;opacity:.75}
+.hoysem em.hot{color:var(--bad);opacity:1}.hoysem .on em.hot{color:var(--y-ink)}
+/* ---------- En el día: grilla de 4 por fila en el celu, más compacta ---------- */
+@media (max-width:760px){
+  .hoy-g .gtabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .hoy-g .gtab{padding:7px 6px 8px;grid-template-areas:"b" "t" "em";grid-template-columns:1fr;gap:2px;align-content:start}
+  .hoy-g .gtab b{font-size:24px;line-height:.9}
+  .hoy-g .gtab-t{font-size:9.5px;letter-spacing:.02em;line-height:1.15;hyphens:auto}
+  .hoy-g .gtab em{justify-self:start;font-size:8.5px;margin:0}
+  .hoysem{max-width:none}
+}
