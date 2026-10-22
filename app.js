@@ -1607,7 +1607,8 @@
     if (M.error) return '<div class="estado-av bad"><span class="ei">!</span><div><b>No pude leer tu tablero Project de Trello:</b> ' + esc(M.error) + '. La vista del equipo sigue funcionando.</div><button class="btn ghost" data-mio-rf>Reintentar</button></div>';
     const D = datosMio(), marcas = (M.etiquetas || []).filter(e => e.marca);
     const et = n => { const e = (M.etiquetas || []).find(x => x.n === n); return '<span class="mio-et' + (/^urgente$/i.test(n) ? ' urg' : '') + '"><i style="background:' + colorEt(e && e.c) + '"></i>' + esc(n) + '</span>'; };
-    const fila = (c, extra) => '<a class="mio-r" href="' + esc(c.url) + '" target="_blank" rel="noopener"><div class="mio-t"><b>' + esc(c.n) + '</b><div class="mio-m">' + c.lab.map(et).join('') + '<span class="mio-l">' + esc(c.lista) + '</span>' + (extra || '') + '</div></div><span class="mio-go" title="Abrir en Trello">↗</span></a>';
+    // cada tarjeta: el círculo la pasa a Listo, tocarla abre su ficha (etapa, fecha, etiquetas, comentar) y ↗ la abre en Trello
+    const fila = (c, extra) => '<div class="mio-r" data-mio-card="' + esc(c.id) + '" role="button" tabindex="0"><button class="mio-ok" data-mio-listo="' + esc(c.id) + '" title="Pasar a Listo" aria-label="Pasar a Listo">' + I.check + '</button><div class="mio-t"><b>' + esc(c.n) + '</b><div class="mio-m">' + c.lab.map(et).join('') + '<span class="mio-l">' + esc(c.lista) + '</span>' + (extra || '') + '</div></div><a class="mio-go" href="' + esc(c.url) + '" target="_blank" rel="noopener" title="Abrir en Trello" aria-label="Abrir en Trello">↗</a></div>';
     const vence = c => { const n = diasA(new Date(c.due)); return '<span class="pill ' + (n < 0 ? 'bad' : n === 0 ? 'warn' : '') + '">' + (n < 0 ? '' : 'vence ') + cuando(new Date(c.due)) + '</span>'; };
     const dq = M.dias || 3;
     // v4 (22/10/2026): los números de arriba SON las pestañas: se ve una lista por vez (antes eran 7 carpetas una abajo de la otra)
@@ -1630,7 +1631,63 @@
       '<button class="btn y mio-add" data-mio-nuevo>+ Pedido</button></div>' +
       '<div class="gtabs mio-tabs" role="tablist">' + G.map((g, i) => '<button role="tab" aria-selected="' + (g[0] === sel) + '" class="gtab' + (g[0] === sel ? ' on' : '') + (g[2].length && g[6] ? ' t-' + g[6] : '') + '" data-mio-ir="' + g[0] + '"><i class="gtab-n">' + String(i + 1).padStart(2, '0') + '</i><span class="gtab-t">' + g[1] + '</span><b>' + g[2].length + '</b></button>').join('') + '</div>' +
       '<div class="gpanel mio-panel" role="tabpanel"><p class="mio-hint">' + g0[4] + '</p>' + (g0[2].length ? '<div class="mio-list">' + g0[2].map(g0[3]).join('') + '</div>' : '<div class="empty">' + g0[5] + '</div>') + '</div>' +
-      '<p class="ayuda">Es tu tablero <a class="lnk" href="' + esc(M.url || '#') + '" target="_blank" rel="noopener">Project de Trello ↗</a>: acá se ve y se carga; las tarjetas se mueven allá. Tocá una tarjeta y se abre en Trello.</p>';
+      '<p class="ayuda">Tocá una tarjeta para cambiarle la etapa, la fecha o las etiquetas, o comentarla; el círculo la pasa a Listo. Todo queda en tu tablero <a class="lnk" href="' + esc(M.url || '#') + '" target="_blank" rel="noopener">Project de Trello ↗</a>.</p>';
+  }
+  /* ---------------- tarjetas de Project que se pueden tocar (22/10/2026) ----------------
+     El círculo de la izquierda la pasa a Listo (con "Deshacer"); tocar la tarjeta abre su ficha, desde donde se cambia
+     la etapa, la fecha, las etiquetas "Ver en minuta" y "Urgente", y se comenta. Todo va directo al tablero Project de Trello. */
+  const ETAPAS = [['bandeja', 'Bandeja'], ['hacer', 'Por hacer'], ['proceso', 'En proceso'], ['seguimiento', 'Enviado'], ['despues', 'Más adelante'], ['listo', 'Listo']];
+  function mioLocal(c, b) {
+    const M = S.proj.mio || {};
+    if (b.op === 'mover') { c.k = b.etapa; c.lista = ((M.listas || []).find(l => l.k === b.etapa) || {}).n || (ETAPAS.find(e => e[0] === b.etapa) || [])[1] || c.lista; c.act = new Date().toISOString(); }
+    if (b.op === 'fecha') c.due = b.due || null;
+    if (b.op === 'etiqueta') { const re = b.cual === 'urgente' ? /^urgente$/i : /minuta/i, ya = c.lab.find(x => re.test(x)); c.lab = ya ? c.lab.filter(x => x !== ya) : c.lab.concat(b.cual === 'urgente' ? 'Urgente' : 'Ver en minuta'); }
+  }
+  async function mioHacer(id, b) {
+    const L = (S.proj.mio || {}).cards || [], c = L.find(x => x.id === id); if (!c) return null;
+    const antes = JSON.parse(JSON.stringify(c));
+    mioLocal(c, b); render();   // se ve al instante; si Trello falla, vuelve como estaba
+    try {
+      const r = await post(Object.assign({ action: 'mioAccion', k: S.pkey || S.key, cardId: id }, b));
+      if (r && r.card) Object.assign(c, r.card);
+      try { localStorage.setItem('pi:cache:__project', JSON.stringify(S.proj)); } catch (e) {}
+      render(); return { antes, r };
+    } catch (e) { Object.assign(c, antes); render(); toast('✗ ' + esc(e.message || 'No se pudo')); throw e; }
+  }
+  async function mioListo(id) {
+    const c = ((S.proj.mio || {}).cards || []).find(x => x.id === id); if (!c) return;
+    const previa = c.k;
+    try { await mioHacer(id, { op: 'mover', etapa: 'listo' }); toast('✓ "' + esc(c.n.slice(0, 50)) + '" pasó a Listo', () => mioHacer(id, { op: 'mover', etapa: previa }).catch(() => {})); } catch (e) {}
+  }
+  // ventana lateral (en el celu ocupa toda la pantalla y entra desde la derecha) con la ficha de la tarjeta
+  function mioFicha(id) {
+    const M = S.proj.mio || {}, c = (M.cards || []).find(x => x.id === id); if (!c) return;
+    const et = ETAPAS.filter(e => !M.listas || M.listas.some(l => l.k === e[0]));
+    const dia = n => ymdL(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n)), hasta5 = (5 - NOW.getDay() + 7) % 7 || 7;
+    const etq = n => { const e = (M.etiquetas || []).find(x => x.n === n); return '<span class="mio-et' + (/^urgente$/i.test(n) ? ' urg' : '') + '"><i style="background:' + colorEt(e && e.c) + '"></i>' + esc(n) + '</span>'; };
+    const m = document.createElement('div'); m.className = 'modal lado ficha';
+    const pintar = () => {
+      const f = c.due ? ymdL(new Date(c.due)) : '', tMin = c.lab.some(x => /minuta/i.test(x)), tUrg = c.lab.some(x => /^urgente$/i.test(x));
+      m.innerHTML = '<div class="mb"><div class="pf-h"><div class="kick">/ Tarjeta · ' + esc(c.lista) + '</div><button class="pf-x" data-cerrar aria-label="Cerrar">×</button></div>' +
+        '<h3 class="fi-t">' + esc(c.n) + '</h3>' + (c.lab.length ? '<div class="mio-m">' + c.lab.map(etq).join('') + '</div>' : '') + (c.d ? '<p class="fi-d">' + escL(c.d) + '</p>' : '') +
+        '<span class="lbl">Etapa</span><div class="fi-bt">' + et.map(e => '<button class="' + (c.k === e[0] ? 'on' : '') + (e[0] === 'listo' ? ' ok' : '') + '" data-fi-et="' + e[0] + '">' + e[1] + '</button>').join('') + '</div>' +
+        '<span class="lbl">Fecha' + (c.due ? ' · ' + cuando(new Date(c.due)) : '') + '</span><div class="fi-bt"><button class="' + (f === dia(0) ? 'on' : '') + '" data-fi-f="' + dia(0) + '">Hoy</button><button class="' + (f === dia(1) ? 'on' : '') + '" data-fi-f="' + dia(1) + '">Mañana</button><button class="' + (f === dia(hasta5) ? 'on' : '') + '" data-fi-f="' + dia(hasta5) + '">Viernes</button><label class="fi-cal"><input type="date" value="' + f + '" data-fi-fd></label><button class="' + (!f ? 'on' : '') + '" data-fi-f="">Sin fecha</button></div>' +
+        '<span class="lbl">Etiquetas</span><div class="fi-bt"><button class="' + (tMin ? 'on' : '') + '" data-fi-lb="minuta">Ver en minuta</button><button class="' + (tUrg ? 'on bad' : '') + '" data-fi-lb="urgente">Urgente</button></div>' +
+        '<span class="lbl">Comentar</span><div class="fi-c"><textarea id="fiC" rows="2" maxlength="2000" placeholder="Queda como comentario en la tarjeta de Trello"></textarea><button class="btn y" data-fi-com>Comentar</button></div>' +
+        '<div class="err"></div><div class="acts"><a class="btn ghost" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div></div>';
+      const hacer = async b => { m.querySelectorAll('button,input,textarea').forEach(x => x.disabled = true); $('.err', m).textContent = ''; try { const r = await mioHacer(c.id, b); if (r && r.r && r.r.pasos) toast('✓ ' + r.r.pasos.map(esc).join(' · ')); } catch (e) { } pintar(); };
+      $('[data-cerrar]', m).onclick = cerrar;
+      m.querySelectorAll('[data-fi-et]').forEach(b => b.onclick = () => { if (b.dataset.fiEt !== c.k) hacer({ op: 'mover', etapa: b.dataset.fiEt }); });
+      m.querySelectorAll('[data-fi-f]').forEach(b => b.onclick = () => hacer({ op: 'fecha', due: b.dataset.fiF ? b.dataset.fiF + 'T18:00:00-03:00' : '' }));
+      $('[data-fi-fd]', m).onchange = e => { if (e.target.value) hacer({ op: 'fecha', due: e.target.value + 'T18:00:00-03:00' }); };
+      m.querySelectorAll('[data-fi-lb]').forEach(b => b.onclick = () => hacer({ op: 'etiqueta', cual: b.dataset.fiLb }));
+      $('[data-fi-com]', m).onclick = async () => { const t = $('#fiC', m).value.trim(); if (!t) return $('#fiC', m).focus(); await hacer({ op: 'comentar', texto: t }); };
+    };
+    const cerrar = () => { if (m.classList.contains('sale')) return; m.classList.add('sale'); setTimeout(() => m.remove(), 220); document.removeEventListener('keydown', tecla); };
+    const tecla = e => { if (e.key === 'Escape') cerrar(); };
+    m.onclick = e => { if (e.target === m) cerrar(); };
+    document.addEventListener('keydown', tecla);
+    pintar(); document.body.appendChild(m);
   }
   async function refrescarMio(silencioso) {
     if (DEMO || S.sync) return;
@@ -2262,6 +2319,8 @@
     root.querySelectorAll('[data-mio-ir]').forEach(x => x.onclick = () => { LS.set('miosel', x.dataset.mioIr); render(); const g = $('.gpanel'); if (g) g.classList.add('entra'); });
     root.querySelectorAll('[data-anm]').forEach(x => x.onclick = () => { LS.set('anmarca', x.dataset.anm); render(); const g = $('.gpanel'); if (g) g.classList.add('entra'); });
     root.querySelectorAll('[data-anmes]').forEach(x => x.onclick = () => { S.anMes = +x.dataset.anmes; render(); });
+    root.querySelectorAll('[data-mio-listo]').forEach(x => x.onclick = e => { e.stopPropagation(); x.classList.add('va'); setTimeout(() => mioListo(x.dataset.mioListo), 260); });
+    root.querySelectorAll('[data-mio-card]').forEach(x => { const abrir = e => { if (e.target.closest('a,button')) return; mioFicha(x.dataset.mioCard); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
     root.querySelectorAll('[data-eqsel]').forEach(x => x.onclick = () => { S.eqSel = x.dataset.eqsel; render(); const g = $('.gpanel'); if (g) g.classList.add('entra'); });
     root.querySelectorAll('[data-freg]').forEach(x => x.onclick = () => { S.filtroReg = x.dataset.freg; render(); });
     root.querySelectorAll('[data-viva]').forEach(x => x.onclick = () => { S.viva = null; render(); revisionViva(); });
@@ -2684,7 +2743,7 @@
       LS.set('bienv:' + c, 1); render();
       toast(nuevo.apodo ? '¡Listo, ' + esc(nuevo.apodo) + '!' : 'Listo, guardado.');
     });
-    m.classList.add('perf');
+    m.classList.add('perf', 'lado');
     $('[data-cerrar]', m).onclick = () => $('[data-x]', m).click();
     m.querySelectorAll('[data-pft]').forEach(b => b.onclick = () => { m.querySelectorAll('[data-pft]').forEach(x => x.classList.toggle('on', x === b)); m.querySelectorAll('[data-pfp]').forEach(x => x.classList.toggle('hidden', x.dataset.pfp !== b.dataset.pft)); });
     // si se cierra sin guardar, vuelve el color de antes (y la bienvenida no se repite en este navegador)

@@ -1902,3 +1902,61 @@ html.con-modal,html.con-modal body{overflow:hidden}
   .mio-top .mio-chips{flex:1;min-width:0;margin:0;padding:0}
   .mio-add{position:static!important;box-shadow:none!important;border-radius:var(--r)!important;padding:9px 12px!important;font-size:12px;flex:none}
 }
+
+/* =====================================================================================================
+   V6 · 22/10/2026: ventanas centradas en el celu; perfil y ficha de tarjeta a pantalla completa desde la derecha;
+   tarjetas de Project con acciones
+   ===================================================================================================== */
+@media (max-width:760px){
+  .modal{align-items:center!important;justify-items:center;padding:16px!important}
+  .modal .mb,.modal .mb.ancho{width:100%;max-width:440px!important;border-radius:var(--r)!important;padding:20px 18px!important;max-height:86vh!important}
+  /* perfil y ficha: toda la pantalla, entran desde la derecha */
+  .modal.lado{padding:0!important;align-items:stretch!important;justify-items:stretch;backdrop-filter:none;background:rgba(0,0,0,.5)}
+  .modal.lado .mb{max-width:none!important;max-height:none!important;height:100%;border:0;border-radius:0!important;padding:16px 18px calc(24px + env(safe-area-inset-bottom))!important;animation:ladoIn .42s var(--ease) both}
+  .modal.lado.sale .mb{transform:translateX(100%);transition:transform .22s ease-in}
+  .modal.lado .pf-h{position:sticky;top:-16px;background:var(--s1);margin:-16px -18px 6px;padding:14px 18px 10px;z-index:2;border-bottom:1px solid var(--line)}
+}
+@keyframes ladoIn{from{transform:translateX(100%)}to{transform:none}}
+.modal.lado .mb{max-width:520px}
+/* ---------- ficha de una tarjeta de Project ---------- */
+.ficha .pf-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ficha .pf-x{width:34px;height:34px;display:grid;place-items:center;font-size:22px;line-height:1;color:var(--muted);border:1px solid var(--line2);border-radius:50%!important;transition:color .2s var(--ease),border-color .2s var(--ease),transform .3s var(--ease)}
+.ficha .pf-x:hover{color:var(--text);border-color:var(--y);transform:rotate(90deg)}
+.ficha .fi-t{font-family:var(--f-d)!important;font-weight:700!important;font-size:30px;line-height:.95;text-transform:uppercase;margin:4px 0 10px}
+.ficha .fi-d{font-size:13.5px;color:var(--muted);white-space:pre-wrap;margin:10px 0 4px;max-height:150px;overflow:auto}
+.ficha .lbl{display:block;font-family:var(--f-t);font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.fi-bt{display:flex;flex-wrap:wrap;gap:6px}
+.fi-bt button{border:1px solid var(--line2);border-radius:999px;padding:7px 13px;font-size:13px;color:var(--muted);transition:border-color .2s var(--ease),color .2s var(--ease),background-color .2s var(--ease)}
+.fi-bt button:hover{border-color:var(--text);color:var(--text)}
+.fi-bt button.on{background:var(--y);border-color:var(--y);color:var(--y-ink);font-weight:600}
+.fi-bt button.on.bad{background:var(--bad);border-color:var(--bad)}
+.fi-bt button.ok:not(.on){border-color:rgba(92,227,138,.5);color:var(--ok)}
+.fi-bt button:disabled{opacity:.5}
+.fi-cal input{border:1px solid var(--line2);border-radius:999px!important;padding:6px 12px;font-size:13px;background:transparent;color:var(--text);color-scheme:dark}
+.fi-c{display:flex;gap:8px;align-items:flex-end}
+.fi-c textarea{flex:1;min-width:0;resize:vertical}
+.ficha .acts{margin-top:18px;justify-content:flex-start}
+/* ---------- filas de Project: círculo para Listo + toda la fila abre la ficha ---------- */
+.mio-r{cursor:pointer;align-items:center}
+.mio-ok{flex:none;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;color:transparent;transition:border-color .2s var(--ease),background-color .2s var(--ease),color .2s var(--ease),transform .25s var(--ease-pop)}
+.mio-ok svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+@media (hover:hover){.mio-ok:hover{border-color:var(--ok);color:var(--ok)}}
+.mio-ok.va{background:var(--ok);border-color:var(--ok);color:var(--y-ink);transform:scale(1.15)}
+.mio-r:has(.mio-ok.va){opacity:.45;transition:opacity .25s}
+.mio-go{flex:none;width:30px;height:30px;display:grid;place-items:center;text-decoration:none}
+/* ---------- selector de marcas en el celu: botón a lo ancho y la lista centrada en la pantalla ---------- */
+@media (max-width:760px){
+  .ctrl .mpop{flex:1;min-width:0}
+  .mpop-b{width:100%;max-width:none!important;padding:11px 14px;font-size:14.5px;font-weight:600;border-color:var(--line2);border-radius:var(--r)!important;background:var(--s1)}
+  .mpop-b:before{content:"Marca";font-family:var(--f-t);font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+  .mpop-b .dot{width:11px;height:11px}
+  .mpop-b i{margin-left:auto;font-size:13px;color:var(--y)}
+  .mpop-l{position:fixed!important;left:16px!important;right:16px!important;top:50%!important;transform:translateY(-50%);min-width:0!important;max-height:72vh;z-index:96;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:10px;border-radius:var(--r)!important;box-shadow:0 0 0 100vmax rgba(0,0,0,.65)!important;animation:v2fade .25s var(--ease) both}
+  .mpop-l.hidden{display:none}
+  .mpop-l:before{content:"Elegí una marca";grid-column:1/-1;font-family:var(--f-t);font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:4px 6px 8px}
+  .mpop-i{padding:13px 12px;font-size:14.5px;border:1px solid var(--line);border-radius:var(--r)!important}
+  .mpop-i:first-of-type{grid-column:1/-1}
+  .mpop-i .dot{width:11px;height:11px}
+}
+@media (max-width:760px){.ctrl{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(var(--bg-rgb,10,10,10),.97)!important}}
+@media (max-width:760px){.toast{width:calc(100% - 32px);max-width:440px;justify-content:space-between}}
