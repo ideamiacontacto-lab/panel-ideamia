@@ -4517,7 +4517,7 @@ function campAccion_(b, quien, esProject) {
         const motivo = String(b.motivo || '').trim().slice(0, 300);
         if (d === 'descartar' && motivo.length < 4) return { error: 'datos', mensaje: 'Contá por qué no se ataca (el motivo es obligatorio)' };
         dec[key] = { decision: d, motivo: d === 'descartar' ? motivo : '', quien: norm_(quien), t: new Date().toISOString(), nombre: nombre, revision: d === 'descartar' ? 'pendiente' : '' };
-        if (d === 'descartar') avisar('project', '🗓️ ' + nombreDe_(m.sm) + ' propone **no atacar** "' + nombre + '" (' + fecha + ') en **' + m.nombre + '**.\nMotivo: ' + motivo + '\nAprobalo o rechazalo en ' + PLAN_URL);
+        if (d === 'descartar') avisar('project', '🗓️ ' + nombreDe_(m.sm) + ' propone **no atacar** "' + nombre + '" (' + fecha + ') en **' + m.nombre + '**.\nMotivo: ' + motivo + '\nAprobalo o rechazalo en ' + PLAN_URL + '?marca=' + encodeURIComponent(m.slug) + '&vista=anual');   // abre Plan → 1 Anual de esa marca
       }
     } else if (b.accion === 'revisar') {
       if (!esProject) return { error: 'permiso', mensaje: 'Los descartes los revisa el project' };
