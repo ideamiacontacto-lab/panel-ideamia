@@ -2030,3 +2030,30 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
   .ml-t small{font-size:10.5px}
   .ml-go{display:none}
 }
+
+/* =====================================================================================================
+   V10 · 22/10/2026: pulido de movimiento y detalles
+   ===================================================================================================== */
+/* cambio de pestaña: la pantalla vieja se va hacia arriba apagándose y la nueva entra (View Transitions) */
+::view-transition-old(root){animation:vtSale .18s cubic-bezier(.4,0,1,1) both}
+::view-transition-new(root){animation:vtEntra .32s var(--ease) both}
+@keyframes vtSale{to{opacity:0;transform:translateY(-6px)}}
+@keyframes vtEntra{from{opacity:0;transform:translateY(8px)}}
+.top,.bnav{view-transition-name:none}
+/* barra de abajo: el ícono activo sube un poco y la línea amarilla se estira */
+.bnav button svg{transition:transform .35s var(--ease-pop,cubic-bezier(.34,1.56,.64,1))}
+.bnav button.on svg{transform:translateY(-2px) scale(1.08)}
+.bnav button.on:before{animation:navLinea .4s var(--ease) both}
+@keyframes navLinea{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+/* "ver todas" */
+.mas-btn{display:block;width:100%;padding:11px;margin-top:6px;font-family:var(--f-t);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--y);border:1px dashed var(--line2);border-radius:var(--r)}
+.mas-btn:hover{border-color:var(--y)}
+/* las filas aparecen escalonadas cuando entra la vista (más vivo, sin demorar) */
+.view.entra .list>.row:nth-child(-n+8),.view.entra .mio-list>.mio-r:nth-child(-n+8){animation:v2in .5s var(--ease) both}
+.view.entra .list>.row:nth-child(2),.view.entra .mio-list>.mio-r:nth-child(2){animation-delay:40ms}
+.view.entra .list>.row:nth-child(3),.view.entra .mio-list>.mio-r:nth-child(3){animation-delay:80ms}
+.view.entra .list>.row:nth-child(4),.view.entra .mio-list>.mio-r:nth-child(4){animation-delay:120ms}
+.view.entra .list>.row:nth-child(n+5),.view.entra .mio-list>.mio-r:nth-child(n+5){animation-delay:160ms}
+/* foco y selección con la marca */
+::selection{background:var(--y);color:var(--y-ink)}
+@media (prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation:none}}

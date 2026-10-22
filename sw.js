@@ -2,7 +2,7 @@
    Siempre se pide primero la versión nueva a internet (así nadie queda con una versión vieja);
    la copia guardada solo se usa si no hay señal, para que la app abra igual con lo último que se vio.
    Los datos (Apps Script, Trello) no pasan por acá: van directo, como siempre. */
-const CACHE = 'panel-ideamia-v1';
+const CACHE = 'panel-ideamia-v2';   // 22/10/2026: se renueva para borrar las copias viejas guardadas en los celulares
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(
   caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())

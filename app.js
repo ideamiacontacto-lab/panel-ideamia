@@ -1101,7 +1101,8 @@
       .concat((D.cards || []).filter(c => c.cat === 'brainstorming' && c.due && diasA(new Date(c.due)) >= 0 && pasa(c.m)).map(c => ({ d: new Date(c.due), dia: true, t: c.n, m: c.m[0], tipo: 'Brainstorming', url: c.url })))
       .sort((a, b) => a.d - b.d);
     const filaP = x => '<div class="row"><div class="when wl"><b>' + (diasA(x.d) === 0 ? 'Hoy' : diasA(x.d) === 1 ? 'Mañana' : DIAS[x.d.getDay()] + ' ' + x.d.getDate()) + '</b><small>' + (x.dia ? 'todo el día' : hm(x.d)) + '</small></div><div><div class="tt">' + (x.url ? '<a class="lnk" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.t) + '</a>' : esc(x.t)) + '</div><div class="mt">' + (x.m ? tagM(x.m) : '') + '<span class="pill' + (x.tipo === 'Brainstorming' ? ' y' : '') + '">' + x.tipo + '</span></div></div></div>';
-    return '<div class="sec"><div class="sec-h"><h2>Próximas<small>' + prox.length + '</small></h2></div>' + (prox.length ? '<div class="list">' + prox.map(filaP).join('') + '</div>' : '<div class="empty">Nada en el calendario en las próximas dos semanas.</div>') + '</div>' +
+    const todas = S.abiertos['reu:todas'], verP = todas ? prox : prox.slice(0, 5);
+    return '<div class="sec"><div class="sec-h"><h2>Próximas<small>' + prox.length + '</small></h2></div>' + (prox.length ? '<div class="list">' + verP.map(filaP).join('') + '</div>' + (prox.length > 5 ? '<button class="mas-btn" data-mcar="reu:todas" data-abierta="' + (todas ? 1 : 0) + '">' + (todas ? 'Ver menos' : 'Ver las ' + prox.length) + '</button>' : '') : '<div class="empty">Nada en el calendario en las próximas dos semanas.</div>') + '</div>' +
       '<div class="sec"><div class="sec-h"><h2>Por agendar<small>' + pend.length + '</small></h2></div>' + (pend.length ? '<div class="list">' + pend.map(row).join('') + '</div>' : '<div class="empty">Todas las reuniones del mes tienen fecha.</div>') + '</div>' +
       '<div class="sec"><div class="sec-h"><h2>Agendadas<small>' + ok.length + '</small></h2></div>' + (ok.length ? '<div class="list">' + ok.map(row).join('') + '</div>' : '<div class="empty">Todavía no agendaste ninguna este mes.</div>') + '</div>' +
       '<p class="ayuda">Ads: última semana del mes · mensual con el cliente y entrega de reportes: primeros 10 días. Al ponerle fecha, el project la ve y se crea el evento en el calendario del equipo.</p>';
@@ -1326,9 +1327,9 @@
     const porMarca = (id, L, filaFn, urgente) => {
       const g = {}; L.forEach(c => (g[c.m[0]] = g[c.m[0]] || []).push(c));
       const ks = Object.keys(g).sort((a, b) => (urgente ? g[b].filter(urgente).length - g[a].filter(urgente).length : 0) || g[b].length - g[a].length);
-      return ks.map(s => {
+      return ks.map((s, idx) => {
         const k = id + ':' + s, nU = urgente ? g[s].filter(urgente).length : 0;
-        const abierta = S.abiertos[k] != null ? S.abiertos[k] : (ks.length === 1 || nU > 0);
+        const abierta = S.abiertos[k] != null ? S.abiertos[k] : S.movil ? idx === 0 : (ks.length === 1 || nU > 0);   // en el celu, solo la primera abierta
         return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:' + color(s) + '"></span><b>' + esc((marca(s) || {}).nombre || s) + '</b><small>' + g[s].length + '</small>' + (nU ? '<em>' + nU + ' atrasad' + (nU === 1 ? 'a' : 'as') + '</em>' : '') + '<i>' + (abierta ? '−' : '+') + '</i></button>' +
           (abierta ? '<div class="list">' + g[s].map(filaFn).join('') + '</div>' : '') + '</div>';
       }).join('');
@@ -2320,7 +2321,12 @@
   function bind(root) {
     agpBind(root);
     root.querySelectorAll('[data-foto]').forEach(b => b.onclick = () => fotoAnotar(b.dataset.foto));
-    root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+      const ir = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0 }); };
+      // si el navegador demora la transición (pestaña en segundo plano), a los 300 ms se cambia igual
+      let listo = false; const una = () => { if (!listo) { listo = true; ir(); } };
+      if (document.startViewTransition && document.visibilityState === 'visible' && S.tab !== b.dataset.tab && !matchMedia('(prefers-reduced-motion: reduce)').matches) { try { document.startViewTransition(una); } catch (e) { una(); } setTimeout(una, 300); } else una();
+    });
     root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
     // lista de marcas: se abre con el botón y se cierra al elegir o al tocar afuera
     const mp = $('[data-mpop]', root); if (mp) mp.onclick = e => { e.stopPropagation(); const l = $('.mpop-l', root); l.classList.toggle('hidden'); if (!l.classList.contains('hidden')) document.addEventListener('click', function f() { l.classList.add('hidden'); document.removeEventListener('click', f); }, { once: true }); };
