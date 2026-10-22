@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@300;500;600;700;800&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
 <style>
 :root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--r:4px}
 :root{color-scheme:dark}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Barlow,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -160,10 +160,15 @@ h1{font-weight:700;text-transform:uppercase;letter-spacing:-.01em}
 .modal{backdrop-filter:blur(6px)}.modal .box{animation:v2modal .38s var(--ease)}
 .seg2 button,.seg2 span[role=button],.mesr .q .seg2 button{border-radius:4px!important}.chip,.ps .chip{border-radius:4px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* embebido en el panel (pestañas Plan y Objetivos): sin título propio */
+.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
 </style>
+<script>/* desde el 22/10/2026 esta página vive adentro del panel (pestaña Plan): abierta sola, redirige al panel con los mismos datos */
+if (window.self === window.top && !/[?&](embed|solo|demo)=1/.test(location.search)) { const q = new URLSearchParams(location.search), r = new URLSearchParams({ tab: 'plan' }); ['p', 'marca', 'vista'].forEach(k => { if (q.get(k)) r.set(k, q.get(k)); }); location.replace('../?' + r.toString()); }
+if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=6" defer></script>
-<script src="../recordatorios.js?v=1" defer></script>
+<script src="../ideamia-nav.js?v=7" defer></script>
+<script src="../recordatorios.js?v=2" defer></script>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Cargando…</div></div>
