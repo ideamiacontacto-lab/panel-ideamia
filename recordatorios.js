@@ -26,7 +26,7 @@
     '.rc-al b{color:#FFF200}.rc-al span{flex:1}.rc-al a{color:#FFF200}.rc-bell{background:none;border:0;color:#8C8C8C;cursor:pointer;font-size:15px;padding:2px 6px;border-radius:8px}.rc-bell:hover{color:#FFF200;background:#1C1C1C}' +
     '.rc-t{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#242424;border:1px solid #333;color:#F5F5F5;border-radius:12px;padding:10px 16px;z-index:80;font:400 14px Outfit,sans-serif}' +
     '@keyframes rcf{from{opacity:0}}@keyframes rcu{from{transform:translateY(20px);opacity:0}}';
-  const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+  const st = document.createElement('style'); st.textContent = css + (window.self !== window.top ? '.rc-fab,.rc-al{display:none!important}' : ''); document.head.appendChild(st);
   const toast = t => { const d = document.createElement('div'); d.className = 'rc-t'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3000); };
   let lista = [];
   async function api(body) {

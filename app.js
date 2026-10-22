@@ -18,7 +18,7 @@
   };
   const NOW = DEMO ? new Date(2026, 9, 7, 12, 30) : new Date();
   const S = {
-    data: null, proj: null, abiertos: {}, reloj: null, tab: LS.get('tab', 'hoy'), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
+    data: null, proj: null, abiertos: {}, reloj: null, tab: (() => { const q = new URLSearchParams(location.search).get('tab'); return q === 'plan' || q === 'okr' ? q : LS.get('tab', 'hoy'); })(), embExtra: (() => { const q = new URLSearchParams(location.search), x = ['marca', 'vista'].filter(k => q.get(k)).map(k => '&' + k + '=' + encodeURIComponent(q.get(k))).join(''); return { plan: x, okr: '' }; })(), marca: 'todas', plan: null, planCargando: false, filtroRes: '', filtroReg: '',
     // la persona y la clave del equipo se comparten con Reportes y Brainstormings (mismo origen → mismo localStorage)
     persona: qs.get('p') || LS.get('persona', null) || (localStorage.getItem('ideamia:persona') !== 'project' ? localStorage.getItem('ideamia:persona') : null) || null,
     key: LS.get('key', '') || localStorage.getItem('ideamia:clave') || '', pkey: LS.get('pkey', ''), sync: false,
@@ -254,17 +254,20 @@
     if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
     if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
+    const conPlan = !ivo && !film && (['orne', 'rama', 'joaco'].indexOf((D.yo || {}).clave) >= 0 || /project/i.test((D.yo || {}).rol || ''));
+    if ((S.tab === 'plan' || S.tab === 'okr') && !conPlan) S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Agenda', I.pin, Df.visPend.length + prodPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
-      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
+      : S.movil && conPlan ? [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]
+      : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
+    const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -284,6 +287,7 @@
     if (!S._revelado) { const h = app.querySelector('.mhead h1, .hero h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } }
     bind(app);
     renderTop();
+    embSync();
   }
   function anillo(ok, tot) {
     const p = tot ? Math.round(ok / tot * 100) : 0;
@@ -523,6 +527,10 @@
     let abrio = false;
     const modoHoy = LS.get('hoymodo', 'tipo');
     const segHoy = '<div class="seg hoy-seg"><button class="' + (modoHoy === 'tipo' ? 'on' : '') + '" data-hoymodo="tipo">Por tipo</button><button class="' + (modoHoy === 'marca' ? 'on' : '') + '" data-hoymodo="marca">Por marca</button></div>';
+    // v2 (22/10/2026): "Por tipo" ya no son carpetas una abajo de la otra sino pestañas: se ve un grupo por vez (menos scroll),
+    // con Mañana, Esta semana y Hecho como pestañas más. Arranca en el grupo más urgente y recuerda el último elegido.
+    const man = sinHora.filter(x => diaDe(x) === 1), sem = sinHora.filter(x => diaDe(x) >= 2);
+    let enPestanas = false;
     if (grupos.length && modoHoy === 'marca') {
       const gm = {}; hoyL.forEach(x => (gm[x.marca || ''] = gm[x.marca || ''] || []).push(x));
       const km = Object.keys(gm).sort((a, b) => (!a) - (!b) || gm[b].filter(x => x.u >= 3).length - gm[a].filter(x => x.u >= 3).length || gm[b].length - gm[a].length);
@@ -531,16 +539,28 @@
         return tarjeta('hm-' + (s || 'general'), s ? esc((marca(s) || {}).nombre || s) : 'General · de todas las marcas', L.length, urg ? urg + (urg === 1 ? ' urgente' : ' urgentes') : '', i === 0 && urg > 0, () => L.map(fila).join(''), null, s ? color(s) : 'var(--dim)');
       }).join('') + '</div>';
     } else
+    if (modoHoy !== 'marca' && (grupos.length || man.length || sem.length || done.length)) {
+      enPestanas = true;
+      const G = grupos.map(([tp, L]) => ({ id: tp[0], n: tp[1], ic: tp[2], L }));
+      if (man.length) G.push({ id: 'man', n: 'Mañana', ic: I.cal, L: man.sort((a, b) => b.u - a.u) });
+      if (sem.length) G.push({ id: 'sem', n: 'Esta semana', ic: I.cal, L: sem.sort((a, b) => b.u - a.u) });
+      if (done.length) G.push({ id: 'hecho', n: 'Hecho', ic: I.check, L: done, hecho: true });
+      let sel = LS.get('hoygrupo', ''); if (!G.some(g => g.id === sel)) sel = G[0].id;
+      const g0 = G.find(g => g.id === sel);
+      cuerpo += '<div class="sec hoy-g"><div class="sec-h"><h2>En el día<small>' + hoyL.length + '</small></h2>' + segHoy + '</div>' +
+        '<div class="gtabs" role="tablist">' + G.map((g, i) => { const urg = g.hecho ? 0 : g.L.filter(x => x.u >= 3).length;
+          return '<button role="tab" aria-selected="' + (g.id === sel) + '" class="gtab' + (g.id === sel ? ' on' : '') + (urg ? ' urg' : '') + (g.hecho ? ' hecho' : '') + '" data-hoyg="' + g.id + '"><i class="gtab-n">' + String(i + 1).padStart(2, '0') + '</i><span class="gtab-ic">' + g.ic + '</span><span class="gtab-t">' + g.n + '</span><b>' + g.L.length + '</b>' + (urg ? '<em>' + urg + ' urg.</em>' : '') + '</button>'; }).join('') + '</div>' +
+        '<div class="list gpanel" role="tabpanel">' + g0.L.map(fila).join('') + '</div></div>';
+    } else
     if (grupos.length) cuerpo += '<div class="sec"><div class="sec-h"><h2>En el día<small>' + hoyL.length + '</small></h2></div>' + segHoy + grupos.map(([tp, L]) => {
       const urg = L.filter(x => x.u >= 3).length, def = !abrio && urg > 0; if (def) abrio = true;
       return tarjeta('h-' + tp[0], tp[1], L.length, urg ? urg + (urg === 1 ? ' urgente' : ' urgentes') : '', def, () => L.map(fila).join(''), tp[2]);
     }).join('') + '</div>';
-    const man = sinHora.filter(x => diaDe(x) === 1), sem = sinHora.filter(x => diaDe(x) >= 2);
-    if (man.length || sem.length) cuerpo += '<div class="sec"><div class="sec-h"><h2>Después</h2></div>' +
+    if (!enPestanas && (man.length || sem.length)) cuerpo += '<div class="sec"><div class="sec-h"><h2>Después</h2></div>' +
       (man.length ? tarjeta('h-man', 'Mañana', man.length, '', false, () => man.sort((a, b) => b.u - a.u).map(fila).join(''), I.cal) : '') +
       (sem.length ? tarjeta('h-sem', 'Esta semana', sem.length, '', false, () => sem.sort((a, b) => b.u - a.u).map(fila).join(''), I.cal) : '') + '</div>';
     if (!t.length) cuerpo += '<div class="empty">Nada para hoy.</div>';
-    if (done.length) cuerpo += '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>';
+    if (done.length && !enPestanas) cuerpo += '<div class="sec"><button class="pliegue' + (S.abiertos.hecho ? ' on' : '') + '" data-pliegue="hecho"><span>Hecho<small>' + done.length + '</small></span><i>' + (S.abiertos.hecho ? '−' : '+') + '</i></button>' + (S.abiertos.hecho ? '<div class="list">' + done.map(fila).join('') + '</div>' : '') + '</div>';
     return { arranque, cuerpo };
   }
   // atajos grandes a las otras dos webs del estudio
@@ -1335,6 +1355,28 @@
   }
 
   /* ---------------- vista MÁS (celular): lo que en la compu va al costado ---------------- */
+  /* ---------------- Plan y Objetivos adentro del panel (22/10/2026) ----------------
+     Son las mismas páginas de antes, embebidas en una capa fija debajo de las pestañas: la capa vive fuera del render,
+     así el iframe no se recarga cada vez que el panel se redibuja, y conserva lo que estabas haciendo al cambiar de pestaña. */
+  function vEmb() { return '<div class="emb-ph" aria-hidden="true"></div>'; }
+  function embSync() {
+    const t = S.tab, on = t === 'plan' || t === 'okr';
+    let capa = document.getElementById('embCapa');
+    if (!on) { if (capa) capa.classList.remove('on'); document.body.classList.remove('con-emb'); return; }
+    if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (S.tab === 'plan' || S.tab === 'okr') embSync(); }); }
+    let f = capa.querySelector('iframe[data-t="' + t + '"]');
+    if (!f) {
+      f = document.createElement('iframe'); f.dataset.t = t; f.title = t === 'plan' ? 'Plan' : 'Objetivos';
+      f.src = (t === 'plan' ? 'plan/' : 'objetivos/') + '?embed=1' + ((S.data.yo || {}).clave === 'joaco' ? '&p=joaco' : '') + (DEMO ? '&demo=1&p=' + encodeURIComponent((S.data.yo || {}).clave || '') : '') + ((S.embExtra || {})[t] || '');
+      capa.appendChild(f);
+    }
+    capa.querySelectorAll('iframe').forEach(x => x.classList.toggle('on', x === f));
+    window.scrollTo(0, 0);
+    document.body.classList.add('con-emb'); capa.classList.add('on');
+    const ref = $(S.movil ? '.mtit' : '.ctrl'), bn = $('.bnav');
+    capa.style.top = (ref ? Math.max(0, ref.getBoundingClientRect().bottom) : 0) + 'px';
+    capa.style.bottom = (bn && S.movil ? bn.getBoundingClientRect().height : 0) + 'px';
+  }
   function vMas() {
     const nVen = vencidas().length, nF = proximasFechas(30).length;
     const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
@@ -1343,6 +1385,7 @@
       t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
       (S.data.prods ? t('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), n = S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length; return n + ' esta semana'; })()) : '') +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') +
+      (S.movil ? t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' sin leer' : 'menciones al día') + (S.data.anual ? t('data-tab="anual"', I.star, 'Anual', 'calendario del año') : '')  : '') +
       '</div>' + costado(true);
   }
 
@@ -2145,6 +2188,7 @@
     root.querySelectorAll('[data-film-est]').forEach(x => x.onclick = () => filmEstado(x.dataset.filmEst, x.dataset.estado, x.dataset.detalle || '', x.dataset.fmarca || ''));
     root.querySelectorAll('[data-film-mover]').forEach(x => x.onclick = () => filmMover(x.dataset.filmMover, x.dataset.ffecha, x.dataset.fhora));
     root.querySelectorAll('[data-film-anotar]').forEach(x => x.onclick = () => filmAnotar());
+    root.querySelectorAll('[data-hoyg]').forEach(x => x.onclick = () => { LS.set('hoygrupo', x.dataset.hoyg); render(); const p = $('.gpanel'); if (p) { p.classList.add('entra'); } });
     root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
     root.querySelectorAll('[data-prod]').forEach(x => { const abrir = e => { if (e.target.closest('button')) return; const it = ((S.data.film || {}).prod || { items: [] }).items.find(z => z.id === x.dataset.prod); if (it) prodEditar(it); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
     root.querySelectorAll('[data-prod-est]').forEach(x => x.onclick = () => prodEstado(x.dataset.prodEst, x.dataset.v));

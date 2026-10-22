@@ -3,13 +3,13 @@
    la persona (ideamia:persona / ideamia:nombre) y la clave del equipo (ideamia:clave), y las otras las toman al abrir.
    Este archivo se sirve desde panel-ideamia y lo cargan los tres sitios con <script src=… defer>. */
 (function () {
+  // adentro del panel (Plan y Objetivos van embebidos como pestañas) la barra no se muestra: ya está la del panel
+  if (window.self !== window.top) return;
   const SITIOS = [
     { id: 'panel', n: 'Panel diario', c: 'Panel', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/' },
     { id: 'reportes', n: 'Reportes', u: 'https://ideamiacontacto-lab.github.io/reportes-ideamia/' },
     { id: 'brain', n: 'Brainstormings', c: 'Ideas', u: 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/' },
-    // OKR por marca: solo para las social media y el project (el servidor igual lo cierra para el resto)
-    { id: 'okr', n: 'Objetivos', c: 'OKR', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/objetivos/', solo: ['orne', 'rama', 'project'] },
-    { id: 'plan', n: 'Plan', u: 'https://ideamiacontacto-lab.github.io/panel-ideamia/plan/', solo: ['orne', 'rama', 'project'] }
+    // Plan y Objetivos (OKR) ahora son pestañas del panel (22/10/2026): arriba quedan solo Reportes y Brainstormings
   ];
   // plataforma de prueba de Joaquín (?p=joaco o /prueba/): todos los links quedan dentro de la prueba
   // también si en el panel se eligió "Joaquín (prueba)" (persona guardada joaco), aunque la dirección no diga ?p=joaco
@@ -21,9 +21,7 @@
     SITIOS.splice(0, SITIOS.length,
       { id: 'inicio', n: 'Prueba · Inicio', c: 'Inicio', u: B + 'prueba/' },
       { id: 'panel', n: 'Panel diario', c: 'Panel', u: B + '?p=joaco' },
-      { id: 'plan', n: 'Plan', u: B + 'plan/?p=joaco' },
-      { id: 'reportes', n: 'Reportes', u: B + 'prueba/reportes/?resp=joaco' },
-      { id: 'okr', n: 'Objetivos', c: 'OKR', u: B + 'objetivos/?p=joaco' });
+      { id: 'reportes', n: 'Reportes', u: B + 'prueba/reportes/?resp=joaco' });
   }
   const p = location.pathname + ' ' + location.host;
   const actual = /\/prueba\/reportes/.test(location.pathname) ? 'reportes' : /\/prueba\/?$/.test(location.pathname) ? 'inicio' : /objetivos/.test(location.pathname) ? 'okr' : /\/plan\//.test(location.pathname) ? 'plan' : /panel-ideamia|localhost:5190/.test(p) ? 'panel' : /reportes-ideamia/.test(p) ? 'reportes' : /brainstormings-ideamia/.test(p) ? 'brain' : '';
