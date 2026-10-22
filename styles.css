@@ -2008,3 +2008,25 @@ html.con-modal,html.con-modal body{overflow:hidden}
 button:not(:disabled):active,.btn:active,a.btn:active{transform:scale(.97)}
 .gtab:active,.mt-t:active,.mio-r:active{transform:scale(.985)}
 button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
+/* ---------- Más en secciones (v9) ---------- */
+.mas-l{display:grid;gap:18px}
+.ml-h{font-family:var(--f-t);font-weight:600;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--y);margin:0 0 8px}
+.ml-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.ml-r{display:flex;align-items:center;gap:10px;padding:11px 12px;text-align:left;border-right:1px solid var(--line);border-bottom:1px solid var(--line);transition:background-color .25s var(--ease)}
+.ml-r .ic{flex:none;display:grid;place-items:center;color:var(--muted)}
+.ml-r .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ml-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ml-t b{font-family:var(--f-t);font-weight:600;font-size:13.5px;letter-spacing:.03em;text-transform:uppercase;line-height:1.15}
+.ml-t small{font-size:11.5px;color:var(--dim);line-height:1.2}
+.ml-r.alerta .ml-t small{color:var(--warn)}
+.ml-r.alerta .ic{color:var(--y)}
+.ml-go{font-style:normal;color:var(--dim);font-size:18px;transition:transform .3s var(--ease),color .3s var(--ease)}
+@media (hover:hover){.ml-r:hover{background:var(--s1)}.ml-r:hover .ml-go{color:var(--y);transform:translateX(3px)}}
+@media (max-width:760px){
+  .mas-l{gap:14px}
+  .ml-g{grid-template-columns:1fr 1fr}
+  .ml-r{padding:9px 9px;gap:8px}
+  .ml-t b{font-size:12px}
+  .ml-t small{font-size:10.5px}
+  .ml-go{display:none}
+}

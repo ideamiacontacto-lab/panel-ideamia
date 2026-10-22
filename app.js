@@ -1470,17 +1470,33 @@
     m.onclick = e => { if (e.target === m) cerrar(); }; $('[data-cerrar]', m).onclick = cerrar; document.addEventListener('keydown', tecla);
     document.body.appendChild(m); bind(m); return m;
   }
+  // v9 (22/10/2026): Más ordenado en secciones con filas compactas (se ve todo de un vistazo, también en el celu)
   function vMas() {
-    const nVen = vencidas().length, nF = proximasFechas(30).length;
-    const t = (go, ico, n, l) => '<button class="mt-t" ' + go + '><span class="ic">' + ico + '</span><b>' + n + '</b><small>' + l + '</small></button>';
-    return '<div class="mas-g">' +
-      (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + (nVen === 1 ? ' tarjeta pasada de fecha' : ' tarjetas pasadas de fecha') : 'nada vencido') +
-      t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
-      (S.data.prods ? t('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), n = S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length; return n + ' esta semana'; })()) : '') +
-      t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-perfil', I.users, 'Mi perfil', 'apodo, foto y color de fondo') +
-      (S.movil ? t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' sin leer' : 'menciones al día') + (S.data.anual ? t('data-tab="anual"', I.star, 'Anual', 'calendario del año') : '') + t('data-tab="equipo"', I.users, 'Equipo', 'grabaciones y entregas') +
-        // en el celu, Más entra en una pantalla: lo que iba abajo (Se vienen, Sugerencias, Accesos) se abre en una hoja
-        [['0', I.star, 'Se vienen', 'fechas próximas'], ['1', I.flag, 'Sugerencias', 'qué conviene hacer'], ['2', I.link, 'Accesos', 'reportes, Trello, Notion']].map(x => t('data-mas-caja="' + x[0] + '"', x[1], x[2], x[3])).join('') : '') +
+    const nVen = vencidas().length, nF = proximasFechas(30).length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length, nDc = dcSinVer().length;
+    const f = (go, ico, n, l, alerta) => '<button class="ml-r' + (alerta ? ' alerta' : '') + '" ' + go + '><span class="ic">' + ico + '</span><span class="ml-t"><b>' + n + '</b><small>' + l + '</small></span><i class="ml-go">›</i></button>';
+    const sec = (t, filas) => { const h = filas.filter(Boolean).join(''); return h ? '<div class="ml-s"><div class="ml-h">' + t + '</div><div class="ml-g">' + h + '</div></div>' : ''; };
+    const anualEnNav = S.movil && S.data.anual;
+    return '<div class="mas-l">' +
+      sec('Tu trabajo', [
+        f('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha', nReu),
+        f('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'al día', guionAtencion()),
+        f('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + ' pasadas de fecha' : 'nada vencido', nVen),
+        f('data-fechas', I.star, 'Fechas', nF + ' en 30 días')]) +
+      sec('Equipo y marcas', [
+        f('data-tab="equipo"', I.users, 'Equipo', 'grabaciones y entregas'),
+        f('data-tab="agenda"', I.cal, 'Agenda', 'próximos 14 días'),
+        f('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario'),
+        f('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas'),
+        f('data-tab="colabs"', I.users, 'Colaboradores', (S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers'),
+        S.data.prods ? f('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)); return S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length + ' esta semana'; })()) : '',
+        S.data.anual && !anualEnNav ? f('data-tab="anual"', I.cal, 'Anual', 'calendario del año') : '']) +
+      (S.movil ? sec('Para tener en cuenta', [
+        f('data-mas-caja="0"', I.star, 'Se vienen', 'fechas próximas'),
+        f('data-mas-caja="1"', I.flag, 'Sugerencias', 'qué conviene hacer'),
+        f('data-mas-caja="2"', I.link, 'Accesos', 'Reportes, Trello, Notion')]) : '') +
+      sec('Vos', [
+        f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo'),
+        S.movil ? f('data-tab="discord"', I.msg, 'Discord', nDc ? nDc + ' sin leer' : 'al día', nDc) : '']) +
       '</div>' + (S.movil ? '' : costado(true));
   }
 
