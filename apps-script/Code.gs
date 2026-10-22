@@ -1611,10 +1611,15 @@ function auditarSocial() {
    Si el filmmaker avisó que no iba a una reunión de guiones, una hora después el bot le escribe por privado
    para que pregunte qué se presentó. Sale por el puente de Cloudflare (ruta /dm). Se manda una sola vez por reunión.
    Necesita el ID de Discord de la persona en Config: DISCORD_ID_<CLAVE> (ej. DISCORD_ID_BAUTI). */
-function discordPrivado_(userId, texto) {
+/* Bots por tema (pedido de Joaquín, 21/10/2026): cada tema escribe por privado desde su propio bot, así son chats separados.
+   El puente busca el token DISCORD_TOKEN_<BOT> (secreto del Worker); si ese bot todavía no existe, sale por el bot de siempre (Panel Ideamia).
+   plan = entregas, Plan, fichas, Ads, objetivos, plan B · prod = filmmaker, producciones y guiones · diseno = diseñadoras · equipo = lo que le
+   llega a Joaquín del equipo (pendientes, inputs sin ver, resumen semanal) · '' = Panel Ideamia (inputs y recordatorios personales). */
+const BOTS_DISCORD = { plan: 'Ideamia Entregas', prod: 'Ideamia Producción', diseno: 'Ideamia Diseño', equipo: 'Ideamia Equipo' };
+function discordPrivado_(userId, texto, bot) {
   const cfg = config_(), puente = String(cfg.DISCORD_PUENTE || '').trim().replace(/\/+$/, ''), clave = P.getProperty('DISCORD_PUENTE_CLAVE');
   if (!puente || !clave) throw new Error('falta el puente de Discord');
-  const r = UrlFetchApp.fetch(puente + '/dm', { method: 'post', contentType: 'application/json', headers: { 'x-clave': clave }, payload: JSON.stringify({ usuario: String(userId), texto: String(texto).slice(0, 1800) }), muteHttpExceptions: true });
+  const r = UrlFetchApp.fetch(puente + '/dm', { method: 'post', contentType: 'application/json', headers: { 'x-clave': clave }, payload: JSON.stringify({ usuario: String(userId), texto: String(texto).slice(0, 1800), bot: BOTS_DISCORD[bot] ? bot : '' }), muteHttpExceptions: true });
   if (r.getResponseCode() >= 300) throw new Error('el puente respondió ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 120));
 }
 function recordatoriosFilm_() {
@@ -1628,7 +1633,7 @@ function recordatoriosFilm_() {
       if (!(horas >= 1 && horas <= 48) || P.getProperty('AVISADO_' + k)) return; // desde 1 h después de la reunión; pasado 2 días ya no tiene sentido
       try {
         discordPrivado_(id, 'Hola ' + p.nombre + '. No estuviste en la reunión de guiones y presentación de ideas del ' + k.slice(pre.length).split('-').reverse().slice(0, 2).join('/') +
-          '. Acordate de preguntar qué ideas se presentaron de tus marcas y de qué se tratan. Cuando lo tengas, marcá "Ya pregunté" en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/');
+          '. Acordate de preguntar qué ideas se presentaron de tus marcas y de qué se tratan. Cuando lo tengas, marcá "Ya pregunté" en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/', 'prod');
         P.setProperty('AVISADO_' + k, new Date().toISOString()); P.deleteProperty('DISCORD_DM_ERROR');
       } catch (e) { P.setProperty('DISCORD_DM_ERROR', new Date().toISOString() + ' · ' + String(e.message).replace(/[A-Za-z0-9_.-]{24,}/g, '…').slice(0, 200)); }
     });
@@ -1776,7 +1781,7 @@ function atrasadasFilm_(snap, film) {
 /* Arma todos los privados que corresponden ahora. Con dry = true no mueve tarjetas ni envía: solo devuelve qué haría. */
 function privadosArmar_(snap, cat, cfg, opciones) {
   const o = opciones || {}, dry = !!o.dry, msgs = [], notas = [];
-  const para = (clave, id, textos) => (Array.isArray(textos) ? textos : [textos]).forEach(t => msgs.push({ para: clave, id: id, texto: t }));
+  const para = (clave, id, textos, bot) => (Array.isArray(textos) ? textos : [textos]).forEach(t => msgs.push({ para: clave, id: id, texto: t, bot: bot || '' }));   // bot: de qué bot sale (BOTS_DISCORD)
   // 1) filtro de CM + aviso a quien lleva el CM de cada marca
   const f = filtroCM_(snap, dry);
   f.problemas.forEach(p => notas.push('Filtro CM · ' + p));
@@ -1817,7 +1822,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       Object.keys(porSalir).forEach(k => porSalir[k].forEach(c => (salen[AV_MARCAS[k].quien] = salen[AV_MARCAS[k].quien] || []).push('• **' + AV_MARCAS[k].marca + '** · ' + String(c.n).slice(0, 70) + ((c.lab || []).some(x => /urgente/.test(norm_(x))) ? ' · URGENTE' : '') + ' · sale ' + fechaAR_(c.salida) + ' · ' + c.url)));
       Object.keys(salen).forEach(id => sumar(id, ['**' + (salen[id].length === 1 ? 'Esta pieza sale' : 'Estas piezas salen') + (hoyD.getDay() === 6 ? ' entre mañana y el lunes' : ' mañana') + ' y ' + (salen[id].length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':**'].concat(salen[id], ['Si no llegás, avisá así vemos cómo resolverlo.'])));
       Object.keys(partesDe).forEach(id => para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
-        trozos_('Hola.', partesDe[id].reduce((a, b) => a.concat(a.length ? [''] : [], b), []))));
+        trozos_('Hola.', partesDe[id].reduce((a, b) => a.concat(a.length ? [''] : [], b), [])), 'diseno'));
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
     // guiones: el día de la reunión (Config GUIONES_RESUMEN_DIAS, por defecto lunes y viernes) se le recuerda por privado a Fede qué guiones
     // tiene que presentar, y a cada social media que presenta las ideas de reels de sus marcas
@@ -1836,14 +1841,14 @@ function privadosArmar_(snap, cat, cfg, opciones) {
         if (presenta.length) { l.push('**Recordá que hoy tenés que presentar ' + (presenta.length === 1 ? 'este guion' : 'estos ' + presenta.length + ' guiones') + ' de reel** (reunión de las ' + hora + ' h):'); presenta.forEach(c => l.push('• **' + nombreMarca_(cat, c.m[0]) + '** · ' + tit(c) + ' · ' + c.url)); }
         if (entrega.length) { l.push((l.length ? '\n' : '') + '**' + (entrega.length === 1 ? 'Este guion tenía' : 'Estos ' + entrega.length + ' guiones tenían') + ' que estar entregado' + (entrega.length === 1 ? '' : 's') + ' para hoy:**'); entrega.forEach(c => l.push('• **' + nombreMarca_(cat, c.m[0]) + '** · ' + tit(c) + (diaG(c.entrega) < 0 ? ' · era para el ' + Utilities.formatDate(new Date(c.entrega), TZ, 'dd/MM') : '') + ' · ' + c.url)); }
         if (sinEntrega.length) { l.push((l.length ? '\n' : '') + '**Recordá pedir que te digan cuándo tenés que entregar ' + (sinEntrega.length === 1 ? 'este guion' : 'estos ' + sinEntrega.length + ' guiones') + '** (' + (sinEntrega.length === 1 ? 'tiene' : 'tienen') + ' fecha de salida pero no de entrega):'); sinEntrega.forEach(c => l.push('• **' + nombreMarca_(cat, c.m[0]) + '** · ' + tit(c) + ' · sale el ' + Utilities.formatDate(new Date(c.salida), TZ, 'dd/MM') + ' · ' + c.url)); }
-        para('fede', idFede, trozos_('Hola Fede.', l));
+        para('fede', idFede, trozos_('Hola Fede.', l), 'prod');
       }
       cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim())).forEach(p => {
         const mias = cat.marcas.filter(m => m.sm === p.clave && conGuiones[m.slug]); if (!mias.length) return;
         const id = idDiscord_(cfg, p.clave); if (!id) { notas.push('Guiones · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
         const ver = presenta.filter(c => mias.some(m => m.slug === c.m[0])).length;
         para(p.clave, id, 'Hola ' + p.nombre + '. Recordá que hoy, en la reunión de guiones de las ' + hora + ' h, tenés que presentar las ideas de reels de ' + (mias.length === 1 ? 'tu marca' : 'tus marcas') + ': **' + mias.map(m => m.nombre).join(', ') + '**.' +
-          (ver ? '\nAdemás se ' + (ver === 1 ? 've 1 guion' : 'ven ' + ver + ' guiones') + ' de tus marcas que Fede ya entregó.' : ''));
+          (ver ? '\nAdemás se ' + (ver === 1 ? 've 1 guion' : 'ven ' + ver + ' guiones') + ' de tus marcas que Fede ya entregó.' : ''), 'prod');
       });
     }
     // filmmaker: un solo privado por día, corto. Cada tarjeta se nombra UNA sola vez por motivo (no se repite todos los días):
@@ -1893,29 +1898,29 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       if (!partes.length) return;
       const id = idDiscord_(cfg, p.clave);
       if (!id) { notas.push('Filmmaker · falta DISCORD_ID_' + p.clave.toUpperCase() + ' en Config'); return; }
-      para(p.clave, id, trozos_('Hola ' + p.nombre + '.', partes).map((t, i, a) => i === a.length - 1 ? t + '\nEl detalle de todo está en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t));
+      para(p.clave, id, trozos_('Hola ' + p.nombre + '.', partes).map((t, i, a) => i === a.length - 1 ? t + '\nEl detalle de todo está en el panel: https://ideamiacontacto-lab.github.io/panel-ideamia/' : t), 'prod');
       FILM_MOTIVOS.forEach(k => G[k].forEach(c => filmInfo.nuevos[k][c.id] = p.clave));
     });
   }
   // 4) OKR: los lunes, a cada social media con objetivos cargados, qué le falta cargar para medir y cómo viene (la primera vez, con la explicación)
   const okrIntro = [];
   if (o.diarios) {
-    try { const ok = okrPrivados_(cfg, o.ahora || hoyAR_()); ok.msgs.forEach(m => { para(m.clave, m.id, m.textos); if (m.intro) okrIntro.push(m.clave); }); ok.notas.forEach(n => notas.push(n)); }
+    try { const ok = okrPrivados_(cfg, o.ahora || hoyAR_()); ok.msgs.forEach(m => { para(m.clave, m.id, m.textos, 'plan'); if (m.intro) okrIntro.push(m.clave); }); ok.notas.forEach(n => notas.push(n)); }
     catch (e) { notas.push('OKR · ' + String(e.message || e).slice(0, 120)); }
     // 5) Plan: 2 días antes de cada entrega de calendario o de reels
-    try { planRecordatorios_(snap, cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    try { planRecordatorios_(snap, cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos, 'plan')); }
     catch (e) { notas.push('Plan · ' + String(e.message || e).slice(0, 120)); }
     // 7) Ads: control semanal de la pauta (lunes, y miércoles si no respondió)
-    try { pautaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    try { pautaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos, 'plan')); }
     catch (e) { notas.push('Pauta · ' + String(e.message || e).slice(0, 120)); }
     // 8) Plan del mes que viene: 2 días antes del cierre, el día después (social media) y al otro (project)
-    try { planMesRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    try { planMesRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos, 'plan')); }
     catch (e) { notas.push('Plan del mes · ' + String(e.message || e).slice(0, 120)); }
     // 9) Producciones de los filmmakers: viernes la semana que viene, recetas (encargada), mañana; lunes a Joaquín
-    try { prodRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    try { prodRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos, 'prod')); }
     catch (e) { notas.push('Producciones · ' + String(e.message || e).slice(0, 120)); }
     // 6) Fichas operativas aprobadas: pedidos de mañana, tópicos externos de hoy y (lunes) aprendizajes activos
-    try { fichaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    try { fichaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos, 'plan')); }
     catch (e) { notas.push('Fichas · ' + String(e.message || e).slice(0, 120)); }
   }
   return { msgs: msgs, notas: notas, filtro: f, inputs: inp, inputsPorAvisar: sinAvisar, film: filmInfo, okrIntro: okrIntro };
@@ -1927,7 +1932,15 @@ function privadosEnviar_(snap, cat, cfg) {
   const diarios = activos && ahora.getDay() !== 0 && ahora.getHours() >= 9 && ahora.getHours() < 12 && P.getProperty('PRIVADOS_DIA') !== hoyId;
   const r = privadosArmar_(snap, cat, cfg, { dry: false, diarios: diarios, ahora: ahora });
   const fallaron = {}; let error = '';
-  if (activos) r.msgs.forEach(m => { try { discordPrivado_(m.id, m.texto); } catch (e) { fallaron[m.para] = 1; error = m.para + ': ' + String(e.message).replace(/[A-Za-z0-9_.-]{24,}/g, '…').slice(0, 160); } });
+  // lo que le toca a una misma persona desde un mismo bot en esta vuelta sale junto, en la menor cantidad de mensajes (hasta 1800 caracteres cada uno)
+  const grupos = [], idx = {};
+  r.msgs.forEach(m => { const k = m.id + '|' + (m.bot || ''); if (idx[k] == null) { idx[k] = grupos.length; grupos.push({ id: m.id, bot: m.bot || '', para: [], textos: [] }); } const g = grupos[idx[k]]; if (g.para.indexOf(m.para) < 0) g.para.push(m.para); g.textos.push(g.textos.length ? String(m.texto).replace(/^Hola [^.\n]{1,30}\.\s*/, '') : m.texto); });
+  if (activos) grupos.forEach(g => {
+    const out = []; let cur = '';
+    g.textos.forEach(t => { if (cur && (cur + '\n\n' + t).length > 1800) { out.push(cur); cur = t; } else cur = cur ? cur + '\n\n' + t : t; });
+    if (cur) out.push(cur);
+    out.forEach(t => { try { discordPrivado_(g.id, t, g.bot); } catch (e) { g.para.forEach(p => fallaron[p] = 1); error = g.para.join('/') + ': ' + String(e.message).replace(/[A-Za-z0-9_.-]{24,}/g, '…').slice(0, 160); } });
+  });
   // inputs: se dan por avisados los que salieron bien (o si los privados están apagados, para no acumular); los que fallaron se reintentan
   const avisados = r.inputs.marcados.filter(c => r.inputs.ya[c.id] || !activos || (r.inputsPorAvisar[c.id] && !fallaron[r.inputsPorAvisar[c.id]]) || r.inputs.primera).map(c => c.id);
   P.setProperty('INPUTS_AVISADOS', avisados.join(',').slice(0, 8800));
@@ -2327,9 +2340,9 @@ function tareasDelMesEnviar_(cat, cfg, snap) {
   cat.equipo.filter(p => /^sm$/i.test(String(p.rol).trim()) && hecho.a.indexOf(p.clave) < 0).forEach(p => {
     const id = idDiscord_(cfg, p.clave), textos = id && tareasDelMesArmar_(p, cat, hoy, snap || snapshot_());
     if (!textos) return;
-    try { textos.forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); }); hecho.a.push(p.clave); } catch (e) { P.setProperty('DISCORD_DM_ERROR', (new Date().toISOString() + ' · tareas del mes de ' + p.clave + ': ' + e.message).slice(0, 300)); }
+    try { textos.forEach(t => { discordPrivado_(id, t, 'plan'); Utilities.sleep(600); }); hecho.a.push(p.clave); } catch (e) { P.setProperty('DISCORD_DM_ERROR', (new Date().toISOString() + ' · tareas del mes de ' + p.clave + ': ' + e.message).slice(0, 300)); }
     // y, por cada marca suya, lo que marca el calendario anual para este mes (si falla, las tareas igual salieron)
-    try { const datos = anualDatos_(snap || snapshot_(), cat); cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snap || snapshot_(), datos, hoy) || []).concat(trozos_('🗓️ **' + m.nombre + ' · campañas**', campResumen_(m, datos, hoy))).forEach(t => { discordPrivado_(id, t); Utilities.sleep(600); })); } catch (e) {}
+    try { const datos = anualDatos_(snap || snapshot_(), cat); cat.marcas.filter(m => m.sm === p.clave).forEach(m => (recomendacionesMarca_(m, snap || snapshot_(), datos, hoy) || []).concat(trozos_('🗓️ **' + m.nombre + ' · campañas**', campResumen_(m, datos, hoy))).forEach(t => { discordPrivado_(id, t, 'plan'); Utilities.sleep(600); })); } catch (e) {}
   });
   P.setProperty('TAREAS_MES', JSON.stringify(hecho));
 }
@@ -2442,7 +2455,7 @@ function seguimientoEnviar_(snap, cat, cfg) {
     if (s.escalar.length) {
       const yo = idJoaquin_(cfg);
       if (yo) try {
-        trozos_('⏰ **Inputs urgentes sin ver hace 2 días o más** (ya se les recordó una vez):', s.escalar.map(c => lineaInput_(cat, c) + ' · a cargo de ' + nombreDe_(smDe_(cat, c)))).forEach(t => discordPrivado_(yo, t));
+        trozos_('⏰ **Inputs urgentes sin ver hace 2 días o más** (ya se les recordó una vez):', s.escalar.map(c => lineaInput_(cat, c) + ' · a cargo de ' + nombreDe_(smDe_(cat, c)))).forEach(t => discordPrivado_(yo, t, 'equipo'));
         s.escalar.forEach(c => { s.T[c.id].e = 1; });
       } catch (e) {}
     }
@@ -2451,7 +2464,7 @@ function seguimientoEnviar_(snap, cat, cfg) {
   // B) resumen de los lunes (una vez por semana, entre las 9 y las 12)
   if (dow === 1 && h >= 9 && h < 12 && P.getProperty('RESUMEN_SEM') !== semana_(hoy)) {
     const yo = idJoaquin_(cfg);
-    if (yo) try { resumenSemanalArmar_(snap, cat, cfg).forEach(t => { discordPrivado_(yo, t); Utilities.sleep(500); }); P.setProperty('RESUMEN_SEM', semana_(hoy)); } catch (e) {}
+    if (yo) try { resumenSemanalArmar_(snap, cat, cfg).forEach(t => { discordPrivado_(yo, t, 'equipo'); Utilities.sleep(500); }); P.setProperty('RESUMEN_SEM', semana_(hoy)); } catch (e) {}
   }
 }
 /* MUESTRA: le manda a JOAQUÍN cómo llegan los tres mensajes (recordatorio al social media, aviso al project y resumen del lunes con
@@ -3125,7 +3138,7 @@ function adsPedidosAvisar_(cfg) {
   if (!r.nuevos.length || h < 8 || h >= 21) return;
   const id = idJuanAds_(cfg);
   if (!id) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · no encuentro a Juan Escalante en Discord: cargá DISCORD_ID_JUAN en Config'); return; }
-  try { r.textos.forEach(t => discordPrivado_(id, t)); guardar(r.cards.map(c => c.id)); P.deleteProperty('ADS_NOTA'); }
+  try { r.textos.forEach(t => discordPrivado_(id, t, 'plan')); guardar(r.cards.map(c => c.id)); P.deleteProperty('ADS_NOTA'); }
   catch (e) { P.setProperty('ADS_NOTA', new Date().toISOString() + ' · ' + String(e.message).replace(/[A-Za-z0-9_.-]{24,}/g, '…').slice(0, 200)); }
 }
 /* PRUEBA sin efectos: qué hay en la lista de pedidos de ADS, cuáles serían nuevos y si encuentra a Juan en Discord. No manda nada. */
@@ -3746,7 +3759,7 @@ function planEvaluar_(snap, cat, cfg) {
     const id = k === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, k); if (!id) return;
     const txt = k === 'project' ? trozos_('Hola Joaquín. Entregas de ayer que **siguen incumplidas**:', aviso[k].concat(['', 'Detalle: ' + PLAN_URL]))
       : trozos_('Hola ' + nombreDe_(k) + '. Hoy era día de entrega y **quedó incumplida** en:', aviso[k].concat(['Completalo hoy, así mañana no le llega al project. Detalle: ' + PLAN_URL]));
-    try { txt.forEach(t => discordPrivado_(id, t)); } catch (e) { P.setProperty('PLAN_NOTA', new Date().toISOString() + ' · ' + String(e.message).slice(0, 150)); }
+    try { txt.forEach(t => discordPrivado_(id, t, 'plan')); } catch (e) { P.setProperty('PLAN_NOTA', new Date().toISOString() + ' · ' + String(e.message).slice(0, 150)); }
   });
 }
 /* Recordatorio 2 días antes de cada entrega (lo arma privadosArmar_ en el bloque diario). [{clave, id, textos}] */
@@ -4019,7 +4032,7 @@ function fichaAccion_(b, quien, esProject) {
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const g = fichaLeer_(), f = g.m[m.slug] = Object.assign(fichaVacia_(), g.m[m.slug] || {}), cfg = config_();
-    const avisar = (clave, txt) => { try { const id = clave === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, clave); if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) discordPrivado_(id, txt); } catch (e) {} };
+    const avisar = (clave, txt) => { try { const id = clave === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, clave); if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) discordPrivado_(id, txt, 'plan'); } catch (e) {} };
     const acc = String(b.accion || '');
     if (acc === 'guardar' || acc === 'enviar') {
       const r = fichaLimpiar_(b); if (r.error) return r;
@@ -4198,7 +4211,7 @@ function campAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
   if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
   const key = String(b.key || ''); if (!/^\d{4}-\d{2}-\d{2}\|/.test(key)) return { error: 'datos', mensaje: 'Falta la fecha' };
-  const cfg = config_(), avisar = (clave, txt) => { try { const id = clave === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, clave); if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) discordPrivado_(id, txt); } catch (e) {} };
+  const cfg = config_(), avisar = (clave, txt) => { try { const id = clave === 'project' ? idJoaquin_(cfg) : idDiscord_(cfg, clave); if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) discordPrivado_(id, txt, 'plan'); } catch (e) {} };
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
     const g = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), dec = g[m.slug] = g[m.slug] || {}, nombre = String(b.nombre || key.split('|')[1]).slice(0, 120), fecha = key.slice(8, 10) + '/' + key.slice(5, 7);
@@ -4527,7 +4540,7 @@ function planbAccion_(b, quien, esProject) {
     } finally { lk.releaseLock(); }
     if (v === 'no' && !esProject) try {
       const sn = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), r = (sn.cards || []).filter(c => c.id === ids[0])[0], id = idJoaquin_(config_());
-      if (id) discordPrivado_(id, '🎬 ' + nombreDe_(quien) + ' dice que el reel **' + (r ? r.n.slice(0, 90) : '(sin nombre)') + '** de **' + m.nombre + '** no se puede hacer: ' + motivo + '\nTiene que activar el plan B: ' + PLAN_URL);
+      if (id) discordPrivado_(id, '🎬 ' + nombreDe_(quien) + ' dice que el reel **' + (r ? r.n.slice(0, 90) : '(sin nombre)') + '** de **' + m.nombre + '** no se puede hacer: ' + motivo + '\nTiene que activar el plan B: ' + PLAN_URL, 'plan');
     } catch (e) {}
     return { ok: true };
   }
@@ -4576,7 +4589,7 @@ function planbAccion_(b, quien, esProject) {
       trello_('/cards/' + prev.pb, { idList: r.idList, due: prev.fecha + 'T12:00:00-03:00', pos: 'top' }, 'put');
       try { trello_('/cards/' + reelId + '/actions/comments', { text: '🛟 Se activó el plan B (' + nombreDe_(quien) + ', desde el panel): ' + prev.url + '\nMotivo: ' + String(b.motivo || 'sin detallar').slice(0, 300) }, 'post'); } catch (e) {}
       prev.activado = new Date().toISOString(); prev.motivo = String(b.motivo || '').slice(0, 300);
-      try { const id = idJoaquin_(config_()); if (id && !esProject) discordPrivado_(id, '🛟 ' + nombreDe_(quien) + ' activó el **plan B** de "' + r.name + '" en **' + m.nombre + '**' + (b.motivo ? ': ' + String(b.motivo).slice(0, 200) : '') + '.\n' + prev.url); } catch (e) {}
+      try { const id = idJoaquin_(config_()); if (id && !esProject) discordPrivado_(id, '🛟 ' + nombreDe_(quien) + ' activó el **plan B** de "' + r.name + '" en **' + m.nombre + '**' + (b.motivo ? ': ' + String(b.motivo).slice(0, 200) : '') + '.\n' + prev.url, 'plan'); } catch (e) {}
     } else if (b.accion === 'vincular') {
       const cardId = String(b.card || ''); if (!(snap.cards || []).some(z => z.id === cardId && z.m[0] === m.slug && z.cat === 'planb')) return { error: 'datos', mensaje: 'Esa tarjeta no está en la lista "Plan B"' };
       if (!reel) return { error: 'datos', mensaje: 'No encuentro ese reel' };
@@ -5493,7 +5506,7 @@ function doPost__(e) {
         try {
           const cfg = config_(), id = idJoaquin_(cfg);
           if (id && !/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim())) {
-            discordPrivado_(id, '📝 **' + yo.nombre + '** anotó pendientes para la semana próxima:\n' + items.map(i => '• ' + i).join('\n') + (nota ? '\n' + nota : '') + (ok ? '\n📅 Propone reunirse el ' + fr(reun) : '') + '\nQuedó en la Bandeja de Project: ' + ((r.card || {}).url || ''));
+            discordPrivado_(id, '📝 **' + yo.nombre + '** anotó pendientes para la semana próxima:\n' + items.map(i => '• ' + i).join('\n') + (nota ? '\n' + nota : '') + (ok ? '\n📅 Propone reunirse el ' + fr(reun) : '') + '\nQuedó en la Bandeja de Project: ' + ((r.card || {}).url || ''), 'equipo');
             r.pasos.push('Aviso por privado al project');
           }
         } catch (e) {}
