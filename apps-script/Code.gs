@@ -939,7 +939,8 @@ function panel_(personaClave, ctx) {
       if (esRevisa) return c.etapa === 'revision' || (c.etapa === 'pendiente' && !c.salio && !c.sinOrig);
       // social media: las piezas que están pendientes en Diseño o Producción y NO tienen fecha de salida en SCL. Nadie decidió cuándo salen:
       // se le avisa para que les ponga fecha, las guarde en "Para más adelante" o las archive.
-      return !esCM && c.etapa === 'pendiente' && !c.salida && !c.salio && !c.sinOrig;
+      // solo piezas que vienen de una tarjeta de SCL (las que tienen original): los pedidos extra de Diseño (stickers, merch, ploteos) no los decide la social media
+      return !esCM && c.etapa === 'pendiente' && !c.salida && !c.salio && !c.sinOrig && !!c.ourl;
     }
     if (esRevisa && !esProject) return false;
     if (c.tipo === 'project') return c.cat !== 'hecho' && !c.dup && reciente(c);
@@ -1040,10 +1041,29 @@ function panel_(personaClave, ctx) {
    Lo pendiente y lo que está en revisión, de una semana para atrás a tres para adelante (o sin fecha). */
 function entregasEquipo_(todas, slugs, hoy) {
   const desde = new Date(hoy.getTime() - 7 * 864e5), hasta = new Date(hoy.getTime() + 21 * 864e5);
+  // 22/10/2026: sin lo viejo. Lo que en SCL ya está aprobado no se muestra; sin fecha, solo si se cargó en las últimas dos semanas
+  const hace14 = new Date(hoy.getTime() - 14 * 864e5);
   return todas.filter(c => c.cat === 'pieza' && !c.standby && !c.sinOrig && !c.salio && slugs.indexOf(c.m[0]) >= 0 && (c.etapa === 'pendiente' || c.etapa === 'revision'))
-    .filter(c => !c.due || (new Date(c.due) >= desde && new Date(c.due) <= hasta))
+    .filter(c => !/aprobad/.test(norm_(c.olista || '')))
+    .filter(c => c.due ? (new Date(c.due) >= desde && new Date(c.due) <= hasta) : (c.hist && c.hist.cargada ? new Date(c.hist.cargada) >= hace14 : new Date(c.act || 0) >= hace14))
     .map(c => ({ id: c.id, n: c.n, m: c.m[0], tipo: c.tipo, formato: c.formato || '', etapa: c.etapa, due: c.due || null, salida: c.salida || null, url: c.ourl || c.url }))
     .sort((a, b) => new Date(a.due || 9e15) - new Date(b.due || 9e15)).slice(0, 80);
+}
+
+/* Diagnóstico (solo lectura): qué piezas de Diseño/Producción y qué grabaciones le llegan a cada social media, con el tablero de origen y la marca de la tarjeta original de SCL. */
+function diagnosticoEquipoSM() {
+  const ctx = contexto_(), cat = catalogo_(), snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), hoy = hoyAR_();
+  const porId = {}; (snap.cards || []).forEach(c => porId[c.id] = c);
+  cat.equipo.filter(p => cat.marcas.some(m => m.sm === p.clave)).forEach(p => {
+    const sl = cat.marcas.filter(m => m.sm === p.clave || m.cm === p.clave).map(m => m.slug);
+    const e = entregasEquipo_(snap.cards || [], sl, hoy);
+    console.log('=== ' + p.nombre + ' · marcas: ' + sl.join(', ') + ' · ' + e.length + ' entregas');
+    e.forEach(x => { const c = porId[x.id] || {}; console.log('  [' + x.m + '] ' + (c.tablero || '?') + ' · ' + (c.olista || 'sin original') + ' · ' + String(x.n).slice(0, 60)); });
+    const pr = prodEquipo_().items.filter(x => sl.indexOf(x.marca) >= 0 && x.fecha >= ymd_(hoy));
+    pr.forEach(x => console.log('  grabación [' + x.marca + '] ' + x.fecha + ' · ' + String(x.que).slice(0, 60)));
+    const sf = (panel_(p.clave, ctx).cards || []).filter(c => c.cat === 'sinfecha');
+    sf.forEach(c => console.log('  sin fecha (Hoy) [' + c.m.join('/') + '] ' + (c.tablero || '?') + ' · ' + (c.olista || '') + ' · ' + String(c.n).slice(0, 60)));
+  });
 }
 
 /* ---------------- paneles listos (se arman al actualizar; abrir la web solo suma lo tildado) ---------------- */
