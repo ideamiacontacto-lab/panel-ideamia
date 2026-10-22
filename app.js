@@ -459,6 +459,15 @@
     // una pantalla, una pregunta: ¿qué hago ahora? Primero la tarea; los avisos son chips chicos (solo los que no están en cero)
     return festejo + md.arranque + '<div class="hoy1">' + md.cuerpo + '</div>';
   }
+  // "Para mantener todos los meses" (22/10/2026): pedidos fijos de cada marca que se cargan en Trello con una etiqueta
+  const linL = () => ((S.data || {}).lineamientos || []).filter(x => pasa(x.m));
+  function linBarra() { const L = linL(); return L.length ? '<button class="lin-bar" data-lin><span class="ic">' + I.pin + '</span><b>Para mantener todos los meses</b><em>' + L.length + '</em><i>›</i></button>' : ''; }
+  function linVer() {
+    const L = linL(), g = {}; L.forEach(x => (g[x.m] = g[x.m] || []).push(x));
+    hoja('Para mantener todos los meses', '<p class="intro">Pedidos fijos de tus marcas: valen todos los meses hasta que se saque la etiqueta en Trello.</p>' +
+      Object.keys(g).map(m => '<div class="lin-m"><div class="lin-mh"><span class="dotm" style="background:' + color(m) + '"></span>' + esc((marca(m) || {}).nombre || m) + '</div>' +
+        g[m].map(x => '<div class="lin-i"><a class="lnk" href="' + esc(x.url) + '" target="_blank" rel="noopener"><b>' + esc(x.n) + '</b></a>' + (x.d ? '<p>' + escL(x.d) + '</p>' : '') + '</div>').join('') + '</div>').join(''));
+  }
   function avisos() {
     const D = S.data, ahora = new Date();
     const nDc = D.discord ? dcSinVer().length : 0, nSal = porSalir().length, nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length;
@@ -467,7 +476,7 @@
     // recuadros: los números que importan, una sola vez, y cada uno lleva a lo suyo (antes: cinta + chips + etiquetas repetían lo mismo)
     const tl = (n, t, s, attr, cl) => '<button class="mio-st' + (n ? ' ' + cl : '') + '" ' + attr + '><b>' + n + '</b><span>' + t + '</span><small>' + s + '</small></button>';
     return '<div class="mio-sts hoy-sts">' + tl(nVen, 'Vencidas', 'tarjetas pasadas de fecha', 'data-vencidas', 'bad') + tl(nInp, 'Inputs', 'pedidos para revisar', 'data-tab="inputs"', 'y') + tl(nSal, 'Por salir', 'chequealas antes', 'data-por-salir', 'warn') +
-      tl(reps.length, 'Reportes', nRepV ? nRepV + (nRepV === 1 ? ' vencido' : ' vencidos') : 'para cargar', 'data-tab="semana"', nRepV ? 'bad' : '') + tl(nDc, 'Menciones', 'en Discord, sin leer', 'data-tab="discord"', 'dc') + '</div>';
+      tl(reps.length, 'Reportes', nRepV ? nRepV + (nRepV === 1 ? ' vencido' : ' vencidos') : 'para cargar', 'data-tab="semana"', nRepV ? 'bad' : '') + tl(nDc, 'Menciones', 'en Discord, sin leer', 'data-tab="discord"', 'dc') + '</div>' + linBarra();
   }
 
   /* ---------------- "Mi día": arrancar con 3 prioridades (estilo Sunsama), línea de tiempo con lo que tiene hora
@@ -1498,7 +1507,8 @@
         f('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha', nReu),
         f('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'al día', guionAtencion()),
         f('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + ' pasadas de fecha' : 'nada vencido', nVen),
-        f('data-fechas', I.star, 'Fechas', nF + ' en 30 días')]) +
+        f('data-fechas', I.star, 'Fechas', nF + ' en 30 días'),
+        linL().length ? f('data-lin', I.pin, 'Mantener', linL().length + ' pedidos fijos') : '']) +
       sec('Equipo y marcas', [
         f('data-tab="equipo"', I.users, 'Equipo', 'grabaciones y entregas'),
         f('data-tab="agenda"', I.cal, 'Agenda', 'próximos 14 días'),
@@ -1710,6 +1720,7 @@
     const M = S.proj.mio || {};
     if (b.op === 'mover') { c.k = b.etapa; c.lista = ((M.listas || []).find(l => l.k === b.etapa) || {}).n || (ETAPAS.find(e => e[0] === b.etapa) || [])[1] || c.lista; c.act = new Date().toISOString(); }
     if (b.op === 'fecha') c.due = b.due || null;
+    if (b.op === 'enviar') { const a = { diseno: 'A diseño', sm: 'A social media', foto: 'A producción' }[b.destino]; if (a) { c.lista = a; c.k = 'otra'; } else { c.k = 'seguimiento'; c.lista = ((M.listas || []).find(l => l.k === 'seguimiento') || {}).n || 'Enviado'; } }
     if (b.op === 'etiqueta') { const re = b.cual === 'urgente' ? /^urgente$/i : /minuta/i, ya = c.lab.find(x => re.test(x)); c.lab = ya ? c.lab.filter(x => x !== ya) : c.lab.concat(b.cual === 'urgente' ? 'Urgente' : 'Ver en minuta'); }
   }
   async function mioHacer(id, b) {
@@ -1742,6 +1753,7 @@
         '<span class="lbl">Etapa</span><div class="fi-bt">' + et.map(e => '<button class="' + (c.k === e[0] ? 'on' : '') + (e[0] === 'listo' ? ' ok' : '') + '" data-fi-et="' + e[0] + '">' + e[1] + '</button>').join('') + '</div>' +
         '<span class="lbl">Fecha' + (c.due ? ' · ' + cuando(new Date(c.due)) : '') + '</span><div class="fi-bt"><button class="' + (f === dia(0) ? 'on' : '') + '" data-fi-f="' + dia(0) + '">Hoy</button><button class="' + (f === dia(1) ? 'on' : '') + '" data-fi-f="' + dia(1) + '">Mañana</button><button class="' + (f === dia(hasta5) ? 'on' : '') + '" data-fi-f="' + dia(hasta5) + '">Viernes</button><label class="fi-cal"><input type="date" value="' + f + '" data-fi-fd></label><button class="' + (!f ? 'on' : '') + '" data-fi-f="">Sin fecha</button></div>' +
         '<span class="lbl">Etiquetas</span><div class="fi-bt"><button class="' + (tMin ? 'on' : '') + '" data-fi-lb="minuta">Ver en minuta</button><button class="' + (tUrg ? 'on bad' : '') + '" data-fi-lb="urgente">Urgente</button></div>' +
+        '<span class="lbl">Enviar a</span><div class="fi-bt fi-env">' + [['diseno', 'Diseño'], ['sm', 'Social media'], ['foto', 'Fotografía'], ['reel', 'Reel'], ['historia', 'Historia']].map(x => '<button data-fi-env="' + x[0] + '">' + x[1] + '</button>').join('') + '</div><small class="fi-ayu">Reel e historia se copian a Producción de la marca; lo demás pasa a su lista del Project y sigue la automatización de siempre.</small>' +
         '<span class="lbl">Comentar</span><div class="fi-c"><textarea id="fiC" rows="2" maxlength="2000" placeholder="Queda como comentario en la tarjeta de Trello"></textarea><button class="btn y" data-fi-com>Comentar</button></div>' +
         '<div class="err"></div><div class="acts"><a class="btn ghost" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div></div>';
       const hacer = async b => { m.querySelectorAll('button,input,textarea').forEach(x => x.disabled = true); $('.err', m).textContent = ''; try { const r = await mioHacer(c.id, b); if (r && r.r && r.r.pasos) toast('✓ ' + r.r.pasos.map(esc).join(' · ')); } catch (e) { } pintar(); };
@@ -1750,6 +1762,7 @@
       m.querySelectorAll('[data-fi-f]').forEach(b => b.onclick = () => hacer({ op: 'fecha', due: b.dataset.fiF ? b.dataset.fiF + 'T18:00:00-03:00' : '' }));
       $('[data-fi-fd]', m).onchange = e => { if (e.target.value) hacer({ op: 'fecha', due: e.target.value + 'T18:00:00-03:00' }); };
       m.querySelectorAll('[data-fi-lb]').forEach(b => b.onclick = () => hacer({ op: 'etiqueta', cual: b.dataset.fiLb }));
+      m.querySelectorAll('[data-fi-env]').forEach(b => b.onclick = () => hacer({ op: 'enviar', destino: b.dataset.fiEnv }));
       $('[data-fi-com]', m).onclick = async () => { const t = $('#fiC', m).value.trim(); if (!t) return $('#fiC', m).focus(); await hacer({ op: 'comentar', texto: t }); };
     };
     const cerrar = () => { if (m.classList.contains('sale')) return; m.classList.add('sale'); setTimeout(() => m.remove(), 220); document.removeEventListener('keydown', tecla); };
@@ -2406,6 +2419,7 @@
     root.querySelectorAll('[data-hoyg]').forEach(x => x.onclick = () => { LS.set('hoygrupo', x.dataset.hoyg); render(); const p = $('.gpanel'); if (p) { p.classList.add('entra'); } });
     root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
     root.querySelectorAll('[data-perfil]').forEach(x => x.onclick = () => perfilEditar(false));
+    root.querySelectorAll('[data-lin]').forEach(x => x.onclick = () => linVer());
     root.querySelectorAll('[data-mas-caja]').forEach(x => x.onclick = () => { const d = document.createElement('div'); d.innerHTML = costado(true); const b = d.querySelectorAll('.box')[+x.dataset.masCaja]; if (b) hoja(x.querySelector('b').textContent, b.outerHTML); });
     root.querySelectorAll('[data-prod]').forEach(x => { const abrir = e => { if (e.target.closest('button')) return; const it = ((S.data.film || {}).prod || { items: [] }).items.find(z => z.id === x.dataset.prod); if (it) prodEditar(it); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
     root.querySelectorAll('[data-prod-est]').forEach(x => x.onclick = () => prodEstado(x.dataset.prodEst, x.dataset.v));

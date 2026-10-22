@@ -2065,3 +2065,17 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 @media (max-width:760px){.row:has(> .when.wl){grid-template-columns:70px minmax(0,1fr) auto}.when.wl b{font-size:17px}}
 /* títulos de cada pestaña: más aire debajo de la barra de pestañas */
 @media (min-width:761px){.mtit{padding:34px 0 18px}.mtit h1{font-size:52px}}
+/* ---------- "Para mantener todos los meses" ---------- */
+.lin-bar{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 16px;padding:11px 14px;border:1px solid var(--line2);border-left:3px solid var(--y);border-radius:var(--r);text-align:left;transition:background-color .25s var(--ease)}
+.lin-bar .ic{display:grid;place-items:center;color:var(--y)}.lin-bar .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+.lin-bar b{flex:1;font-family:var(--f-t);font-weight:600;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase}
+.lin-bar em{font-style:normal;font-family:var(--f-d);font-weight:700;font-size:22px;color:var(--y)}
+.lin-bar i{font-style:normal;color:var(--dim);font-size:18px}
+@media (hover:hover){.lin-bar:hover{background:var(--s1)}}
+.lin-m{margin:14px 0 6px}
+.lin-mh{display:flex;align-items:center;gap:8px;font-family:var(--f-t);font-weight:600;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.lin-i{padding:10px 0;border-bottom:1px solid var(--line)}
+.lin-i b{font-size:15px}
+.lin-i p{margin:4px 0 0;font-size:13px;color:var(--muted);white-space:pre-wrap}
+.fi-ayu{display:block;font-size:11.5px;color:var(--dim);margin-top:6px}
+.fi-env button{border-style:dashed}

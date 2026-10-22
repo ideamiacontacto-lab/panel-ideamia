@@ -242,3 +242,8 @@ window.PANEL_DEMO.anual = { leido: "2026-10-07T09:00:00-03:00", marcas: {
   "tritato": { url: "", okr: "", nota: "no hay tarjeta \"Calendario anual\" en Recursos Corporativos", metas: [], items: [] }
 } };
 window.PANEL_DEMO.cards.push({ id: "sf1", n: "Reel Día del Panadero", d: "", cat: "sinfecha", formato: "reel", etapa: "pendiente", lista: "Reels pendientes", tipo: "produccion", tablero: "Produccion GV", m: ["gabriel-varisco"], due: null, att: [], lab: [], url: "#", ourl: "#", act: "2026-10-01T10:00:00Z" });
+// pedidos para mantener todos los meses (etiqueta "Mantener todos los meses" en Trello)
+window.PANEL_DEMO.lineamientos = [
+  { id: "lin1", n: "Mostrar el local los viernes en historias", d: "Una historia del local por la tarde, con gente.", m: "isco", url: "#", tablero: "Project" },
+  { id: "lin2", n: "Promo de transferencia en el feed una vez por semana", d: "", m: "tritato", url: "#", tablero: "SCL Tritato" }
+];
