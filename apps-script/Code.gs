@@ -1015,6 +1015,7 @@ function panel_(personaClave, ctx) {
     ok: true, generado: snap.generado || null, hoy: ymd_(hoy),
     yo: { clave: yo.clave, nombre: yo.nombre, rol: yo.rol },
     equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })),
+    entregas: esFilm || esRevisa ? [] : entregasEquipo_(snap.cards || [], misMarcas.map(m => m.slug), hoy),   // pestaña Equipo del social media
     feriados: ctx.feriados || [],
     marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', driveFotos: m.driveFotos || String(cfg.DRIVE_FOTOS || '').trim(), tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ id: b.id, tipo: b.tipo, url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] })) })),
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
@@ -1028,6 +1029,16 @@ function panel_(personaClave, ctx) {
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE, claveBrain: cfg.CLAVE_BRAINSTORMING || '' },
     ajustes
   };
+}
+
+/* Pestaña Equipo del social media (22/10/2026): qué tienen Diseño y Producción de sus marcas y para cuándo lo entregan.
+   Lo pendiente y lo que está en revisión, de una semana para atrás a tres para adelante (o sin fecha). */
+function entregasEquipo_(todas, slugs, hoy) {
+  const desde = new Date(hoy.getTime() - 7 * 864e5), hasta = new Date(hoy.getTime() + 21 * 864e5);
+  return todas.filter(c => c.cat === 'pieza' && !c.standby && !c.sinOrig && !c.salio && slugs.indexOf(c.m[0]) >= 0 && (c.etapa === 'pendiente' || c.etapa === 'revision'))
+    .filter(c => !c.due || (new Date(c.due) >= desde && new Date(c.due) <= hasta))
+    .map(c => ({ id: c.id, n: c.n, m: c.m[0], tipo: c.tipo, formato: c.formato || '', etapa: c.etapa, due: c.due || null, salida: c.salida || null, url: c.ourl || c.url }))
+    .sort((a, b) => new Date(a.due || 9e15) - new Date(b.due || 9e15)).slice(0, 80);
 }
 
 /* ---------------- paneles listos (se arman al actualizar; abrir la web solo suma lo tildado) ---------------- */
@@ -1179,6 +1190,8 @@ function aplicarEstados_(b, est) {
   if (/project|direcc|creativ/i.test((b.yo || {}).rol || '')) { try { b.fotos = fotosSalida_(); } catch (e) { b.fotos = null; } }
   // producciones de los filmmakers: el filmmaker ve las suyas; el project y dirección, las de todos (se leen en cada pedido, como las fotos)
   try { if (b.film) b.film.prod = prodDatos_(b.yo.clave); else if (/project|direcc|creativ/i.test((b.yo || {}).rol || '')) b.prods = prodEquipo_(); } catch (e) {}
+  // social media y CM: las grabaciones del filmmaker de sus marcas, de hoy en adelante (pestaña Equipo)
+  try { if (!b.film && !/project|direcc|creativ/i.test((b.yo || {}).rol || '')) { const sl = (b.marcas || []).map(m => m.slug), hoyY = ymd_(hoyAR_()); b.prodsEq = { items: prodEquipo_().items.filter(x => sl.indexOf(x.marca) >= 0 && x.fecha >= hoyY) }; } } catch (e) {}
   try { b.reportes = tareasReportes_(b.yo.clave, b.yo.rol); b.linkReportes = REP_WEB + '?resp=' + encodeURIComponent(b.yo.clave); } catch (e) { b.reportes = []; }
   if (b.semanaInfo) {
     const per = b.semanaInfo.dias.concat([b.semanaInfo.semana, b.semanaInfo.mes]);
