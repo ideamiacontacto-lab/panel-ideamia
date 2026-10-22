@@ -45,6 +45,8 @@
     flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
     archive: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V19h14V8.5M10 12.5h4"/></svg>',
     msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+    folder: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>',
+    link: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7.3l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10a4 4 0 0 0-5.7-.3l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></svg>',
     pen: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>',
     grid: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>'
   };
@@ -265,9 +267,9 @@
     const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
-      ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
       : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
-    const headF = film && portada ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
+    const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
     app.innerHTML = S.movil
@@ -276,6 +278,10 @@
     document.body.classList.toggle('movil', S.movil);
     document.body.classList.toggle('ivo', esRevisa());
     document.body.classList.toggle('nav6', nav.length === 6);
+    // movimiento (v2): la vista entra escalonada solo al cambiar de pestaña, y el saludo se revela una sola vez por sesión
+    const vw = document.getElementById('view');
+    if (vw && S._ultTab !== S.tab) { vw.classList.add('entra'); S._ultTab = S.tab; }
+    if (!S._revelado) { const h = app.querySelector('.mhead h1, .hero h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } }
     bind(app);
     renderTop();
   }
@@ -384,7 +390,7 @@
   const enlaceDe = x => { const t = x.t || x.tarea || ''; return x.enlace || (/como input/i.test(x.hint || x.nota || x.ayuda || '') ? 'crear:input' : /correcci/i.test(t) ? 'ver:corr' : /pendientes/i.test(t) && /project/i.test(t) ? 'anotar:pend' : ''); };
   function botonEnlace(enlace, marcas) {
     if (!enlace) return '';
-    if (/^anotar:pend/.test(enlace)) return '<button class="btn" data-pend>📝 Anotar pendientes</button>';   // arma la lista y le llega al project (Bandeja de Project + privado)
+    if (/^anotar:pend/.test(enlace)) return '<button class="btn" data-pend>' + I.pen + ' Anotar pendientes</button>';   // arma la lista y le llega al project (Bandeja de Project + privado)
     if (/^ver:corr/.test(enlace)) return '<button class="btn" data-ver-corr>Ver correcciones</button>';   // lleva a Hoy y abre Correcciones y Tarjetas por vencer
     const m = /^crear:(\w+)/.exec(enlace);
     if (m) return '<button class="btn" data-crear-en="' + esc(m[1]) + '" data-marcas="' + esc((marcas || []).filter(Boolean).join(',')) + '">' + (m[1] === 'input' ? '＋ Cargar como input' : '＋ Tarjeta en ' + esc(NOM_T[m[1]] || m[1])) + '</button>';
@@ -740,18 +746,18 @@
       PZ_PIE_() + '</div><div class="pz-gal">' +
       '<div class="pz-sub"><button class="btn ghost" id="pzsubir">＋ Subir imagen</button><input type="file" id="pzfile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><span id="pzsubq">Se sube a la tarjeta de Trello. PNG, JPG, GIF o WEBP, hasta 9 MB.</span></div>' +
       (adj.length ? '<div class="dw-l">Lo que cargaron</div><div class="pz-adj">' + adj.map((a, i) => {
-        const pie = '<div class="pz-pie"><span>' + (a.video ? '🎬 ' : '') + esc(a.n) + '</span>' + (a.video ? '' : '<button class="pz-ver" data-pz-ver>Ver completa</button>') + '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" title="Abrir el archivo original en otra pestaña">original ↗</a>' + (a.subido && a.id && a.card ? '<button class="pz-borrar" data-pz-borrar="' + esc(a.id) + '" data-card="' + esc(a.card) + '" data-nombre="' + esc(a.n) + '" title="Borrar este archivo de la tarjeta de Trello">Borrar</button>' : '') + '</div>';
+        const pie = '<div class="pz-pie"><span>' + (a.video ? I.reel + ' ' : '') + esc(a.n) + '</span>' + (a.video ? '' : '<button class="pz-ver" data-pz-ver>Ver completa</button>') + '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" title="Abrir el archivo original en otra pestaña">original ↗</a>' + (a.subido && a.id && a.card ? '<button class="pz-borrar" data-pz-borrar="' + esc(a.id) + '" data-card="' + esc(a.card) + '" data-nombre="' + esc(a.n) + '" title="Borrar este archivo de la tarjeta de Trello">Borrar</button>' : '') + '</div>';
         // con el puente de Cloudflare el archivo llega directo (sin login en Trello): video que se reproduce acá, imagen que se agranda al tocar
         if (a.src && a.video) return '<div class="pz-prev grande vid"><video controls playsinline preload="metadata" src="' + esc(a.src) + '"></video>' + pie + '</div>';
         if (a.src && (a.ver || /^image\//.test(a.mime))) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + ' directa"><img src="' + esc(a.src) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'sin\')">' + pie + '</div>';
         // sin puente: la imagen la trae el servidor del panel; lo demás queda como link
         if (a.ver) return '<div class="pz-prev' + (i === 0 ? ' grande' : '') + '" data-att="' + esc(a.id) + '" data-card="' + esc(a.card) + '"><div class="pz-ph">Cargando vista previa…</div>' + pie + '</div>';
-        return '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + (a.video ? '🎬' : I.clip) + '<span>' + esc(a.n) + '</span><em>' + (a.src ? 'ver' : a.subido ? 'abrir en Trello' : 'abrir link') + ' ↗</em></a>';
+        return '<a href="' + esc(a.src || a.u) + '" target="_blank" rel="noopener" class="pz-arch">' + (a.video ? I.reel : I.clip) + '<span>' + esc(a.n) + '</span><em>' + (a.src ? 'ver' : a.subido ? 'abrir en Trello' : 'abrir link') + ' ↗</em></a>';
       }).join('') + '</div>' : '<div class="empty" style="padding:12px 0">La tarjeta no tiene archivos adjuntos.</div>') + '</div></div>';
     function PZ_PIE_() { return (
       '<div id="pzcoms">' + (coms.length ? '<div class="dw-l">Comentarios</div>' + coms.map(x => '<div class="pz-com"><b>' + esc(x.q) + '</b> <small>' + hace(x.f) + '</small><div>' + esc(x.t) + '</div></div>').join('') : '') + '</div>' +
       '<div class="pz-acc"><textarea id="pzcom" rows="3" placeholder="Escribí un comentario o qué hay que corregir…"></textarea>' +
-      '<div class="pz-btns"><button class="btn ghost" id="pzcomb">💬 Comentar</button><button class="btn ghost" id="pzcor">✏️ A corregir</button><button class="btn y" id="pzok">✓ Aprobar</button></div>' +
+      '<div class="pz-btns"><button class="btn ghost" id="pzcomb">' + I.msg + ' Comentar</button><button class="btn ghost" id="pzcor">' + I.pen + ' A corregir</button><button class="btn y" id="pzok">✓ Aprobar</button></div>' +
       '<div class="err" id="pzerr"></div><a class="ayuda" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a></div>'); }
     const b = $('#drawer .dw-b'); if (!b) return;
     b.innerHTML = html;
@@ -898,7 +904,7 @@
       (c.d ? '<p class="dw-p" style="white-space:pre-line">' + escL(c.d) + '</p>' : '') +
       (c.att && c.att.length ? '<div class="att" style="padding:0;margin:10px 0">' + c.att.map(a => '<a href="' + esc(a.u) + '" target="_blank" rel="noopener">' + I.clip + esc(a.n) + '</a>').join('') + '</div>' : '') +
       (['input', 'brainstorming', 'efem', 'corr'].includes(c.cat) || c.tipo === 'project' ? '<div class="ia' + (lec.auto ? ' auto' : '') + '" style="margin:14px 0 0"><div class="t" data-k="' + (lec.auto ? 'Idea rápida' : 'IA') + '">' + esc(lec.titular) + '</div><ol>' + lec.acciones.map(a => '<li><span>' + esc(a.que) + '<span class="f">' + esc(a.formato) + '</span></span></li>').join('') + '</ol></div>' : '') +
-      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a>' + (/foto/i.test(c.n + ' ' + (c.d || '')) && (marca(c.m[0]) || {}).driveFotos ? '<a class="btn" href="' + esc(marca(c.m[0]).driveFotos) + '" target="_blank" rel="noopener">📁 Drive de fotos</a>' : '') + '<button class="btn" data-mover="' + esc(c.id) + '">Mover</button>' + (c.cat === 'input' || c.tipo === 'project' || c.cat === 'efem' || c.cat === 'brainstorming' ? '<button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button>' : '') + btnClaude(c.id) + '</div>');
+      '<div class="dw-acts"><a class="btn" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir en Trello ↗</a>' + (/foto/i.test(c.n + ' ' + (c.d || '')) && (marca(c.m[0]) || {}).driveFotos ? '<a class="btn" href="' + esc(marca(c.m[0]).driveFotos) + '" target="_blank" rel="noopener">' + I.folder + ' Drive de fotos</a>' : '') + '<button class="btn" data-mover="' + esc(c.id) + '">Mover</button>' + (c.cat === 'input' || c.tipo === 'project' || c.cat === 'efem' || c.cat === 'brainstorming' ? '<button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button>' : '') + btnClaude(c.id) + '</div>');
   }
 
   /* ---------------- "Idea rápida": sugerencia automática y gratis según lo que dice la tarjeta (sin IA) ---------------- */
@@ -982,7 +988,7 @@
       (p ? '<div class="nudge"><div class="nq"><b>' + (p === 'nuevo' ? 'Input nuevo.' : p === 'pospuesto' ? 'Te pediste acordarte de esto.' : 'Hace unos días que no lo tocás.') + '</b> ¿Ya lo procesaste?</div>' +
         '<div class="nb"><button class="btn' + (S.todavia === c.id ? '' : ' y') + '" data-inp="procesado" data-id="' + esc(c.id) + '">' + I.check + 'Sí, ya está</button><button class="btn' + (S.todavia === c.id ? ' y' : '') + '" data-todavia="' + esc(c.id) + '">Todavía no</button></div>' +
         (S.todavia === c.id ? '<div class="nb no"><span>Dejalo listo ahora o te lo recuerdo:</span><button class="btn y" data-crear="' + esc(c.id) + '">＋ Crear la tarjeta</button><button class="btn" data-recordar="2h" data-id="' + esc(c.id) + '">⏰ En 2 h</button><button class="btn" data-recordar="manana" data-id="' + esc(c.id) + '">Mañana 9 h</button><button class="btn" data-recordar="lunes" data-id="' + esc(c.id) + '">El lunes</button></div>' : '') + '</div>' : '') +
-      '<div class="ft">' + (/foto/i.test(c.n + ' ' + (c.d || '')) && (marca(c.m[0]) || {}).driveFotos ? '<a class="btn" href="' + esc(marca(c.m[0]).driveFotos) + '" target="_blank" rel="noopener">📁 Drive de fotos</a>' : '') + '<button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
+      '<div class="ft">' + (/foto/i.test(c.n + ' ' + (c.d || '')) && (marca(c.m[0]) || {}).driveFotos ? '<a class="btn" href="' + esc(marca(c.m[0]).driveFotos) + '" target="_blank" rel="noopener">' + I.folder + ' Drive de fotos</a>' : '') + '<button class="btn" data-crear="' + esc(c.id) + '">＋ Crear tarjeta</button><button class="btn" data-mover="' + esc(c.id) + '">Mover</button><button class="btn" data-inp="project" data-id="' + esc(c.id) + '">' + I.msg + 'Hablé con el project</button><button class="btn danger" data-archivar="' + esc(c.id) + '">' + I.archive + 'Ya no lo necesito</button>' + btnClaude(c.id) + '<span class="sp"></span>' + st + '</div></article>';
   }
   /* Inputs en formato compacto: una línea cada uno, 3 acciones rápidas y el detalle completo al tocar el título. */
   function filaInput(c) {
@@ -996,7 +1002,7 @@
         '<button class="btn" data-crear="' + esc(c.id) + '" title="Crear la tarjeta en Trello">＋ Tarjeta</button></div>';
     return '<div class="irow' + (p ? '' : ' visto') + '" id="in-' + esc(c.id) + '"><i class="ibar" style="background:' + color(c.m[0]) + '"></i>' +
       '<div class="ibody"><button class="lnk it" data-det-input="' + esc(c.id) + '">' + esc(c.n) + '</button>' +
-      '<div class="mt"><span class="tag">' + esc(m.nombre) + '</span>' + etiqueta + pri + '<span>' + est + '</span>' + (c.att && c.att.length ? '<span>📎 ' + c.att.length + '</span>' : '') + (c.d ? '<span class="desc">' + esc(c.d.slice(0, 90)) + (c.d.length > 90 ? '…' : '') + '</span>' : '') + '</div></div>' + acciones + '</div>';
+      '<div class="mt"><span class="tag">' + esc(m.nombre) + '</span>' + etiqueta + pri + '<span>' + est + '</span>' + (c.att && c.att.length ? '<span>' + I.clip + ' ' + c.att.length + '</span>' : '') + (c.d ? '<span class="desc">' + esc(c.d.slice(0, 90)) + (c.d.length > 90 ? '…' : '') + '</span>' : '') + '</div></div>' + acciones + '</div>';
   }
   function detalleInput(c) {
     panelLateral(esc(c.n), cardInput(c).replace('<article class="cardx"', '<article class="cardx en-panel"'));
@@ -1139,7 +1145,7 @@
       return '<div class="semana-h m"><b>' + hechos + '<small>/' + total + '</small></b><span>tildados esta semana</span><div class="bar"><i style="width:' + pct + '%"></i></div></div>' +
         '<div class="seg">' + segs.map(x => '<button class="' + (seg === x[0] ? 'on' : '') + '" data-seg="' + x[0] + '">' + x[1] + (x[2] ? '<em>' + x[2] + '</em>' : '') + '</button>').join('') + '</div>' + body;
     }
-    return '<div class="semana-h"><div><div class="kick">— Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
+    return '<div class="semana-h"><div><div class="kick">/ Semana del ' + Number(si.dias[0].slice(8)) + ' al ' + Number(si.dias[4].slice(8)) + ' de ' + MESES[ymdD(si.dias[4]).getMonth()] + '</div><b>' + hechos + '<small>/' + total + '</small></b><span>tildados hasta hoy</span></div><div class="bar" style="flex:1;max-width:360px"><i style="width:' + pct + '%"></i></div></div>' + cuerpo;
   }
   /* Rutinas que no se tildan sin más (pedido de Joaquín, 20/10/2026):
      · activaciones-externas: se responde Sí o No; con Sí se abre directo la carga del input en el SCL de la marca.
@@ -1763,12 +1769,12 @@
     const NAV = [['mio', 'Mi día', I.check, n], ['agenda', 'Agenda', I.cal, nAgp], ['fotos', 'Fotos', I.cam, fotosPend()], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar], ['registro', 'Registro', I.inbox, 0]];
     const seg = S.movil ? '' : '<div class="seg proj-seg">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<em>' + x[3] + '</em>' : '') + '</button>').join('') + '</div>';
     const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
-    if (tab === 'anual') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Calendario <em>· anual</em></h1><p>Las fechas del calendario anual de cada marca, mes por mes desde hoy.</p></div></section>' + seg + '<div class="view">' + vAnual() + '</div>' + bnav;
-    if (tab === 'fotos') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Fotografía <em>· por marca</em></h1><p>Cuándo fue la última producción de fotos de cada marca y cuándo toca la próxima.</p></div></section>' + seg + '<div class="view">' + vFotos() + '</div>' + bnav;
-    if (tab === 'agenda') return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Agenda <em>· privada</em></h1><p>Reuniones del calendario ideamia.contacto. Solo vos e Ivo.</p></div></section>' + seg + '<div class="view">' + vAgendaPriv() + '</div>' + bnav;
+    if (tab === 'anual') return '<section class="hero"><div><div class="kick">/ Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Calendario <em>· anual</em></h1><p>Las fechas del calendario anual de cada marca, mes por mes desde hoy.</p></div></section>' + seg + '<div class="view">' + vAnual() + '</div>' + bnav;
+    if (tab === 'fotos') return '<section class="hero"><div><div class="kick">/ Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Fotografía <em>· por marca</em></h1><p>Cuándo fue la última producción de fotos de cada marca y cuándo toca la próxima.</p></div></section>' + seg + '<div class="view">' + vFotos() + '</div>' + bnav;
+    if (tab === 'agenda') return '<section class="hero"><div><div class="kick">/ Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Agenda <em>· privada</em></h1><p>Reuniones del calendario ideamia.contacto. Solo vos e Ivo.</p></div></section>' + seg + '<div class="view">' + vAgendaPriv() + '</div>' + bnav;
     if (tab === 'equipo' || tab === 'registro') return vistaEquipo(tab === 'registro').replace('</section>', '</section>' + seg) + bnav;
     const resumen = !D ? 'Tu tablero Project de Trello, en un vistazo.' : n ? 'Tenés <b>' + D.bandeja.length + '</b> en Bandeja para procesar y <b>' + D.hoy.length + '</b> que ' + (D.hoy.length === 1 ? 'vence' : 'vencen') + ' hoy o ya ' + (D.hoy.length === 1 ? 'venció' : 'vencieron') + '.' : 'Bandeja vacía y nada vence hoy. Bien ahí.';
-    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Mi día <em>· Project</em></h1><p>' + resumen + '</p></div></section>' + seg + '<div class="view">' + vistaMio() + '</div>' + bnav;
+    return '<section class="hero"><div><div class="kick">/ Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>Mi día <em>· Project</em></h1><p>' + resumen + '</p></div></section>' + seg + '<div class="view">' + vistaMio() + '</div>' + bnav;
   }
   /* ---------------- MI SEMANA (filmmaker) ----------------
      Qué tiene que filmar y editar por marca (esta semana y la que viene), a qué marcas le toca ir,
@@ -1796,7 +1802,7 @@
   /* ---------------- Producciones del filmmaker (pedido de Joaquín, 21/10/2026) ----------------
      Qué va a grabar, cuándo, en qué marca y con quién. En los reels, un checklist (actores, guion, qué llevar) y en las marcas con
      recetas, avisarle a la encargada una semana antes qué insumos preparar. Joaquín lo ve en Más → Producciones. */
-  const PROD_ICO = { reel: '🎬', historias: '📱', fotos: '📷', presencial: '📍', otro: '•' };
+  const PROD_ICO = { reel: I.reel, historias: I.story, fotos: I.cam, presencial: I.pin, otro: '' };
   const DSEM_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   const fProd = s => DSEM_C[new Date(s + 'T12:00:00').getDay()] + ' ' + (+s.slice(8)) + '/' + (+s.slice(5, 7));
   function prodFalta(x, P) {
@@ -1871,7 +1877,7 @@
   function prodPublicados() {
     const P = (S.data.film || {}).prod; if (!P || !P.publicados || !P.publicados.length || $('.modal')) return;
     const r = P.publicados[0];
-    const m = modal('<h3>🎬 Se publicó un reel tuyo</h3><p><b>' + esc(r.n) + '</b><br>' + tagM(r.marca) + ' <span class="fl-dim">publicado el ' + fProd(r.fecha) + '</span></p><p>¿Querés anotarlo en tu lista de reels?' + (P.lista ? ' Al abrirla te copio el renglón (fecha, marca, nombre y link) para que lo pegues.' : ' (Pedile a Joaquín que cargue el link de tu lista en el panel.)') + '</p>' +
+    const m = modal('<h3>Se publicó un reel tuyo</h3><p><b>' + esc(r.n) + '</b><br>' + tagM(r.marca) + ' <span class="fl-dim">publicado el ' + fProd(r.fecha) + '</span></p><p>¿Querés anotarlo en tu lista de reels?' + (P.lista ? ' Al abrirla te copio el renglón (fecha, marca, nombre y link) para que lo pegues.' : ' (Pedile a Joaquín que cargue el link de tu lista en el panel.)') + '</p>' +
       '<div class="err"></div><div class="acts"><button class="btn ghost" data-prno>No es mío</button><button class="btn ghost" data-x>Después</button>' + (P.lista ? '<button class="btn" data-pabrir>Abrir mi lista</button>' : '') + '<button class="btn y" data-ok>Ya lo anoté</button></div>', async () => {
       const j = await post({ action: 'produccion', accion: 'reel', card: r.id, v: 'anotado' }); if (j.prod) S.data.film.prod = j.prod; else P.publicados.shift(); toast('✓ Anotado'); setTimeout(prodPublicados, 600);
     });
@@ -2044,7 +2050,7 @@
     const P = S.proj, f = S.filtroReg;
     const nm = c => { const p = P.personas.find(x => x.clave === c); return p ? p.nombre : c; };
     const ms = s => { const m = P.marcas.find(x => x.slug === s); return m ? m.nombre : s; };
-    return '<section class="hero"><div><div class="kick">— Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>' + (soloRegistro ? 'Registro <em>· movimientos</em>' : 'Equipo <em>· al día</em>') + '</h1><p>' + (soloRegistro ? 'Lo último que tildó o cargó cada uno. Queda también en la pestaña <b>Registro</b> del Sheet.' : 'Qué tildó cada uno, qué reuniones coordinó y qué inputs siguen sin tocar. Tocá un nombre para ver el detalle.') + '</p></div></section>' +
+    return '<section class="hero"><div><div class="kick">/ Vista Project · ' + DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()] + '</div><h1>' + (soloRegistro ? 'Registro <em>· movimientos</em>' : 'Equipo <em>· al día</em>') + '</h1><p>' + (soloRegistro ? 'Lo último que tildó o cargó cada uno. Queda también en la pestaña <b>Registro</b> del Sheet.' : 'Qué tildó cada uno, qué reuniones coordinó y qué inputs siguen sin tocar. Tocá un nombre para ver el detalle.') + '</p></div></section>' +
       '<div class="view">' + (soloRegistro ? '' : '<div class="ppl">' + P.personas.map(p => {
         const pct = p.rutinas.total ? Math.round(p.rutinas.hechas / p.rutinas.total * 100) : 0;
         const ag = p.reuniones.filter(r => r.estado), sin = p.reuniones.filter(r => !r.estado);
@@ -2208,7 +2214,7 @@
   const MD_BOTONES = [
     ['h', 'Título', '<b>T</b>'], ['b', 'Negrita (Ctrl+B)', '<b>B</b>'], ['i', 'Itálica (Ctrl+I)', '<i>I</i>'], ['s', 'Tachado', '<s>S</s>'],
     ['c', 'Código, como `Historia 1`', '&lt;/&gt;'], ['hist', 'Siguiente historia (`Historia N`)', 'Historia'], ['ul', 'Lista', '•'], ['ol', 'Lista numerada', '1.'],
-    ['q', 'Cita', '❝'], ['hr', 'Separador', '—'], ['a', 'Link', '🔗']
+    ['q', 'Cita', '❝'], ['hr', 'Separador', '—'], ['a', 'Link', I.link]
   ];
   const mdEditor = (id, valor, filas) => '<div class="mde" data-mde="' + id + '"><div class="mde-bar">' + MD_BOTONES.map(([k, t, i]) => '<button type="button" data-md="' + k + '" title="' + esc(t) + '">' + i + '</button>').join('') +
     '<span class="mde-esp"></span><button type="button" data-md="ver" class="mde-ver">Vista previa</button></div><textarea id="' + id + '" rows="' + (filas || 5) + '">' + esc(valor || '') + '</textarea><div class="mde-prev" hidden></div></div>';
@@ -2490,7 +2496,7 @@
     if (!equipo) { try { const j = await get({ action: 'equipo' }); equipo = j.equipo || []; } catch (e) { equipo = []; } }
     let elegido = S.persona;
     const esProj = c => /project/i.test((equipo.find(x => x.clave === c) || {}).rol || '');
-    app.innerHTML = '<div class="gate"><div class="kick">— Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1>' +
+    app.innerHTML = '<div class="gate"><div class="kick">/ Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1>' +
       '<div class="ppl2">' + equipo.map(p => '<button data-p="' + esc(p.clave) + '" class="' + (p.clave === elegido ? 'on' : '') + '"><span>' + esc(p.nombre) + '</span><small>' + esc(p.rol) + '</small></button>').join('') + '</div>' +
       (DEMO ? '' : '<form id="gf" class="' + (elegido ? '' : 'hidden') + '"><label class="field"><span id="gl"></span><input type="password" id="gk" autocomplete="current-password"></label><label class="check vercl"><input type="checkbox" id="gver"> Mostrar contraseña</label><button class="btn y" style="width:100%;justify-content:center;padding:12px">Entrar</button></form>') +
       '<div class="err">' + esc(msg || '') + '</div></div>';
