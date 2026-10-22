@@ -288,7 +288,7 @@
     if (!S._revelado) { const h = app.querySelector('.mhead h1, .hero h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } }
     bind(app);
     if (S.tab === 'mas') cajasEnPestanas($('#view'), 'mas');
-    if (S.tab === 'guiones') carpetasEnPestanas($('#view'), S.tab);
+    if (S.tab === 'guiones' || S.tab === 'fgui') carpetasEnPestanas($('#view'), S.tab);
     if (S.tab === 'semana' && !S.movil) seccionesEnPestanas($('#view'), 'semana');
     if (S.tab === 'reuniones' || S.tab === 'equipo') seccionesEnPestanas($('#view'), S.tab);
     renderTop();
@@ -2880,6 +2880,8 @@
     if (esRevisa()) setTimeout(() => revisionViva(true), 50);
     try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(j)); } catch (e) {}
   }
+  // la primera vez (sin nada guardado) se ve la forma del panel con un brillo que pasa, en vez de un texto de "cargando"
+  const esqueleto = () => '<div class="sk" aria-label="Cargando tu panel"><i class="sk-k"></i><i class="sk-h"></i><i class="sk-p"></i><div class="sk-g">' + '<i></i>'.repeat(4) + '</div>' + '<i class="sk-r"></i>'.repeat(4) + '</div>';
   // Lo último que se cargó en este navegador: se muestra al instante mientras llega lo nuevo.
   function cacheLocal(clave) { try { return JSON.parse(localStorage.getItem('pi:cache:' + clave) || 'null'); } catch (e) { return null; } }
 
@@ -2895,7 +2897,7 @@
       // se ve al instante lo último guardado; arriba avisa que está trayendo lo nuevo
       if (ck === '__project') S.proj = previo; else S.data = previo;
       render(); S.sync = true; renderTop();
-    } else $('#app').innerHTML = '<div class="loading"><b>Cargando</b>Trayendo tus tarjetas, reuniones y calendario…</div>';
+    } else $('#app').innerHTML = esqueleto();
     try {
       if (ck === '__project') {
         if (DEMO) S.proj = JSON.parse(JSON.stringify(window.PANEL_DEMO_PROJECT));

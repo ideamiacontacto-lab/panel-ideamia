@@ -1997,3 +1997,14 @@ html.con-modal,html.con-modal body{overflow:hidden}
   .hoy-g .gtab em{justify-self:start;font-size:8.5px;margin:0}
   .hoysem{max-width:none}
 }
+/* ---------- carga: esqueleto con brillo (se percibe más rápido que un "Cargando…") ---------- */
+.sk{padding:22px 0;display:grid;gap:12px}
+.sk i{display:block;border-radius:var(--r);background:linear-gradient(90deg,var(--s1) 0%,var(--s3) 50%,var(--s1) 100%);background-size:200% 100%;animation:skBrillo 1.3s linear infinite}
+.sk-k{width:180px;height:12px}.sk-h{width:min(420px,70%);height:64px}.sk-p{width:220px;height:14px}
+.sk-g{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:10px 0}.sk-g i{height:84px;border-radius:0}
+.sk-r{height:58px}
+@keyframes skBrillo{from{background-position:200% 0}to{background-position:-200% 0}}
+/* ---------- tacto: todo botón responde al tocarlo ---------- */
+button:not(:disabled):active,.btn:active,a.btn:active{transform:scale(.97)}
+.gtab:active,.mt-t:active,.mio-r:active{transform:scale(.985)}
+button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
