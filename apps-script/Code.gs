@@ -1634,30 +1634,48 @@ function probarResumenesCMyRevision() {
   const ej = (snap.cards || []).filter(c => c.tipo === 'cm' && /programar/i.test(c.lista)).slice(0, 3).map(c => String(c.n).slice(0, 60));
   console.log('Ejemplos de nombres de tarjetas de CM: ' + ej.join(' | '));
 }
-/* Ale (CM), a la mañana (pedido de Joaquín, 22/10/2026; antes el CM solo tenía avisos de canal): por marca, lo que tiene que programar en
-   los próximos 3 días, lo no programable que sale hoy o mañana (va a mano) y lo que quedó trabado en Filtro. Sale por el bot "Ideamia CM". */
-function cmRecordatorios_(snap, cat, cfg, ahora) {
-  const hoyS = ymd_(ahora), man = ymd_(new Date(ahora.getTime() + 864e5)), en3 = ymd_(new Date(ahora.getTime() + 3 * 864e5)), porCM = {};
-  const DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], f = s => (s === hoyS ? 'hoy' : s === man ? 'mañana' : DS[new Date(s + 'T12:00:00').getDay()] + ' ' + s.slice(8) + '/' + s.slice(5, 7));
-  // las tarjetas del CM son espejos (el nombre es el link a la tarjeta del SCL): la fecha y el nombre salen de la original
+/* Ale (CM), a la mañana (pedido de Joaquín, 22/10/2026). Lo programable ya lo deja programado, así que el resumen es corto y solo de HOY:
+   "Hoy publicás a mano: Tritato 3 historias y 1 carrusel · Isco 1 historia" (chat Pendientes). Si algo de hoy o de antes sigue en
+   "Listo para programar" o en Filtro, va aparte al chat Urgentes. Las tarjetas del CM son espejos: fecha y nombre salen de la del SCL. */
+const cmReal_ = snap => {
   const porLink = {}; (snap.cards || []).filter(c => c.tipo === 'scl').forEach(c => porLink[String(c.url).split('/c/')[1]] = c);
-  const real = c => { const mm = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), o = mm && porLink[mm[1]]; return { id: c.id, n: o ? o.n : c.n, due: c.due || (o && o.due) || null, lista: c.lista, url: c.url, m: c.m, tipo: c.tipo }; };
-  const linea = c => { const d = ymd_(new Date(c.due)); return '• ' + (d < hoyS ? '⚠️ ' : '') + f(d) + ' · ' + String(c.n).slice(0, 80) + ' · ' + c.url; };
+  return c => { const mm = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n), o = mm && porLink[mm[1]]; return { id: c.id, n: o ? o.n : c.n, due: c.due || (o && o.due) || null, lista: c.lista, url: c.url, m: c.m, lab: (c.lab || []).concat(o ? o.lab || [] : []) }; };
+};
+const cmFormato_ = c => { const t = norm_((c.lab || []).join(' ') + ' ' + c.n); return /histori/.test(t) ? 'historia' : /carrusel/.test(t) ? 'carrusel' : /\breels?\b|video/.test(t) ? 'reel' : 'publicación'; };
+const cmContar_ = L => { const n = {}, pl = { historia: 'historias', carrusel: 'carruseles', reel: 'reels', 'publicación': 'publicaciones' }; L.forEach(c => { const f = cmFormato_(c); n[f] = (n[f] || 0) + 1; });
+  const p = ['historia', 'carrusel', 'reel', 'publicación'].filter(f => n[f]).map(f => n[f] + ' ' + (n[f] === 1 ? f : pl[f])); return p.length > 1 ? p.slice(0, -1).join(', ') + ' y ' + p.slice(-1) : p[0]; };
+function cmRecordatorios_(snap, cat, cfg, ahora) {
+  const hoyS = ymd_(ahora), real = cmReal_(snap), porCM = {};
+  const hora = c => Utilities.formatDate(new Date(c.due), TZ, 'HH:mm');
   cat.marcas.filter(m => m.cm).forEach(m => {
-    const cs = (snap.cards || []).filter(c => c.tipo === 'cm' && c.m[0] === m.slug).map(real).filter(c => c.due), d = c => ymd_(new Date(c.due)), by = (a, b) => String(a.due).localeCompare(String(b.due));
-    const prog = cs.filter(c => /listo para programar/.test(norm_(c.lista)) && d(c) <= en3).sort(by);
-    const mano = cs.filter(c => /no programable/.test(norm_(c.lista)) && d(c) <= man).sort(by);
-    const filtro = cs.filter(c => /^filtro/.test(norm_(c.lista)) && d(c) <= en3).sort(by);
-    // lo que hay que programar → chat Pendientes; lo que se publica a mano hoy o mañana y lo trabado en Filtro → Urgentes
-    const P_ = porCM[m.cm] = porCM[m.cm] || { p: [], u: [] };
-    if (prog.length) P_.p.push((P_.p.length ? '\n' : '') + '**' + m.nombre + '** · para programar:', ...prog.map(linea));
-    if (mano.length) P_.u.push((P_.u.length ? '\n' : '') + '**' + m.nombre + '** · no programable (se publica a mano):', ...mano.map(linea));
-    if (filtro.length) P_.u.push((P_.u.length ? '\n' : '') + '**' + m.nombre + '** · quedó en Filtro (revisalo):', ...filtro.map(linea));
+    const cs = (snap.cards || []).filter(c => c.tipo === 'cm' && c.m[0] === m.slug).map(real).filter(c => c.due), d = c => ymd_(new Date(c.due));
+    const mano = cs.filter(c => /no programable|programacion del dia|programacion de hoy/.test(norm_(c.lista)) && d(c) === hoyS);
+    const sinProg = cs.filter(c => /listo para programar|^filtro/.test(norm_(c.lista)) && d(c) <= hoyS);
+    const P_ = porCM[m.cm] = porCM[m.cm] || { hoy: [], urg: [] };
+    if (mano.length) P_.hoy.push('• **' + m.nombre + '**: ' + cmContar_(mano));
+    sinProg.sort((a, b) => String(a.due).localeCompare(String(b.due))).forEach(c => P_.urg.push('• **' + m.nombre + '** · ' + String(c.n).slice(0, 70) + ' · ' + (d(c) < hoyS ? 'era del ' + d(c).slice(8) + '/' + d(c).slice(5, 7) : 'sale hoy ' + hora(c)) + ' · sigue en "' + c.lista + '" · ' + c.url));
   });
   const out = [];
   Object.keys(porCM).forEach(k => { const id = idDiscord_(cfg, k); if (!id) return;
-    if (porCM[k].p.length) out.push({ clave: k, id: id, bot: 'diseno', textos: trozos_('Hola ' + nombreDe_(k) + '. Lo que tenés para programar estos días:', porCM[k].p) });
-    if (porCM[k].u.length) out.push({ clave: k, id: id, bot: 'urgentes', textos: trozos_('Hola ' + nombreDe_(k) + '. Esto no puede esperar:', porCM[k].u) }); });
+    if (porCM[k].hoy.length) out.push({ clave: k, id: id, bot: 'diseno', textos: trozos_('Buen día ' + nombreDe_(k) + '. Hoy publicás a mano (no programable):', porCM[k].hoy.concat(['Lo demás ya quedó programado.'])) });
+    if (porCM[k].urg.length) out.push({ clave: k, id: id, bot: 'urgentes', textos: trozos_('Hola ' + nombreDe_(k) + '. Esto sale hoy (o ya tenía que salir) y todavía no está programado:', porCM[k].urg) }); });
+  return out;
+}
+/* Pedidos de último momento en el CM (pedido de Joaquín, 22/10/2026): si entra una tarjeta nueva a un tablero de CM que sale en las
+   próximas 3 horas, o que ya tendría que haber salido, se le avisa a quien lleva el CM en el momento (chat Urgentes) para que pregunte.
+   Se revisa en cada lectura (cada 10 min). La primera vez solo anota lo que ya había. Propiedad CM_VISTAS (ids cortos de las tarjetas de CM). */
+function cmRapidos_(snap, cat, cfg, dry) {
+  const real = cmReal_(snap), corto = id => String(id).slice(-10), prop = P.getProperty('CM_VISTAS'), vistas = {};
+  (prop || '').split(',').forEach(x => { if (x) vistas[x] = 1; });
+  const cms = (snap.cards || []).filter(c => c.tipo === 'cm' && !/publicad|programado$/.test(norm_(c.lista)));
+  const out = [], ahora = Date.now(), DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  if (prop != null) cms.filter(c => !vistas[corto(c.id)]).map(real).forEach(c => {
+    if (!c.due) return; const t = new Date(c.due).getTime(), m = cat.marcas.filter(x => x.slug === c.m[0])[0]; if (!m || !m.cm || t > ahora + 3 * 36e5) return;
+    const id = idDiscord_(cfg, m.cm); if (!id) return;
+    const cuando = Utilities.formatDate(new Date(c.due), TZ, 'dd/MM HH:mm'), min = Math.round((t - ahora) / 6e4);
+    out.push({ clave: m.cm, id: id, bot: 'urgentes', textos: ['⚡ Entró a **CM ' + m.nombre + '** "' + String(c.n).slice(0, 80) + '" y ' + (min < 0 ? '**ya tenía que salir** (' + cuando + '). Preguntá si se publica igual o si cambia la fecha.' : 'sale **' + (min < 60 ? 'en ' + min + ' minutos' : 'hoy a las ' + cuando.slice(6)) + '**. Fijate si llegás o preguntá.') + '\n' + c.url] });
+  });
+  if (!dry) P.setProperty('CM_VISTAS', cms.map(c => corto(c.id)).join(',').slice(0, 8800));
   return out;
 }
 /* Ivo (dirección), a la mañana: qué tiene para revisar (diseños y videos en revisión, cuánto hace que esperan), pedidos extra que vencen
@@ -1874,6 +1892,8 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     });
     L.forEach(c => sinAvisar[c.id] = k);
   });
+  // 2b) CM: tarjeta nueva que sale en menos de 3 horas o que ya tenía que salir → aviso en el momento (chat Urgentes)
+  try { cmRapidos_(snap, cat, cfg, dry).forEach(m => para(m.clave, m.id, m.textos, m.bot)); } catch (e) { notas.push('CM rápidos · ' + String(e.message || e).slice(0, 120)); }
   // 3) diarios: diseñadoras (lo mismo que arma Avisos.gs para el canal) y filmmaker
   const filmInfo = { pendientes: [], ya: {}, nuevos: {} }; FILM_MOTIVOS.forEach(k => { filmInfo.ya[k] = {}; filmInfo.nuevos[k] = {}; });
   if (o.diarios) {
