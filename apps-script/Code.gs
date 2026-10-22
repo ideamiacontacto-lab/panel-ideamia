@@ -1157,6 +1157,17 @@ function reportesEnviados_() {
   return env;
 }
 
+/* Diagnóstico (solo lectura): cómo quedaron guardados los reportes periódicos y mensuales de una marca y qué le sigue pidiendo el panel a su social media. */
+function diagnosticoReportes() {
+  const slug = 'tritato', txt = repCsvTexto_(), rows = Utilities.parseCsv(txt), h = rows[0], ix = k => h.indexOf(k);
+  rows.slice(1).filter(r => r[ix('marca_slug')] === slug && /periodico|mensual|baja/.test(r[ix('tipo')])).forEach(r => console.log(r[ix('tipo')] + ' · periodo_id="' + r[ix('periodo_id')] + '" · enviado ' + r[ix('enviado_en')] + (r[ix('tipo')] === 'baja' ? ' · ' + String(r[ix('datos_json')]).slice(0, 120) : '')));
+  CacheService.getScriptCache().remove('repenv');
+  const env = reportesEnviados_();
+  console.log('claves guardadas de ' + slug + ': ' + Object.keys(env).filter(k => k.indexOf('|' + slug + '|') >= 0 && !/^(sm|cm)\|/.test(k)).join(' , '));
+  const m = reportesConfig_().marcas.filter(x => x.slug === slug)[0];
+  console.log('social media de ' + slug + ': ' + (m && m.sm) + ' · le pide: ' + JSON.stringify(tareasReportes_(m.sm, 'SM').filter(t => t.marca === slug).map(t => t.k)));
+}
+
 /* Qué reporte se entrega a fin de año (lo pide el panel en enero): por defecto el ANUAL (12 meses). Las marcas que manejamos desde
    mitad de año entregan el semestral (julio a diciembre) y las que arrancaron en octubre, el trimestral (octubre a diciembre).
    Dato de Joaquín, 17/10/2026. Config REPORTE_FIN_ANIO_<SLUG> (3, 6 o 12) pisa este número. */
@@ -1166,6 +1177,24 @@ function repFinAnio_(slug) {
   return [3, 6, 12].indexOf(c) >= 0 ? c : (REP_FIN_ANIO[slug] || 12);
 }
 const REP_FIN_NOMBRE = { 12: 'anual', 6: 'semestral', 3: 'trimestral' };
+/* Trimestres corridos (22/10/2026, dato de Joaquín): Tritato va junio a agosto, septiembre a noviembre, diciembre a febrero y marzo a mayo.
+   El número es el mes en que arranca su ciclo. Para estas marcas no corren el trimestre calendario ni el reporte de fin de año. */
+const REP_TRIM_INICIO = { 'tritato': 6 };
+/* Período que cerró el mes anterior a "fecha" (trimestral, o el de fin de año en enero), o null si ese mes no cierra ninguno para la marca. */
+function periodoQueCerro_(slug, fecha) {
+  const off = REP_TRIM_INICIO[slug];
+  if (off) {
+    const fin0 = (fecha.getMonth() + 11) % 12;   // el mes que terminó (0 a 11)
+    if ((((fin0 - (off - 1)) % 3) + 3) % 3 !== 2) return null;
+    const ini = new Date(fecha.getFullYear(), fecha.getMonth() - 3, 1);
+    return { id: ym_(ini) + '+3', ini: ini, n: 3, nombre: 'trimestral', anual: false };
+  }
+  if ([0, 3, 6, 9].indexOf(fecha.getMonth()) < 0) return null;
+  // a fin de año se entrega UN solo reporte del período que cierra en diciembre: anual, salvo las marcas de REP_FIN_ANIO (semestral o trimestral)
+  const anual = fecha.getMonth() === 0, nF = anual ? repFinAnio_(slug) : 3;
+  const ini = anual ? new Date(fecha.getFullYear() - 1, 12 - nF, 1) : new Date(fecha.getFullYear(), fecha.getMonth() - 3, 1);
+  return { id: ym_(ini) + '+' + nF, ini: ini, n: nF, nombre: anual ? REP_FIN_NOMBRE[nF] : 'trimestral', anual: anual };
+}
 /* Reportes que le faltan a una persona (o que vencen pronto). */
 function tareasReportes_(clave, rol) {
   const cfg = reportesConfig_(), env = reportesEnviados_();
@@ -1195,11 +1224,10 @@ function tareasReportes_(clave, rol) {
     if (idM >= cfg.mensualDesde && idM >= desde.slice(0, 7) && !env['mensual|' + m.slug + '|' + idM]) {
       out.push({ k: 'rep:mensual:' + m.slug + ':' + idM, tipo: 'mensual', marca: m.slug, periodo: idM, label: 'Reporte mensual · ' + MESES_ES[mesAnt.getMonth()], vence: new Date(ahora.getFullYear(), ahora.getMonth(), cfg.mesDia, cfg.hora).toISOString(), resp: m.sm });
     }
-    if ([0, 3, 6, 9].indexOf(ahora.getMonth()) >= 0) {
-      // a fin de año se entrega UN solo reporte del período que cierra en diciembre: anual, salvo las marcas de REP_FIN_ANIO (semestral o trimestral)
-      const anual = ahora.getMonth() === 0, nF = anual ? repFinAnio_(m.slug) : 3;
-      const ini = anual ? new Date(ahora.getFullYear() - 1, 12 - nF, 1) : new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1), idT = ym_(ini) + '+' + nF;
-      const finP = ym_(new Date(ini.getFullYear(), ini.getMonth() + (anual ? nF : 3) - 1, 1));
+    const pc = periodoQueCerro_(m.slug, ahora);
+    if (pc) {
+      const ini = pc.ini, nF = pc.n, idT = pc.id, anual = pc.anual;
+      const finP = ym_(new Date(ini.getFullYear(), ini.getMonth() + nF - 1, 1));
       if (finP >= cfg.periodicoDesde && finP >= desde.slice(0, 7) && !env['periodico|' + m.slug + '|' + idT]) {
         out.push({ k: 'rep:periodico:' + m.slug + ':' + idT, tipo: 'periodico', marca: m.slug, periodo: idT, label: anual ? 'Reporte ' + REP_FIN_NOMBRE[nF] + ' · ' + (nF === 12 ? ini.getFullYear() : MESES_ES[ini.getMonth()].slice(0, 3) + ' a dic ' + ini.getFullYear()) : 'Reporte trimestral · ' + MESES_ES[ini.getMonth()].slice(0, 3) + ' a ' + MESES_ES[(ahora.getMonth() + 11) % 12].slice(0, 3), vence: new Date(ahora.getFullYear(), ahora.getMonth(), 10, cfg.hora).toISOString(), resp: m.sm });
       }
@@ -4056,7 +4084,8 @@ function planVista_(quien, esProject, mes) {
       }
       const ant = new Date(ini.getFullYear(), ini.getMonth() - 1, 1), idM = ym_(ant);
       if (idM >= (rcfg.mensualDesde || '')) reps.push({ tipo: 'mensual', per: idM, vence: new Date(ini.getFullYear(), ini.getMonth(), rcfg.mesDia || 5, rcfg.hora || 12).toISOString(), env: rep['mensual|' + rs + '|' + idM] || null });
-      if ([0, 3, 6, 9].indexOf(ini.getMonth()) >= 0) { const an = ini.getMonth() === 0, nF = an ? repFinAnio_(rs) : 3, t0 = an ? new Date(ini.getFullYear() - 1, 12 - nF, 1) : new Date(ini.getFullYear(), ini.getMonth() - 3, 1), idT = ym_(t0) + '+' + nF; reps.push({ tipo: an ? REP_FIN_NOMBRE[nF] : 'trimestral', per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), 10, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
+      const pcM = periodoQueCerro_(rs, ini);
+      if (pcM) { const idT = pcM.id; reps.push({ tipo: pcM.nombre, per: idT, vence: new Date(ini.getFullYear(), ini.getMonth(), 10, rcfg.hora || 12).toISOString(), env: rep['periodico|' + rs + '|' + idT] || null }); }
       // marcas que arrancaron más tarde (ej. Vice desde el 12/10): no se cuentan los reportes de antes
       const desdeM = REP_DESDE_MARCA[rs] || ''; for (let i = reps.length - 1; i >= 0; i--) if (desdeM && (reps[i].tipo === 'semanal' ? reps[i].per < desdeM : reps[i].per.slice(0, 7) < desdeM.slice(0, 7))) reps.splice(i, 1);
       reps.forEach(r => r.estado = r.env ? (r.env <= r.vence ? 'a tiempo' : 'tarde') : (r.vence < new Date().toISOString() ? 'falta' : 'proximo'));
