@@ -1202,6 +1202,33 @@ function equipo_() {
   return eq;
 }
 
+/* ---------------- perfil de cada persona (22/10/2026): apodo, color de fondo y foto ----------------
+   Lo elige cada uno desde su panel y lo ve solo él (viaja con sus datos). Vive en un JSON de Drive; la foto llega achicada (~10 KB). */
+const PERFIL_ARCH = ['PERFIL_FILE_ID', 'panel-ideamia-perfiles.json'];
+const PERFIL_FONDOS = ['negro', 'grafito', 'noche', 'bosque', 'vino', 'violeta', 'tierra'];
+function perfiles_() {
+  const c = CacheService.getScriptCache(), v = c.get('perfiles');
+  if (v) try { return JSON.parse(v); } catch (e) {}
+  const g = leerJson_(PERFIL_ARCH[0], PERFIL_ARCH[1]);
+  try { c.put('perfiles', JSON.stringify(g), 21600); } catch (e) {}
+  return g;
+}
+function perfil_(clave) { try { return perfiles_()[clave] || null; } catch (e) { return null; } }
+function perfilGuardar_(b, clave) {
+  const g = leerJson_(PERFIL_ARCH[0], PERFIL_ARCH[1]), p = g[clave] || {};
+  if (b.apodo != null) p.apodo = String(b.apodo).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+  if (b.fondo != null) p.fondo = PERFIL_FONDOS.indexOf(String(b.fondo)) >= 0 ? String(b.fondo) : 'negro';
+  if (b.foto != null) {
+    const f = String(b.foto);
+    if (f && (!/^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+\/=]+$/.test(f) || f.length > 40000)) return { error: 'foto', mensaje: 'La foto no se pudo guardar (muy pesada o en un formato raro). Probá con otra.' };
+    p.foto = f;
+  }
+  p.visto = true; p.cambio = new Date().toISOString();
+  g[clave] = p; guardarJson_(PERFIL_ARCH[0], PERFIL_ARCH[1], g);
+  try { CacheService.getScriptCache().put('perfiles', JSON.stringify(g), 21600); } catch (e) { try { CacheService.getScriptCache().remove('perfiles'); } catch (x) {} }
+  return { ok: true, perfil: p };
+}
+
 /* Vista del project: qué hizo y qué coordinó cada persona. */
 function vistaProject_() {
   const eq = equipo_(), hoy = hoyAR_(), est = estados_();
@@ -3111,6 +3138,7 @@ function agendaPrivada_() {
   return { ok: true, leido: new Date().toISOString(), calendario: P0.id, equipoOk: equipoOk, eventos: out, meet: typeof Calendar !== 'undefined', invitables: inv };
 }
 function agendarPrivada_(b) {
+  try { CacheService.getScriptCache().remove('agp'); } catch (e) {}   // la agenda guardada 3 minutos deja de valer
   const titulo = String(b.titulo || '').trim().slice(0, 200);
   if (!titulo) return { error: 'datos', mensaje: 'Falta el título de la reunión' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(b.fecha || '') || !/^\d{2}:\d{2}$/.test(b.hora || '')) return { error: 'datos', mensaje: 'Falta la fecha o la hora' };
@@ -3139,6 +3167,7 @@ function agendarPrivada_(b) {
 /* Cambiar los invitados de una reunión que ya existe en el calendario privado (agregar o sacar). b.invitados = la lista completa que tiene que quedar.
    Solo en reuniones creadas por ideamia.contacto (en las que lo invitó otro, Google no deja tocar los invitados). Si la reunión se repite, vale para todas las fechas. */
 function invitadosPrivada_(b) {
+  try { CacheService.getScriptCache().remove('agp'); } catch (e) {}   // la agenda guardada 3 minutos deja de valer
   const uid = String(b.uid || '');
   if (!uid) return { error: 'datos', mensaje: 'Falta la reunión' };
   const mails = (Array.isArray(b.invitados) ? b.invitados : []).map(x => String(x).trim().toLowerCase()).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i);
@@ -5424,7 +5453,9 @@ function doGet(e) {
     if (q.action === 'agenda') { // calendario privado de ideamia.contacto: solo con la clave del project
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
       if (!/project|direcc|creativ/i.test(((catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0]) || {}).rol || '')) return json_({ error: 'permiso', mensaje: 'La agenda privada es solo para el project y dirección' }, q.cb);
-      try { return json_(agendaPrivada_(), q.cb); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo leer el calendario: ' + String(e.message || e).slice(0, 200) }, q.cb); }
+      // se guarda 3 minutos para que la pestaña abra al toque; "Volver a leer" (fresco=1) lo lee de nuevo
+      const ca = CacheService.getScriptCache(); if (q.fresco !== '1') { const v = ca.get('agp'); if (v) return ContentService.createTextOutput(q.cb ? q.cb + '(' + v + ')' : v).setMimeType(q.cb ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON); }
+      try { const a = agendaPrivada_(); try { ca.put('agp', JSON.stringify(a), 180); } catch (x) {} return json_(a, q.cb); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo leer el calendario: ' + String(e.message || e).slice(0, 200) }, q.cb); }
     }
     if (q.action === 'okr') { // objetivos por marca: solo la social media de cada marca (sus marcas) y el project (todas, con su clave)
       const yo = catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
@@ -5456,10 +5487,12 @@ function doGet(e) {
     }
     if (q.action === 'project') {
       if (!claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' }, q.cb);
-      return json_(vistaProject_(), q.cb);
+      const vp = vistaProject_(); try { const pj = equipo_().filter(x => /project/i.test(x.rol))[0]; vp.perfil = pj ? perfil_(pj.clave) : null; } catch (x) {}
+      return json_(vp, q.cb);
     }
     if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
     const pn = aplicarEstados_(base_(q.p), estados_());
+    if (pn && pn.yo) pn.yo.perfil = perfil_(pn.yo.clave);   // apodo, fondo y foto: solo viajan a la misma persona
     if (pn && pn.ok) { const sn = leerSnapLiviano_(); pn.estadoDatos = { generado: sn.generado, incompletos: sn.fallas, falla: JSON.parse(P.getProperty('ULTIMA_FALLA') || 'null') }; }
     return json_(pn, q.cb);
   } catch (err) { return json_({ error: 'servidor', mensaje: String(err.message || err) }, q.cb); }
@@ -5514,6 +5547,12 @@ function doPost__(e) {
         const esProj = /project/i.test(yo.rol);
         if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         return json_(agenteAccion_(b, yo.clave, esProj));
+      }
+      case 'perfil': { // apodo, color de fondo y foto: cada uno el suyo (el project, con su clave)
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        if (/project/i.test(yo.rol) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(perfilGuardar_(b, yo.clave));
       }
       case 'produccion': { // producciones del filmmaker: anotar, editar, borrar, marcar si se hizo; reel publicado anotado en su lista
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
@@ -5590,11 +5629,11 @@ function doPost__(e) {
         try { return json_(actualizar(true)); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer Trello: ' + String(e.message || e).slice(0, 200) }); }
       case 'fotoMarca': // anotar la última producción de fotografía de una marca (project, dirección o filmmaker)
         try { return json_(fotoMarca_(b, quien)); } catch (e) { return json_({ error: 'servidor', mensaje: 'No se pudo guardar: ' + String(e.message || e).slice(0, 200) }); }
-      case 'agendarPrivada': // reunión en el calendario privado (ideamia.contacto): solo con la clave del project
+            case 'agendarPrivada': // reunión en el calendario privado (ideamia.contacto): solo con la clave del project
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
         if (!/project|direcc|creativ/i.test(((catalogo_().equipo.filter(x => x.clave === norm_(quien))[0]) || {}).rol || '')) return json_({ error: 'permiso', mensaje: 'La agenda privada es solo para el project y dirección' });
         try { return json_(agendarPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudo crear la reunión: ' + String(e.message || e).slice(0, 200) }); }
-      case 'invitadosPrivada': // agregar o sacar invitados de una reunión del calendario privado: solo con la clave del project
+            case 'invitadosPrivada': // agregar o sacar invitados de una reunión del calendario privado: solo con la clave del project
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project y dirección' });
         if (!/project|direcc|creativ/i.test(((catalogo_().equipo.filter(x => x.clave === norm_(quien))[0]) || {}).rol || '')) return json_({ error: 'permiso', mensaje: 'La agenda privada es solo para el project y dirección' });
         try { return json_(invitadosPrivada_(b)); } catch (e) { return json_({ error: 'calendario', mensaje: 'No se pudieron cambiar los invitados: ' + String(e.message || e).slice(0, 200) }); }
