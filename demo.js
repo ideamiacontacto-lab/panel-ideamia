@@ -205,7 +205,7 @@ window.PANEL_DEMO_PROJECT.mio = {
     pz("f7", "Reel long cake", "reel", "revision", "En Revision", "gabriel-varisco", "Produccion GV", "2026-10-12T20:00:00Z")
   );
   var prodDemo = {
-    recetas: ["isco", "quality-tienda", "quality-mayorista", "gabriel-varisco"], tipos: { reel: "Reel", historias: "Historias", fotos: "Fotos", presencial: "Presencial", otro: "Otro" }, lista: "#", chk: {},
+    recetas: ["isco", "quality-tienda", "quality-mayorista", "gabriel-varisco"], tipos: { reel: "Reel", historias: "Historias", presencial: "Presencial", otro: "Otro" }, lista: "#", chk: {},
     items: [
       { id: "p1", quien: "bauti", fecha: "2026-10-06", hora: "11:00", marca: "isco", tipo: "reel", que: "Reel abasto", conQuien: "Caro", chk: { actores: true, guion: true, llevar: true }, estado: "" },
       { id: "p2", quien: "bauti", fecha: "2026-10-08", hora: "16:30", marca: "gabriel-varisco", tipo: "reel", que: "Reel box desayuno: receta de budín", conQuien: "Verona y Juli", receta: true, chk: { actores: true, guion: false, llevar: true, encargada: false }, estado: "" },
