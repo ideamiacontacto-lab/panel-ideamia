@@ -2057,3 +2057,11 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 /* foco y selección con la marca */
 ::selection{background:var(--y);color:var(--y-ink)}
 @media (prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation:none}}
+/* filas con fecha a la izquierda (Reuniones, Equipo): la columna de la fecha tiene su ancho y no se pisa con el título */
+.row:has(> .when.wl){grid-template-columns:82px minmax(0,1fr) auto;align-items:start}
+.when.wl{width:auto!important;margin:0!important;padding-top:1px}
+.when.wl b{font-size:19px;white-space:nowrap}
+.when.wl small{display:block;white-space:nowrap;margin-top:3px}
+@media (max-width:760px){.row:has(> .when.wl){grid-template-columns:70px minmax(0,1fr) auto}.when.wl b{font-size:17px}}
+/* títulos de cada pestaña: más aire debajo de la barra de pestañas */
+@media (min-width:761px){.mtit{padding:34px 0 18px}.mtit h1{font-size:52px}}
