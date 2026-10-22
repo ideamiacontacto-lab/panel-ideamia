@@ -1822,7 +1822,7 @@
   /* ---------------- MI SEMANA (filmmaker) ----------------
      Qué tiene que filmar y editar por marca (esta semana y la que viene), a qué marcas le toca ir,
      y las reuniones de guiones y presentación de ideas. "Listo" pasa la tarjeta a En revisión en Trello. */
-  const esFilm = () => /film|audiovis/i.test((S.data.yo || {}).rol || '');
+  const esFilm = () => /film|audiovis/i.test(((S.data || {}).yo || {}).rol || '');
   const finDeSemana = n => { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - ((NOW.getDay() + 6) % 7) + 6 + 7 * n, 23, 59, 59); return d; };
   function datosFilm() {
     const F = S.data.film || { visitas: [], reuniones: [], est: {} };
