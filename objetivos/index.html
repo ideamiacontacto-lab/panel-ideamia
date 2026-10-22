@@ -94,9 +94,14 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30;animation:fo .2s}
 @media(max-width:600px){h1{font-size:34px}.wrap{padding-top:14px}.anot input.n{width:120px}.pt{font-size:12.5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+/* embebido en el panel (pestañas Plan y Objetivos): sin título propio */
+.embed #app>.kick:first-child,.embed .top h1{display:none}.embed .top{justify-content:flex-end}.embed .wrap{padding-top:10px}
 </style>
+<script>/* desde el 22/10/2026 esta página vive adentro del panel (pestaña Objetivos): abierta sola, redirige al panel con los mismos datos */
+if (window.self === window.top && !/[?&](embed|solo|demo)=1/.test(location.search)) { const q = new URLSearchParams(location.search), r = new URLSearchParams({ tab: 'okr' }); ['p', 'marca', 'vista'].forEach(k => { if (q.get(k)) r.set(k, q.get(k)); }); location.replace('../?' + r.toString()); }
+if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=5" defer></script>
+<script src="../ideamia-nav.js?v=7" defer></script>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Cargando objetivos…</div></div>
