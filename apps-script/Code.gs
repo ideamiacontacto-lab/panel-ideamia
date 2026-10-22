@@ -1317,6 +1317,38 @@ function pedidoRapido_(b) {
   return { ok: true, pasos: pasos, avisos: avisos, card: { id: card.id, n: card.name, d: q.desc, due: card.due || null, dc: false, lista: bandeja.n, k: bandeja.k, act: card.dateLastActivity || new Date().toISOString(), url: card.shortUrl, lab: nombres } };
 }
 
+/* Acciones sobre una tarjeta de Project desde el panel (22/10/2026), sin abrir Trello:
+   mover de lista (por etapa: hacer, proceso, seguimiento, despues, listo, bandeja), cambiar o sacar la fecha,
+   poner o sacar "Ver en minuta" y "Urgente", y comentar. Solo tarjetas del tablero Project (se chequea en Trello). */
+function mioAccion_(b) {
+  const id = tableroProject_(), cardId = String(b.cardId || '');
+  if (!/^[0-9a-f]{24}$/.test(cardId)) return { error: 'datos', mensaje: 'Tarjeta inválida' };
+  const c = trello_('/cards/' + cardId, { fields: 'idBoard,name,idLabels,due,idList,shortUrl,desc,dateLastActivity,dueComplete' });
+  if (!c || c.idBoard !== id) return { error: 'permiso', mensaje: 'Esa tarjeta no es del tablero Project' };
+  const r = trelloVarios_(['/boards/' + id + '/lists?filter=open&fields=name', '/boards/' + id + '/labels?fields=name,color&limit=100']);
+  const listas = (r[0] || []).map(l => ({ id: l.id, n: l.name, k: etapaProject_(l.name) })), etis = (r[1] || []).filter(x => x.name);
+  const op = String(b.op || ''), pasos = [];
+  if (op === 'mover') {
+    const l = listas.filter(x => x.k === String(b.etapa || ''))[0];
+    if (!l) return { error: 'lista', mensaje: 'No encuentro esa lista en Project. Listas: ' + listas.map(x => x.n).join(', ') };
+    trello_('/cards/' + cardId, { idList: l.id, pos: 'top' }, 'put'); c.idList = l.id; pasos.push('Pasó a "' + l.n + '"');
+  } else if (op === 'fecha') {
+    const due = String(b.due || '');
+    if (due && isNaN(new Date(due))) return { error: 'datos', mensaje: 'Fecha inválida' };
+    trello_('/cards/' + cardId, { due: due }, 'put'); c.due = due || null; pasos.push(due ? 'Fecha: ' + Utilities.formatDate(new Date(due), TZ, 'dd/MM') : 'Sin fecha');
+  } else if (op === 'etiqueta') {
+    const re = b.cual === 'urgente' ? /^urgente$/ : /minuta/, e = etis.filter(x => re.test(norm_(x.name)))[0];
+    if (!e) return { error: 'etiqueta', mensaje: 'No existe la etiqueta "' + (b.cual === 'urgente' ? 'Urgente' : 'Ver en minuta') + '" en el tablero Project' };
+    const tiene = (c.idLabels || []).indexOf(e.id) >= 0, ids = tiene ? c.idLabels.filter(x => x !== e.id) : (c.idLabels || []).concat(e.id);
+    trello_('/cards/' + cardId, { idLabels: ids.join(',') }, 'put'); c.idLabels = ids; pasos.push((tiene ? 'Sin ' : 'Con ') + '"' + e.name + '"');
+  } else if (op === 'comentar') {
+    const t = String(b.texto || '').trim(); if (!t) return { error: 'datos', mensaje: 'Escribí el comentario' };
+    trello_('/cards/' + cardId + '/actions/comments', { text: t.slice(0, 16000) }, 'post'); pasos.push('Comentario puesto en la tarjeta');
+  } else return { error: 'accion', mensaje: 'Acción desconocida' };
+  const l = listas.filter(x => x.id === c.idList)[0] || { n: '', k: 'otra' };
+  return { ok: true, pasos: pasos, card: { id: c.id, n: c.name, d: String(c.desc || '').slice(0, 300), due: c.due || null, dc: !!c.dueComplete, lista: l.n, k: l.k, act: new Date().toISOString(), url: c.shortUrl, lab: etis.filter(x => (c.idLabels || []).indexOf(x.id) >= 0).map(x => x.name) } };
+}
+
 /* Para revisar desde el editor: lee el tablero Project y muestra qué encontró. No crea ni cambia nada. */
 function probarMiTablero() {
   const t = miTablero_(), n = {};
@@ -5669,6 +5701,9 @@ function doPost__(e) {
       case 'pedidoRapido': // carga rápida del project: solo con su clave
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
         return json_(pedidoRapido_(b));
+      case 'mioAccion': // mover, fecha, etiquetas o comentario en una tarjeta de Project: solo con la clave del project
+        if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
+        try { return json_(mioAccion_(b)); } catch (e) { return json_({ error: 'trello', mensaje: 'Trello no respondió: ' + String(e.message || e).slice(0, 200) }); }
       case 'crearTarjeta': { // crea la tarjeta en Trello (y opcionalmente la manda a otra lista, que es lo que dispara las automatizaciones)
         if (!b.listId || !b.nombre) return json_({ error: 'datos', mensaje: 'Falta el nombre o la lista' });
         const q = { idList: b.listId, name: String(b.nombre).slice(0, 300), desc: String(b.desc || '').slice(0, 16000), pos: 'top' };
