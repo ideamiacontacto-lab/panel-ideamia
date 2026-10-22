@@ -233,7 +233,7 @@ function planCacheado_(clave, esProj, que, mes, forzar) {
   const c = CacheService.getScriptCache(), k = planCK_(clave, esProj, que, mes);
   if (!forzar) { const h = c.get(k); if (h) { try { return JSON.parse(h); } catch (e) {} } }
   const r = planRespuesta_(clave, esProj, que, mes);
-  try { const s = JSON.stringify(r); if (r && r.ok !== false && !r.error && s.length < 95000) c.put(k, s, 600); } catch (e) {}
+  try { const s = JSON.stringify(r); if (r && r.ok !== false && !r.error && s.length < 95000) c.put(k, s, 1500); } catch (e) {}   // 25 min: el disparador lo recalienta cada 10, así nunca se abre en frío
   return r;
 }
 function planCalentar_(t0) {
@@ -241,6 +241,11 @@ function planCalentar_(t0) {
   for (const p of quienes) for (const que of ['', 'campanas', 'ficha', 'planb', 'pauta']) {
     if (Date.now() - t0 > 4 * 60 * 1000) return;   // no pasarse del límite de 6 min de la ejecución
     planCacheado_(p.clave, /project/i.test(p.rol), que, '', true);
+  }
+  // Objetivos: también quedan listos (22/10/2026)
+  for (const p of quienes) {
+    if (Date.now() - t0 > 4.5 * 60 * 1000) return;
+    try { const ov = okrVista_(p.clave, /project/i.test(p.rol)), sv = JSON.stringify(ov); if (sv.length < 95000) CacheService.getScriptCache().put('okr:' + p.clave + ':' + (P.getProperty('OKR_VER') || ''), sv, 1500); } catch (e) {}
   }
 }
 const PLAN_ACCIONES = ['planmes', 'planb', 'campana', 'ficha', 'pauta', 'okrAnotar', 'agente', 'planCheck'];   // solo lo que cambia el plan (los tildes del día no: si no, el cache no duraba nada)
@@ -5506,7 +5511,11 @@ function doGet(e) {
       const yo = catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0], esProj = !!yo && /project/i.test(yo.rol);
       if (!claveOk_(q.k, esProj)) return json_({ error: 'clave', mensaje: esProj ? 'Clave del project incorrecta' : 'Clave del equipo incorrecta' }, q.cb);
       if (!yo || (!esProj && !(reportesConfig_().marcas || []).some(m => m.sm === yo.clave))) return json_({ error: 'permiso', mensaje: 'Los objetivos son solo para las social media y el project' }, q.cb);
-      return json_(okrVista_(yo.clave, esProj), q.cb);
+      // guardado 10 minutos (22/10/2026): calcularlo tardaba varios segundos; se renueva cuando alguien anota un valor (OKR_VER)
+      const ck = 'okr:' + yo.clave + ':' + (P.getProperty('OKR_VER') || ''), cc = CacheService.getScriptCache(), hv = cc.get(ck);
+      if (hv) return ContentService.createTextOutput(q.cb ? q.cb + '(' + hv + ')' : hv).setMimeType(q.cb ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
+      const ov = okrVista_(yo.clave, esProj); try { const sv = JSON.stringify(ov); if (sv.length < 95000) cc.put(ck, sv, 1500); } catch (x) {}
+      return json_(ov, q.cb);
     }
     if (q.action === 'prueba') { // plataforma de prueba de Joaquín
       if (!claveOk_(q.k) && !claveOk_(q.k, true)) return json_({ error: 'clave', mensaje: 'Clave incorrecta' }, q.cb);
@@ -5547,6 +5556,7 @@ function doPost(e) {   // después de guardar algo del plan, las respuestas guar
   const r = doPost__(e);
   try {
     const b = JSON.parse(e.postData.contents);
+    if (b.action === 'okrAnotar') P.setProperty('OKR_VER', String(Date.now()));   // los objetivos guardados en cache dejan de valer
     if (PLAN_ACCIONES.indexOf(b.action) >= 0) {
       const t = String(Date.now()), m = b.marca ? catalogo_().marcas.filter(x => x.slug === String(b.marca))[0] : null;
       if (!m) P.setProperty('PLAN_VER', t);   // sin marca no se sabe a quién le cambia: se recalcula todo
