@@ -213,6 +213,7 @@ function actualizarProgramado() {
   const h = Number(Utilities.formatDate(new Date(), TZ, 'H')), m = Number(Utilities.formatDate(new Date(), TZ, 'm'));
   if ((h < 8 || h >= 21) && m >= 10) return;
   const t0 = Date.now();
+  try { procesarAReels_(); } catch (e) { console.warn('procesarAReels_: ' + e.message); }
   actualizar();
   if (h >= 8 && h < 21) try { planCalentar_(t0); } catch (e) { console.warn('planCalentar_: ' + e.message); }
 }
@@ -1447,6 +1448,22 @@ function mioAccion_(b) {
   } else return { error: 'accion', mensaje: 'Acción desconocida' };
   const l = listas.filter(x => x.id === c.idList)[0] || { n: '', k: 'otra' };
   return { ok: true, pasos: pasos, card: { id: c.id, n: c.name, d: String(c.desc || '').slice(0, 300), due: c.due || null, dc: !!c.dueComplete, lista: l.n, k: l.k, act: new Date().toISOString(), url: c.shortUrl, lab: etis.filter(x => (c.idLabels || []).indexOf(x.id) >= 0).map(x => x.name) } };
+}
+
+/* Lista "A reels" del Project (22/10/2026, pedido de Joaquín): lo que se arrastra ahí en Trello se copia a "Reels pendientes"
+   del tablero de Producción de la marca y la original pasa a "Enviado / en seguimiento" (lo mismo que el botón Reel del panel).
+   Corre con la actualización automática (cada 10 minutos de día). Si a la tarjeta le falta la marca, vuelve a "Por hacer" con un comentario. */
+function procesarAReels_() {
+  const id = tableroProject_(), ls = trello_('/boards/' + id + '/lists', { filter: 'open', fields: 'name' });
+  const l = ls.filter(x => /^a reels?$/.test(norm_(x.name)))[0]; if (!l) return;
+  const cards = trello_('/lists/' + l.id + '/cards', { fields: 'name' }); if (!cards.length) return;
+  const porHacer = ls.filter(x => /por hacer/.test(norm_(x.name)))[0];
+  cards.forEach(c => {
+    let r; try { r = mioAccion_({ cardId: c.id, op: 'enviar', destino: 'reel' }); } catch (e) { r = { error: 'trello', mensaje: String(e.message || e).slice(0, 150) }; }
+    if (r && r.error) {
+      try { trello_('/cards/' + c.id + '/actions/comments', { text: 'No se pudo mandar a Reels: ' + r.mensaje }, 'post'); if (porHacer) trello_('/cards/' + c.id, { idList: porHacer.id, pos: 'top' }, 'put'); } catch (x) {}
+    } else try { trello_('/cards/' + c.id + '/actions/comments', { text: '✓ ' + (r.pasos || []).join(' · ') }, 'post'); } catch (x) {}
+  });
 }
 
 /* Para revisar desde el editor: lee el tablero Project y muestra qué encontró. No crea ni cambia nada. */
