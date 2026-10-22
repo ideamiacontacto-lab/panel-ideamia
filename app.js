@@ -229,7 +229,7 @@
   /* ---------------- render general ---------------- */
   function render() {
     const app = $('#app');
-    if (S.proj) { document.body.classList.toggle('movil', S.movil); document.body.classList.remove('nav6'); app.innerHTML = vistaProject(); const vw = document.getElementById('view'); if (vw && S._ultTab !== 'p:' + S.projTab) { vw.classList.add('entra'); S._ultTab = 'p:' + S.projTab; setTimeout(() => contar(app), 0); } if (!S._revelado) { const h = app.querySelector('.mhead h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } } bind(app); return; }
+    if (S.proj) { document.body.classList.toggle('movil', S.movil); document.body.classList.remove('nav6'); app.innerHTML = vistaProject(); const vw = document.getElementById('view'); if (vw && S._ultTab !== 'p:' + S.projTab) { vw.classList.add('entra'); S._ultTab = 'p:' + S.projTab; setTimeout(() => contar(app), 0); } if (!S._revelado) { const h = app.querySelector('.mhead h1'); if (h) { h.classList.add('revela'); S._revelado = 1; } } bind(app); embSync(); return; }
     const D = S.data; if (!D) return;
     const t = agrupado(), tot = t.length, ok = t.filter(x => hecho(x.obj)).length;
     const hoyD = NOW, nombre = apodo(), pfYo = perfilDe(D.yo.clave);
@@ -1416,9 +1416,9 @@
   // arma (una sola vez) el iframe de Plan u Objetivos; también se usa para precargarlos escondidos
   function embFrame(t) {
     let capa = document.getElementById('embCapa');
-    if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (S.tab === 'plan' || S.tab === 'okr') embSync(); }); }
+    if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (tabEmb() === 'plan' || tabEmb() === 'okr') embSync(); }); }
     // privacidad (22/10/2026): cada ventana se abre SIEMPRE con la persona actual; si quedó una de otra persona, se tira
-    const yoC = (S.data.yo || {}).clave || '';
+    const yoC = S.data ? ((S.data.yo || {}).clave || '') : (S.persona || 'project');
     capa.querySelectorAll('iframe').forEach(x => { if (x.dataset.p !== yoC) x.remove(); });
     let f = capa.querySelector('iframe[data-t="' + t + '"]');
     if (!f) {
@@ -1440,8 +1440,9 @@
       if (conPlanYo()) setTimeout(() => { if (S.data) { embFrame('plan'); embFrame('okr'); } }, 2500);   // Plan y Objetivos, escondidos
     });
   }
+  const tabEmb = () => S.proj && !S.data ? S.projTab : S.tab;
   function embSync() {
-    const t = S.tab, on = t === 'plan' || t === 'okr';
+    const t = tabEmb(), on = t === 'plan' || t === 'okr';
     let capa = document.getElementById('embCapa');
     if (!on) { if (capa) capa.classList.remove('on'); document.body.classList.remove('con-emb'); return; }
     const f = embFrame(t); capa = document.getElementById('embCapa');
@@ -2011,19 +2012,26 @@
 
   // Vista del project: "Mi día" (su tablero Project) y "Equipo" (lo que tildó cada uno)
   function vistaProject() {
+    if (!S._qtab) { S._qtab = 1; const q = new URLSearchParams(location.search).get('tab'); if (q === 'plan' || q === 'okr') S.projTab = q; }   // el aviso de Discord de una campaña abre Plan
+    if (S.projTab === 'pmas' && !S.movil) S.projTab = 'mio';
     const tab = S.projTab || 'mio', M = S.proj.mio;
     const D = M && !M.error ? datosMio() : null, n = D ? D.bandeja.length + D.hoy.length : 0;
     // v4 (22/10/2026): la misma estructura que el panel de cada persona: pestañas con barra arriba en la compu, barra abajo en el celu,
     // saludo grande solo en "Mi día" y en las demás un título corto (sin párrafos que empujen todo para abajo)
     const sinTocar = (S.proj.personas || []).reduce((s, p) => s + ((p.inputs || {}).sinTocar || 0), 0);
     const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
-    const NAV = [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
+    const NAV = S.movil
+      ? [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['pmas', 'Más', I.grid, fotosPend(), true]]
+      : [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
     const fecha = DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()];
     const saludo = NOW.getHours() < 13 ? 'buen día' : NOW.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const ctrl = S.movil ? '' : '<div class="ctrl"><div class="ctrl-in"><nav class="tabs">' + NAV.map(x => '<button class="tab' + (tab === x[0] ? ' on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '') + '</button>').join('') + '</nav></div></div>';
     const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
     const tit = (t, sub) => '<div class="mtit"><h1>' + t + '</h1><span>' + fecha + '</span></div>' + (sub ? '<p class="psub">' + sub + '</p>' : '');
     const pagina = (head, cuerpo) => (S.movil ? head : ctrl + head) + '<div class="view" id="view">' + cuerpo + '</div>' + bnav;
+    if (tab === 'plan' || tab === 'okr') return pagina(tit(tab === 'plan' ? 'Plan' : 'Objetivos'), '<div class="emb-ph" aria-hidden="true"></div>');
+    if (tab === 'pmas') { const f = (go, ico, t, l) => '<button class="ml-r" ' + go + '><span class="ic">' + ico + '</span><span class="ml-t"><b>' + t + '</b><small>' + l + '</small></span><i class="ml-go">›</i></button>';
+      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') + f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
     if (tab === 'anual') return pagina(tit('Anual', 'Fechas del calendario anual de cada marca, mes por mes.'), vAnual());
     if (tab === 'fotos') return pagina(tit('Fotos', 'Última producción de cada marca y cuándo toca la próxima.'), vFotos());
     if (tab === 'agenda') return pagina(tit('Agenda'), vAgendaPriv());
