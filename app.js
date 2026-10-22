@@ -232,7 +232,7 @@
     if (S.proj) { document.body.classList.toggle('movil', S.movil); app.innerHTML = vistaProject(); bind(app); return; }
     const D = S.data; if (!D) return;
     const t = agrupado(), tot = t.length, ok = t.filter(x => hecho(x.obj)).length;
-    const hoyD = NOW, nombre = D.yo.nombre;
+    const hoyD = NOW, nombre = apodo(), pfYo = perfilDe(D.yo.clave);
     const nInp = inputs().filter(c => inputPide(c) && pasa(c.m)).length, nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length;
     const nRep = (D.reportes || []).filter(r => pasa(r.marca)).length;
     const fecha = DIAS_L[hoyD.getDay()] + ' ' + hoyD.getDate() + ' de ' + MESES[hoyD.getMonth()];
@@ -254,7 +254,7 @@
     if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
     if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
-    const conPlan = !ivo && !film && (['orne', 'rama', 'joaco'].indexOf((D.yo || {}).clave) >= 0 || /project/i.test((D.yo || {}).rol || ''));
+    const conPlan = conPlanYo();
     if ((S.tab === 'plan' || S.tab === 'okr') && !conPlan) S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
@@ -270,7 +270,7 @@
     const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
-      ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
       : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
@@ -369,9 +369,11 @@
   function renderTop() {
     const D = S.data, w = $('#who');
     if (D || S.proj) {
-      const yo = D ? D.yo : { nombre: 'Project', rol: 'Project' };
-      w.innerHTML = '<b>' + esc(yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · cambiar</span>'; w.classList.remove('hidden');
-      w.onclick = () => { LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; AGP.data = null; AGP.error = ''; try { localStorage.removeItem('ideamia:persona'); } catch (e) {} history.replaceState(null, '', location.pathname); gate(); };
+      const yo = D ? D.yo : { nombre: yoNombre(), rol: 'Project' };
+      const pf = perfilDe(claveYo());
+      w.innerHTML = ava(pf, pf.apodo || yo.nombre) + '<b>' + esc(pf.apodo || yo.nombre) + '</b><span class="r">' + esc(yo.rol) + ' · tu perfil</span>'; w.classList.remove('hidden');
+      w.title = 'Personalizá tu panel o cambiá de persona';
+      w.onclick = () => perfilEditar(false);
     }
     const gen = (D && ((D.estadoDatos || {}).generado || D.generado)) || (!D && S.proj && S.proj.mio && S.proj.mio.leido) || null;
     $('#sync').innerHTML = (gen ? '<span class="txt' + (datosViejos() || S.falloCarga ? ' viejo' : '') + '">Trello ' + hace(gen) + '</span>' : '') + '<button id="rf" title="Leer Trello ahora (tarda ~1 minuto)">' + (S.sync ? '<span class="spin">↻</span>' : '↻') + '</button>';
@@ -1359,17 +1361,35 @@
      Son las mismas páginas de antes, embebidas en una capa fija debajo de las pestañas: la capa vive fuera del render,
      así el iframe no se recarga cada vez que el panel se redibuja, y conserva lo que estabas haciendo al cambiar de pestaña. */
   function vEmb() { return '<div class="emb-ph" aria-hidden="true"></div>'; }
-  function embSync() {
-    const t = S.tab, on = t === 'plan' || t === 'okr';
+  // arma (una sola vez) el iframe de Plan u Objetivos; también se usa para precargarlos escondidos
+  function embFrame(t) {
     let capa = document.getElementById('embCapa');
-    if (!on) { if (capa) capa.classList.remove('on'); document.body.classList.remove('con-emb'); return; }
     if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (S.tab === 'plan' || S.tab === 'okr') embSync(); }); }
     let f = capa.querySelector('iframe[data-t="' + t + '"]');
     if (!f) {
       f = document.createElement('iframe'); f.dataset.t = t; f.title = t === 'plan' ? 'Plan' : 'Objetivos';
       f.src = (t === 'plan' ? 'plan/' : 'objetivos/') + '?embed=1' + ((S.data.yo || {}).clave === 'joaco' ? '&p=joaco' : '') + (DEMO ? '&demo=1&p=' + encodeURIComponent((S.data.yo || {}).clave || '') : '') + ((S.embExtra || {})[t] || '');
+      f.onload = () => embFondo(f);   // el mismo color de fondo que eligió la persona
       capa.appendChild(f);
     }
+    return f;
+  }
+  function embFondo(f) { try { const r = f.contentDocument.documentElement.style, de = document.documentElement.style; ['--bg', '--s1', '--s2', '--s3', '--bg-rgb'].forEach(v => { const x = de.getPropertyValue(v); if (x) r.setProperty(v, x); else r.removeProperty(v); }); f.contentDocument.body.style.background = 'var(--bg)'; } catch (e) {} }
+  const conPlanYo = () => S.data && !esRevisa() && !esFilm() && (['orne', 'rama', 'joaco'].indexOf((S.data.yo || {}).clave) >= 0 || /project/i.test((S.data.yo || {}).rol || ''));
+  // 22/10/2026: lo que más tarda se pide de fondo apenas el panel terminó de cargar, así al tocar la pestaña ya está
+  function precargar() {
+    if (S._precargo) return; S._precargo = 1;
+    const ocioso = g => (window.requestIdleCallback || (h => setTimeout(h, 1500)))(g, { timeout: 4000 });
+    ocioso(() => {
+      if (S.pkey && ((S.proj && !S.data) || (S.data && esRevisa()))) agpCargar(false, true);   // agenda privada: project y dirección
+      if (conPlanYo()) setTimeout(() => { if (S.data) { embFrame('plan'); embFrame('okr'); } }, 2500);   // Plan y Objetivos, escondidos
+    });
+  }
+  function embSync() {
+    const t = S.tab, on = t === 'plan' || t === 'okr';
+    let capa = document.getElementById('embCapa');
+    if (!on) { if (capa) capa.classList.remove('on'); document.body.classList.remove('con-emb'); return; }
+    const f = embFrame(t); capa = document.getElementById('embCapa');
     capa.querySelectorAll('iframe').forEach(x => x.classList.toggle('on', x === f));
     window.scrollTo(0, 0);
     document.body.classList.add('con-emb'); capa.classList.add('on');
@@ -1384,7 +1404,7 @@
       (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + (nVen === 1 ? ' tarjeta pasada de fecha' : ' tarjetas pasadas de fecha') : 'nada vencido') +
       t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
       (S.data.prods ? t('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), n = S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length; return n + ' esta semana'; })()) : '') +
-      t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') +
+      t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') + t('data-perfil', I.users, 'Mi perfil', 'apodo, foto y color de fondo') +
       (S.movil ? t('data-tab="discord"', I.msg, 'Discord', dcSinVer().length ? dcSinVer().length + ' sin leer' : 'menciones al día') + (S.data.anual ? t('data-tab="anual"', I.star, 'Anual', 'calendario del año') : '')  : '') +
       '</div>' + costado(true);
   }
@@ -1689,6 +1709,9 @@
      El calendario de ideamia.contacto, que solo ven Joaquín e Ivo. Pide la clave del project (no la del equipo).
      Muestra las reuniones de los próximos 45 días y deja agendar una nueva, que se crea sola en ese calendario. */
   const AGP = { data: null, cargando: false, error: '' };
+  // 22/10/2026: la agenda queda guardada en este navegador (solo en los del project y dirección) y se muestra al instante;
+  // de fondo se pide la nueva. "Volver a leer" la lee del calendario sí o sí (fresco).
+  const agpCache = { get() { try { const j = JSON.parse(localStorage.getItem('pi:agp') || 'null'); return j && j.persona === S.persona ? j.data : null; } catch (e) { return null; } }, set(d) { try { localStorage.setItem('pi:agp', JSON.stringify({ persona: S.persona, data: d })); } catch (e) {} } };
   function agpDemo() {
     const d = (n, h, m) => new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n, h, m || 0).toISOString();
     return { ok: true, leido: new Date().toISOString(), calendario: 'ideamia.contacto@gmail.com', equipoOk: true,
@@ -1698,24 +1721,28 @@
         { id: 'a2', t: 'Minuta semanal', s: d(1, 10), f: d(1, 11), cal: 'equipo', inv: [{ mail: 'orne@ejemplo.com', n: 'Orne', est: 'YES' }, { mail: 'rama@ejemplo.com', n: 'Rama', est: 'YES' }], lugar: '', desc: '', link: '#' },
         { id: 'a3', uid: 'a3', mio: true, t: 'Revisión de números con el contador', s: d(3, 9, 30), f: d(3, 10, 30), cal: 'privado', inv: [], lugar: '', desc: '', link: '#' }] };
   }
-  async function agpCargar() {
+  async function agpCargar(fresco, callado) {
     if (AGP.cargando) return;
+    if (!AGP.data && !DEMO) AGP.data = agpCache.get();
     AGP.cargando = true; AGP.error = '';
     try {
       if (DEMO) AGP.data = agpDemo();
       else {
-        const j = await get({ action: 'agenda', k: S.pkey, p: S.data ? S.data.yo.clave : 'project' });
+        const j = await get(Object.assign({ action: 'agenda', k: S.pkey, p: S.data ? S.data.yo.clave : 'project' }, fresco ? { fresco: 1 } : {}));
         if (j.error === 'clave') { S.pkey = ''; LS.set('pkey', ''); AGP.data = null; AGP.error = 'Esa no es la clave del project. Probá de nuevo.'; }
         else if (j.error) AGP.error = j.mensaje || j.error;
-        else AGP.data = j;
+        else { AGP.data = j; agpCache.set(j); }
       }
-    } catch (e) { AGP.error = 'No se pudo leer el calendario. Revisá la conexión y tocá "Volver a leer".'; }
-    AGP.cargando = false; render();
+    } catch (e) { if (!AGP.data) AGP.error = 'No se pudo leer el calendario. Revisá la conexión y tocá "Volver a leer".'; }
+    AGP.cargando = false;
+    if (!callado || S.tab === 'agp' || (S.proj && !S.data && S.projTab === 'agenda')) render();
   }
   function vAgendaPriv() {
     if (!DEMO && S.data && !esRevisa()) { AGP.data = null; return '<div class="empty">Esta pantalla es solo para el project y dirección.</div>'; }
     const que = '<p class="mio-que">Calendario <b>ideamia.contacto</b>: solo lo ven Joaquín e Ivo (pide la clave del project). Lo que agendes acá se crea en Google Calendar y les llega la invitación a quienes elijas.</p>';
     if (!DEMO && !S.pkey) return que + '<div class="agp-key"><label class="field"><span>Clave del project</span><input type="password" id="agpK" autocomplete="off" placeholder="La misma con la que se entra a la vista Project"></label><button class="btn y" data-agp-key>Entrar a la agenda</button>' + (AGP.error ? '<div class="err">' + esc(AGP.error) + '</div>' : '') + '<p class="ayuda">Se pide una sola vez en este dispositivo.</p></div>';
+    if (!AGP.data && !AGP.error && !DEMO) AGP.data = agpCache.get();
+    if (AGP.data && !AGP.cargando && !DEMO && Date.now() - new Date(AGP.data.leido) > 3 * 60e3) setTimeout(() => agpCargar(false, true), 0);   // lo guardado se ve ya; de fondo, lo nuevo
     if (!AGP.data && !AGP.error) { if (!AGP.cargando) setTimeout(agpCargar, 0); return que + '<div class="loading"><b>Cargando</b>Leyendo el calendario…</div>'; }
     const barra = '<div class="agp-bar"><button class="btn y" data-agp-nueva>' + I.cal + 'Agendar reunión</button><button class="btn ghost" data-agp-leer>' + (AGP.cargando ? 'Leyendo…' : 'Volver a leer') + '</button>' + (AGP.data ? '<span class="agp-leido">leído ' + hm(new Date(AGP.data.leido)) + '</span>' : '') + '</div>';
     if (!AGP.data) return que + barra + '<div class="empty">' + esc(AGP.error) + '</div>';
@@ -1797,7 +1824,7 @@
   function agpBind(root) {
     root.querySelectorAll('[data-agp-nueva]').forEach(b => b.onclick = agpNueva);
     root.querySelectorAll('[data-agp-inv]').forEach(b => b.onclick = () => agpInvitados(b.dataset.agpInv));
-    root.querySelectorAll('[data-agp-leer]').forEach(b => b.onclick = () => { agpCargar(); render(); });
+    root.querySelectorAll('[data-agp-leer]').forEach(b => b.onclick = () => { agpCargar(true); render(); });
     root.querySelectorAll('[data-agp-key]').forEach(b => b.onclick = () => { const v = ($('#agpK', root) || {}).value || ''; if (!v.trim()) return; S.pkey = v.trim(); LS.set('pkey', S.pkey); AGP.error = ''; AGP.data = null; render(); });
     const k = $('#agpK', root); if (k) k.onkeydown = e => { if (e.key === 'Enter') { const b = $('[data-agp-key]', root); if (b) b.click(); } };
   }
@@ -2190,6 +2217,7 @@
     root.querySelectorAll('[data-film-anotar]').forEach(x => x.onclick = () => filmAnotar());
     root.querySelectorAll('[data-hoyg]').forEach(x => x.onclick = () => { LS.set('hoygrupo', x.dataset.hoyg); render(); const p = $('.gpanel'); if (p) { p.classList.add('entra'); } });
     root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
+    root.querySelectorAll('[data-perfil]').forEach(x => x.onclick = () => perfilEditar(false));
     root.querySelectorAll('[data-prod]').forEach(x => { const abrir = e => { if (e.target.closest('button')) return; const it = ((S.data.film || {}).prod || { items: [] }).items.find(z => z.id === x.dataset.prod); if (it) prodEditar(it); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
     root.querySelectorAll('[data-prod-est]').forEach(x => x.onclick = () => prodEstado(x.dataset.prodEst, x.dataset.v));
     if (esFilm() && !S._pubVisto) { S._pubVisto = 1; setTimeout(prodPublicados, 1500); }
@@ -2533,31 +2561,130 @@
     S.sync = false; renderTop();
   }
 
-  /* ---------------- ingreso ---------------- */
+  /* ---------------- perfil (22/10/2026): apodo, foto y color de fondo de cada uno ----------------
+     Se guarda en el Apps Script (viaja solo con los datos de esa persona) y una copia en este navegador,
+     así el color y el apodo aparecen al instante, incluso en la pantalla de ingreso. */
+  const FONDOS = { negro: ['Negro', '#0A0A0A'], grafito: ['Grafito', '#17181C'], noche: ['Azul noche', '#0A1224'], bosque: ['Bosque', '#0B1A13'], vino: ['Vino', '#200C13'], violeta: ['Violeta', '#160E28'], tierra: ['Tierra', '#1E160C'] };
+  const APODOS = ['Burbuja', 'Ramón', 'Irvon', 'Turbo', 'La Máquina', 'Capi', 'Chispa', 'Pixel', 'Nube', 'Rayo', 'Maestre', 'Tornado', 'Crack', 'Fénix', 'Coco', 'Jefazo', 'Galleta', 'Neón'];
+  const claveYo = () => S.data ? S.data.yo.clave : S.persona;
+  // en la vista Project no hay datos de persona: el nombre sale de la lista del equipo guardada al entrar
+  const yoNombre = () => S.data ? S.data.yo.nombre : ((LS.get('equipo', []) || []).find(x => x.clave === S.persona) || {}).nombre || 'Project';
+  const perfilDe = c => LS.get('perfil:' + c, null) || {};
+  const apodo = () => perfilDe(claveYo()).apodo || yoNombre();
+  const iniciales = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(x => x[0]).join('') || '?';
+  const ava = (p, nombre) => '<span class="ava">' + (p && p.foto ? '<img src="' + esc(p.foto) + '" alt="">' : esc(iniciales(nombre))) + '</span>';
+  // mezcla un color con blanco (para las superficies sobre el fondo elegido)
+  const mezcla = (hex, t) => { const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v + (255 - v) * t)); return 'rgb(' + c.join(',') + ')'; };
+  function perfilAplicar(p) {
+    const k = (p && FONDOS[p.fondo]) ? p.fondo : 'negro', hex = FONDOS[k][1], r = document.documentElement.style, n = parseInt(hex.slice(1), 16);
+    if (k === 'negro') ['--bg', '--s1', '--s2', '--s3', '--bg-rgb'].forEach(v => r.removeProperty(v));
+    else { r.setProperty('--bg', hex); r.setProperty('--s1', mezcla(hex, .035)); r.setProperty('--s2', mezcla(hex, .06)); r.setProperty('--s3', mezcla(hex, .09)); r.setProperty('--bg-rgb', [n >> 16, (n >> 8) & 255, n & 255].join(',')); }
+    document.body.dataset.fondo = k;
+    document.querySelectorAll('#embCapa iframe').forEach(embFondo);
+  }
+  // lo que vino del servidor manda; se guarda acá para la próxima vez
+  function perfilRecibido(c, p) { if (!c) return; if (p) LS.set('perfil:' + c, p); perfilAplicar(p || perfilDe(c)); }
+  // la foto se achica acá (cuadrada, 200 px) antes de mandarla: pesa ~10 KB
+  function achicarFoto(file) {
+    return new Promise((ok, mal) => {
+      const img = new Image(), u = URL.createObjectURL(file);
+      img.onload = () => {
+        const L = 200, cv = document.createElement('canvas'), m = Math.min(img.width, img.height); cv.width = cv.height = L;
+        cv.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, L, L); URL.revokeObjectURL(u);
+        let q = .8, d = cv.toDataURL('image/jpeg', q); while (d.length > 30000 && q > .35) { q -= .1; d = cv.toDataURL('image/jpeg', q); }
+        ok(d);
+      };
+      img.onerror = () => mal(new Error('No pude leer esa imagen. Probá con una foto JPG o PNG.'));
+      img.src = u;
+    });
+  }
+  function perfilEditar(bienvenida) {
+    const c = claveYo(), antes = perfilDe(c), yo = S.data ? S.data.yo : { nombre: yoNombre(), rol: 'Project' };
+    const nuevo = { apodo: antes.apodo || '', fondo: antes.fondo || 'negro', foto: antes.foto || '' };
+    const sorteo = () => APODOS.slice().sort(() => Math.random() - .5).slice(0, 5);
+    const ivo = S.data && esRevisa(), film = S.data && esFilm(), proj = !S.data;
+    const que = proj ? [['Mi día', 'tu tablero Project de Trello ordenado: bandeja, hoy, lo que viene y lo que espera respuesta'], ['Agenda', 'tu calendario privado, para agendar sin salir del panel'], ['Equipo', 'qué hizo y qué tiene pendiente cada uno']]
+      : ivo ? [['Revisión', 'las piezas que esperan tu ok, con los archivos a la vista'], ['Guiones', 'lo que mandó Fede para mirar'], ['Discord', 'las menciones que te hicieron']]
+      : film ? [['Reels e historias', 'lo que tenés que filmar y editar esta semana, por marca'], ['Agenda', 'tus producciones y visitas, con quién y a qué hora'], ['Discord', 'las menciones que te hicieron']]
+      : [['Hoy', 'lo que te toca en el día, ordenado por urgencia'], ['Semana e Inputs', 'lo que viene y lo que te cargaron para revisar'], ['Plan y Objetivos', 'cómo vienen tus marcas en el mes']];
+    const chips = () => '<button data-ap="">' + esc(yo.nombre) + ' (tu nombre)</button>' + sorteo().map(a => '<button data-ap="' + esc(a) + '"' + (a === nuevo.apodo ? ' class="on"' : '') + '>' + esc(a) + '</button>').join('') + '<button class="dado" data-dado>Otros ↻</button>';
+    const html = (bienvenida
+      ? '<div class="kick">/ Bienvenida al panel</div><h3>Este es tu panel, <em>' + esc(yo.nombre) + '</em></h3><p class="intro">Todo lo tuyo en un solo lugar, sacado de Trello y del calendario. <b>Lo que marcás acá queda registrado</b>, así no tenés que avisar por otro lado.</p><ul class="que">' + que.map((x, i) => '<li><i>0' + (i + 1) + '</i><span><b>' + x[0] + ':</b> ' + x[1] + '</span></li>').join('') + '</ul>'
+      : '<div class="kick">/ Tu panel</div><h3>Personalizá tu <em>panel</em></h3>') +
+      '<span class="lbl">¿Cómo querés que te diga el panel?</span><label class="field"><input id="pfA" maxlength="24" placeholder="' + esc(yo.nombre) + '" value="' + esc(nuevo.apodo) + '"></label>' +
+      '<div class="apodos" id="pfS">' + chips() + '</div>' +
+      '<span class="lbl">Foto de perfil</span><div class="fotofila"><span id="pfAva">' + ava(nuevo, nuevo.apodo || yo.nombre) + '</span><label class="btn ghost">Elegir foto<input type="file" accept="image/*" id="pfF" hidden></label>' + (nuevo.foto ? '<button class="btn ghost" data-sinfoto>Sacar</button>' : '') + '</div>' +
+      '<span class="lbl">Color de fondo</span><div class="fondos">' + Object.keys(FONDOS).map(k => '<button data-fondo="' + k + '" title="' + FONDOS[k][0] + '" aria-label="' + FONDOS[k][0] + '" style="background:' + FONDOS[k][1] + '"' + (k === nuevo.fondo ? ' class="on"' : '') + '></button>').join('') + '<small>Se ve en todo tu panel, en este y en tus otros dispositivos.</small></div>' +
+      '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>' + (bienvenida ? 'Ahora no' : 'Cancelar') + '</button><button class="btn y" data-ok>' + (bienvenida ? 'Listo, entrar' : 'Guardar') + '</button></div>' +
+      (bienvenida ? '' : '<div class="salir"><span>¿No sos ' + esc(yo.nombre) + '?</span><button class="btn ghost" data-cambiar>Cambiar de persona</button></div>');
+    let guardado = false;
+    const m = modal(html, async () => {
+      nuevo.apodo = $('#pfA', m).value.trim();
+      const r = await post({ action: 'perfil', apodo: nuevo.apodo, fondo: nuevo.fondo, foto: nuevo.foto });
+      guardado = true; perfilRecibido(c, (r && r.perfil) || Object.assign({ visto: true }, nuevo));
+      LS.set('bienv:' + c, 1); render();
+      toast(nuevo.apodo ? '¡Listo, ' + esc(nuevo.apodo) + '!' : 'Listo, guardado.');
+    });
+    m.classList.add('perf');
+    // si se cierra sin guardar, vuelve el color de antes (y la bienvenida no se repite en este navegador)
+    new MutationObserver((x, o) => { if (!document.body.contains(m)) { o.disconnect(); if (!guardado) perfilAplicar(antes); if (bienvenida) LS.set('bienv:' + c, 1); } }).observe(document.body, { childList: true });
+    const pintarAva = () => { $('#pfAva', m).innerHTML = ava(nuevo, $('#pfA', m).value.trim() || yo.nombre); };
+    const enlazar = () => {
+      m.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => { $('#pfA', m).value = b.dataset.ap; m.querySelectorAll('[data-ap]').forEach(x => x.classList.toggle('on', x === b)); pintarAva(); });
+      const d = $('[data-dado]', m); if (d) d.onclick = () => { $('#pfS', m).innerHTML = chips(); enlazar(); };
+    };
+    enlazar();
+    $('#pfA', m).oninput = pintarAva;
+    $('#pfF', m).onchange = async e => { const f = e.target.files[0]; if (!f) return; try { nuevo.foto = await achicarFoto(f); pintarAva(); } catch (x) { $('.err', m).textContent = x.message; } };
+    const sf = $('[data-sinfoto]', m); if (sf) sf.onclick = () => { nuevo.foto = ''; pintarAva(); sf.remove(); };
+    m.querySelectorAll('[data-fondo]').forEach(b => b.onclick = () => { nuevo.fondo = b.dataset.fondo; m.querySelectorAll('[data-fondo]').forEach(x => x.classList.toggle('on', x === b)); perfilAplicar(nuevo); });
+    const cb = $('[data-cambiar]', m); if (cb) cb.onclick = () => { m.remove(); salirPersona(); };
+    if (bienvenida) setTimeout(() => { const a = $('#pfA', m); if (a) a.blur(); }, 0);   // en el celu, que no salte el teclado antes de leer
+  }
+  // la primera vez que entra (en este navegador y sin perfil guardado): la bienvenida con el apodo
+  function quizasBienvenida() {
+    const c = claveYo(); if (!c || LS.get('bienv:' + c, 0) || perfilDe(c).visto || $('.modal')) return;
+    S._popDia = 1; setTimeout(() => { if (!$('.modal')) perfilEditar(true); }, 500);
+  }
+  function salirPersona() {
+    LS.set('persona', null); S.persona = null; S.data = null; S.proj = null; AGP.data = null; AGP.error = '';
+    try { localStorage.removeItem('ideamia:persona'); } catch (e) {}
+    perfilAplicar(null); history.replaceState(null, '', location.pathname); gate();
+  }
+
+  /* ---------------- ingreso ----------------
+     22/10/2026: en dos pasos. 1) "¿Quién sos?" con todo el equipo (la lista queda guardada en el navegador: aparece al instante)
+     2) una pantalla solo para esa persona: "Hola, X", su contraseña y entrar. */
   async function gate(msg) {
     const app = $('#app');
-    let equipo = DEMO ? window.PANEL_DEMO.equipo : null;
-    if (!equipo) { try { const j = await get({ action: 'equipo' }); equipo = j.equipo || []; } catch (e) { equipo = []; } }
-    let elegido = S.persona;
-    const esProj = c => /project/i.test((equipo.find(x => x.clave === c) || {}).rol || '');
-    app.innerHTML = '<div class="gate"><div class="kick">/ Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1>' +
-      '<div class="ppl2">' + equipo.map(p => '<button data-p="' + esc(p.clave) + '" class="' + (p.clave === elegido ? 'on' : '') + '"><span>' + esc(p.nombre) + '</span><small>' + esc(p.rol) + '</small></button>').join('') + '</div>' +
-      (DEMO ? '' : '<form id="gf" class="' + (elegido ? '' : 'hidden') + '"><label class="field"><span id="gl"></span><input type="password" id="gk" autocomplete="current-password"></label><label class="check vercl"><input type="checkbox" id="gver"> Mostrar contraseña</label><button class="btn y" style="width:100%;justify-content:center;padding:12px">Entrar</button></form>') +
-      '<div class="err">' + esc(msg || '') + '</div></div>';
+    let equipo = DEMO ? window.PANEL_DEMO.equipo : LS.get('equipo', null);
+    let elegido = msg ? S.persona : null;
+    const esProj = c => /project/i.test(((equipo || []).find(x => x.clave === c) || {}).rol || '');
     $('#who').classList.add('hidden'); $('#sync').innerHTML = '';
-    const pintarClave = () => {
-      const l = $('#gl'), k = $('#gk'); if (!l) return;
-      const gv = $('#gver'); if (gv) gv.onchange = () => { k.type = gv.checked ? 'text' : 'password'; k.focus(); };
-      const pj = esProj(elegido);
-      l.textContent = pj ? 'Clave del project' : 'Clave del equipo';
-      k.placeholder = pj ? 'La clave del project' : 'La que te pasó el project';
-      k.value = pj ? (S.pkey || '') : (S.key || '');
-      setTimeout(() => k.focus(), 30);
+    const paso1 = () => {
+      perfilAplicar(null);
+      app.innerHTML = '<div class="gate g1"><div class="kick">/ Panel diario · Ideamia</div><h1>¿Quién<br>sos?</h1><p class="gsub">Tocá tu nombre para entrar</p>' +
+        '<div class="ppl2">' + equipo.map((p, i) => { const pf = perfilDe(p.clave); return '<button data-p="' + esc(p.clave) + '"><i>' + String(i + 1).padStart(2, '0') + '</i>' + ava(pf, p.nombre) + '<span>' + esc(p.nombre) + '</span><small>' + esc(p.rol) + '</small></button>'; }).join('') + '</div></div>';
+      app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { elegido = b.dataset.p; paso2(''); });
+    };
+    const paso2 = err => {
+      const p = equipo.find(x => x.clave === elegido) || { nombre: elegido }, pf = perfilDe(elegido), pj = esProj(elegido);
+      perfilAplicar(pf);
+      app.innerHTML = '<div class="gate g2"><button class="gvolver" data-volver>‹ No soy ' + esc(p.nombre) + '</button><div>' + ava(pf, pf.apodo || p.nombre) + '</div>' +
+        '<div class="kick">/ Tu panel · ' + esc(p.rol || '') + '</div><h1>Hola,<span class="nom">' + esc(pf.apodo || p.nombre) + '</span></h1>' +
+        '<p class="gsub">' + (pj ? 'Poné la clave del project y entrá' : 'Poné tu contraseña y entrá a tu panel') + '</p>' +
+        '<form id="gf">' + (DEMO ? '' : '<label class="field"><span>' + (pj ? 'Clave del project' : 'Contraseña del equipo') + '</span><input type="password" id="gk" autocomplete="current-password" placeholder="' + (pj ? 'La clave del project' : 'La que te pasó el project') + '"></label>' +
+        '<label class="check vercl"><input type="checkbox" id="gver"> Mostrar contraseña</label>') + '<button class="btn y" style="width:100%;justify-content:center;padding:14px">Entrar →</button></form>' +
+        '<div class="err">' + esc(err || '') + '</div>' + (DEMO ? '' : '<p class="gtip">Se pide una sola vez en este dispositivo.</p>') + '</div>';
+      const k = $('#gk');
+      if (k) { k.value = pj ? (S.pkey || '') : (S.key || ''); setTimeout(() => k.focus(), 60); $('#gver').onchange = e => { k.type = e.target.checked ? 'text' : 'password'; k.focus(); }; }
+      $('[data-volver]').onclick = () => { elegido = null; paso1(); };
+      $('#gf').onsubmit = e => { e.preventDefault(); entrar(); };
     };
     const entrar = () => {
       S.persona = elegido; LS.set('persona', S.persona);
       if (!DEMO) {
-        const v = $('#gk').value.trim(); if (!v) { $('.err').textContent = 'Escribí la clave.'; return; }
+        const v = $('#gk').value.trim(); if (!v) { $('.err').textContent = 'Escribí la contraseña.'; return; }
         if (esProj(elegido)) { S.pkey = v; LS.set('pkey', v); } else { S.key = v; LS.set('key', v); }
         try { localStorage.setItem('ideamia:clave', v); } catch (e) {}  // Brainstormings la prueba al abrir (equipo o Joaquín)
       }
@@ -2565,13 +2692,17 @@
       try { const p = equipo.find(x => x.clave === elegido); localStorage.setItem('ideamia:persona', elegido); if (p) localStorage.setItem('ideamia:nombre', p.nombre); } catch (e) {}
       inicio();
     };
-    app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
-      elegido = b.dataset.p;
-      app.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b));
-      if (DEMO) return entrar();
-      $('#gf').classList.remove('hidden'); pintarClave();
-    });
-    const f = $('#gf'); if (f) { f.onsubmit = e => { e.preventDefault(); entrar(); }; if (elegido) pintarClave(); }
+    const pintar = () => { if (elegido && equipo.some(x => x.clave === elegido)) paso2(msg); else paso1(); };
+    if (equipo) pintar(); else app.innerHTML = '<div class="loading"><b>Hola</b>Trayendo al equipo…</div>';
+    if (!DEMO) {
+      // la lista se refresca de fondo; si cambió y seguís en el primer paso, se redibuja
+      try {
+        const j = await get({ action: 'equipo' }), nuevo = j.equipo || [];
+        const cambio = JSON.stringify(nuevo) !== JSON.stringify(equipo), habia = !!equipo;
+        LS.set('equipo', nuevo); equipo = nuevo;
+        if (!habia || (cambio && !elegido && $('.gate.g1'))) pintar();
+      } catch (e) { if (!equipo) app.innerHTML = '<div class="loading"><b>Ups</b>No pude traer al equipo. Revisá la conexión.<br><br><button class="btn" onclick="location.reload()">Reintentar</button></div>'; }
+    }
   }
 
   async function cargar(silencioso) {
@@ -2587,6 +2718,7 @@
     if (!silencioso) S.marca = 'todas';
     S.data = j;
     S.falloCarga = null;
+    perfilRecibido(j.yo.clave, j.yo.perfil);
     // quien revisa: enseguida se pide lo que está en revisión ahora mismo
     if (esRevisa()) setTimeout(() => revisionViva(true), 50);
     try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(j)); } catch (e) {}
@@ -2601,6 +2733,7 @@
     const esProject = qs.get('vista') === 'project' || S.persona === 'project' || (equipoDemo && (equipoDemo.find(p => p.clave === S.persona) || {}).rol === 'Project');
     const ck = esProject && !qs.get('p') ? '__project' : S.persona;
     const previo = DEMO ? null : cacheLocal(ck);
+    perfilAplicar(perfilDe(S.persona));
     if (previo) {
       // se ve al instante lo último guardado; arriba avisa que está trayendo lo nuevo
       if (ck === '__project') S.proj = previo; else S.data = previo;
@@ -2612,13 +2745,13 @@
         else {
           const j = await get({ action: 'project', k: S.pkey || S.key });
           if (j.error) throw Object.assign(new Error(j.mensaje || j.error), { gate: j.error === 'clave' });
-          S.proj = j;
+          S.proj = j; perfilRecibido(S.persona, j.perfil);
           try { localStorage.setItem('pi:cache:__project', JSON.stringify(j)); } catch (e) {}
         }
-        S.sync = false; render(); renderTop(); return;
+        S.sync = false; render(); renderTop(); quizasBienvenida(); precargar(); return;
       }
       await cargar();
-      S.sync = false; render();
+      S.sync = false; render(); quizasBienvenida(); precargar();
     } catch (e) {
       S.sync = false;
       if (e.gate) { if (ck === '__project') { LS.set('pkey', ''); S.pkey = ''; } else { LS.set('key', ''); S.key = ''; } try { localStorage.removeItem('pi:cache:' + ck); } catch (x) {} S.data = null; S.proj = null; return gate(e.message); }

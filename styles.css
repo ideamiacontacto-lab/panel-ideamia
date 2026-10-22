@@ -1639,3 +1639,82 @@ body.con-emb{overflow:hidden}
 .mhead,.mtit,.avisos,.hoy-sts{max-width:none}
 .mio-sts.hoy-sts{gap:0!important}
 @media (max-width:760px){.mio-sts.hoy-sts{display:grid!important;grid-template-columns:repeat(3,1fr)!important}}
+
+/* =====================================================================================================
+   V4 · 22/10/2026: textos completos en el celu, ingreso en dos pasos, perfil (apodo, foto y fondo)
+   ===================================================================================================== */
+/* ---------- nada cortado con "…" en el celu: los textos bajan de renglón ---------- */
+@media (max-width:760px){
+  .mhead .kick{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.5}
+  .gtabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .gtab{grid-template-columns:auto 1fr auto;grid-template-areas:"n n b" "t t t";align-items:start;gap:6px 6px;padding:10px 11px 12px;min-height:92px}
+  .gtab-ic{display:none}
+  .gtab-t{white-space:normal;overflow:visible;text-overflow:clip;font-size:12.5px;line-height:1.2;letter-spacing:.03em;align-self:end}
+  .gtab b{font-size:30px;align-self:start}
+  .gtab em{position:static;grid-area:n;justify-self:end;margin-right:4px}
+  .gtab.urg .gtab-n{visibility:visible}
+  .hoy-sts .mio-st span{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.2}
+  .irow .desc{white-space:normal;max-width:none}
+  .ft-h small{white-space:normal}
+}
+/* ---------- fondo elegido por cada uno: la barra de arriba y la de abajo toman su color ---------- */
+.top{background:rgba(var(--bg-rgb,10,10,10),.9)}
+@media (max-width:760px){.bnav{background:rgba(var(--bg-rgb,10,10,10),.94)}}
+body[data-fondo]:not([data-fondo="negro"]){background:radial-gradient(900px 520px at 92% -8%,rgba(255,242,0,.07),transparent 60%),var(--bg);background-attachment:fixed}
+/* ---------- avatar ---------- */
+.ava{--t:28px;width:var(--t);height:var(--t);border-radius:50%;flex:none;display:inline-grid;place-items:center;overflow:hidden;background:var(--y);color:var(--y-ink);font-family:var(--f-d);font-weight:800;font-size:calc(var(--t)*.48);line-height:1;text-transform:uppercase}
+.ava img{width:100%;height:100%;object-fit:cover;display:block}
+.who{display:inline-flex;align-items:center;gap:9px}
+.who .ava{--t:26px}
+.mhead .ava{--t:64px;margin-bottom:6px}
+@media (max-width:760px){.mhead .ava{--t:46px}}
+/* ---------- ingreso: 1) quién sos  2) hola + contraseña ---------- */
+.gate{max-width:520px;margin:9vh auto 40px;padding:0 20px}
+.gate h1{font-size:clamp(64px,16vw,112px);font-weight:300;line-height:.84;margin:12px 0 10px}
+.gate h1 .nom{font-weight:800;color:var(--y);display:block;overflow-wrap:anywhere}
+.gate .gsub{font-family:var(--f-t);font-weight:500;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 22px}
+.gate .ppl2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid var(--line);border-left:1px solid var(--line);margin:0}
+.gate .ppl2 button{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"n n" "a t" "a r";gap:2px 10px;align-items:center;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0!important;padding:14px 14px 16px;text-align:left;transition:background-color .3s var(--ease),color .3s var(--ease)}
+.gate .ppl2 button i{grid-area:n;font-style:normal;font-family:var(--f-t);font-size:10.5px;letter-spacing:.14em;color:var(--dim);margin-bottom:6px}
+.gate .ppl2 button .ava{grid-area:a;--t:36px}
+.gate .ppl2 button span{grid-area:t;font-family:var(--f-d);font-weight:700;font-size:clamp(19px,5.4vw,26px);line-height:.95;text-transform:uppercase;min-width:0}
+.gate .ppl2 button small{grid-area:r;color:var(--muted);font-family:var(--f-t);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.gate .ppl2 button:after{content:"→";position:absolute;top:12px;right:14px;color:var(--dim);transition:transform .3s var(--ease),color .3s var(--ease)}
+@media (hover:hover){.gate .ppl2 button:hover{background:var(--y);color:var(--y-ink)}.gate .ppl2 button:hover small,.gate .ppl2 button:hover i,.gate .ppl2 button:hover:after{color:var(--y-ink)}.gate .ppl2 button:hover:after{transform:translateX(3px)}.gate .ppl2 button:hover .ava{background:var(--y-ink);color:var(--y)}}
+.gate .gvolver{font-family:var(--f-t);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:8px 0;margin-bottom:18px}
+.gate .gvolver:hover{color:var(--text)}
+.gate.g2 .ava{--t:72px;margin-bottom:14px}
+.gate form .field input{font-size:18px;padding:14px 16px}
+.gate form .btn.y{margin-top:6px}
+.gate .gtip{font-size:13px;color:var(--dim);margin-top:14px}
+.gate.g1>*,.gate.g2>*{animation:v2in .5s var(--ease) both}
+.gate>*:nth-child(2){animation-delay:40ms}.gate>*:nth-child(3){animation-delay:80ms}.gate>*:nth-child(n+4){animation-delay:120ms}
+/* ---------- perfil (apodo, foto, fondo) ---------- */
+.perf .mb{max-width:520px}
+.perf h3{font-family:var(--f-d)!important;font-weight:800!important;font-size:38px;line-height:.9;text-transform:uppercase;margin:4px 0 10px}
+.perf h3 em{font-style:normal;color:var(--y)}
+.perf .intro{color:var(--muted);font-size:14.5px;margin:0 0 16px}
+.perf .intro b{color:var(--text)}
+.perf .que{list-style:none;padding:0;margin:0 0 18px;display:grid;gap:0;border-top:1px solid var(--line)}
+.perf .que li{display:grid;grid-template-columns:28px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
+.perf .que li i{font-style:normal;font-family:var(--f-t);font-size:11px;letter-spacing:.12em;color:var(--y);padding-top:2px}
+.perf .que li b{color:var(--text);font-weight:600}
+.perf .lbl{display:block;font-family:var(--f-t);font-weight:600;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.perf .apodos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.perf .apodos button{border:1px solid var(--line2);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--muted)}
+.perf .apodos button:hover,.perf .apodos button.on{border-color:var(--y);color:var(--text)}
+.perf .apodos .dado{color:var(--y);border-style:dashed}
+.perf .fotofila{display:flex;align-items:center;gap:14px}
+.perf .fotofila .ava{--t:64px}
+.perf .fondos{display:flex;flex-wrap:wrap;gap:8px}
+.perf .fondos button{background:var(--c)!important;width:44px;height:44px;border-radius:50%;border:2px solid var(--line2);position:relative;transition:transform .2s var(--ease)}
+.perf .fondos button.on{border-color:var(--y);transform:scale(1.08)}
+.perf .fondos button.on:after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:var(--y);font-weight:700}
+.perf .fondos small{display:block;width:100%;font-size:12px;color:var(--dim)}
+.perf .salir{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--dim)}
+.ctrl{background:rgba(var(--bg-rgb,10,10,10),.88)}
+@media (max-width:760px){
+  .gtab{min-height:0;padding:8px 10px 10px;gap:2px 6px}
+  .gtab b{font-size:26px}
+  .gtab-n{font-size:10px}
+}
