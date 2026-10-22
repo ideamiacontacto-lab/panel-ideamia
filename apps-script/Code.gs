@@ -227,7 +227,8 @@ function planRespuesta_(clave, esProj, que, mes) {
   if (que === 'planb') return planbVista_(clave, esProj);   // plan B de cada reel (Fase 5)
   return planVista_(clave, esProj, mes || undefined);
 }
-const planCK_ = (clave, esProj, que, mes) => 'plv|' + (P.getProperty('PLAN_VER') || '0') + '|' + clave + '|' + (esProj ? 1 : 0) + '|' + que + '|' + (mes || '');
+// versión por persona (21/10/2026): lo que guarda Orne en Isco ya no obliga a recalcular el Plan de Rama (solo el suyo, el del project y el de la marca)
+const planCK_ = (clave, esProj, que, mes) => 'plv|' + (P.getProperty('PLAN_VER') || '0') + '.' + (P.getProperty('PLAN_VER_' + clave) || '0') + '|' + clave + '|' + (esProj ? 1 : 0) + '|' + que + '|' + (mes || '');
 function planCacheado_(clave, esProj, que, mes, forzar) {
   const c = CacheService.getScriptCache(), k = planCK_(clave, esProj, que, mes);
   if (!forzar) { const h = c.get(k); if (h) { try { return JSON.parse(h); } catch (e) {} } }
@@ -1176,6 +1177,8 @@ function aplicarEstados_(b, est) {
   if (!b || !b.ok) return b;
   // producciones de fotografía: se leen en cada pedido (no van en la foto guardada) para que lo recién anotado se vea al recargar
   if (/project|direcc|creativ/i.test((b.yo || {}).rol || '')) { try { b.fotos = fotosSalida_(); } catch (e) { b.fotos = null; } }
+  // producciones de los filmmakers: el filmmaker ve las suyas; el project y dirección, las de todos (se leen en cada pedido, como las fotos)
+  try { if (b.film) b.film.prod = prodDatos_(b.yo.clave); else if (/project|direcc|creativ/i.test((b.yo || {}).rol || '')) b.prods = prodEquipo_(); } catch (e) {}
   try { b.reportes = tareasReportes_(b.yo.clave, b.yo.rol); b.linkReportes = REP_WEB + '?resp=' + encodeURIComponent(b.yo.clave); } catch (e) { b.reportes = []; }
   if (b.semanaInfo) {
     const per = b.semanaInfo.dias.concat([b.semanaInfo.semana, b.semanaInfo.mes]);
@@ -1396,6 +1399,110 @@ function filmConfig_(cfg, cat) {
   const reels = varios(cfg.FILM_REELS || FILM_DEF.reels), historias = varios(cfg.FILM_HISTORIAS || FILM_DEF.historias);
   const visitas = String(cfg.FILM_VISITAS || FILM_DEF.visitas).split(';').map(x => { const p = x.split('='); return { marca: slug(p[0]), ideal: String(p[1] || '').trim() }; }).filter(v => v.marca);
   return { reels: reels, historias: historias, visitas: visitas, hora: String(cfg.FILM_REUNION_HORA || FILM_DEF.hora).trim(), todas: reels.concat(historias.filter(s => reels.indexOf(s) < 0)) };
+}
+/* ---------------- Producciones del filmmaker (pedido de Joaquín, 21/10/2026) ----------------
+   El filmmaker anota qué va a grabar: día, hora, marca, qué (reel, historias, fotos, presencial) y con quién. En los reels hay un
+   checklist (coordinó con quienes actúan, mandó el guion, avisó qué tienen que llevar) y en las marcas con recetas (Config FILM_RECETAS)
+   también "le avisé a la encargada qué insumos preparar", una semana antes. Así Joaquín sabe horarios y con quién, y puede chequear con
+   el cliente. Los viernes, si no cargó la semana siguiente o le falta algo del checklist, se lo pide por Discord. Cuando un reel de sus
+   marcas pasa a Publicado en el CM, el panel le ofrece anotarlo en su lista de reels (Config FILM_LISTA_<PERSONA>, el link de su planilla).
+   Archivo de Drive panel-ideamia-producciones.json: { l: [producciones], anot: { persona: { cardId: 'anotado'|'no' } } }. */
+const PROD_ARCH = ['PROD_FILE_ID', 'panel-ideamia-producciones.json'];
+const PROD_TIPOS = { reel: 'Reel', historias: 'Historias', fotos: 'Fotos', presencial: 'Presencial', otro: 'Otro' };
+const PROD_CHK = { actores: 'Coordiné con quienes actúan', guion: 'Les mandé el guion', llevar: 'Les avisé si tienen que llevar algo', encargada: 'Le avisé a la encargada qué insumos preparar' };
+function prodLeer_() {
+  const c = CacheService.getScriptCache(), h = c.get('prod'); if (h) { try { return JSON.parse(h); } catch (e) {} }
+  const g = leerJson_(PROD_ARCH[0], PROD_ARCH[1]); g.l = g.l || []; g.anot = g.anot || {};
+  try { c.put('prod', JSON.stringify(g), 900); } catch (e) {}
+  return g;
+}
+function prodGuardar_(g) { guardarJson_(PROD_ARCH[0], PROD_ARCH[1], g); try { CacheService.getScriptCache().put('prod', JSON.stringify(g), 900); } catch (e) {} }
+const prodRecetas_ = (cfg, cat) => marcasEn_(String(cfg.FILM_RECETAS || 'isco, quality, quality mayorista, gabriel varisco').replace(/,/g, ' , '), cat.marcas);
+/* Qué le falta a una producción del checklist (claves de PROD_CHK) */
+function prodFalta_(x, recetas) {
+  const L = [];
+  if (x.tipo === 'reel') ['actores', 'guion', 'llevar'].forEach(k => { if (!(x.chk || {})[k]) L.push(k); });
+  if (x.receta && recetas.indexOf(x.marca) >= 0 && !(x.chk || {}).encargada) L.push('encargada');
+  return L;
+}
+function prodDatos_(persona) {
+  const cfg = config_(), cat = catalogo_(), g = prodLeer_(), hoy = hoyAR_(), desde = ymd_(new Date(hoy.getTime() - 21 * 864e5)), film = filmConfig_(cfg, cat), recetas = prodRecetas_(cfg, cat);
+  const an = g.anot[persona] || {}, snap = snapshot_(), hace10 = Date.now() - 10 * 864e5;
+  // reels de sus marcas que el CM pasó a Publicado en los últimos 10 días y todavía no anotó (ni descartó)
+  const publicados = (snap.cards || []).filter(c => c.tipo === 'cm' && c.cat === 'hecho' && film.todas.indexOf(c.m[0]) >= 0 && esReel_(c) && !an[c.id] && c.due && new Date(c.due).getTime() > hace10 && new Date(c.due).getTime() <= Date.now() + 36e5)
+    .map(c => ({ id: c.id, n: c.n, url: c.url, marca: c.m[0], fecha: ymd_(new Date(c.due)) })).slice(0, 10);
+  return { items: g.l.filter(x => x.quien === persona && x.fecha >= desde).sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)),
+    recetas: recetas, tipos: PROD_TIPOS, chk: PROD_CHK, lista: String(cfg['FILM_LISTA_' + persona.toUpperCase()] || '').trim(), publicados: publicados };
+}
+function prodEquipo_() {
+  const g = prodLeer_(), hoy = hoyAR_(), desde = ymd_(new Date(hoy.getTime() - 14 * 864e5)), cfg = config_(), cat = catalogo_(), recetas = prodRecetas_(cfg, cat);
+  return { items: g.l.filter(x => x.fecha >= desde).sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)).map(x => Object.assign({}, x, { nombre: nombreDe_(x.quien), falta: prodFalta_(x, recetas) })), tipos: PROD_TIPOS, chk: PROD_CHK };
+}
+function prodAccion_(b, quien, esProject) {
+  const cat = catalogo_(), cfg = config_(), yo = cat.equipo.filter(x => x.clave === norm_(quien))[0];
+  if (!yo || !(/film|audiovis/i.test(yo.rol) || esProject)) return { error: 'permiso', mensaje: 'Solo para filmmakers' };
+  const t = (s, n) => String(s == null ? '' : s).trim().slice(0, n);
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const g = leerJson_(PROD_ARCH[0], PROD_ARCH[1]); g.l = g.l || []; g.anot = g.anot || {};
+    const acc = String(b.accion || '');
+    if (acc === 'guardar') {
+      const x = { id: t(b.id, 12) || Utilities.getUuid().slice(0, 8), quien: norm_(quien), fecha: String(b.fecha || ''), hora: /^\d{1,2}:\d{2}$/.test(b.hora || '') ? b.hora : '', marca: String(b.marca || ''),
+        tipo: PROD_TIPOS[b.tipo] ? b.tipo : 'otro', que: t(b.que, 300), conQuien: t(b.conQuien, 160), reel: /^[0-9a-f]{24}$/.test(b.reel || '') ? b.reel : '', receta: !!b.receta,
+        chk: {}, nota: t(b.nota, 300), t: new Date().toISOString() };
+      Object.keys(PROD_CHK).forEach(k => { if (b.chk && b.chk[k]) x.chk[k] = true; });
+      if (!FECHA_RE_.test(x.fecha)) return { error: 'datos', mensaje: 'Elegí el día' };
+      if (!x.hora) return { error: 'datos', mensaje: 'Poné la hora' };
+      if (!cat.marcas.some(m => m.slug === x.marca)) return { error: 'datos', mensaje: 'Elegí la marca' };
+      if (x.que.length < 3) return { error: 'datos', mensaje: 'Contá qué vas a hacer' };
+      const i = g.l.findIndex(z => z.id === x.id);
+      if (i >= 0) { if (g.l[i].quien !== x.quien && !esProject) return { error: 'permiso', mensaje: 'Esa producción no es tuya' }; x.quien = g.l[i].quien; x.estado = g.l[i].estado || ''; x.creado = g.l[i].creado || x.t; g.l[i] = x; }
+      else { x.creado = x.t; g.l.push(x); }
+    } else if (acc === 'borrar' || acc === 'estado') {
+      const i = g.l.findIndex(z => z.id === String(b.id || '')); if (i < 0) return { error: 'datos', mensaje: 'No encuentro esa producción' };
+      if (g.l[i].quien !== norm_(quien) && !esProject) return { error: 'permiso', mensaje: 'Esa producción no es tuya' };
+      if (acc === 'borrar') g.l.splice(i, 1);
+      else { g.l[i].estado = ['hecho', 'nohecho'].indexOf(b.estado) >= 0 ? b.estado : ''; g.l[i].nota = t(b.nota, 300) || g.l[i].nota || ''; g.l[i].tEstado = new Date().toISOString(); }
+    } else if (acc === 'reel') {   // reel publicado: lo anotó en su lista o no es suyo
+      if (!/^[0-9a-f]{24}$/.test(b.card || '')) return { error: 'datos', mensaje: 'Falta el reel' };
+      (g.anot[norm_(quien)] = g.anot[norm_(quien)] || {})[b.card] = b.v === 'no' ? 'no' : 'anotado';
+    } else return { error: 'datos', mensaje: 'Acción desconocida' };
+    // se guardan las de los últimos 90 días
+    const lim = ymd_(new Date(Date.now() - 90 * 864e5)); g.l = g.l.filter(x => x.fecha >= lim);
+    prodGuardar_(g);
+    return { ok: true, prod: prodDatos_(norm_(quien)) };
+  } finally { lock.releaseLock(); }
+}
+/* Avisos de producciones (los arma privadosArmar_ en el bloque diario):
+   · al filmmaker, los viernes: si no cargó nada de la semana que viene, que lo cargue; y lo que les falta del checklist;
+   · al filmmaker, todos los días: producciones de los próximos 7 días en marcas con recetas sin avisarle a la encargada, y las de mañana con checklist incompleto;
+   · a Joaquín, los lunes: las producciones de la semana (día, hora, marca, qué, con quién) para chequear con el cliente; y si no cargó nada. */
+function prodRecordatorios_(cat, cfg, ahora) {
+  const g = prodLeer_(), recetas = prodRecetas_(cfg, cat), dow = ahora.getDay(), hoyS = ymd_(ahora), out = [];
+  const film = cat.equipo.filter(p => /film|audiovis/i.test(p.rol)), DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  const f = s => DS[new Date(s + 'T12:00:00').getDay()] + ' ' + s.slice(8) + '/' + s.slice(5, 7), nom = s => (cat.marcas.filter(m => m.slug === s)[0] || {}).nombre || s;
+  const linea = x => '• ' + f(x.fecha) + ' ' + x.hora + ' · **' + nom(x.marca) + '** · ' + PROD_TIPOS[x.tipo] + ': ' + x.que + (x.conQuien ? ' (con ' + x.conQuien + ')' : '');
+  const sumaD = n => ymd_(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + n, 12));
+  const lunSig = sumaD(dow === 0 ? 1 : 8 - dow), sabSig = ymd_(new Date(new Date(lunSig + 'T12:00:00').getTime() + 5 * 864e5));
+  const lunEsta = sumaD(dow === 0 ? -6 : 1 - dow), sabEsta = ymd_(new Date(new Date(lunEsta + 'T12:00:00').getTime() + 5 * 864e5));
+  const proj = [];
+  film.forEach(p => {
+    const mias = g.l.filter(x => x.quien === p.clave && x.estado !== 'nohecho'), lin = [];
+    if (dow === 5) {
+      const sig = mias.filter(x => x.fecha >= lunSig && x.fecha <= sabSig);
+      if (!sig.length) lin.push('🎬 Todavía no cargaste **qué vas a grabar la semana que viene**. Anotá cada producción en el panel (Agenda): día, hora, marca, qué vas a hacer y con quién. Si son reels: ¿coordinaste con las personas que actúan?, ¿les mandaste el guion?, ¿les avisaste si tienen que llevar algo?');
+      else { const inc = sig.filter(x => prodFalta_(x, recetas).length); if (inc.length) lin.push('🎬 De la semana que viene te falta completar:', ...inc.map(x => linea(x) + ' → falta: ' + prodFalta_(x, recetas).map(k => PROD_CHK[k].toLowerCase()).join(', '))); }
+    }
+    // recetas: hay que avisarle a la encargada una semana antes (si no, abren insumos nuevos y se pierde mercadería)
+    const rec = mias.filter(x => x.fecha > hoyS && x.fecha <= sumaD(7) && prodFalta_(x, recetas).indexOf('encargada') >= 0);
+    if (rec.length && dow !== 5) lin.push('🧂 Avisale **hoy** a la encargada qué insumos tiene que tener preparados:', ...rec.map(linea));
+    const man = mias.filter(x => x.fecha === sumaD(1) && prodFalta_(x, recetas).filter(k => k !== 'encargada').length);
+    if (man.length && dow !== 5) lin.push('⏰ Mañana grabás y falta coordinar:', ...man.map(x => linea(x) + ' → ' + prodFalta_(x, recetas).map(k => PROD_CHK[k].toLowerCase()).join(', ')));
+    if (lin.length) { const id = idDiscord_(cfg, p.clave); if (id) out.push({ clave: p.clave, id: id, textos: trozos_('Hola ' + nombreDe_(p.clave) + '.', lin.concat(['Panel: https://ideamiacontacto-lab.github.io/panel-ideamia/'])) }); }
+    if (dow === 1) { const sem = mias.filter(x => x.fecha >= lunEsta && x.fecha <= sabEsta); proj.push('**' + nombreDe_(p.clave) + '**' + (sem.length ? ':' : ': no cargó ninguna producción para esta semana.')); sem.forEach(x => proj.push(linea(x) + (prodFalta_(x, recetas).length ? ' ⚠️ falta: ' + prodFalta_(x, recetas).map(k => PROD_CHK[k].toLowerCase()).join(', ') : ''))); }
+  });
+  if (proj.length) { const id = idJoaquin_(cfg); if (id) out.push({ clave: 'project', id: id, textos: trozos_('🎬 Producciones de esta semana (para chequear con los clientes horarios y organización):', proj) }); }
+  return out;
 }
 /* Lo que ve el filmmaker además de sus tarjetas: visitas de esta semana y la que viene, y reuniones de guiones (lunes y viernes). */
 function filmSalida_(film, yo, hoy) {
@@ -1804,6 +1911,9 @@ function privadosArmar_(snap, cat, cfg, opciones) {
     // 8) Plan del mes que viene: 2 días antes del cierre, el día después (social media) y al otro (project)
     try { planMesRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Plan del mes · ' + String(e.message || e).slice(0, 120)); }
+    // 9) Producciones de los filmmakers: viernes la semana que viene, recetas (encargada), mañana; lunes a Joaquín
+    try { prodRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
+    catch (e) { notas.push('Producciones · ' + String(e.message || e).slice(0, 120)); }
     // 6) Fichas operativas aprobadas: pedidos de mañana, tópicos externos de hoy y (lunes) aprendizajes activos
     try { fichaRecordatorios_(cat, cfg, o.ahora || hoyAR_()).forEach(m => para(m.clave, m.id, m.textos)); }
     catch (e) { notas.push('Fichas · ' + String(e.message || e).slice(0, 120)); }
@@ -5230,7 +5340,14 @@ function doGet(e) {
 
 function doPost(e) {   // después de guardar algo del plan, las respuestas guardadas de la página Plan dejan de valer
   const r = doPost__(e);
-  try { const a = JSON.parse(e.postData.contents).action; if (PLAN_ACCIONES.indexOf(a) >= 0) P.setProperty('PLAN_VER', String(Date.now())); } catch (x) {}
+  try {
+    const b = JSON.parse(e.postData.contents);
+    if (PLAN_ACCIONES.indexOf(b.action) >= 0) {
+      const t = String(Date.now()), m = b.marca ? catalogo_().marcas.filter(x => x.slug === String(b.marca))[0] : null;
+      if (!m) P.setProperty('PLAN_VER', t);   // sin marca no se sabe a quién le cambia: se recalcula todo
+      else { const v = {}; ['project', norm_(b.persona || ''), m.sm, m.cm].filter(Boolean).forEach(k => v['PLAN_VER_' + k] = t); P.setProperties(v); }
+    }
+  } catch (x) {}
   return r;
 }
 function doPost__(e) {
@@ -5270,6 +5387,13 @@ function doPost__(e) {
         const esProj = /project/i.test(yo.rol);
         if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         return json_(agenteAccion_(b, yo.clave, esProj));
+      }
+      case 'produccion': { // producciones del filmmaker: anotar, editar, borrar, marcar si se hizo; reel publicado anotado en su lista
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        return json_(prodAccion_(b, yo.clave, esProj));
       }
       case 'planCheck': { // Plan → Entregas: tildes del mes (reunión, visita, trimestral, publicación, colaboradores)
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
