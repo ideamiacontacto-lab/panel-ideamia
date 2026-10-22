@@ -50,6 +50,10 @@ h1{font:400 40px/1 'Bebas Neue',sans-serif;letter-spacing:.02em;margin:4px 0 2px
 .btn{background:var(--y);color:#0A0A0A;border:0;border-radius:12px;padding:9px 16px;font-weight:700}
 .ps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid var(--ln);background:var(--c1);border-radius:999px;padding:8px 14px;font-weight:600}.chip.on{background:var(--y);color:#0A0A0A}
 .pie{color:var(--mu);font-size:12px;margin-top:14px}
+.ocup{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;background:var(--y);color:#0A0A0A;border-radius:999px;padding:7px 14px 7px 10px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.ocup i,.btn.cargando::after{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:gira .7s linear infinite;display:inline-block}
+.btn.cargando,.seg2 button.cargando{opacity:.7;pointer-events:none}.btn.cargando::after{content:'';margin-left:8px;vertical-align:-1px}
+@keyframes gira{to{transform:rotate(360deg)}}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--c3);border:1px solid var(--ln);border-radius:12px;padding:10px 16px;font-size:14px;z-index:30}
 /* ficha operativa */
 .top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}.ayuda{font-size:13px;padding:8px 12px;flex:none}
@@ -135,7 +139,7 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '14';
+  const VER = '15';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -167,14 +171,44 @@ textarea{width:100%;background:var(--c2);border:1px solid var(--ln);border-radiu
     if (/[?&]demo=1/.test(location.search)) { const d = await fetch('demo.json', { cache: 'no-store' }).then(r => r.json()); S.data = d.plan; S.ficha = d.ficha; S.camp = d.camp; S.pauta = d.pauta; S.pb = d.pb; S.draft = {}; return pintar(); }
     if (!S.persona || !PERMITIDAS[S.persona]) return gate(S.persona ? 'Esta sección es solo para las social media y el project.' : '');
     if (!clave()) return gate('');
-    app.innerHTML = '<div class="empty">Cargando…</div>';
+    // abre al instante con lo último que se vio (guardado en este navegador) y lo actualiza por detrás: el servidor tarda de 5 a 20 s
+    const kc = 'plan:cache:' + S.persona, actual = S.mes === 'actual', vieja = actual ? jget(kc) : null;
+    if (vieja && vieja.data) { Object.assign(S, { data: vieja.data, ficha: vieja.ficha, camp: vieja.camp, pauta: vieja.pauta, pb: vieja.pb }); pintar(); ocupado(1, 'Actualizando…'); }
+    else app.innerHTML = '<div class="empty">Cargando…</div>';
     try {
       const q = x => fetch(C.API_URL + '?' + new URLSearchParams(Object.assign({ action: 'plan', k: clave(), p: S.persona }, x)), { cache: 'no-store' }).then(r => r.json());
-      const [r, f, c, pa, pb] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' }), q({ que: 'campanas' }), q({ que: 'pauta' }), q({ que: 'planb' }).catch(() => null)]);
+      S.cargando = true;
+      const [r, f, c, pa, pb] = await Promise.all([q({ mes: mesPedido() }), q({ que: 'ficha' }), q({ que: 'campanas' }), q({ que: 'pauta' }), q({ que: 'planb' }).catch(() => null)]).finally(() => { S.cargando = false; });
       if (r.error) return gate(r.mensaje || r.error);
-      S.data = r; S.ficha = f && f.ok ? f : null; S.camp = c && c.ok ? c : null; S.pauta = pa && pa.ok ? pa : null; S.pb = pb && pb.ok ? pb : null; S.draft = {}; pintar();
-    } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '.</div>'; }
+      S.data = r; S.ficha = f && f.ok ? f : null; S.camp = c && c.ok ? c : null; S.pauta = pa && pa.ok ? pa : null; S.pb = pb && pb.ok ? pb : null;
+      if (!S.marca || !sucio(S.marca)) S.draft = {};   // no se pierde lo que está escribiendo en la ficha
+      if (actual) lsSet(kc, JSON.stringify({ t: Date.now(), data: S.data, ficha: S.ficha, camp: S.camp, pauta: S.pauta, pb: S.pb }));
+      if (!document.querySelector('.modal')) pintar(); else S.repintar = true;   // con un formulario abierto se redibuja al cerrarlo
+    } catch (e) { if (!vieja) app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '.</div>'; else toast('No se pudo actualizar: ' + e.message); }
+    finally { if (vieja && vieja.data) ocupado(-1); }
   }
+  /* Señal de "estoy trabajando": cada pedido al servidor muestra un cartel arriba y deja el botón tocado en espera, así nadie cree que no anda */
+  let nOcup = 0, ultBtn = null;
+  document.addEventListener('click', e => { const b = e.target.closest('button, .btn'); if (b) ultBtn = b; }, true);
+  function ocupado(d, txt) {
+    nOcup = Math.max(0, nOcup + d);
+    let p = document.getElementById('ocup');
+    if (nOcup && !p) { p = document.createElement('div'); p.id = 'ocup'; p.className = 'ocup'; document.body.appendChild(p); }
+    if (p) { if (nOcup) p.innerHTML = '<i></i>' + esc(txt || p.dataset.t || 'Guardando…'); else p.remove(); if (txt) p && (p.dataset.t = txt); }
+    if (!nOcup && S.repintar && !document.querySelector('.modal')) { S.repintar = false; pintar(); }
+  }
+  const fetch0 = window.fetch.bind(window);
+  window.fetch = (u, o) => {
+    if (!(o && o.method === 'POST')) {
+      // las relecturas después de guardar (no la carga inicial) también avisan
+      if (String(u).indexOf(C.API_URL) === 0 && S.data && !S.cargando) { ocupado(1, 'Actualizando…'); return fetch0(u, o).finally(() => ocupado(-1)); }
+      return fetch0(u, o);
+    }
+    const b = ultBtn && document.contains(ultBtn) ? ultBtn : null; if (b) b.classList.add('cargando');
+    ocupado(1, 'Guardando…');
+    return fetch0(u, o).finally(() => { ocupado(-1); if (b) b.classList.remove('cargando'); });
+  };
+  new MutationObserver(() => { if (S.repintar && !nOcup && !document.querySelector('.modal')) { S.repintar = false; pintar(); } }).observe(document.body, { childList: true });
   async function recargarFicha() {
     const f = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'ficha' }), { cache: 'no-store' }).then(r => r.json());
     if (f && f.ok) { S.ficha = f; S.draft = {}; pintar(); }
