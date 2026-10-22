@@ -161,7 +161,7 @@ h1{font-weight:700;text-transform:uppercase;letter-spacing:-.01em}
 .seg2 button,.seg2 span[role=button],.mesr .q .seg2 button{border-radius:4px!important}.chip,.ps .chip{border-radius:4px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 /* embebido en el panel (pestañas Plan y Objetivos): sin título propio */
-.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
+.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}@media(max-width:760px){.paso{padding:10px 12px;cursor:pointer;grid-template-columns:28px 1fr;gap:10px}.paso>i{width:28px;height:28px;line-height:28px}.paso p{display:none}.paso.ver p{display:block}.paso>div>b:after{content:' ?';color:var(--y,#FFF200);font-weight:400}.paso.ver>div>b:after{content:''}.fold .fh{padding-top:10px;padding-bottom:10px}.embed .top{margin:0 0 8px}.embed .top .ayuda{font-size:11.5px;padding:6px 10px}}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
 </style>
 <script>/* desde el 22/10/2026 esta página vive adentro del panel (pestaña Plan): abierta sola, redirige al panel con los mismos datos */
 if (window.self === window.top && !/[?&](embed|solo|demo)=1/.test(location.search)) { const q = new URLSearchParams(location.search), r = new URLSearchParams({ tab: 'plan' }); ['p', 'marca', 'vista'].forEach(k => { if (q.get(k)) r.set(k, q.get(k)); }); location.replace('../?' + r.toString()); }
@@ -837,7 +837,9 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   const D_mes = () => (S.data && S.data.mes) || '';
   const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
   const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
-  const fold = (id, cl, t, n, cuerpo, abierto) => { const open = S.folds[id] != null ? S.folds[id] : abierto; return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
+  // en el celu las carpetas son un acordeón: de entrada se abre solo la primera y al abrir una se cierran las otras (menos scroll)
+  const MOVIL = () => matchMedia('(max-width:760px)').matches, FOLD1 = { ya: false };
+  const fold = (id, cl, t, n, cuerpo, abierto) => { let open = S.folds[id] != null ? S.folds[id] : abierto; if (MOVIL() && id !== 'ph') { if (open && FOLD1.ya) open = false; if (open) FOLD1.ya = true; } return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
   const paso = (n, t, txt) => '<div class="paso"><i' + (/^\d$/.test(n) ? '' : ' class="s"') + '>' + (n || '·') + '</i><div><b>' + t + '</b><p>' + txt + '</p></div></div>';
   const hoyD = () => new Date().toISOString().slice(0, 10);
   const entre = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
@@ -932,6 +934,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     '<div class="acc"><button class="btn" data-cerrar>Entendido</button></div>';
   function guia() { const o = document.createElement('div'); o.className = 'modal'; o.innerHTML = '<div class="box guia">' + GUIA + '</div>'; o.onclick = e => { if (e.target === o || e.target.closest('[data-cerrar]')) o.remove(); }; document.body.appendChild(o); lsSet('plan:guia', '2'); }
   function pintar() {
+    FOLD1.ya = false;
     const D = S.data, M = D.marcas;
     // movimiento (v2): la página entra escalonada solo al cambiar de pestaña o de marca, no en cada guardado
     const vk = S.vista + '|' + S.marca; app.classList.toggle('entra', S._ultV !== vk); S._ultV = vk;
@@ -940,7 +943,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     const prom = x => { const v = [x.ind.entregas, x.ind.inputs, x.ind.reportes].filter(y => y != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
     let h = '<div class="top"><div><div class="kick">/ ' + (D.project ? 'Vista Project · todas las marcas' : 'Tus marcas') + '</div><h1><b>Plan</b></h1></div><div class="bts"><a class="btn ayuda" href="recorrido/" style="text-decoration:none">▶ Cómo se arma un mes</a><button class="btn g ayuda" data-guia>¿Cómo funciona?</button></div></div><p class="sub">Tu mes en orden: 1 calendario anual, 2 calendario mensual, 3 entregas y 4 reels.</p>';
     const PH = paraHacer();
-    h += fold('ph', PH.length ? (PH.some(x => x.prio === 0) ? 'roja' : 'amar') : '', PH.length ? 'Para hacer' : ic('check') + 'Estás al día', PH.length || null, PH.length ? '<div class="rows">' + (S.phAll ? PH : PH.slice(0, 5)).map(x => '<div class="row tarea"><div><span class="pdot p' + x.prio + '"></span>' + esc(x.txt) + '</div><button class="btn g" data-ir="' + esc(x.slug) + '|' + x.vista + '">Ir</button></div>').join('') + (PH.length > 5 ? '<button class="btn add" data-phall>' + (S.phAll ? 'Ver menos' : 'Ver las ' + (PH.length - 5) + ' que faltan') + '</button>' : '') + '</div>' : '<div class="rows"><div class="row"><div class="m">No tenés nada pendiente en Plan. Mirá igual cómo venís en Cumplimiento.</div></div></div>', true);
+    h += fold('ph', PH.length ? (PH.some(x => x.prio === 0) ? 'roja' : 'amar') : '', PH.length ? 'Para hacer' : ic('check') + 'Estás al día', PH.length || null, PH.length ? '<div class="rows">' + (S.phAll ? PH : PH.slice(0, 5)).map(x => '<div class="row tarea"><div><span class="pdot p' + x.prio + '"></span>' + esc(x.txt) + '</div><button class="btn g" data-ir="' + esc(x.slug) + '|' + x.vista + '">Ir</button></div>').join('') + (PH.length > 5 ? '<button class="btn add" data-phall>' + (S.phAll ? 'Ver menos' : 'Ver las ' + (PH.length - 5) + ' que faltan') + '</button>' : '') + '</div>' : '<div class="rows"><div class="row"><div class="m">No tenés nada pendiente en Plan. Mirá igual cómo venís en Cumplimiento.</div></div></div>', !matchMedia('(max-width:760px)').matches);   // en el celu arranca cerrado (menos scroll)
     h += '<div class="marcas">' + M.map(x => { const p = prom(x); return '<button class="mc' + (x.slug === S.marca ? ' on' : '') + '" data-m="' + x.slug + '"><span class="ring" style="--p:' + (p || 0) + '"><i>' + (p == null ? '–' : p) + '</i></span><span><span class="n">' + esc(x.nombre) + '</span><br><span class="s">' + (D.project ? esc(PERMITIDAS[x.sm] || x.sm) + ' · ' : '') + (p == null ? 'sin datos todavía' : 'cumplimiento ' + p + ' %') + '</span></span></button>'; }).join('') + '</div>';
     if (!m) { app.innerHTML = h + '<div class="empty">No hay marcas para mostrar.</div>'; return bind(); }
     const Fm = fichaDe(m.slug), pend = S.ficha ? S.ficha.marcas.filter(x => x.estado === 'enviada' || x.estado === 'cambiada').length : 0;
@@ -973,6 +976,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     app.innerHTML = h; bind();
   }
   function bind() {
+    document.querySelectorAll('.paso').forEach(x => x.onclick = () => x.classList.toggle('ver'));   // en el celu la explicación se abre al tocar
     app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.marca = b.dataset.m; lsSet('plan:marca', S.marca); pintar(); });
     app.querySelectorAll('[data-mes]').forEach(b => b.onclick = () => { if (S.mes === b.dataset.mes) return; S.mes = b.dataset.mes; cargar(); });
     app.querySelectorAll('[data-guia]').forEach(b => b.onclick = guia);
@@ -982,7 +986,8 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     app.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { const [slug, v] = b.dataset.ir.split('|'); S.marca = slug; lsSet('plan:marca', slug); if (S.vista === 'mes' && v !== 'mes' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; irA(vistaOk(v) || 'anual'); const vs = app.querySelector('.vseg'); if (vs) vs.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     if (lsGet('plan:guia') !== '2' && !document.querySelector('.modal')) setTimeout(guia, 400);
     app.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { if (S.vista === b.dataset.vista) return; if (S.vista === 'mes' && sucio(S.marca) && !confirm('Tenés cambios sin guardar en la ficha. ¿Salir igual?')) return; irA(b.dataset.vista); });
-    app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement; f.classList.toggle('open'); S.folds[b.dataset.fold] = f.classList.contains('open'); lsSet('plan:folds', JSON.stringify(S.folds)); });
+    app.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const f = b.parentElement; f.classList.toggle('open');
+      if (MOVIL() && f.classList.contains('open') && b.dataset.fold !== 'ph') app.querySelectorAll('.fold.open > [data-fold]').forEach(o => { if (o !== b && o.dataset.fold !== 'ph') { o.parentElement.classList.remove('open'); S.folds[o.dataset.fold] = false; } }); S.folds[b.dataset.fold] = f.classList.contains('open'); lsSet('plan:folds', JSON.stringify(S.folds)); });
   }
   cargar();
 })();
