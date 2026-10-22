@@ -493,9 +493,10 @@ function leerTrello_(cat) {
       // Lo ya publicado/terminado solo sirve para medir hasta dónde está cargado el calendario: se guarda lo reciente y sin descripción.
       // excepción: los reels SIN fecha de las listas de aprobados que se tocaron en el último mes (son reels por calendarizar: Plan → Reels los muestra)
       const reelSF = !c.due && b.tipo === 'scl' && esReel_({ n: c.name, lab: (c.labels || []).map(x => x.name) }) && new Date(c.dateLastActivity).getTime() > Date.now() - 30 * 864e5;
-      if (catL === 'hecho' && !reelSF && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
+      const fijo = (c.labels || []).some(x => ES_FIJO_.test(norm_(x.name || '')));   // "mantener todos los meses": vale siempre, esté en la lista que esté
+      if (catL === 'hecho' && !reelSF && !fijo && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input' || catL === 'datos';
-      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby', 'mover', 'planb'].indexOf(catL) >= 0 || b.tipo === 'project';
+      const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby', 'mover', 'planb'].indexOf(catL) >= 0 || b.tipo === 'project' || fijo;
       cards.push({
         id: c.id, n: c.name, d: conDesc ? String(c.desc || '').slice(0, catL === 'datos' ? 4000 : 700) : (catL === 'recursos' || catL === 'fichas' ? String(c.desc || '').slice(0, 200) : ''), due: c.due, dc: !!c.dueComplete, ini: c.start,
         lista: l.name, cat: catL, tipo: b.tipo, tablero: b.nombre, turl: b.url, url: c.shortUrl, act: c.dateLastActivity,
@@ -1022,6 +1023,7 @@ function panel_(personaClave, ctx) {
     yo: { clave: yo.clave, nombre: yo.nombre, rol: yo.rol },
     equipo: cat.equipo.map(p => ({ clave: p.clave, nombre: p.nombre, rol: p.rol })),
     entregas: esFilm || esRevisa ? [] : entregasEquipo_(snap.cards || [], misMarcas.map(m => m.slug), hoy),   // pestaña Equipo del social media
+    lineamientos: esFilm ? [] : lineamientos_(snap.cards || [], misMarcas.map(m => m.slug)),   // pedidos para mantener todos los meses
     feriados: ctx.feriados || [],
     marcas: misMarcas.map(m => ({ slug: m.slug, nombre: m.nombre, canal: m.canal, rubro: m.contexto || '', driveFotos: m.driveFotos || String(cfg.DRIVE_FOTOS || '').trim(), tableros: (snap.tableros || []).filter(b => b.marca === m.slug).map(b => ({ id: b.id, tipo: b.tipo, url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] })) })),
     rutinasDef: rutinasDef, semanaInfo: semanaInfo,
@@ -1035,6 +1037,17 @@ function panel_(personaClave, ctx) {
     links: { reportes: cfg.LINK_REPORTES, brainstorming: cfg.LINK_BRAINSTORMING, notion: cfg.LINK_NOTION, drive: cfg.LINK_DRIVE, claveBrain: cfg.CLAVE_BRAINSTORMING || '' },
     ajustes
   };
+}
+
+/* "Mantener todos los meses" (22/10/2026, pedido de Joaquín): una tarjeta de Trello (del Project o del SCL de la marca) con una etiqueta
+   que diga "Mantener", "Todos los meses" o "Lineamiento" es un pedido fijo de la marca: le aparece al social media en el panel y en su lista del mes. */
+const ES_FIJO_ = /mantener|todos los meses|lineamient/;
+function lineamientos_(cards, slugs) {
+  const vistos = {};
+  return cards.filter(c => (c.lab || []).some(x => ES_FIJO_.test(norm_(x))) && (c.m || []).some(s => slugs.indexOf(s) >= 0))
+    .filter(c => { const k = norm_(c.n); if (vistos[k]) return false; vistos[k] = 1; return true; })   // la misma tarjeta copiada en dos tableros, una sola vez
+    .map(c => ({ id: c.id, n: c.n, d: String(c.d || '').slice(0, 500), m: (c.m || []).filter(s => slugs.indexOf(s) >= 0)[0], url: c.url, tablero: c.tablero }))
+    .slice(0, 60);
 }
 
 /* Pestaña Equipo del social media (22/10/2026): qué tienen Diseño y Producción de sus marcas y para cuándo lo entregan.
@@ -1171,19 +1184,19 @@ function diagnosticoReportes() {
 /* Qué reporte se entrega a fin de año (lo pide el panel en enero): por defecto el ANUAL (12 meses). Las marcas que manejamos desde
    mitad de año entregan el semestral (julio a diciembre) y las que arrancaron en octubre, el trimestral (octubre a diciembre).
    Dato de Joaquín, 17/10/2026. Config REPORTE_FIN_ANIO_<SLUG> (3, 6 o 12) pisa este número. */
-const REP_FIN_ANIO = { '1talquecocina': 6, 'tritato': 6, 'vice-burger': 3 };
+const REP_FIN_ANIO = { '1talquecocina': 6, 'tritato': 7, 'vice-burger': 3 };   // Tritato: de junio a diciembre (dato de Joaquín, 22/10/2026)
 function repFinAnio_(slug) {
   const c = Number((config_() || {})['REPORTE_FIN_ANIO_' + String(slug).toUpperCase().replace(/-/g, '_')]);
-  return [3, 6, 12].indexOf(c) >= 0 ? c : (REP_FIN_ANIO[slug] || 12);
+  return [3, 6, 7, 12].indexOf(c) >= 0 ? c : (REP_FIN_ANIO[slug] || 12);
 }
-const REP_FIN_NOMBRE = { 12: 'anual', 6: 'semestral', 3: 'trimestral' };
+const REP_FIN_NOMBRE = { 12: 'anual', 7: 'de fin de año', 6: 'semestral', 3: 'trimestral' };
 /* Trimestres corridos (22/10/2026, dato de Joaquín): Tritato va junio a agosto, septiembre a noviembre, diciembre a febrero y marzo a mayo.
-   El número es el mes en que arranca su ciclo. Para estas marcas no corren el trimestre calendario ni el reporte de fin de año. */
+   El número es el mes en que arranca su ciclo. Para estas marcas no corre el trimestre calendario; el de fin de año sí (en enero, ver REP_FIN_ANIO). */
 const REP_TRIM_INICIO = { 'tritato': 6 };
 /* Período que cerró el mes anterior a "fecha" (trimestral, o el de fin de año en enero), o null si ese mes no cierra ninguno para la marca. */
 function periodoQueCerro_(slug, fecha) {
   const off = REP_TRIM_INICIO[slug];
-  if (off) {
+  if (off && fecha.getMonth() !== 0) {   // en enero va el reporte de fin de año (abajo), igual que el resto
     const fin0 = (fecha.getMonth() + 11) % 12;   // el mes que terminó (0 a 11)
     if ((((fin0 - (off - 1)) % 3) + 3) % 3 !== 2) return null;
     const ini = new Date(fecha.getFullYear(), fecha.getMonth() - 3, 1);
@@ -1407,6 +1420,27 @@ function mioAccion_(b) {
     if (!e) return { error: 'etiqueta', mensaje: 'No existe la etiqueta "' + (b.cual === 'urgente' ? 'Urgente' : 'Ver en minuta') + '" en el tablero Project' };
     const tiene = (c.idLabels || []).indexOf(e.id) >= 0, ids = tiene ? c.idLabels.filter(x => x !== e.id) : (c.idLabels || []).concat(e.id);
     trello_('/cards/' + cardId, { idLabels: ids.join(',') }, 'put'); c.idLabels = ids; pasos.push((tiene ? 'Sin ' : 'Con ') + '"' + e.name + '"');
+  } else if (op === 'enviar') {
+    // diseño, social media y fotografía: la tarjeta pasa a la lista del Project que ya dispara esa automatización (Make o Butler)
+    const aLista = { diseno: /^a diseno/, sm: /^a social media/, foto: /^a produccion/ }[String(b.destino || '')];
+    if (aLista) {
+      const l = (r[0] || []).filter(x => aLista.test(norm_(x.name)))[0];
+      if (!l) return { error: 'lista', mensaje: 'No encuentro esa lista en Project' };
+      trello_('/cards/' + cardId, { idList: l.id, pos: 'top' }, 'put'); c.idList = l.id; pasos.push('Pasó a "' + l.name + '": la automatización la manda a su tablero');
+    } else if (b.destino === 'reel' || b.destino === 'historia') {
+      // reel o historia: se copia directo a la lista del tablero de Producción de la marca y la original queda en seguimiento
+      const nomEt = etis.filter(x => (c.idLabels || []).indexOf(x.id) >= 0).map(x => x.name).join(' '), cat = catalogo_(), ms = marcasEn_(nomEt + ' ' + c.name, cat.marcas);
+      if (ms.length !== 1) return { error: 'marca', mensaje: ms.length ? 'La tarjeta tiene más de una marca: dejale una sola etiqueta de marca' : 'Ponele la etiqueta de la marca a la tarjeta' };
+      const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), tb = (snap.tableros || []).filter(t => t.tipo === 'produccion' && t.marca === ms[0])[0];
+      if (!tb) return { error: 'tablero', mensaje: 'No encuentro el tablero de Producción de ' + nombreMarca_(cat, ms[0]) };
+      const re = b.destino === 'reel' ? /reels? pendiente/ : /historias? pendiente/, dl = (tb.listas || []).filter(x => re.test(norm_(x.n)))[0];
+      if (!dl) return { error: 'lista', mensaje: 'En ' + tb.nombre + ' no está la lista "' + (b.destino === 'reel' ? 'Reels pendientes' : 'Historias pendientes') + '"' };
+      const nueva = trello_('/cards', { idList: dl.id, idCardSource: cardId, keepFromSource: 'all', pos: 'top' }, 'post');
+      if (!nueva || !nueva.id) return { error: 'trello', mensaje: 'Trello no confirmó la copia' };
+      pasos.push('Copiada a "' + dl.n + '" de ' + tb.nombre);
+      const seg = listas.filter(x => x.k === 'seguimiento')[0];
+      if (seg) { trello_('/cards/' + cardId, { idList: seg.id, pos: 'top' }, 'put'); c.idList = seg.id; pasos.push('La original quedó en "' + seg.n + '"'); }
+    } else return { error: 'datos', mensaje: 'Destino desconocido' };
   } else if (op === 'comentar') {
     const t = String(b.texto || '').trim(); if (!t) return { error: 'datos', mensaje: 'Escribí el comentario' };
     trello_('/cards/' + cardId + '/actions/comments', { text: t.slice(0, 16000) }, 'post'); pasos.push('Comentario puesto en la tarjeta');
@@ -2564,6 +2598,8 @@ function tareasDelMesArmar_(p, cat, fecha, snap) {
   if (diaria.length) { lineas.push('', '**Todos los días**'); diaria.forEach(x => lineas.push(x)); }
   // lo que dejaron guardado en "Para más adelante": una vez por mes se les recuerda, para que no quede olvidado
   const guardado = ((snap || {}).cards || []).filter(c => c.cat === 'standby' && c.tipo === 'scl' && mias.some(m => m.slug === c.m[0]));
+  const fijos = lineamientos_((snap || {}).cards || [], mias.map(m => m.slug));
+  if (fijos.length) { lineas.push('', '**Para mantener todos los meses**'); fijos.slice(0, 15).forEach(c => lineas.push('• ' + nombreMarca_(cat, c.m) + ' · ' + c.n)); }
   if (guardado.length) { lineas.push('', '**Guardado en "Para más adelante" (' + guardado.length + ')**: ¿algo de esto ya se puede hacer?'); guardado.slice(0, 12).forEach(c => lineas.push('• ' + nombreMarca_(cat, c.m[0]) + ' · ' + String(c.n).slice(0, 70))); if (guardado.length > 12) lineas.push('… y ' + (guardado.length - 12) + ' más'); }
   lineas.push('', 'No hace falta que lo guardes: cada cosa te aparece en el panel el día que toca y ahí la vas tildando. https://ideamiacontacto-lab.github.io/panel-ideamia/');
   return trozos_('📅 **' + p.nombre + ', estas son tus tareas de ' + NOM_MES[mes - 1] + '**', lineas);
