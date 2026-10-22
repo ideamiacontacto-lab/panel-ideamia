@@ -109,7 +109,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
   // si el navegador mostró una copia vieja de la página, se pide la nueva una sola vez (cambiar VER en cada versión)
-  const VER = '7';
+  const VER = '8';
   try {
     fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
       const m = /const VER = '(\d+)'/.exec(t);
@@ -144,11 +144,12 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   async function cargar(silencioso) {
     if (!S.persona || !PERMITIDAS[S.persona]) return gate(S.persona ? 'Esta sección es solo para las social media y el project.' : '');
     if (!clave()) return gate('');
-    if (!silencioso) app.innerHTML = '<div class="empty">Cargando objetivos…</div>';
+    // lo último que se vio se muestra al instante (22/10/2026) y lo nuevo llega de fondo
+    if (!silencioso) { const c = jget('okr:cache:' + S.persona); if (c && c.marcas) { S.data = c; pintar(); silencioso = true; } else app.innerHTML = '<div class="empty">Cargando objetivos…</div>'; }
     try {
       const r = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'okr', k: clave(), p: S.persona }), { cache: 'no-store' }).then(r => r.json());
       if (r.error) return gate(r.mensaje || r.error);
-      S.data = r; pintar();
+      S.data = r; lsSet('okr:cache:' + S.persona, JSON.stringify(r)); pintar();
     } catch (e) { app.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(e.message) + '. Probá de nuevo en un rato.</div>'; }
   }
   async function enviar(body) {
