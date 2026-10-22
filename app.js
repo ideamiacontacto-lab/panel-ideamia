@@ -254,19 +254,19 @@
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm }[S.tab] || vHoy)(t);
+    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
-    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Presencial', I.pin, Df.visPend.length, true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
+    const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Agenda', I.pin, Df.visPend.length + prodPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : [['hoy', 'Hoy', I.check, tot - ok], ['semana', 'Semana', I.cal, nRep, nRep > 0], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(D.anual ? [['anual', 'Anual', I.star, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
-    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'mas'].indexOf(S.tab) >= 0;
-    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Presencialidad', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
+    const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods', 'mas'].indexOf(S.tab) >= 0;
+    const TIT = { film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
-      : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
+      : '<div class="mtit">' + (!ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'reuniones', 'prods'].indexOf(S.tab) >= 0 ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
     const headF = film && portada ? '<section class="mhead"><div><div class="kick">— ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas)) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
@@ -1209,7 +1209,9 @@
       ((c.lab || []).some(l => /urgente/i.test(l)) || (fsal(c) && fsal(c) <= en3) || (cargada(c) >= hace48 && (!fsal(c) || fsal(c) <= en7))))
       .map(c => Object.assign({}, c, { cargada: cargada(c), urgente: (c.lab || []).some(l => /urgente/i.test(l)) }))
       .sort((a, b) => (b.urgente - a.urgente) || ((fsal(a) || 9e15) - (fsal(b) || 9e15)) || (b.cargada - a.cargada));
-    return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun, urg };
+    // pedidos extra (lista "Pedidos" de Diseño o Producción): se pagan aparte y tienen su propia fecha de entrega (la de la tarjeta), sin fecha de salida del SCL
+    const ext = S.data.cards.filter(c => pasa(c.m) && c.cat === 'pieza' && /pedido|extra/i.test(c.lista || '') && c.etapa !== 'revision').sort((a, b) => new Date(a.due || 9e15) - new Date(b.due || 9e15));
+    return { rev, revDis: rev.filter(c => c.tipo !== 'produccion'), revVid: rev.filter(c => c.tipo === 'produccion'), prox, atras: prox.filter(c => c.plazo < new Date()), gui, lun, urg, ext };
   }
   /* ---------------- revisión en vivo ----------------
      Para quien revisa: se pide a Trello lo que está AHORA en "En revisión" y se combina con lo ya cargado,
@@ -1263,7 +1265,7 @@
     };
     const vacio = t => '<div class="empty">' + t + '</div>';
     // los contadores son las pestañas: se ve una sección a la vez
-    const segs = [['urg', 'urgentes', 'nuevo y para ya', R.urg.length, 'bad'], ['dis', 'diseños', 'en revisión', R.revDis.length, 'y'], ['vid', 'videos', 'en revisión', R.revVid.length, 'y'], ['ent', 'entregas', R.atras.length ? 'faltó entregar' : 'próximas', R.atras.length || R.prox.length, R.atras.length ? 'bad' : ''], ['gui', 'guiones', 'lunes ' + dm(R.lun), R.gui.length, '']];
+    const segs = [['urg', 'urgentes', 'nuevo y para ya', R.urg.length, 'bad'], ['ext', 'extras', 'pedidos aparte', R.ext.length, R.ext.some(c => c.due && new Date(c.due) < new Date()) ? 'bad' : 'y'], ['dis', 'diseños', 'en revisión', R.revDis.length, 'y'], ['vid', 'videos', 'en revisión', R.revVid.length, 'y'], ['ent', 'entregas', R.atras.length ? 'faltó entregar' : 'próximas', R.atras.length || R.prox.length, R.atras.length ? 'bad' : ''], ['gui', 'guiones', 'lunes ' + dm(R.lun), R.gui.length, '']];
     let seg = LS.get('revseg', null);
     if (!segs.some(s => s[0] === seg)) seg = R.urg.length ? 'urg' : R.atras.length ? 'ent' : R.revDis.length ? 'dis' : R.revVid.length ? 'vid' : 'ent';
     const tabs = '<div class="rapidos revtabs">' + segs.map(s => '<button class="rp' + (s[3] ? ' ' + s[4] : '') + (seg === s[0] ? ' sel' : '') + '" data-revseg="' + s[0] + '"><b>' + s[3] + '</b><span>' + s[1] + '<br><small>' + s[2] + '</small></span></button>').join('') + '</div>';
@@ -1272,6 +1274,8 @@
       const dato = c => (c.urgente ? '<span class="pill bad">Urgente</span>' : '') + ((c.salida || c.due) ? '' : '<span class="pill warn">sin fecha de salida</span>') + (c.cargada >= new Date(NOW.getTime() - 48 * 36e5) ? '<span>cargada ' + (diasA(c.cargada) === 0 ? 'hoy' : 'ayer') + '</span>' : '') + '<span>' + esc(c.tablero || '') + ' · ' + esc(c.lista || '') + '</span>';
       cuerpo = R.urg.length ? '<p class="sub" style="margin:0 0 10px">Lo pendiente de diseño y producción con la etiqueta Urgente o que sale en 3 días o menos, y lo cargado en las últimas 48 h que sale esta semana o no tiene fecha (pedísela a quien lo cargó).</p>' + porMarca('ru', R.urg, c => fila(c, dato(c)), c => c.urgente || ((c.salida || c.due) && diasA(new Date(c.salida || c.due)) <= 1)) : vacio('No hay nada urgente ni cargado en las últimas 48 h.');
     } else
+    if (seg === 'ext') cuerpo = R.ext.length ? '<p class="sub" style="margin:0 0 10px">Pedidos extra de Diseño y Producción: se pagan aparte y se entregan en la fecha de la tarjeta.</p>' + porMarca('rx', R.ext, c => fila(c, (c.due ? (new Date(c.due) < new Date() ? '<span class="pill bad">venció el ' + dm(new Date(c.due)) + '</span>' : '<span' + (diasA(new Date(c.due)) <= 1 ? ' class="pill warn"' : '') + '>se entrega ' + cuando(new Date(c.due)) + '</span>') : '<span class="pill warn">sin fecha de entrega</span>') + '<span>' + esc(c.lista) + '</span>'), c => c.due && new Date(c.due) < new Date()) : vacio('No hay pedidos extra pendientes.');
+    else
     if (seg === 'dis') cuerpo = R.revDis.length ? porMarca('rd', R.revDis, c => fila(c, '')) : vacio('No hay diseños esperando revisión.');
     else if (seg === 'vid') cuerpo = R.revVid.length ? porMarca('rv', R.revVid, c => fila(c, '')) : vacio('No hay videos esperando revisión.');
     else if (seg === 'gui') cuerpo = R.gui.length ? porMarca('rg', R.gui, g => fila(Object.assign({ formato: 'guion' }, g), g.gest === 'revisar' ? '<span class="pill y">entregado · a revisar</span>' : (diasA(new Date(g.entrega)) < 0 ? '<span class="pill bad">Fede debía entregar el ' + dm(new Date(g.entrega)) + '</span>' : '<span>Fede entrega ' + cuando(new Date(g.entrega)) + '</span>')), g => g.gest === 'pendiente' && diasA(new Date(g.entrega)) < 0) : vacio('No hay guiones para ver esta semana.');
@@ -1331,6 +1335,7 @@
     return '<div class="mas-g">' +
       (() => { const nReu = reuPend().filter(r => pasa(r.marca || S.marca)).length; return t('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha'); })() + t('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'de Fede, al día') + t('data-tab="agenda"', I.cal, 'Agenda', '14 días') + t('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + (nVen === 1 ? ' tarjeta pasada de fecha' : ' tarjetas pasadas de fecha') : 'nada vencido') +
       t('data-fechas', I.star, 'Fechas', nF + ' en los próximos 30 días') + t('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas') + t('data-tab="colabs"', I.users, 'Colaboradores', ((S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers y cuentas afines')) +
+      (S.data.prods ? t('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), n = S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length; return n + ' esta semana'; })()) : '') +
       t('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario') +
       '</div>' + costado(true);
   }
@@ -1788,6 +1793,108 @@
     const D = datosFilm(), n0 = D.porHacer.filter(c => D.sem(c) === 0).length, n1 = D.porHacer.filter(c => D.sem(c) === 1).length;
     return (D.atras.length ? '<b class="rojo">' + D.atras.length + (D.atras.length === 1 ? ' atrasada' : ' atrasadas') + '</b> · ' : '') + '<b>' + n0 + '</b> para entregar esta semana · <b>' + n1 + '</b> la que viene' + (D.visPend.length ? ' · te ' + (D.visPend.length === 1 ? 'falta 1 visita' : 'faltan ' + D.visPend.length + ' visitas') : '');
   }
+  /* ---------------- Producciones del filmmaker (pedido de Joaquín, 21/10/2026) ----------------
+     Qué va a grabar, cuándo, en qué marca y con quién. En los reels, un checklist (actores, guion, qué llevar) y en las marcas con
+     recetas, avisarle a la encargada una semana antes qué insumos preparar. Joaquín lo ve en Más → Producciones. */
+  const PROD_ICO = { reel: '🎬', historias: '📱', fotos: '📷', presencial: '📍', otro: '•' };
+  const DSEM_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  const fProd = s => DSEM_C[new Date(s + 'T12:00:00').getDay()] + ' ' + (+s.slice(8)) + '/' + (+s.slice(5, 7));
+  function prodFalta(x, P) {
+    const L = [];
+    if (x.tipo === 'reel') ['actores', 'guion', 'llevar'].forEach(k => { if (!(x.chk || {})[k]) L.push(k); });
+    if (x.receta && (P.recetas || []).indexOf(x.marca) >= 0 && !(x.chk || {}).encargada) L.push('encargada');
+    return L;
+  }
+  const FALTA_C = { actores: 'coordinar con quienes actúan', guion: 'mandar el guion', llevar: 'avisar qué llevar', encargada: 'avisarle a la encargada' };
+  function filaProd(x, P, conNombre) {
+    const hoy = ymdL(NOW), falta = x.falta || prodFalta(x, P), paso = x.fecha < hoy, esHoy = x.fecha === hoy;
+    const est = x.estado === 'hecho' ? '<span class="pill ok">Se hizo</span>' : x.estado === 'nohecho' ? '<span class="pill bad">No se hizo</span>' : '';
+    return '<div class="fl-r pr-r' + (falta.length && !paso ? ' pr-falta' : '') + '"' + (conNombre ? '' : ' data-prod="' + esc(x.id) + '" role="button" tabindex="0"') + '><div class="pr-h"><b>' + fProd(x.fecha) + '</b><span>' + esc(x.hora) + ' h</span></div>' +
+      '<div class="fl-t"><div class="pr-q">' + tagM(x.marca) + '<span class="pill">' + (PROD_ICO[x.tipo] || '') + ' ' + esc((P.tipos || {})[x.tipo] || x.tipo) + '</span>' + (conNombre ? '<span class="fl-dim">' + esc(x.nombre) + '</span>' : '') + (esHoy ? '<span class="pill y">hoy</span>' : '') + est + '</div>' +
+      '<div class="pr-d">' + esc(x.que) + (x.conQuien ? ' <span class="fl-dim">· con ' + esc(x.conQuien) + '</span>' : '') + '</div>' +
+      (falta.length && !x.estado ? '<div class="pr-f">' + falta.map(k => '<span class="pill warn">Falta ' + FALTA_C[k] + '</span>').join('') + '</div>' : (x.tipo === 'reel' && !x.estado ? '<div class="pr-f"><span class="pill ok">✓ Coordinado</span></div>' : '')) +
+      (x.nota ? '<div class="pr-d fl-dim">' + esc(x.nota) + '</div>' : '') + '</div>' +
+      (!conNombre && paso && !x.estado ? '<div class="fl-bs"><button class="fl-b" data-prod-est="' + esc(x.id) + '" data-v="hecho">Se hizo</button><button class="fl-b" data-prod-est="' + esc(x.id) + '" data-v="nohecho">No se hizo</button></div>' : '') + '</div>';
+  }
+  function secProducciones() {
+    const P = (S.data.film || {}).prod; if (!P) return '';
+    const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), l2 = ymdL(lunesDe(NOW, 2)), hoy = ymdL(NOW);
+    const esta = P.items.filter(x => x.fecha >= l0 && x.fecha < l1), sig = P.items.filter(x => x.fecha >= l1 && x.fecha < l2), mas = P.items.filter(x => x.fecha >= l2);
+    const sigFalta = sig.filter(x => prodFalta(x, P).length).length;
+    const bloque = (tit, L, vacio, alerta) => '<div class="fl-vg"><h3>' + tit + (alerta ? ' <span class="pill ' + alerta[0] + '">' + alerta[1] + '</span>' : '') + '</h3>' + (L.length ? L.map(x => filaProd(x, P)).join('') : '<div class="empty">' + vacio + '</div>') + '</div>';
+    const dow = NOW.getDay(), avisoSig = !sig.length && (dow >= 4 || dow === 0) ? ['bad', 'cargala antes del viernes'] : sigFalta ? ['warn', sigFalta + ' sin coordinar'] : null;
+    return '<div class="sec"><div class="sec-h"><h2>Producciones<small>qué grabás, cuándo y con quién</small></h2><button class="btn y fl-mas" data-prod-nueva>+ Producción</button></div>' +
+      '<div class="fl-vs">' + bloque('Esta semana', esta, 'No anotaste producciones esta semana.') + bloque('La semana que viene', sig, 'Todavía no anotaste nada de la semana que viene.', avisoSig) + (mas.length ? bloque('Más adelante', mas, '') : '') + '</div>' +
+      '<p class="ayuda">Anotá cada grabación con <b>día, hora, marca, qué vas a hacer y con quién</b>. En los reels marcá si coordinaste con quienes actúan, si les mandaste el guion y si les avisaste qué llevar. Si es una receta o preparación en Isco, Quality, Quality Mayorista o Gabriel Varisco, avisale a la encargada <b>una semana antes</b> qué insumos tiene que tener listos. Los viernes te llega un recordatorio si falta algo.</p></div>';
+  }
+  function prodEditar(x0) {
+    const F = S.data.film || {}, P = F.prod || {}, x = Object.assign({ tipo: 'reel', chk: {}, fecha: ymdL(lunesDe(NOW, 1)), hora: '10:00', marca: (F.reels || [])[0] || '' }, x0 || {});
+    const todas = (F.todas && F.todas.length ? F.todas : S.data.marcas).slice().sort((a, b) => a.nombre < b.nombre ? -1 : 1);
+    const reels = S.data.cards.filter(c => c.cat === 'pieza' && c.formato !== 'historia' && c.etapa !== 'revision');
+    const ck = (k, t) => '<label class="pr-ck" data-ck="' + k + '"><input type="checkbox" id="pc-' + k + '"' + ((x.chk || {})[k] ? ' checked' : '') + '><span>' + t + '</span></label>';
+    const m = modal('<h3>' + (x0 ? 'Editar producción' : 'Nueva producción') + '</h3>' +
+      '<div class="two"><label class="field"><span>Día</span><input type="date" id="pdF" value="' + esc(x.fecha) + '"></label><label class="field"><span>Hora</span><input type="time" id="pdH" value="' + esc(x.hora) + '"></label></div>' +
+      '<label class="field"><span>Marca</span><select id="pdM">' + todas.map(t => '<option value="' + esc(t.slug) + '"' + (t.slug === x.marca ? ' selected' : '') + '>' + esc(t.nombre) + '</option>').join('') + '</select></label>' +
+      '<div class="fl-tipo pr-tipos">' + Object.keys(P.tipos || {}).filter(k => k !== 'otro' || x.tipo === 'otro').map(k => '<label><input type="radio" name="pdT" value="' + k + '"' + (x.tipo === k ? ' checked' : '') + '><span><i>' + (PROD_ICO[k] || '') + '</i>' + esc(P.tipos[k]) + '</span></label>').join('') + '</div>' +
+      '<label class="field"><span>¿Qué vas a hacer?</span><input id="pdQ" list="pdL" maxlength="300" value="' + esc(x.que || '') + '" placeholder="Ej.: reel de la receta de lemon pie, historias del local"><datalist id="pdL">' + reels.map(c => '<option value="' + esc(c.n) + '">').join('') + '</datalist></label>' +
+      '<label class="field"><span>¿Con quién?</span><input id="pdC" maxlength="160" value="' + esc(x.conQuien || '') + '" placeholder="Quiénes actúan o con quién coordinás (ej.: Verona y Juli)"></label>' +
+      '<label class="pr-ck" id="pdRw"><input type="checkbox" id="pdR"' + (x.receta ? ' checked' : '') + '><span>Es una receta o preparación (hay que avisar qué insumos preparar)</span></label>' +
+      '<div class="pr-cks" id="pdK"><b>Antes de grabar</b>' + ck('actores', 'Coordiné con las personas que actúan') + ck('guion', 'Les mandé el guion') + ck('llevar', 'Les avisé si tienen que llevar algo') + ck('encargada', 'Le avisé a la encargada qué insumos preparar (una semana antes)') + '</div>' +
+      '<label class="field"><span>Nota (opcional)</span><input id="pdN" maxlength="300" value="' + esc(x.nota || '') + '"></label>' +
+      '<div class="err"></div><div class="acts">' + (x0 ? '<button class="btn ghost" data-prod-borrar>Borrar</button>' : '') + '<button class="btn ghost" data-x>Cancelar</button><button class="btn y" data-ok>Guardar</button></div>', async mm => {
+      const g = id => $(id, mm).value.trim(), tipo = (mm.querySelector('input[name=pdT]:checked') || {}).value || 'otro';
+      const body = { action: 'produccion', accion: 'guardar', id: x.id || '', fecha: g('#pdF'), hora: g('#pdH'), marca: g('#pdM'), tipo, que: g('#pdQ'), conQuien: g('#pdC'), receta: $('#pdR', mm).checked, nota: g('#pdN'), chk: {} };
+      ['actores', 'guion', 'llevar', 'encargada'].forEach(k => body.chk[k] = $('#pc-' + k, mm).checked);
+      if (!body.fecha) throw new Error('Elegí el día.'); if (!body.hora) throw new Error('Poné la hora.'); if (body.que.length < 3) throw new Error('Contá qué vas a hacer.');
+      const r = await post(body); if (r.prod) S.data.film.prod = r.prod; else if (DEMO) { const L = P.items; const i = L.findIndex(z => z.id === body.id); const n = Object.assign({}, body, { id: body.id || 'd' + Date.now() }); if (i >= 0) L[i] = n; else L.push(n); }
+      render(); toast('✓ Producción guardada');
+    });
+    // el checklist se adapta: actores/guion/llevar solo en reels; la encargada, si es receta en una marca con recetas
+    const ajustar = () => {
+      const tipo = (m.querySelector('input[name=pdT]:checked') || {}).value, mk = $('#pdM', m).value, rec = (P.recetas || []).indexOf(mk) >= 0;
+      $('#pdRw', m).style.display = rec ? '' : 'none';
+      ['actores', 'guion', 'llevar'].forEach(k => m.querySelector('[data-ck=' + k + ']').style.display = tipo === 'reel' ? '' : 'none');
+      m.querySelector('[data-ck=encargada]').style.display = rec && $('#pdR', m).checked ? '' : 'none';
+      $('#pdK', m).style.display = tipo === 'reel' || (rec && $('#pdR', m).checked) ? '' : 'none';
+    };
+    m.querySelectorAll('input[name=pdT], #pdM, #pdR').forEach(i => i.onchange = ajustar); ajustar();
+    const bb = m.querySelector('[data-prod-borrar]'); if (bb) bb.onclick = async () => { if (!confirm('¿Borrar esta producción?')) return; try { const r = await post({ action: 'produccion', accion: 'borrar', id: x.id }); if (r.prod) S.data.film.prod = r.prod; m.remove(); render(); toast('Borrada'); } catch (e) { $('.err', m).textContent = e.message; } };
+  }
+  async function prodEstado(id, v) {
+    const P = S.data.film.prod, x = P.items.find(z => z.id === id); if (!x) return;
+    const nota = v === 'nohecho' ? (prompt('¿Por qué no se hizo? (opcional)') || '') : '';
+    const antes = x.estado; x.estado = v; render();
+    try { const r = await post({ action: 'produccion', accion: 'estado', id, estado: v, nota }); if (r.prod) S.data.film.prod = r.prod; render(); }
+    catch (e) { x.estado = antes; render(); toast('✗ No se guardó: ' + esc(e.message)); }
+  }
+  /* reel de sus marcas que el CM pasó a Publicado: ¿lo anotás en tu lista? (una vez por reel) */
+  function prodPublicados() {
+    const P = (S.data.film || {}).prod; if (!P || !P.publicados || !P.publicados.length || $('.modal')) return;
+    const r = P.publicados[0];
+    const m = modal('<h3>🎬 Se publicó un reel tuyo</h3><p><b>' + esc(r.n) + '</b><br>' + tagM(r.marca) + ' <span class="fl-dim">publicado el ' + fProd(r.fecha) + '</span></p><p>¿Querés anotarlo en tu lista de reels?' + (P.lista ? ' Al abrirla te copio el renglón (fecha, marca, nombre y link) para que lo pegues.' : ' (Pedile a Joaquín que cargue el link de tu lista en el panel.)') + '</p>' +
+      '<div class="err"></div><div class="acts"><button class="btn ghost" data-prno>No es mío</button><button class="btn ghost" data-x>Después</button>' + (P.lista ? '<button class="btn" data-pabrir>Abrir mi lista</button>' : '') + '<button class="btn y" data-ok>Ya lo anoté</button></div>', async () => {
+      const j = await post({ action: 'produccion', accion: 'reel', card: r.id, v: 'anotado' }); if (j.prod) S.data.film.prod = j.prod; else P.publicados.shift(); toast('✓ Anotado'); setTimeout(prodPublicados, 600);
+    });
+    const ab = m.querySelector('[data-pabrir]'); if (ab) ab.onclick = () => { const fila = [r.fecha.split('-').reverse().join('/'), nomMarcaF(r.marca), r.n, r.url].join('\t'); try { navigator.clipboard.writeText(fila); toast('Renglón copiado: pegalo en tu lista'); } catch (e) {} window.open(P.lista, '_blank', 'noopener'); };
+    m.querySelector('[data-prno]').onclick = async () => { try { const j = await post({ action: 'produccion', accion: 'reel', card: r.id, v: 'no' }); if (j.prod) S.data.film.prod = j.prod; else P.publicados.shift(); m.remove(); setTimeout(prodPublicados, 400); } catch (e) { $('.err', m).textContent = e.message; } };
+  }
+  /* ---------------- Más → Producciones (project y dirección): lo que anotaron los filmmakers ---------------- */
+  function vProds() {
+    const P = S.data.prods; if (!P) return '<div class="empty">No hay datos de producciones.</div>';
+    const hoy = ymdL(NOW), l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)), l2 = ymdL(lunesDe(NOW, 2));
+    const L = P.items.filter(x => pasa([x.marca]));
+    const grupo = (tit, A, vacio) => '<div class="sec"><div class="sec-h"><h2>' + tit + '<small>' + A.length + '</small></h2></div>' + (A.length ? '<div class="fl-list suelta">' + A.map(x => filaProd(x, P, true)).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
+    return '<p class="sub">Lo que anotan los filmmakers: día, hora, marca, qué graban y con quién. Sirve para chequear con el cliente si llegaron a horario y si coordinaron antes (actores, guion, insumos).</p>' +
+      grupo('Esta semana', L.filter(x => x.fecha >= l0 && x.fecha < l1), 'No anotaron producciones esta semana.') +
+      grupo('La semana que viene', L.filter(x => x.fecha >= l1 && x.fecha < l2), 'Todavía no anotaron nada de la semana que viene.') +
+      grupo('Anteriores', L.filter(x => x.fecha < l0).reverse(), 'Sin producciones anteriores.');
+  }
+  // insignia de la pestaña Agenda: la semana que viene sin cargar (de jueves en adelante) o producciones de los próximos 7 días sin coordinar
+  function prodPend() {
+    const P = (S.data.film || {}).prod; if (!P) return 0;
+    const hoy = ymdL(NOW), en7 = ymdL(new Date(NOW.getTime() + 7 * 864e5)), l1 = ymdL(lunesDe(NOW, 1)), l2 = ymdL(lunesDe(NOW, 2)), dow = NOW.getDay();
+    return P.items.filter(x => x.fecha >= hoy && x.fecha <= en7 && !x.estado && prodFalta(x, P).length).length + ((dow >= 4 || dow === 0) && !P.items.some(x => x.fecha >= l1 && x.fecha < l2) ? 1 : 0);
+  }
   // Presencialidades: cada día que fue (o piensa ir) queda como un renglón propio: puede haber más de un día por semana,
   // coberturas extra y marcas que no son las suyas de siempre. Clave: film:<persona>:asis:<fecha>:<marca>[:x…]
   const ymdL = d => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
@@ -1886,7 +1993,7 @@
       return '<div class="mcar' + (abierta ? ' on' : '') + '"><button class="mcar-h" data-mcar="' + esc(k) + '" data-abierta="' + (abierta ? 1 : 0) + '"><span class="dotm" style="background:var(--y)"></span><b>' + MES[+mk.slice(5) - 1] + ' ' + mk.slice(0, 4) + '</b><small>' + L.length + '</small><em class="suave">' + nS + ' semanal' + (nS === 1 ? '' : 'es') + (nX ? ' · ' + nX + ' extra' : '') + '</em><i>' + (abierta ? '−' : '+') + '</i></button>' + (abierta ? '<div class="fl-sems">' + cuerpo + '</div>' : '') + '</div>';
     }).join('');
     const esteMes = (meses[mesHoy] || []).filter(a => a.fecha <= hoyId_), estaSem = A.filter(a => a.fecha >= semHoy && a.fecha <= hoyId_);
-    return '<div class="mio-sts fl-sts">' + tile(D.visPend.length, 'Visitas', 'te faltan esta semana', 'warn', 'data-nada') + tile(estaSem.length, 'Esta semana', 'días que fuiste', 'ok', 'data-nada') + tile(esteMes.length, 'Este mes', 'presencialidades', 'ok', 'data-nada') + tile(esteMes.filter(a => a.extra).length, 'Extras', 'este mes', 'y', 'data-nada') + '</div>' +
+    return secProducciones() + '<div class="mio-sts fl-sts">' + tile(D.visPend.length, 'Visitas', 'te faltan esta semana', 'warn', 'data-nada') + tile(estaSem.length, 'Esta semana', 'días que fuiste', 'ok', 'data-nada') + tile(esteMes.length, 'Este mes', 'presencialidades', 'ok', 'data-nada') + tile(esteMes.filter(a => a.extra).length, 'Extras', 'este mes', 'y', 'data-nada') + '</div>' +
       '<div class="sec"><div class="sec-h"><h2>Visitas<small>por semana</small></h2><button class="btn y fl-mas" data-film-anotar>+ Anotar</button></div><div class="fl-vs">' + vis('esta semana', 0) + vis('la semana que viene', 1) + '</div>' +
       '<p class="ayuda">Tocá cada día que fuiste o que pensás ir: podés marcar más de uno por semana. Con <b>+ Anotar</b> cargás una cobertura extra o una marca que no es de las tuyas de siempre.</p></div>' +
       '<div class="sec"><div class="sec-h"><h2>Asistencias<small>' + A.length + ' anotadas</small></h2></div>' + (A.length ? registro : '<div class="empty">Todavía no hay presencialidades anotadas.</div>') + '</div>';
@@ -2032,6 +2139,10 @@
     root.querySelectorAll('[data-film-est]').forEach(x => x.onclick = () => filmEstado(x.dataset.filmEst, x.dataset.estado, x.dataset.detalle || '', x.dataset.fmarca || ''));
     root.querySelectorAll('[data-film-mover]').forEach(x => x.onclick = () => filmMover(x.dataset.filmMover, x.dataset.ffecha, x.dataset.fhora));
     root.querySelectorAll('[data-film-anotar]').forEach(x => x.onclick = () => filmAnotar());
+    root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
+    root.querySelectorAll('[data-prod]').forEach(x => { const abrir = e => { if (e.target.closest('button')) return; const it = ((S.data.film || {}).prod || { items: [] }).items.find(z => z.id === x.dataset.prod); if (it) prodEditar(it); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
+    root.querySelectorAll('[data-prod-est]').forEach(x => x.onclick = () => prodEstado(x.dataset.prodEst, x.dataset.v));
+    if (esFilm() && !S._pubVisto) { S._pubVisto = 1; setTimeout(prodPublicados, 1500); }
     root.querySelectorAll('[data-hoymodo]').forEach(x => x.onclick = () => { LS.set('hoymodo', x.dataset.hoymodo); render(); });
     root.querySelectorAll('[data-rf]').forEach(b => b.onclick = actualizar);
     root.querySelectorAll('[data-reconectar]').forEach(b => b.onclick = reconectar);

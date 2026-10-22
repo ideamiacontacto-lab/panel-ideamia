@@ -204,8 +204,19 @@ window.PANEL_DEMO_PROJECT.mio = {
     pz("f6", "Historia sábado", "historia", "pendiente", "Historias pendientes", "vice-burger", "Produccion Vice", "2026-10-17T20:00:00Z"),
     pz("f7", "Reel long cake", "reel", "revision", "En Revision", "gabriel-varisco", "Produccion GV", "2026-10-12T20:00:00Z")
   );
+  var prodDemo = {
+    recetas: ["isco", "quality-tienda", "quality-mayorista", "gabriel-varisco"], tipos: { reel: "Reel", historias: "Historias", fotos: "Fotos", presencial: "Presencial", otro: "Otro" }, lista: "#", chk: {},
+    items: [
+      { id: "p1", quien: "bauti", fecha: "2026-10-06", hora: "11:00", marca: "isco", tipo: "reel", que: "Reel abasto", conQuien: "Caro", chk: { actores: true, guion: true, llevar: true }, estado: "" },
+      { id: "p2", quien: "bauti", fecha: "2026-10-08", hora: "16:30", marca: "gabriel-varisco", tipo: "reel", que: "Reel box desayuno: receta de budín", conQuien: "Verona y Juli", receta: true, chk: { actores: true, guion: false, llevar: true, encargada: false }, estado: "" },
+      { id: "p3", quien: "bauti", fecha: "2026-10-09", hora: "10:00", marca: "vice-burger", tipo: "historias", que: "Historias del local y de la cocina", conQuien: "", chk: {}, estado: "" },
+      { id: "p4", quien: "bauti", fecha: "2026-10-13", hora: "12:00", marca: "isco", tipo: "presencial", que: "Cobertura semanal", conQuien: "", chk: {}, estado: "" }
+    ],
+    publicados: [{ id: "6a0e72ca24c9e9d5a0eef70a", n: "Reel long cake", url: "#", marca: "gabriel-varisco", fecha: "2026-10-06" }]
+  };
   var v = function (marca, sem, cuando, ideal) { return { clave: "film:bauti:vis:" + marca + ":" + sem, marca: marca, ideal: ideal || "", periodo: sem, cuando: cuando }; };
   D.film = {
+    prod: prodDemo,
     reels: ["isco", "gabriel-varisco"], historias: ["vice-burger"],
     visitas: [v("gabriel-varisco", "2026-W41", "esta semana", "lunes o viernes"), v("isco", "2026-W41", "esta semana"), v("vice-burger", "2026-W41", "esta semana"),
       v("gabriel-varisco", "2026-W42", "la semana que viene", "lunes o viernes"), v("isco", "2026-W42", "la semana que viene"), v("vice-burger", "2026-W42", "la semana que viene")],

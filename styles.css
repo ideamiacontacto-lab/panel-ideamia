@@ -1437,3 +1437,21 @@ select{color-scheme:dark}
 .chk-t .rt-acc .btn{padding:5px 12px;font-size:12px;border-radius:999px;min-height:0;line-height:1.3}
 .chk-t .rt-acc .pill{margin:0}
 .chk-t td{vertical-align:middle}
+/* Producciones del filmmaker: fecha y hora en una columna fija, así las filas quedan alineadas */
+.pr-r{align-items:flex-start;cursor:pointer}
+.pr-r[role=button]:hover .pr-d{color:var(--text)}
+.pr-h{flex:none;width:64px;display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.pr-h b{font-family:var(--f-t);font-size:13.5px;text-transform:capitalize}
+.pr-h span{font-size:12px;color:var(--muted)}
+.pr-q{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pr-d{font-size:13.5px;line-height:1.4;margin-top:6px;color:#d6d6d6}
+.pr-f{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pr-r.pr-falta .pr-h b{color:var(--warn)}
+.pr-tipos{grid-template-columns:repeat(4,1fr)}
+.pr-ck{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:13.5px;cursor:pointer}
+.pr-ck input{margin-top:2px;accent-color:var(--y);width:16px;height:16px;flex:none}
+.pr-cks{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:6px 0 12px}
+.pr-cks b{display:block;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:4px 0 2px}
+@media(max-width:600px){.pr-tipos{grid-template-columns:1fr 1fr}.pr-h{width:56px}}
+.pr-tipos span{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;font-size:12.5px}
+.pr-tipos span i{font-style:normal;font-size:16px;line-height:1}
