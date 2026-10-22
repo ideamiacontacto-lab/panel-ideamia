@@ -2564,7 +2564,8 @@
   /* ---------------- perfil (22/10/2026): apodo, foto y color de fondo de cada uno ----------------
      Se guarda en el Apps Script (viaja solo con los datos de esa persona) y una copia en este navegador,
      así el color y el apodo aparecen al instante, incluso en la pantalla de ingreso. */
-  const FONDOS = { negro: ['Negro', '#0A0A0A'], grafito: ['Grafito', '#17181C'], noche: ['Azul noche', '#0A1224'], bosque: ['Bosque', '#0B1A13'], vino: ['Vino', '#200C13'], violeta: ['Violeta', '#160E28'], tierra: ['Tierra', '#1E160C'] };
+  // [nombre, color de fondo, color de muestra (más vivo, solo para elegirlo)]
+  const FONDOS = { negro: ['Negro', '#0A0A0A', '#2A2A2A'], grafito: ['Grafito', '#17181C', '#5B606B'], noche: ['Azul noche', '#0A1224', '#2F5FC4'], bosque: ['Bosque', '#0B1A13', '#2E8B5A'], vino: ['Vino', '#200C13', '#A8324F'], violeta: ['Violeta', '#160E28', '#7048CC'], tierra: ['Tierra', '#1E160C', '#A8743A'] };
   const APODOS = ['Burbuja', 'Ramón', 'Irvon', 'Turbo', 'La Máquina', 'Capi', 'Chispa', 'Pixel', 'Nube', 'Rayo', 'Maestre', 'Tornado', 'Crack', 'Fénix', 'Coco', 'Jefazo', 'Galleta', 'Neón'];
   const claveYo = () => S.data ? S.data.yo.clave : S.persona;
   // en la vista Project no hay datos de persona: el nombre sale de la lista del equipo guardada al entrar
@@ -2614,7 +2615,7 @@
       '<span class="lbl">¿Cómo querés que te diga el panel?</span><label class="field"><input id="pfA" maxlength="24" placeholder="' + esc(yo.nombre) + '" value="' + esc(nuevo.apodo) + '"></label>' +
       '<div class="apodos" id="pfS">' + chips() + '</div>' +
       '<span class="lbl">Foto de perfil</span><div class="fotofila"><span id="pfAva">' + ava(nuevo, nuevo.apodo || yo.nombre) + '</span><label class="btn ghost">Elegir foto<input type="file" accept="image/*" id="pfF" hidden></label>' + (nuevo.foto ? '<button class="btn ghost" data-sinfoto>Sacar</button>' : '') + '</div>' +
-      '<span class="lbl">Color de fondo</span><div class="fondos">' + Object.keys(FONDOS).map(k => '<button data-fondo="' + k + '" title="' + FONDOS[k][0] + '" aria-label="' + FONDOS[k][0] + '" style="background:' + FONDOS[k][1] + '"' + (k === nuevo.fondo ? ' class="on"' : '') + '></button>').join('') + '<small>Se ve en todo tu panel, en este y en tus otros dispositivos.</small></div>' +
+      '<span class="lbl">Color de fondo</span><div class="fondos">' + Object.keys(FONDOS).map(k => '<button data-fondo="' + k + '" title="' + FONDOS[k][0] + '" aria-label="' + FONDOS[k][0] + '" style="--c:linear-gradient(135deg,' + FONDOS[k][2] + ' 0%,' + FONDOS[k][1] + ' 100%)"' + (k === nuevo.fondo ? ' class="on"' : '') + '></button>').join('') + '<small>Se ve en todo tu panel, en este y en tus otros dispositivos.</small></div>' +
       '<div class="err"></div><div class="acts"><button class="btn ghost" data-x>' + (bienvenida ? 'Ahora no' : 'Cancelar') + '</button><button class="btn y" data-ok>' + (bienvenida ? 'Listo, entrar' : 'Guardar') + '</button></div>' +
       (bienvenida ? '' : '<div class="salir"><span>¿No sos ' + esc(yo.nombre) + '?</span><button class="btn ghost" data-cambiar>Cambiar de persona</button></div>');
     let guardado = false;
