@@ -2084,3 +2084,21 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 .row.drop-on,.mio-r.drop-on,.fl-r.drop-on{outline:2px dashed var(--y);outline-offset:-2px;background:var(--y-soft)!important;position:relative}
 .row.drop-on:after,.mio-r.drop-on:after,.fl-r.drop-on:after{content:"Soltá para subir a esta tarjeta"!important;position:absolute;right:10px;top:50%;transform:translateY(-50%)!important;opacity:1!important;font-family:var(--f-t);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--y-ink);background:var(--y);padding:4px 8px;border-radius:3px;pointer-events:none}
 .row.drop-sube,.mio-r.drop-sube,.fl-r.drop-sube{opacity:.55;pointer-events:none}
+/* ---------- ayuda: "?" en cada pestaña, recorrido y preguntar (23/10/2026) ---------- */
+.ayuda-q{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--dim);font:600 13px/1 var(--f-t);cursor:pointer;display:inline-grid;place-items:center;padding:0;transition:color .15s,border-color .15s,background .15s}
+.ayuda-q:hover,.ayuda-q:focus-visible{color:var(--y-ink);background:var(--y);border-color:var(--y)}
+.kick .ayuda-q{width:20px;height:20px;font-size:11px;margin-left:8px;vertical-align:middle;letter-spacing:0}
+.ay-t{font-size:15px;line-height:1.55;margin:4px 0 14px}
+.ay-t b{color:var(--ink,inherit)}
+.ay-bts{display:flex;gap:8px;margin:0 0 18px}
+.tour{min-height:220px;display:flex;flex-direction:column}
+.tour-n{font-size:11px;letter-spacing:.14em;color:var(--y);font-weight:600}
+.tour h3{font-family:var(--f-d);font-weight:400;font-size:34px;line-height:.95;margin:10px 0 10px}
+.tour p{font-size:15px;line-height:1.55;margin:0 0 18px;flex:1}
+.tour-dots{display:flex;gap:6px;margin:0 0 16px}
+.tour-dots i{height:3px;flex:1;background:var(--line);border-radius:2px;transition:background .25s}
+.tour-dots i.ya{background:var(--dim)}
+.tour-dots i.on{background:var(--y)}
+.tour .acts{display:flex;justify-content:space-between;gap:8px}
+.tour .acts .btn[disabled]{opacity:.35}
+.mhead p .ayuda-q{width:22px;height:22px;font-size:12px;margin-left:8px;vertical-align:middle}

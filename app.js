@@ -270,9 +270,9 @@
     const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
-      ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
-      : '<div class="mtit">' + (!ivo && (['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'colabs'].indexOf(S.tab) >= 0 || (S.movil && ['reuniones', 'equipo'].indexOf(S.tab) >= 0)) ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1><span>' + fecha + '</span></div>';
-    const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + '</p></div></section>' : head;
+      ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '' + btnAyuda() + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      : '<div class="mtit">' + (!ivo && (['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'colabs'].indexOf(S.tab) >= 0 || (S.movil && ['reuniones', 'equipo'].indexOf(S.tab) >= 0)) ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1>' + btnAyuda() + '<span>' + fecha + '</span></div>';
+    const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + btnAyuda() + '</p></div></section>' : head;
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas) || (x[0] === 'hoy' && S.tab === 'semana')) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
     const hoySem = !ivo && !film && (S.tab === 'hoy' || S.tab === 'semana') ? '<div class="hoysem" role="tablist"><button role="tab" class="' + (S.tab === 'hoy' ? 'on' : '') + '" data-tab="hoy">Hoy<em>' + (tot - ok) + '</em></button><button role="tab" class="' + (S.tab === 'semana' ? 'on' : '') + '" data-tab="semana">Semana' + (nRep ? '<em class="hot">' + nRep + '</em>' : '') + '</button></div>' : '';
@@ -1489,6 +1489,99 @@
     nav.querySelectorAll('button').forEach(b => b.onclick = () => mostrar(+b.dataset.sp));
     mostrar(Math.min(LS.get('secs:' + key, 0), ss.length - 1));
   }
+  /* ---------------- ayuda (23/10/2026): un "?" en cada pestaña, un recorrido corto por rol y un botón para preguntarle a Joaquín ----------------
+     Cada texto dice para qué sirve la pantalla, qué se toca y qué pasa en Trello al tocarlo. Lo que no se entienda se pregunta desde acá. */
+  const AYUDA = {
+    hoy: ['Hoy', 'Lo que te toca en el día. Arriba, los números (vencidas, inputs, por salir…): tocá uno para ir directo. Abajo, cada pestaña de color es un tipo de tarea; tocá el <b>círculo</b> de un renglón cuando la hiciste y queda registrado (Joaquín lo ve). El botón <b>Semana</b> de arriba abre el checklist de la semana.'],
+    semana: ['Semana', 'Tu checklist: cada tarea tiene un cuadrito por día o por marca. Tocalo cuando la hacés. <b>Reportes</b> te lleva a cargar los que faltan. Nada de esto mueve tarjetas en Trello: queda anotado en el panel.'],
+    inputs: ['Inputs', 'Lo que te cargaron en la lista INPUTS del SCL de tus marcas. Tocá <b>Revisar</b> para leerlo y decidir: usarlo, guardarlo para más adelante o archivarlo (archivar lo archiva en Trello). Hay que verlos dentro de las 24 h.'],
+    reuniones: ['Reuniones', '<b>Próximas</b>: lo que viene en el calendario y los brainstormings. <b>Por agendar</b>: las reuniones del mes que todavía no tienen fecha; con <b>Ponerle fecha</b> se crea el evento en el calendario del equipo.'],
+    equipo: ['Equipo', 'Qué está haciendo el resto con tus marcas: cuándo y con quién graba Bauti, y qué tienen Diseño y Producción por entregar (y para cuándo). Sirve para pedir algo a tiempo. Es solo para mirar.'],
+    plan: ['Plan', 'Cómo se arma tu mes, en pasos: <b>1 Anual</b> (qué fechas se atacan), <b>2 Mes</b> (ficha y tópicos), <b>3 Entregas</b>, <b>4 Reels</b> (y su plan B), <b>Ads</b> y <b>Cumplimiento</b>. Arriba, <b>Para hacer</b> junta lo pendiente de todas tus marcas con un botón <b>Ir</b>. "Cómo se arma un mes" lo explica animado.'],
+    okr: ['Objetivos', 'Los OKR de cada marca: cuánto llevás de cada objetivo en el período y cuánto falta. Tocá un objetivo para ver el detalle; si pide un número, lo cargás ahí.'],
+    anual: ['Anual', 'El calendario anual de cada marca. Elegí la marca arriba y el mes en los botones: ves las fechas de ese mes y qué tipo de campaña son. Sale del documento "Calendario anual" de Recursos Corporativos del SCL.'],
+    discord: ['Discord', 'Las menciones que te hicieron en los canales de tus marcas. Marcalas como leídas acá para no perderte ninguna.'],
+    mas: ['Más', 'Todo lo demás, ordenado por secciones. <b>Para tener en cuenta</b> abre fechas que se vienen, sugerencias y accesos (Reportes, Trello, Notion). En <b>Vos</b> cambiás tu apodo, foto y color.'],
+    agenda: ['Agenda', 'Los próximos 14 días: entregas, reuniones y fechas del calendario de tus marcas, día por día.'],
+    recursos: ['Recursos', 'Logos, fichas y archivos de cada marca, sacados de la lista Recursos Corporativos del SCL.'],
+    marcas: ['Marcas', 'Cada marca con sus tableros de Trello, hasta dónde está cargado el calendario y las fechas que le sirven.'],
+    colabs: ['Colaboradores', 'Influencers y cuentas afines por marca, con su estado (por contactar, contactado, aceptó, publicado).'],
+    guiones: ['Guiones', 'Los guiones de Fede: qué tiene que entregar, qué está listo para ver en la reunión y qué está en corrección. Tocá cada pestaña para ver un grupo.'],
+    revision: ['Revisión', 'Lo que espera tu ok: diseños y videos en revisión, urgentes, extras y entregas. Tocá una pieza para ver los archivos y aprobarla o mandarla a corregir (la tarjeta se mueve en Trello). Podés arrastrar una imagen sobre una tarjeta para subirla.'],
+    fotos: ['Fotos', 'Cuándo fue la última producción de fotos de cada marca y cuándo toca la próxima. Tocá <b>Anotar</b> cuando se hace una.'],
+    agp: ['Agenda privada', 'El calendario de ideamia.contacto. <b>Agendar reunión</b> crea el evento en Google Calendar y les manda la invitación a quienes elijas.'],
+    film: ['Reels', 'Lo que tenés que filmar y editar, por marca y por semana. <b>Listo</b> pasa la tarjeta a "En revisión" en Trello y le avisa a Ivo.'],
+    fhist: ['Historias', 'Las historias que tenés que editar, por marca. <b>Listo</b> las pasa a "En revisión" en Trello.'],
+    fgui: ['Guiones', 'Las reuniones de guiones (si vas o no) y los guiones de tus marcas.'],
+    fpres: ['Agenda', 'Tus producciones de la semana: anotá día, hora, marca, qué vas a hacer y con quién. Las social media lo ven en su pestaña Equipo.'],
+    prods: ['Producciones', 'Lo que anotó Bauti para grabar, por día.'],
+    // vista Project
+    p_mio: ['Mi día', 'Tu tablero Project de Trello. Los números de arriba son pestañas (Bandeja, Para hoy, Minuta…). El <b>círculo</b> pasa la tarjeta a Listo; tocando la tarjeta abrís su ficha para cambiar la etapa, la fecha, las etiquetas, comentar o <b>enviarla</b> a Diseño, Social media, Fotografía, Reel o Historia.'],
+    p_agenda: ['Agenda', 'El calendario de ideamia.contacto. <b>Agendar reunión</b> crea el evento y manda las invitaciones.'],
+    p_equipo: ['Equipo', 'Qué tiene pendiente cada persona del equipo: rutinas, inputs sin tocar y reuniones sin fecha. Tocá a alguien para ver el detalle o abrir su panel.'],
+    p_registro: ['Registro', 'Lo último que tildó o cargó cada uno. Filtrá por persona arriba.'],
+    p_fotos: ['Fotos', 'Última producción de fotos de cada marca y cuándo toca la próxima.'],
+    p_anual: ['Anual', 'El calendario anual de cada marca, mes por mes.'],
+    p_plan: ['Plan', 'El plan de todas las marcas. Acá aprobás o rechazás lo que te proponen las social media (fechas que no se atacan, fichas) y ves el cumplimiento.'],
+    p_okr: ['Objetivos', 'Los OKR de todas las marcas.'],
+    p_pmas: ['Más', 'Fotos, Anual, Registro y tu perfil.']
+  };
+  // recorrido corto por rol (5 o 6 pasos): qué mirás primero, qué tocás y qué pasa
+  const TOURS = {
+    sm: [['Empezá por Hoy', 'Cada mañana entrá a <b>Hoy</b>: arriba ves los números (vencidas, inputs, por salir) y abajo lo que te toca, agrupado por tipo.'],
+      ['Tildá lo que hacés', 'El <b>círculo</b> de cada renglón (o el cuadrito de cada marca) lo marca como hecho. Queda registrado: no hace falta avisar por otro lado.'],
+      ['Inputs en 24 h', 'En <b>Inputs</b> está lo que te cargaron. Revisalos dentro de las 24 h: usar, guardar para después o archivar.'],
+      ['El mes, en Plan', 'En <b>Plan</b> armás el mes en pasos (anual, ficha, entregas, reels y plan B). <b>Para hacer</b> te dice qué falta y te lleva directo.'],
+      ['Tu equipo', 'En <b>Equipo</b> (en Más, en el celu) ves cuándo graba Bauti y qué entrega Diseño de tus marcas, para pedir a tiempo.'],
+      ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba que explica cómo se usa. Si algo no se entiende o no anda, desde ahí le escribís a Joaquín.']],
+    cm: [['Empezá por Hoy', 'En <b>Hoy</b> ves lo que te toca: lo que se publica a mano y lo que falta programar.'],
+      ['Tildá lo que hacés', 'Tocá el círculo de cada tarea cuando la hacés: queda registrado.'],
+      ['Avisos por Discord', 'A la mañana te llega por Discord qué publicás a mano hoy, y en el momento te avisa si entra algo para salir ya.'],
+      ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba. Si algo no se entiende o no anda, desde ahí le escribís a Joaquín.']],
+    revisa: [['Revisión', 'Entrás directo a <b>Revisión</b>: los números de arriba son pestañas (urgentes, extras, diseños, videos, entregas).'],
+      ['Aprobar o corregir', 'Tocá una pieza: ves los archivos y la aprobás o la mandás a corregir con un comentario. La tarjeta se mueve sola en Trello.'],
+      ['Subir archivos', 'Arrastrá una imagen sobre una tarjeta (o adentro de la pieza abierta) y se sube a Trello.'],
+      ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba. Si algo no anda, desde ahí le escribís a Joaquín.']],
+    film: [['Tu semana', 'En <b>Reels</b> e <b>Historias</b> ves qué filmar y editar, por marca y por semana.'],
+      ['Entregar', '<b>Listo</b> pasa la tarjeta a "En revisión" en Trello y le avisa a Ivo.'],
+      ['Agenda', 'En <b>Agenda</b> anotá cada producción: día, hora, marca, qué y con quién. Los viernes te recuerda si falta cargar la semana que viene.'],
+      ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba. Si algo no anda, desde ahí le escribís a Joaquín.']],
+    project: [['Mi día', 'Tu tablero Project: los números son pestañas y ves una lista por vez.'],
+      ['Tarjetas que se tocan', 'El círculo la pasa a Listo. Tocándola abrís su ficha: etapa, fecha, etiquetas, comentario y <b>Enviar a</b> (Diseño, Social media, Fotografía, Reel, Historia).'],
+      ['Plan y aprobaciones', 'En <b>Plan</b> aprobás lo que proponen las social media. Los avisos de Discord te llevan directo.'],
+      ['Equipo', 'En <b>Equipo</b> ves qué tiene pendiente cada uno; en <b>Registro</b>, lo último que hicieron.']]
+  };
+  const rolTour = () => !S.data ? 'project' : esRevisa() ? 'revisa' : esFilm() ? 'film' : /cm/i.test((S.data.yo || {}).rol || '') ? 'cm' : 'sm';
+  const tabActualAyuda = () => S.proj && !S.data ? 'p_' + (S.projTab || 'mio') : S.tab;
+  function ayudaVer(k) {
+    const a = AYUDA[k] || AYUDA[k && k.replace(/^p_/, '')] || ['Cómo se usa', 'Esta pantalla todavía no tiene explicación. Si algo no se entiende, escribile a Joaquín acá abajo.'];
+    const m = hoja('Cómo se usa · ' + a[0], '<p class="ay-t">' + a[1] + '</p>' +
+      '<div class="ay-bts"><button class="btn ghost" data-tour>▶ Recorrido de 1 minuto</button></div>' +
+      '<span class="lbl">¿Algo no se entiende o no anda?</span><div class="fi-c"><textarea id="ayQ" rows="3" maxlength="1500" placeholder="Contá qué querías hacer y qué pasó. Le llega a Joaquín por Discord."></textarea></div>' +
+      '<div class="err"></div><div class="acts"><button class="btn y" data-consulta="' + esc(k) + '">Mandar a Joaquín</button></div>');
+    $('[data-tour]', m).onclick = () => { m.remove(); tourVer(); };
+    $('[data-consulta]', m).onclick = async e => {
+      const t = $('#ayQ', m).value.trim(); if (t.length < 5) return $('#ayQ', m).focus();
+      const b = e.target; b.disabled = true; b.textContent = 'Enviando…';
+      try { await post({ action: 'consulta', texto: t, pestana: a[0], k: S.key || S.pkey }); m.remove(); toast('✓ Le llegó a Joaquín. Te responde por Discord.'); }
+      catch (x) { $('.err', m).textContent = x.message; b.disabled = false; b.textContent = 'Mandar a Joaquín'; }
+    };
+  }
+  function tourVer() {
+    const pasos = TOURS[rolTour()] || TOURS.sm; let i = 0;
+    const m = hoja('Cómo se usa tu panel', '<div class="tour"></div>');
+    const pintar = () => {
+      const p = pasos[i];
+      $('.tour', m).innerHTML = '<div class="tour-n">' + String(i + 1).padStart(2, '0') + ' / ' + String(pasos.length).padStart(2, '0') + '</div><h3>' + p[0] + '</h3><p>' + p[1] + '</p>' +
+        '<div class="tour-dots">' + pasos.map((_, j) => '<i class="' + (j === i ? 'on' : j < i ? 'ya' : '') + '"></i>').join('') + '</div>' +
+        '<div class="acts"><button class="btn ghost" data-tp' + (i ? '' : ' disabled') + '>Anterior</button><button class="btn y" data-tn>' + (i === pasos.length - 1 ? 'Listo' : 'Siguiente') + '</button></div>';
+      $('[data-tp]', m).onclick = () => { if (i) { i--; pintar(); } };
+      $('[data-tn]', m).onclick = () => { if (i < pasos.length - 1) { i++; pintar(); } else { m.remove(); LS.set('tour:' + (claveYo() || ''), 1); } };
+    };
+    pintar();
+  }
+  const btnAyuda = () => '<button class="ayuda-q" data-ayuda aria-label="Cómo se usa esta pantalla" title="Cómo se usa">?</button>';
+
   function hoja(titulo, html) {
     const m = document.createElement('div'); m.className = 'modal lado ficha hoja';
     m.innerHTML = '<div class="mb"><div class="pf-h"><div class="kick">/ ' + esc(titulo) + '</div><button class="pf-x" data-cerrar aria-label="Cerrar">×</button></div>' + html + '</div>';
@@ -1523,6 +1616,8 @@
         f('data-mas-caja="1"', I.flag, 'Sugerencias', 'qué conviene hacer'),
         f('data-mas-caja="2"', I.link, 'Accesos', 'Reportes, Trello, Notion')]) : '') +
       sec('Vos', [
+        f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto'),
+        f('data-pregunta', I.msg, 'Preguntar o avisar', 'le llega a Joaquín'),
         f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo'),
         S.movil ? f('data-tab="discord"', I.msg, 'Discord', nDc ? nDc + ' sin leer' : 'al día', nDc) : '']) +
       '</div>' + (S.movil ? '' : costado(true));
@@ -2027,11 +2122,11 @@
     const saludo = NOW.getHours() < 13 ? 'buen día' : NOW.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const ctrl = S.movil ? '' : '<div class="ctrl"><div class="ctrl-in"><nav class="tabs">' + NAV.map(x => '<button class="tab' + (tab === x[0] ? ' on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '') + '</button>').join('') + '</nav></div></div>';
     const bnav = S.movil ? '<nav class="bnav proj-bnav">' + NAV.map(x => '<button class="' + (tab === x[0] ? 'on' : '') + '" data-projtab="' + x[0] + '">' + x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="hot">' + x[3] + '</em>' : '') + '</button>').join('') + '</nav>' : '';
-    const tit = (t, sub) => '<div class="mtit"><h1>' + t + '</h1><span>' + fecha + '</span></div>' + (sub ? '<p class="psub">' + sub + '</p>' : '');
+    const tit = (t, sub) => '<div class="mtit"><h1>' + t + '</h1>' + btnAyuda() + '<span>' + fecha + '</span></div>' + (sub ? '<p class="psub">' + sub + '</p>' : '');
     const pagina = (head, cuerpo) => (S.movil ? head : ctrl + head) + '<div class="view" id="view">' + cuerpo + '</div>' + bnav;
     if (tab === 'plan' || tab === 'okr') return pagina(tit(tab === 'plan' ? 'Plan' : 'Objetivos'), '<div class="emb-ph" aria-hidden="true"></div>');
     if (tab === 'pmas') { const f = (go, ico, t, l) => '<button class="ml-r" ' + go + '><span class="ic">' + ico + '</span><span class="ml-t"><b>' + t + '</b><small>' + l + '</small></span><i class="ml-go">›</i></button>';
-      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') + f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
+      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') + f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
     if (tab === 'anual') return pagina(tit('Anual', 'Fechas del calendario anual de cada marca, mes por mes.'), vAnual());
     if (tab === 'fotos') return pagina(tit('Fotos', 'Última producción de cada marca y cuándo toca la próxima.'), vFotos());
     if (tab === 'agenda') return pagina(tit('Agenda'), vAgendaPriv());
@@ -2039,7 +2134,7 @@
     if (tab === 'registro') return pagina(tit('Registro', 'Lo último que tildó o cargó cada uno.'), vistaEquipo(true));
     const pf = perfilDe(S.persona), nom = apodo();
     const resumen = !D ? 'Tu tablero Project de Trello' : n ? '<b>' + D.bandeja.length + '</b> en bandeja · <b>' + D.hoy.length + '</b> para hoy' : '<b>Bandeja vacía</b> y nada vence hoy';
-    const head = '<section class="mhead"><div>' + (pf.foto ? ava(pf, nom) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nom) + '</span></h1><p>' + resumen + '</p></div></section>';
+    const head = '<section class="mhead"><div>' + (pf.foto ? ava(pf, nom) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nom) + '</span></h1><p>' + resumen + btnAyuda() + '</p></div></section>';
     return pagina(head, vistaMio());
   }
   /* ---------------- MI SEMANA (filmmaker) ----------------
@@ -2428,6 +2523,9 @@
     root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
     root.querySelectorAll('[data-perfil]').forEach(x => x.onclick = () => perfilEditar(false));
     root.querySelectorAll('[data-lin]').forEach(x => x.onclick = () => linVer());
+    root.querySelectorAll('[data-ayuda]').forEach(x => x.onclick = e => { e.stopPropagation(); ayudaVer(tabActualAyuda()); });
+    root.querySelectorAll('[data-tourbtn]').forEach(x => x.onclick = () => tourVer());
+    root.querySelectorAll('[data-pregunta]').forEach(x => x.onclick = () => ayudaVer(tabActualAyuda()));
     root.querySelectorAll('[data-mas-caja]').forEach(x => x.onclick = () => { const d = document.createElement('div'); d.innerHTML = costado(true); const b = d.querySelectorAll('.box')[+x.dataset.masCaja]; if (b) hoja(x.querySelector('b').textContent, b.outerHTML); });
     root.querySelectorAll('[data-prod]').forEach(x => { const abrir = e => { if (e.target.closest('button')) return; const it = ((S.data.film || {}).prod || { items: [] }).items.find(z => z.id === x.dataset.prod); if (it) prodEditar(it); }; x.onclick = abrir; x.onkeydown = e => { if (e.key === 'Enter') abrir(e); }; });
     root.querySelectorAll('[data-prod-est]').forEach(x => x.onclick = () => prodEstado(x.dataset.prodEst, x.dataset.v));
@@ -2890,7 +2988,7 @@
     $('[data-cerrar]', m).onclick = () => $('[data-x]', m).click();
     m.querySelectorAll('[data-pft]').forEach(b => b.onclick = () => { m.querySelectorAll('[data-pft]').forEach(x => x.classList.toggle('on', x === b)); m.querySelectorAll('[data-pfp]').forEach(x => x.classList.toggle('hidden', x.dataset.pfp !== b.dataset.pft)); });
     // si se cierra sin guardar, vuelve el color de antes (y la bienvenida no se repite en este navegador)
-    new MutationObserver((x, o) => { if (!document.body.contains(m)) { o.disconnect(); if (!guardado) perfilAplicar(antes); if (bienvenida) LS.set('bienv:' + c, 1); } }).observe(document.body, { childList: true });
+    new MutationObserver((x, o) => { if (!document.body.contains(m)) { o.disconnect(); if (!guardado) perfilAplicar(antes); if (bienvenida) { LS.set('bienv:' + c, 1); if (!LS.get('tour:' + c, 0) && !document.querySelector('.tour')) setTimeout(tourVer, 400); } } }).observe(document.body, { childList: true });
     const pintarAva = () => { $('#pfAva', m).innerHTML = ava(nuevo, $('#pfA', m).value.trim() || yo.nombre); };
     const enlazar = () => {
       m.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => { $('#pfA', m).value = b.dataset.ap; m.querySelectorAll('[data-ap]').forEach(x => x.classList.toggle('on', x === b)); pintarAva(); });
