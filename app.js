@@ -2346,7 +2346,7 @@
       const ir = () => { S.tab = b.dataset.tab; LS.set('tab', S.tab); render(); window.scrollTo({ top: 0 }); };
       // si el navegador demora la transición (pestaña en segundo plano), a los 300 ms se cambia igual
       let listo = false; const una = () => { if (!listo) { listo = true; ir(); } };
-      if (document.startViewTransition && document.visibilityState === 'visible' && S.tab !== b.dataset.tab && !matchMedia('(prefers-reduced-motion: reduce)').matches) { try { document.startViewTransition(una); } catch (e) { una(); } setTimeout(una, 300); } else una();
+      if (document.startViewTransition && document.visibilityState === 'visible' && S.tab !== b.dataset.tab && !matchMedia('(prefers-reduced-motion: reduce)').matches) { try { const vt = document.startViewTransition(una); ['ready', 'finished', 'updateCallbackDone'].forEach(k => vt[k] && vt[k].catch(() => {})); } catch (e) { una(); } setTimeout(una, 300); } else una();   // si se cambia rápido, la transición anterior se salta: sin error
     });
     root.querySelectorAll('[data-marca]').forEach(b => b.onclick = () => { S.marca = b.dataset.marca; render(); });
     // lista de marcas: se abre con el botón y se cierra al elegir o al tocar afuera
