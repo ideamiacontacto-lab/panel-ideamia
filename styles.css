@@ -1966,9 +1966,10 @@ html.con-modal,html.con-modal body{overflow:hidden}
 .tip-chk b{color:var(--text)}
 .cel{border-color:var(--muted)!important}
 .cel:not(.on):not(.fut):hover{background:var(--y-soft)}
-.mk.chk{display:inline-flex;align-items:center;gap:7px}
+.mk.mkc{display:inline-flex;align-items:center;gap:7px}
+.mk.mkc.on:before{content:none}
 .mk-c{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;display:inline-grid;place-items:center;font-size:11px;line-height:1;color:var(--y-ink);flex:none;transition:background-color .2s var(--ease),border-color .2s var(--ease)}
-.mk.chk.on .mk-c{background:var(--y);border-color:var(--y)}
+.mk.mkc.on .mk-c{background:var(--y);border-color:var(--y)}
 /* ---------- filas con fecha a la izquierda (Reuniones, Equipo) ---------- */
 .when.wl{flex:none;width:64px;text-align:left;margin-right:4px}
 .when.wl b{display:block;font-family:var(--f-d);font-weight:700;font-size:20px;line-height:1;text-transform:uppercase}

@@ -404,7 +404,7 @@
     const chips = x.items.map(i => {
       const ok = hecho(i.obj), m = marca(i.marca) || { nombre: i.marca };
       if (x.sub === 'reunion') return '<button class="mk' + (ok ? ' on' : '') + (i.u >= 3 && !ok ? ' late' : '') + '" ' + (ok ? 'disabled' : 'data-agendar="' + esc(i.k) + '"') + '><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + (ok && i.obj.estado.detalle ? ' · ' + corto(ymdD(i.obj.estado.detalle.slice(0, 10))) : '') + '</button>';
-      return '<button class="mk chk' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '" aria-pressed="' + ok + '"><b class="mk-c">' + (ok ? '✓' : '') + '</b><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
+      return '<button class="mk mkc' + (ok ? ' on' : '') + '" data-check="' + esc(i.k) + '" aria-pressed="' + ok + '"><b class="mk-c">' + (ok ? '✓' : '') + '</b><i style="background:' + color(i.marca) + '"></i>' + esc(m.nombre) + '</button>';
     }).join('');
     const ico = x.sub === 'reunion' ? '<span class="ico">' + I.users + '</span>' : '<span class="prog' + (done ? ' full' : '') + '">' + n + '/' + x.items.length + '</span>';
     return '<div class="row' + (done ? ' done' : '') + ' u' + Math.min(x.u || 1, 4) + '">' + ico + '<div><div class="tt">' + esc(x.t) + '</div><div class="mt">' + x.meta.filter(Boolean).map(m => '<span>' + m + '</span>').join('') + '</div><div class="mks">' + chips + '</div>' + (x.hint && !done ? '<div class="hint">' + esc(x.hint) + '</div>' : '') + '</div><div>' + botonEnlace(enlaceDe(x), x.items.filter(i => !hecho(i.obj)).map(i => i.marca)) + '</div></div>';
@@ -1193,7 +1193,7 @@
     const pct = total ? Math.round(hechos / total * 100) : 0;
     if (S.movil) {
       // celular: una sección a la vez, filas con botones por marca en vez de tablas anchas
-      const chipK = (k, s, nom) => '<button class="mk chk' + (ok(k) ? ' on' : '') + '" data-celda="' + esc(k) + '" aria-pressed="' + ok(k) + '"><b class="mk-c">' + (ok(k) ? '✓' : '') + '</b><i style="background:' + color(s) + '"></i>' + esc(nom) + '</button>';
+      const chipK = (k, s, nom) => '<button class="mk mkc' + (ok(k) ? ' on' : '') + '" data-celda="' + esc(k) + '" aria-pressed="' + ok(k) + '"><b class="mk-c">' + (ok(k) ? '✓' : '') + '</b><i style="background:' + color(s) + '"></i>' + esc(nom) + '</button>';
       const filaR = (r, chips, n, de, cuando) => '<div class="row' + (n === de ? ' done' : '') + '"><span class="prog' + (n === de ? ' full' : '') + '">' + n + '/' + de + '</span><div><div class="tt">' + esc(r.tarea) + '</div>' + (cuando ? '<div class="mt"><span>' + esc(cuando) + '</span></div>' : '') + '<div class="mks">' + chips + '</div></div><div>' + botonEnlace(enlaceDe(r), r.marcas) + '</div></div>';
       const listaM = (defs, per) => defs.map(r => {
         const ms = r.marcas.length ? marcasV.filter(m => r.marcas.indexOf(m.slug) >= 0) : null;
