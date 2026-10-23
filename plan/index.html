@@ -175,7 +175,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '16';
+  const VER = '17';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -952,8 +952,9 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     const PBm = pbDe(m.slug), rPend = D.project || !PBm ? 0 : pbFaltan(PBm) + PBm.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoyD(), r.due) >= 0 && (r.viable === 'no' || (entre(hoyD(), r.due) <= 15 && r.viable !== 'si'))).length;
     const mPend = D.project ? pend : (Fm && Fm.estado === 'cambios' ? '!' : (Fm && (Fm.pedidosDias || []).filter(p => !p.hecho && p.fecha <= hoyD() && p.fecha >= sumaDias(hoyD(), -3)).length) || 0);
     const eProx = m.prox && m.prox.cal ? entre(hoyD(), m.prox.cal.f) : null;
+    if (S.vista === 'reels' && !m.reels) S.vista = 'mes';   // marcas sin reels: no hay paso 4 (ni plan B)
     const tab = (v, n, lg, ct, bdg) => '<button data-vista="' + v + '" class="' + (S.vista === v ? 'on' : '') + '">' + (n ? '<i class="n">' + n + '</i>' : '') + '<span class="lg">' + lg + '</span><span class="ct">' + ct + '</span>' + (bdg ? ' <em class="bdg">' + bdg + '</em>' : '') + '</button>';
-    h += '<div class="seg vseg">' + tab('anual', '1', 'Anual', 'Anual', cPend) + tab('mes', '2', 'Mes', 'Mes', mPend) + tab('entregas', '3', 'Entregas', 'Entregas', eProx != null && eProx <= 2 ? (eProx <= 0 ? 'hoy' : eProx + 'd') : '') + tab('reels', '4', 'Reels', 'Reels', rPend) + tab('ads', '', 'Ads', 'Ads', paPend) + tab('cumple', '', 'Cumplimiento', 'Cumple', '') + '</div>';
+    h += '<div class="seg vseg">' + tab('anual', '1', 'Anual', 'Anual', cPend) + tab('mes', '2', 'Mes', 'Mes', mPend) + tab('entregas', '3', 'Entregas', 'Entregas', eProx != null && eProx <= 2 ? (eProx <= 0 ? 'hoy' : eProx + 'd') : '') + (m.reels ? tab('reels', '4', 'Reels', 'Reels', rPend) : '') + tab('ads', '', 'Ads', 'Ads', paPend) + tab('cumple', '', 'Cumplimiento', 'Cumple', '') + '</div>';
     if (S.vista === 'anual') { app.innerHTML = h + pintarCamp(m); bind(); bindCamp(); return; }
     if (S.vista === 'mes') { app.innerHTML = h + paso('2', 'Calendario mensual', 'Qué tenés que mover este mes: tus tópicos fijos (lo que va sí o sí todas las semanas, con 5 formas distintas de moverlo, que se anotan a principio de mes y se vuelven tarjetas), la información que necesitás pedir para hacer bien tu trabajo y lo que aprendiste de los reportes.') + pintarGeneral(m) + pintarFicha(m); bind(); bindCamp(); bindFicha(); return; }
     if (S.vista === 'entregas') { app.innerHTML = h + pintarEntregas(m); bind(); bindEntregas(m); return; }
