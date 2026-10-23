@@ -1968,7 +1968,7 @@ function pruebaPrivado() {
    3) Una vez por día (después de las 9): a las diseñadoras lo que quedó pendiente (lo mismo que sale en el canal, de Avisos.gs)
       y al filmmaker las piezas que ya tendría que haber entregado. */
 const fechaAR_ = iso => Utilities.formatDate(new Date(iso), TZ, 'dd/MM HH:mm');
-function idDiscord_(cfg, clave) { const v = String(cfg['DISCORD_ID_' + String(clave || '').toUpperCase()] || '').trim(); return /^\d{15,22}$/.test(v) ? v : ''; }
+function idDiscord_(cfg, clave) { const v = String(cfg['DISCORD_ID_' + String(clave || '').toUpperCase()] || '').trim(); if (/^\d{15,22}$/.test(v)) return v; if (norm_(clave) === 'project') { try { return idJoaquin_(cfg); } catch (e) {} } return ''; }   // el project usa el ID de Joaquín
 function nombreMarca_(cat, slug) { const m = cat.marcas.filter(x => x.slug === slug)[0]; return m ? m.nombre : (slug || 'General'); }
 /* parte un texto largo en mensajes de hasta ~1800 caracteres cortando por línea */
 function trozos_(encabezado, lineas) {
@@ -2102,7 +2102,7 @@ function privadosArmar_(snap, cat, cfg, opciones) {
       Object.keys(porSalir).forEach(k => porSalir[k].forEach(c => (salen[AV_MARCAS[k].quien] = salen[AV_MARCAS[k].quien] || []).push('• **' + AV_MARCAS[k].marca + '** · ' + String(c.n).slice(0, 70) + ((c.lab || []).some(x => /urgente/.test(norm_(x))) ? ' · URGENTE' : '') + ' · sale ' + fechaAR_(c.salida) + ' · ' + c.url)));
       Object.keys(salen).forEach(id => sumar(id, ['**' + (salen[id].length === 1 ? 'Esta pieza sale' : 'Estas piezas salen') + (hoyD.getDay() === 6 ? ' entre mañana y el lunes' : ' mañana') + ' y ' + (salen[id].length === 1 ? 'sigue pendiente' : 'siguen pendientes') + ':**'].concat(salen[id], ['Si no llegás, avisá así vemos cómo resolverlo.']), 'urgentes'));
       Object.keys(partesDe).forEach(kb => { const [id, bot] = kb.split('|'); para(id === AV_LUISI ? 'luisi' : id === AV_ZAIRA ? 'zaira' : 'diseño', id,
-        trozos_('Hola.', partesDe[kb].reduce((a, b) => a.concat(a.length ? [''] : [], b), [])), bot); });
+        trozos_(id === AV_LUISI ? 'Hola Luisi.' : id === AV_ZAIRA ? 'Hola Zaira.' : 'Hola.', partesDe[kb].reduce((a, b) => a.concat(a.length ? [''] : [], b), [])), bot); });
     } else notas.push('Diseñadoras · no está cargado Avisos.gs, no se arma su privado');
     // guiones: el día de la reunión (Config GUIONES_RESUMEN_DIAS, por defecto lunes y viernes) se le recuerda por privado a Fede qué guiones
     // tiene que presentar, y a cada social media que presenta las ideas de reels de sus marcas
@@ -2282,6 +2282,28 @@ function probarPrivados() {
     const d = privadosArmar_({ cards: snap.cards.filter(c => c.tipo !== 'cm' && c.cat !== 'input'), tableros: snap.tableros }, cat, cfg, { dry: true, diarios: true, ahora: p[1] });
     console.log('DIARIOS de un ' + p[0] + ' (' + ymd_(p[1]) + '): ' + d.msgs.map(m => m.para + ' ' + m.texto.length + ' car.').join(' · '));
   });
+}
+
+/* AUDITORÍA de Discord (solo lectura, 23/10/2026): arma todo lo que saldría hoy por privado, como si fueran las 10 de la mañana,
+   y lo muestra agrupado por persona y por bot. No manda nada ni anota nada. Marca lo raro: sin ID, bot que no existe, mensaje vacío o largo. */
+function auditarDiscord() {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), cfg = config_(), hoy = hoyAR_();
+  const a10 = new Date(hoy); a10.setHours(10, 0, 0, 0);
+  console.log('Privados: ' + (/^no$/i.test(String(cfg.PRIVADOS_DISCORD || 'si').trim()) ? 'APAGADOS' : 'encendidos') + ' · último error de envío: ' + (P.getProperty('DISCORD_DM_ERROR') || 'ninguno') + ' · notas: ' + (P.getProperty('PRIVADOS_NOTAS') || 'ninguna'));
+  console.log('IDs: ' + cat.equipo.map(p => p.nombre + ' (' + p.rol + ') ' + (idDiscord_(cfg, p.clave) ? '✓' : '✗ SIN ID')).join(' · '));
+  const r = privadosArmar_(snap, cat, cfg, { dry: true, diarios: true, ahora: a10 });
+  const g = {}, raros = [];
+  r.msgs.forEach(m => {
+    const bot = m.bot || '', k = m.para + ' · ' + (BOTS_DISCORD[bot] || (bot ? '¿' + bot + '?' : 'Ideamia Pedidos'));
+    if (bot && !BOTS_DISCORD[bot]) raros.push('bot desconocido "' + bot + '" para ' + m.para);
+    if (!m.id) raros.push('sin ID de Discord: ' + m.para);
+    if (!String(m.texto || '').trim()) raros.push('mensaje vacío para ' + m.para);
+    if (String(m.texto).length > 1800) raros.push('mensaje de ' + String(m.texto).length + ' caracteres para ' + m.para + ' (se corta en varios)');
+    (g[k] = g[k] || []).push(m.texto);
+  });
+  console.log('Saldrían ' + r.msgs.length + ' textos en ' + Object.keys(g).length + ' chats. Notas: ' + (r.notas.join(' | ') || 'ninguna'));
+  Object.keys(g).sort().forEach(k => { console.log('■ ' + k + ' (' + g[k].length + ')'); g[k].forEach(t => console.log('   · ' + String(t).replace(/\s+/g, ' ').slice(0, 220))); });
+  console.log(raros.length ? 'RAROS: ' + raros.join(' | ') : 'Nada raro.');
 }
 
 /* ---------------- resumen de guiones para el canal del departamento (Discord) ----------------
@@ -5710,6 +5732,17 @@ function doPost__(e) {
         if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
         if (/project/i.test(yo.rol) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         return json_(perfilGuardar_(b, yo.clave));
+      }
+      case 'consulta': { // "?" del panel: una duda o algo que no anda, le llega a Joaquín por Discord (hasta 10 por persona por día)
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const texto = String(b.texto || '').trim().slice(0, 1500);
+        if (texto.length < 5) return json_({ error: 'datos', mensaje: 'Escribí un poco más' });
+        const ck = 'consulta:' + yo.clave + ':' + Utilities.formatDate(new Date(), 'America/Argentina/Buenos_Aires', 'yyyyMMdd'), cc = CacheService.getScriptCache(), n = Number(cc.get(ck) || 0);
+        if (n >= 10) return json_({ error: 'limite', mensaje: 'Ya mandaste 10 hoy. Escribile directo por Discord.' });
+        discordPrivado_(idJoaquin_(config_()), '❓ ' + (yo.nombre || yo.clave) + ' preguntó desde el panel' + (b.pestana ? ' (' + String(b.pestana).slice(0, 40) + ')' : '') + ':\n' + texto, 'equipo');
+        cc.put(ck, String(n + 1), 21600);
+        return json_({ ok: true });
       }
       case 'produccion': { // producciones del filmmaker: anotar, editar, borrar, marcar si se hizo; reel publicado anotado en su lista
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
