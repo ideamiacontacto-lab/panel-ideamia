@@ -161,7 +161,7 @@ h1{font-weight:700;text-transform:uppercase;letter-spacing:-.01em}
 .seg2 button,.seg2 span[role=button],.mesr .q .seg2 button{border-radius:4px!important}.chip,.ps .chip{border-radius:4px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 /* embebido en el panel (pestañas Plan y Objetivos): sin título propio */
-.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}@media(max-width:760px){.paso{padding:10px 12px;cursor:pointer;grid-template-columns:28px 1fr;gap:10px}.paso>i{width:28px;height:28px;line-height:28px}.paso p{display:none}.paso.ver p{display:block}.paso>div>b:after{content:' ?';color:var(--y,#FFF200);font-weight:400}.paso.ver>div>b:after{content:''}.fold .fh{padding-top:10px;padding-bottom:10px}.embed .top{margin:0 0 8px}.embed .top .ayuda{font-size:11.5px;padding:6px 10px}}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
+.pb-armar{margin-top:10px;font-size:13px;padding:8px 14px}@media(max-width:760px){.modal{place-items:center!important;padding:16px}.modal .box{border-radius:6px!important;max-height:86vh}}.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}@media(max-width:760px){.paso{padding:10px 12px;cursor:pointer;grid-template-columns:28px 1fr;gap:10px}.paso>i{width:28px;height:28px;line-height:28px}.paso p{display:none}.paso.ver p{display:block}.paso>div>b:after{content:' ?';color:var(--y,#FFF200);font-weight:400}.paso.ver>div>b:after{content:''}.fold .fh{padding-top:10px;padding-bottom:10px}.embed .top{margin:0 0 8px}.embed .top .ayuda{font-size:11.5px;padding:6px 10px}}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
 </style>
 <script>/* desde el 22/10/2026 esta página vive adentro del panel (pestaña Plan): abierta sola, redirige al panel con los mismos datos */
 if (window.self === window.top && !/[?&](embed|solo|demo)=1/.test(location.search)) { const q = new URLSearchParams(location.search), r = new URLSearchParams({ tab: 'plan' }); ['p', 'marca', 'vista'].forEach(k => { if (q.get(k)) r.set(k, q.get(k)); }); location.replace('../?' + r.toString()); }
@@ -175,7 +175,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '17';
+  const VER = '18';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -591,7 +591,9 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     const f = pbFaltan(P); if (S.pb.entrega && f) h += '<div class="aprob"><b>' + ic('salvavidas') + 'Entrega de plan B: ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + ' (' + enDias(diasA(S.pb.entrega)) + ')</b><span class="m">' + f + ' reel' + (f === 1 ? '' : 's') + ' del mes que viene sin plan B</span></div>';
     const fila = (r, preg) => {
       const fx = faltasReel(r), vivo = !r.hecho && !(r.pb && r.pb.activado) && !(r.due && diasA(r.due) < 0);
-      return '<div class="rr" role="button" tabindex="0" data-reel="' + r.id + '"><div><div class="n">' + esc(r.n) + '</div><div class="m">' + (r.due ? diaDe(r.due) + ' ' + dm(r.due) + ' · ' + enDias(diasA(r.due)) : 'Sin fecha') + ' · ' + esc(r.lista) + '</div><div class="chips">' + fx.map(x => '<span class="ch ' + x[0] + '">' + x[1] + '</span>').join('') + '</div></div>' +
+      return '<div class="rr" role="button" tabindex="0" data-reel="' + r.id + '"><div><div class="n">' + esc(r.n) + '</div><div class="m">' + (r.due ? diaDe(r.due) + ' ' + dm(r.due) + ' · ' + enDias(diasA(r.due)) : 'Sin fecha') + ' · ' + esc(r.lista) + '</div><div class="chips">' + fx.map(x => '<span class="ch ' + x[0] + '">' + x[1] + '</span>').join('') + '</div>' +
+        // 23/10/2026: el botón a la vista (antes había que tocar el reel y adivinar que adentro estaba "Armar plan B")
+        (vivo && !r.completo ? '<button class="btn y pb-armar" data-armpb="' + r.id + '">' + (r.pb ? 'Completar plan B' : 'Armar plan B') + '</button>' : '') + '</div>' +
         (preg && vivo ? '<div class="seg2" data-rv="' + r.id + '"><button data-v="si" class="' + (r.viable === 'si' ? 'on' : '') + '">Se hace</button><button data-v="no" class="' + (r.viable === 'no' ? 'on' : '') + '">No se puede</button></div>' : '<span class="m" style="color:var(--mu)">›</span>') + '</div>';
     };
     const bloque = (c, L) => {
@@ -694,6 +696,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   function bindPB() {
     const P = pbDe(S.marca); if (!P) return;
     const reel = id => P.reels.find(r => r.id === id);
+    app.querySelectorAll('[data-armpb]').forEach(b => b.onclick = e => { e.stopPropagation(); const r = reel(b.dataset.armpb); if (r) formPB(r); });
     app.querySelectorAll('[data-reel]').forEach(d => { const abrir = () => detalleReel(reel(d.dataset.reel)); d.onclick = abrir; d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } }; });
     app.querySelectorAll('[data-rv] button').forEach(b => b.onclick = e => { e.stopPropagation(); const r = reel(b.parentElement.dataset.rv); marcarViable([r], r.viable === b.dataset.v ? '' : b.dataset.v); });
     app.querySelectorAll('[data-rvall] button').forEach(b => b.onclick = () => {
