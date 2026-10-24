@@ -1843,7 +1843,7 @@ function cmRecordatorios_(snap, cat, cfg, ahora) {
 function cmRapidos_(snap, cat, cfg, dry) {
   const real = cmReal_(snap), corto = id => String(id).slice(-10), prop = P.getProperty('CM_VISTAS'), vistas = {};
   (prop || '').split(',').forEach(x => { if (x) vistas[x] = 1; });
-  const cms = (snap.cards || []).filter(c => c.tipo === 'cm' && !/publicad|programado$/.test(norm_(c.lista)));
+  const cms = (snap.cards || []).filter(c => c.tipo === 'cm' && !/publicad|programado$|mas adelante|stand ?by/.test(norm_(c.lista))); // "Para más adelante" del CM: lo que Ale guarda a mano (portadas, recetas), nunca avisa
   const out = [], ahora = Date.now(), DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   if (prop != null) cms.filter(c => !vistas[corto(c.id)]).map(real).forEach(c => {
     if (!c.due) return; const t = new Date(c.due).getTime(), m = cat.marcas.filter(x => x.slug === c.m[0])[0]; if (!m || !m.cm || t > ahora + 3 * 36e5) return;
