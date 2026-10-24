@@ -2102,3 +2102,12 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 .tour .acts{display:flex;justify-content:space-between;gap:8px}
 .tour .acts .btn[disabled]{opacity:.35}
 .mhead p .ayuda-q{width:22px;height:22px;font-size:12px;margin-left:8px;vertical-align:middle}
+/* en el celu la fecha ya está en Hoy: en las demás pestañas el título usa todo el ancho */
+@media (max-width:700px){.mtit>span{display:none}.mtit h1{min-width:0;overflow-wrap:anywhere}}
+/* producción pasada en el celu: "Se hizo / No se hizo" abajo, a todo el ancho, sin aplastar el texto */
+.pr-r{flex-wrap:wrap}.pr-r>.fl-t{flex:1;min-width:0}
+@media (max-width:700px){.pr-r>.fl-bs{flex:1 1 100%;padding-left:0}}
+/* guiones: los 4 pasos en una grilla 2x2 en el celu (antes se cortaba el tercero) */
+@media (max-width:700px){.gpasos{display:grid;grid-template-columns:1fr 1fr;overflow:visible}.gpasos span{min-width:0}.gpasos i{display:none}}
+/* la vista previa del input se lee entera (nada de "…"), también en la compu */
+.irow .desc{white-space:normal;overflow:visible;text-overflow:clip;max-width:70ch;flex-basis:100%}

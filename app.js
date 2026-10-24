@@ -289,7 +289,7 @@
     bind(app);
     if (S.tab === 'mas') cajasEnPestanas($('#view'), 'mas');
     if (S.tab === 'guiones' || S.tab === 'fgui') carpetasEnPestanas($('#view'), S.tab);
-    if (S.tab === 'fgui') seccionesEnPestanas($('#view'), 'fgui', 2);   // Bauti: Reuniones y Guiones, una por vez
+    if (S.tab === 'fgui' || S.tab === 'fpres') seccionesEnPestanas($('#view'), S.tab, 2);   // Bauti: una sección por vez (Reuniones/Guiones; Producciones/Visitas/Asistencias)
     if (S.tab === 'semana' && !S.movil) seccionesEnPestanas($('#view'), 'semana');
     if (S.tab === 'reuniones' || S.tab === 'equipo') seccionesEnPestanas($('#view'), S.tab);
     renderTop();
@@ -1051,7 +1051,7 @@
         '<button class="btn" data-crear="' + esc(c.id) + '" title="Crear la tarjeta en Trello">＋ Tarjeta</button></div>';
     return '<div class="irow' + (p ? '' : ' visto') + '" id="in-' + esc(c.id) + '"><i class="ibar" style="background:' + color(c.m[0]) + '"></i>' +
       '<div class="ibody"><button class="lnk it" data-det-input="' + esc(c.id) + '">' + esc(c.n) + '</button>' +
-      '<div class="mt"><span class="tag">' + esc(m.nombre) + '</span>' + etiqueta + pri + '<span>' + est + '</span>' + (c.att && c.att.length ? '<span>' + I.clip + ' ' + c.att.length + '</span>' : '') + (c.d ? '<span class="desc">' + esc(c.d.slice(0, 90)) + (c.d.length > 90 ? '…' : '') + '</span>' : '') + '</div></div>' + acciones + '</div>';
+      '<div class="mt"><span class="tag">' + esc(m.nombre) + '</span>' + etiqueta + pri + '<span>' + est + '</span>' + (c.att && c.att.length ? '<span>' + I.clip + ' ' + c.att.length + '</span>' : '') + (c.d ? '<span class="desc">' + esc(resumenTxt(c.d, 160)) + '</span>' : '') + '</div></div>' + acciones + '</div>';
   }
   function detalleInput(c) {
     panelLateral(esc(c.n), cardInput(c).replace('<article class="cardx"', '<article class="cardx en-panel"'));
@@ -1537,6 +1537,7 @@
     cm: [['Empezá por Hoy', 'En <b>Hoy</b> ves lo que te toca: lo que se publica a mano y lo que falta programar.'],
       ['Tildá lo que hacés', 'Tocá el círculo de cada tarea cuando la hacés: queda registrado.'],
       ['Avisos por Discord', 'A la mañana te llega por Discord qué publicás a mano hoy, y en el momento te avisa si entra algo para salir ya.'],
+      ['Lo que guardás', 'Portadas de destacadas, recetas o lo que dejás para usar después: pasalo a la lista <b>Para más adelante (no se publica)</b> de tu tablero de CM. Ahí no te avisa nunca.'],
       ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba. Si algo no se entiende o no anda, desde ahí le escribís a Joaquín.']],
     revisa: [['Revisión', 'Entrás directo a <b>Revisión</b>: los números de arriba son pestañas (urgentes, extras, diseños, videos, entregas).'],
       ['Aprobar o corregir', 'Tocá una pieza: ves los archivos y la aprobás o la mandás a corregir con un comentario. La tarjeta se mueve sola en Trello.'],
@@ -1580,6 +1581,8 @@
     };
     pintar();
   }
+  // primera línea de un texto, cortada en una palabra entera y avisando que sigue (sin "…")
+  const resumenTxt = (t, n) => { const l = String(t || '').split('\n').map(x => x.trim()).filter(Boolean), p = l[0] || ''; if (p.length <= n) return p + (l.length > 1 ? ' (sigue)' : ''); const c = p.slice(0, n).replace(/\s+\S*$/, ''); return c + ' (sigue)'; };
   const btnAyuda = () => '<button class="ayuda-q" data-ayuda aria-label="Cómo se usa esta pantalla" title="Cómo se usa">?</button>';
 
   function hoja(titulo, html) {
