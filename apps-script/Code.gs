@@ -505,7 +505,8 @@ function leerTrello_(cat) {
       // excepción: los reels SIN fecha de las listas de aprobados que se tocaron en el último mes (son reels por calendarizar: Plan → Reels los muestra)
       const reelSF = !c.due && b.tipo === 'scl' && esReel_({ n: c.name, lab: (c.labels || []).map(x => x.name) }) && new Date(c.dateLastActivity).getTime() > Date.now() - 30 * 864e5;
       const fijo = (c.labels || []).some(x => ES_FIJO_.test(norm_(x.name || '')));   // "mantener todos los meses": vale siempre, esté en la lista que esté
-      if (catL === 'hecho' && !reelSF && !fijo && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
+      const cmReciente = b.tipo === 'cm' && new Date(c.dateLastActivity).getTime() > Date.now() - 3 * 864e5;   // CM: lo programado/publicado de estos días (pestaña Programar)
+      if (catL === 'hecho' && !reelSF && !fijo && !cmReciente && (!c.due || new Date(c.due).getTime() < haceUnaSemana)) return;
       const conAdjuntos = catL === 'recursos' || catL === 'fichas' || catL === 'input' || catL === 'datos';
       const conDesc = ['input', 'brainstorming', 'efem', 'corr', 'urgente', 'datos', 'standby', 'mover', 'planb'].indexOf(catL) >= 0 || b.tipo === 'project' || fijo;
       cards.push({
@@ -1041,6 +1042,7 @@ function panel_(personaClave, ctx) {
     colabs: colabsDe_(slugs),
     project: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => b.url)[0] || '',
     projectTablero: (snap.tableros || []).filter(b => b.tipo === 'project').map(b => ({ id: b.id, tipo: 'project', url: b.url, nombre: b.nombre, listas: b.listas || [], etiquetas: b.etiquetas || [] }))[0] || null,
+    cmDia: esCM && !esProject ? cmDia_(snap, misMarcas.filter(m => m.cm === yo.clave), hoy) : null,   // pestaña Programar del CM
     anual: esFilm || (esCM && !esProject) ? null : anualSalida_(ctx.anual, misMarcas, hoy, snap), // calendario anual: solo social media, dirección y project (no filmmaker ni CM)
     film: esFilm ? Object.assign(filmSalida_(film, yo, hoy), { todas: cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })) }) : null,
     cards, cobertura, rutinas, reuniones, eventos: evs,
@@ -1839,6 +1841,54 @@ const cmReal_ = snap => {
 const cmFormato_ = c => { const t = norm_((c.lab || []).join(' ') + ' ' + c.n); return /histori/.test(t) ? 'historia' : /carrusel/.test(t) ? 'carrusel' : /\breels?\b|video/.test(t) ? 'reel' : 'publicación'; };
 const cmContar_ = L => { const n = {}, pl = { historia: 'historias', carrusel: 'carruseles', reel: 'reels', 'publicación': 'publicaciones' }; L.forEach(c => { const f = cmFormato_(c); n[f] = (n[f] || 0) + 1; });
   const p = ['historia', 'carrusel', 'reel', 'publicación'].filter(f => n[f]).map(f => n[f] + ' ' + (n[f] === 1 ? f : pl[f])); return p.length > 1 ? p.slice(0, -1).join(', ') + ' y ' + p.slice(-1) : p[0]; };
+/* ---------------- CM · "Programar" (pedido de Joaquín, 26/10/2026) ----------------
+   Todo lo que sale hoy y mañana en las marcas de quien lleva el CM, por hora y separado en programable y no programable
+   (no programable = la tarjeta original del SCL tiene la etiqueta "(i)", o la del CM está en "Contenido no programable" / "Programación del día").
+   Las tarjetas del CM son espejos: nombre, fecha y etiquetas salen de la original del SCL (cmReal_). Lo atrasado (hasta 7 días)
+   aparece mientras no esté programado ni publicado. Desde el panel se marca "Ya lo programé" (→ Programado) o "Ya lo publiqué" (→ Publicado). */
+const CM_ESTADO_ = l => { const n = norm_(l); return /^filtro/.test(n) ? 'filtro' : /listo para programar/.test(n) ? 'listo' : /no programable/.test(n) ? 'mano' : /programacion de(l dia| hoy)/.test(n) ? 'dia' : /programado/.test(n) ? 'programado' : /publicad/.test(n) ? 'publicado' : ''; };
+function cmDia_(snap, marcas, hoy) {
+  const slugs = marcas.map(m => m.slug), real = cmReal_(snap), hoyS = ymd_(hoy), manS = ymd_(new Date(hoy.getTime() + 864e5)), hace7 = ymd_(new Date(hoy.getTime() - 7 * 864e5));
+  const porLink = {}; (snap.cards || []).filter(c => c.tipo === 'scl').forEach(c => porLink[String(c.url).split('/c/')[1]] = c);
+  const out = [];
+  (snap.cards || []).filter(c => c.tipo === 'cm' && slugs.indexOf(c.m[0]) >= 0).forEach(c0 => {
+    const estado = CM_ESTADO_(c0.lista); if (!estado) return;   // recursos, brainstorming, "para más adelante": no son del día
+    const c = real(c0); if (!c.due) return;
+    const d = ymd_(new Date(c.due)), hecho = estado === 'programado' || estado === 'publicado';
+    if (d > manS || d < hace7 || (d < hoyS && hecho)) return;
+    const esI = (c.lab || []).some(x => /^\(i\)$/.test(String(x).trim()));
+    const mm = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c0.n), o = mm && porLink[mm[1]];
+    out.push({ id: c.id, n: String(c.n || '').slice(0, 140), due: c.due, m: c.m[0], lista: c0.lista, estado: estado, prog: !esI && estado !== 'mano' && estado !== 'dia',
+      formato: cmFormato_(c), url: c.url, ourl: o ? o.url : (mm ? 'https://trello.com/c/' + mm[1] : ''), lab: (c.lab || []).filter(x => !/^\(i\)$/.test(String(x).trim())).slice(0, 4) });
+  });
+  return out.sort((a, b) => String(a.due).localeCompare(String(b.due)));
+}
+// marcar desde el panel: la tarjeta del CM pasa a Programado o a Publicado (o vuelve a donde estaba). Solo quien lleva el CM de esa marca, o el project.
+function cmAccion_(b, clave, esProj) {
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
+  const c = (snap.cards || []).filter(x => x.id === String(b.cardId || '') && x.tipo === 'cm')[0];
+  if (!c) return { error: 'tarjeta', mensaje: 'No encuentro esa tarjeta del CM (puede que la hayan movido). Tocá ↻ y probá de nuevo.' };
+  const m = catalogo_().marcas.filter(x => x.slug === c.m[0])[0];
+  if (!esProj && (!m || m.cm !== clave)) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  const tb = (snap.tableros || []).filter(t => t.nombre === c.tablero)[0], listas = (tb && tb.listas) || [];
+  let dest = null;
+  if (b.op === 'programado') dest = listas.filter(l => CM_ESTADO_(l.n) === 'programado')[0];
+  else if (b.op === 'publicado') dest = listas.filter(l => CM_ESTADO_(l.n) === 'publicado')[0];
+  else if (b.op === 'volver') dest = listas.filter(l => l.id === String(b.listaId || ''))[0] || listas.filter(l => CM_ESTADO_(l.n) === (b.a === 'mano' ? 'mano' : 'listo'))[0];
+  if (!dest) return { error: 'lista', mensaje: 'En el tablero ' + c.tablero + ' no encuentro la lista para eso' };
+  const r = trello_('/cards/' + c.id, { idList: dest.id, pos: 'top' }, 'put');
+  if (!r || r.idList !== dest.id) return { error: 'trello', mensaje: 'Trello no confirmó el movimiento' };
+  // la tarjeta queda donde corresponde también en lo guardado, así al recargar ya se ve bien (sin esperar la próxima lectura de Trello)
+  const previa = c.lista;
+  try {
+    const cat = catalogo_(); cat.equipo.filter(p => /cm|project/i.test(p.rol)).forEach(p => {
+      const bs = cacheGet_('base:' + p.clave); if (!bs || !bs.cmDia) return;
+      bs.cmDia.forEach(x => { if (x.id === c.id) { x.lista = dest.n; x.estado = CM_ESTADO_(dest.n); } });
+      cachePut_('base:' + p.clave, bs);
+    });
+  } catch (e) {}
+  return { ok: true, lista: dest.n, estado: CM_ESTADO_(dest.n), previa: previa, previaId: (listas.filter(l => l.n === previa)[0] || {}).id || '' };
+}
 function cmRecordatorios_(snap, cat, cfg, ahora) {
   const hoyS = ymd_(ahora), real = cmReal_(snap), porCM = {};
   const hora = c => Utilities.formatDate(new Date(c.due), TZ, 'HH:mm');
@@ -5878,6 +5928,14 @@ function doPost__(e) {
       case 'pedidoRapido': // carga rápida del project: solo con su clave
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
         return json_(pedidoRapido_(b));
+      case 'cmAccion': { // CM: "Ya lo programé" / "Ya lo publiqué" / deshacer, sobre la tarjeta del tablero de CM
+        const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
+        if (!yo) return json_({ error: 'permiso', mensaje: 'Elegí quién sos' });
+        const esProj = /project/i.test(yo.rol);
+        if (esProj && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        if (!esProj && !/cm/i.test(yo.rol)) return json_({ error: 'permiso', mensaje: 'Solo para quien lleva el CM' });
+        return json_(cmAccion_(b, yo.clave, esProj));
+      }
       case 'mioAccion': // mover, fecha, etiquetas o comentario en una tarjeta de Project: solo con la clave del project
         if (!claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Esto es solo para el project' });
         try { return json_(mioAccion_(b)); } catch (e) { return json_({ error: 'trello', mensaje: 'Trello no respondió: ' + String(e.message || e).slice(0, 200) }); }
