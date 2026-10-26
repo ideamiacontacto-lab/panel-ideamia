@@ -1150,7 +1150,7 @@
     const fila = c => {
       const d = new Date(c.due), f = CM_FMT[c.formato] || CM_FMT['publicación'], e = CM_EST[c.estado] || [c.lista, ''], ok = Dc.hecho(c), pasada = !ok && d < NOW;
       const accion = ok ? '<button class="btn ghost cm-b" data-cmvolver="' + esc(c.id) + '" title="Deshacer">✓ ' + e[0] + '</button>'
-        : c.prog ? (c.auto ? '<button class="btn ghost cm-b cm-au" data-cmauto="' + esc(c.id) + '">⚡ Que salga sola</button>' : '') + '<button class="btn y cm-b" data-cmop="programado" data-cm="' + esc(c.id) + '">Ya lo programé</button>'
+        : c.prog ? '<button class="btn y cm-b" data-cmop="programado" data-cm="' + esc(c.id) + '">Ya lo programé</button>'
         : '<button class="btn y cm-b" data-cmop="publicado" data-cm="' + esc(c.id) + '">Ya lo publiqué</button>';
       return '<div class="row cm-r' + (ok ? ' cm-ok' : '') + (pasada ? ' cm-tarde' : '') + '"><div class="when wl"><b>' + hm(d) + '</b><small>' + (cual === 'atras' ? corto(d) : pasada ? 'ya pasó' : f[0]) + '</small></div>' +
         '<div><div class="tt">' + (c.ourl ? '<a class="lnk" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a>' : esc(c.n)) + '</div>' +
