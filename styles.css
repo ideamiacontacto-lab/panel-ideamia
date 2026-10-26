@@ -2131,3 +2131,15 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 @media (max-width:700px){input,select,textarea{font-size:16px!important}}
 html,body{overflow-x:hidden;overflow-x:clip;max-width:100%;overscroll-behavior-x:none}
 @media (max-width:700px){.sec-h{flex-wrap:wrap;row-gap:8px}.sec-h>.btn{max-width:100%}}
+/* ---------- CM · Programar (26/10/2026) ---------- */
+.cm-seg{margin:0 0 14px}
+.cm-seg em{margin-left:6px;font-style:normal;opacity:.75}.cm-seg em.rojo{color:var(--bad);opacity:1}
+.cm-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:900px){.cm-cols{grid-template-columns:1fr}}
+.cm-nota{margin:-4px 0 10px}
+.cm-r .mt{flex-wrap:wrap}
+.cm-tr{font-size:12px;color:var(--dim);text-decoration:none}.cm-tr:hover{color:var(--text)}
+.cm-b{white-space:nowrap}
+.cm-r.cm-ok .tt,.cm-r.cm-ok .when b{opacity:.5}
+.cm-r.cm-tarde .when b{color:var(--bad)}
+@media (max-width:700px){.cm-r{grid-template-columns:62px 1fr!important}.cm-r>div:last-child{grid-column:1/-1}.cm-r .cm-b{width:100%}}

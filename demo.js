@@ -247,3 +247,15 @@ window.PANEL_DEMO.lineamientos = [
   { id: "lin1", n: "Mostrar el local los viernes en historias", d: "Una historia del local por la tarde, con gente.", m: "isco", url: "#", tablero: "Project" },
   { id: "lin2", n: "Promo de transferencia en el feed una vez por semana", d: "", m: "tritato", url: "#", tablero: "SCL Tritato" }
 ];
+
+// CM · Programar (26/10/2026): lo que sale hoy y mañana en las marcas de Ale
+window.PANEL_DEMO.cmDia = [
+  { id: "cm1", n: "Historia: encuesta ¿qué burger probás este finde?", due: "2026-10-07T11:00:00-03:00", m: "vice-burger", lista: "Programación del día", estado: "dia", prog: false, formato: "historia", url: "https://trello.com/c/demo1", ourl: "https://trello.com/c/demo1o", lab: ["Historia"] },
+  { id: "cm2", n: "Carrusel: 5 combos para compartir", due: "2026-10-07T13:00:00-03:00", m: "isco", lista: "Listo para programar", estado: "listo", prog: true, formato: "carrusel", url: "https://trello.com/c/demo2", ourl: "https://trello.com/c/demo2o", lab: ["Carrusel"] },
+  { id: "cm3", n: "Reel: armado del sándwich de bondiola", due: "2026-10-07T19:00:00-03:00", m: "isco", lista: "Programado", estado: "programado", prog: true, formato: "reel", url: "https://trello.com/c/demo3", ourl: "https://trello.com/c/demo3o", lab: ["Reel"] },
+  { id: "cm4", n: "Placa: horarios del feriado", due: "2026-10-07T20:30:00-03:00", m: "tritato", lista: "Listo para programar", estado: "listo", prog: true, formato: "publicación", url: "https://trello.com/c/demo4", ourl: "https://trello.com/c/demo4o", lab: [] },
+  { id: "cm5", n: "Historias del local (colab con @cafe)", due: "2026-10-07T21:00:00-03:00", m: "gabriel-varisco", lista: "Contenido no programable", estado: "mano", prog: false, formato: "historia", url: "https://trello.com/c/demo5", ourl: "https://trello.com/c/demo5o", lab: ["Historia"] },
+  { id: "cm6", n: "Carrusel: novedades de octubre", due: "2026-10-06T18:00:00-03:00", m: "tritato", lista: "Listo para programar", estado: "listo", prog: true, formato: "carrusel", url: "https://trello.com/c/demo6", ourl: "https://trello.com/c/demo6o", lab: ["Carrusel"] },
+  { id: "cm7", n: "Reel: detrás de escena de la sesión de fotos", due: "2026-10-08T12:00:00-03:00", m: "vice-burger", lista: "Filtro", estado: "filtro", prog: true, formato: "reel", url: "https://trello.com/c/demo7", ourl: "https://trello.com/c/demo7o", lab: ["Reel"] },
+  { id: "cm8", n: "Historia: cuenta regresiva Día del Dulce de Leche", due: "2026-10-08T10:00:00-03:00", m: "isco", lista: "Contenido no programable", estado: "mano", prog: false, formato: "historia", url: "https://trello.com/c/demo8", ourl: "https://trello.com/c/demo8o", lab: ["Historia"] }
+];

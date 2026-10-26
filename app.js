@@ -252,6 +252,9 @@
     if (!film && TABS_F.indexOf(S.tab) >= 0 && S.tab !== 'discord') S.tab = 'hoy';
     // el calendario anual es solo de social media, dirección y project: si no llegó, la pestaña no existe
     if (S.tab === 'anual' && !S.data.anual) S.tab = film ? 'film' : 'hoy';
+    // CM: entra directo a Programar (lo del día por hora); a nadie más le aparece
+    if (!esCMyo() && S.tab === 'cmdia') S.tab = 'hoy';
+    if (esCMyo() && !S._cmIni) { S._cmIni = 1; if (S.tab === 'hoy') S.tab = 'cmdia'; }
     // la agenda privada (ideamia.contacto) y Fotos son solo del project y dirección: a nadie más se le abren, aunque la pestaña haya quedado guardada en este navegador
     if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
     if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual'].indexOf(S.tab) < 0) S.tab = 'revision';
@@ -260,16 +263,16 @@
     if ((S.tab === 'plan' || S.tab === 'okr') && !conPlan) S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb, equipo: vEquipoSM }[S.tab] || vHoy)(t);
+    const vista = ({ cmdia: vCmDia, hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb, equipo: vEquipoSM }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Agenda', I.pin, Df.visPend.length + prodPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
-      : S.movil ? [['hoy', 'Hoy', I.check, tot - ok], ['inputs', 'Inputs', I.inbox, nInp, true]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], conPlan && D.anual ? [] : [['discord', 'Discord', I.msg, dcSinVer().length, true]], [['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]).slice(0, 6)
-      : [['hoy', 'Hoy', I.check, tot - ok], ['inputs', 'Inputs', I.inbox, nInp, true], ['reuniones', 'Reuniones', I.users, nReu, nReu > 0], ['equipo', 'Equipo', I.users, 0]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]);
+      : S.movil ? (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], conPlan && D.anual ? [] : [['discord', 'Discord', I.msg, dcSinVer().length, true]], [['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]).slice(0, 6)
+      : (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat([['reuniones', 'Reuniones', I.users, nReu, nReu > 0], ['equipo', 'Equipo', I.users, 0]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]));
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'mas', 'colabs'].concat(S.movil ? ['reuniones', 'equipo'] : []).indexOf(S.tab) >= 0;
-    const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
+    const TIT = { cmdia: 'Programar', plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' <span class="sal">· ' + saludo + '</span></div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '' + btnAyuda() + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -291,6 +294,7 @@
     bind(app);
     if (S.tab === 'mas') cajasEnPestanas($('#view'), 'mas');
     if (S.tab === 'guiones' || S.tab === 'fgui') carpetasEnPestanas($('#view'), S.tab);
+    if (S.tab === 'cmdia' && S.movil) seccionesEnPestanas($('#view .cm-cols'), 'cmdia', 2);   // CM en el celu: Programables / A mano, una por vez
     if (S.tab === 'fgui' || S.tab === 'fpres') seccionesEnPestanas($('#view'), S.tab, 2);   // Bauti: una sección por vez (Reuniones/Guiones; Producciones/Visitas/Asistencias)
     if (S.tab === 'semana' && !S.movil) seccionesEnPestanas($('#view'), 'semana');
     if (S.tab === 'reuniones' || S.tab === 'equipo') seccionesEnPestanas($('#view'), S.tab);
@@ -1123,6 +1127,56 @@
      Qué tiene el resto del equipo con mis marcas: cuándo y con quién graba Bauti, y qué entregan Diseño y Producción y para cuándo.
      Sirve para pedirles algo a tiempo o tener en cuenta sus tiempos. */
   const ETAPA_TXT = { pendiente: ['por entregar', ''], revision: ['en revisión', 'y'], corr: ['a corregir', 'warn'] };
+  /* ---------------- CM · Programar (26/10/2026) ----------------
+     Lo que sale hoy y mañana en las marcas de Ale, por hora, separado en programable y a mano (no programable).
+     "Ya lo programé" pasa la tarjeta del CM a Programado; "Ya lo publiqué", a Publicado. Las dos se pueden deshacer. */
+  const CM_EST = { filtro: ['en Filtro', 'warn'], listo: ['para programar', 'y'], mano: ['a mano', ''], dia: ['para hoy, a mano', ''], programado: ['programado', 'ok'], publicado: ['publicado', 'ok'] };
+  const CM_FMT = { historia: ['Historia', 'story'], carrusel: ['Carrusel', 'grid'], reel: ['Reel', 'reel'], 'publicación': ['Publicación', 'cam'] };
+  const esCMyo = () => !!(S.data && S.data.cmDia);
+  function datosCM() {
+    const L = (S.data.cmDia || []).filter(c => pasa(c.m)), hoyS = ymdL(NOW), manS = ymdL(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + 1));
+    const dia = c => ymdL(new Date(c.due)), hecho = c => c.estado === 'programado' || c.estado === 'publicado';
+    return { L, hecho, atras: L.filter(c => dia(c) < hoyS && !hecho(c)), hoy: L.filter(c => dia(c) === hoyS), man: L.filter(c => dia(c) === manS) };
+  }
+  function vCmDia() {
+    const Dc = datosCM(), cual = S.cmDia || (Dc.atras.length ? 'atras' : 'hoy');
+    const L = cual === 'atras' ? Dc.atras : cual === 'man' ? Dc.man : Dc.hoy;
+    const nFalta = l => l.filter(c => !Dc.hecho(c)).length;
+    const seg = '<div class="seg cm-seg" role="tablist">' + (Dc.atras.length ? '<button class="' + (cual === 'atras' ? 'on' : '') + '" data-cmdia="atras">Atrasadas<em class="rojo">' + Dc.atras.length + '</em></button>' : '') +
+      '<button class="' + (cual === 'hoy' ? 'on' : '') + '" data-cmdia="hoy">Hoy<em>' + nFalta(Dc.hoy) + '</em></button><button class="' + (cual === 'man' ? 'on' : '') + '" data-cmdia="man">Mañana<em>' + nFalta(Dc.man) + '</em></button></div>';
+    const fila = c => {
+      const d = new Date(c.due), f = CM_FMT[c.formato] || CM_FMT['publicación'], e = CM_EST[c.estado] || [c.lista, ''], ok = Dc.hecho(c), pasada = !ok && d < NOW;
+      const accion = ok ? '<button class="btn ghost cm-b" data-cmvolver="' + esc(c.id) + '" title="Deshacer">✓ ' + e[0] + '</button>'
+        : c.prog ? '<button class="btn y cm-b" data-cmop="programado" data-cm="' + esc(c.id) + '">Ya lo programé</button>'
+        : '<button class="btn y cm-b" data-cmop="publicado" data-cm="' + esc(c.id) + '">Ya lo publiqué</button>';
+      return '<div class="row cm-r' + (ok ? ' cm-ok' : '') + (pasada ? ' cm-tarde' : '') + '"><div class="when wl"><b>' + hm(d) + '</b><small>' + (cual === 'atras' ? corto(d) : pasada ? 'ya pasó' : f[0]) + '</small></div>' +
+        '<div><div class="tt">' + (c.ourl ? '<a class="lnk" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a>' : esc(c.n)) + '</div>' +
+        '<div class="mt">' + tagM(c.m) + '<span class="pill">' + (I[f[1]] || '') + ' ' + f[0] + '</span>' + (ok ? '' : '<span class="pill ' + e[1] + '">' + e[0] + '</span>') +
+        '<a class="cm-tr" href="' + esc(c.url) + '" target="_blank" rel="noopener">tarjeta del CM ↗</a></div></div><div>' + accion + '</div></div>';
+    };
+    const sec = (t, l, vacio, nota) => '<div class="sec"><div class="sec-h"><h2>' + t + '<small>' + nFalta(l) + (l.length !== nFalta(l) ? ' de ' + l.length : '') + '</small></h2></div>' +
+      (nota ? '<p class="ayuda cm-nota">' + nota + '</p>' : '') + (l.length ? '<div class="list">' + l.map(fila).join('') + '</div>' : '<div class="empty">' + vacio + '</div>') + '</div>';
+    const prog = L.filter(c => c.prog), mano = L.filter(c => !c.prog);
+    const cuando = cual === 'atras' ? 'tenían que salir y no están programadas ni publicadas' : cual === 'man' ? 'para mañana' : 'para hoy';
+    return seg + '<div class="cm-cols">' +
+      sec('Programables', prog, 'Nada programable ' + cuando + '.', 'Se programan en Meta. Cuando lo hagas, tocá <b>Ya lo programé</b> y la tarjeta pasa a Programado.') +
+      sec('A mano', mano, 'Nada para publicar a mano ' + cuando + '.', 'No se pueden programar (historias con stickers, encuestas, colabs…): se publican en el momento. Después tocá <b>Ya lo publiqué</b>.') +
+      '</div>';
+  }
+  async function cmHacer(id, op, listaId) {
+    const c = (S.data.cmDia || []).find(x => x.id === id); if (!c) return;
+    const antes = { lista: c.lista, estado: c.estado };
+    if (op !== 'volver') { c.estado = op; c.lista = op === 'programado' ? 'Programado' : 'Publicado'; }
+    render();
+    try {
+      const r = await post({ action: 'cmAccion', cardId: id, op: op, listaId: listaId || '', a: c.prog ? 'listo' : 'mano' });
+      if (r.lista) { c.lista = r.lista; c.estado = r.estado; } else if (op === 'volver') { c.estado = c.prog ? 'listo' : 'mano'; c.lista = c.prog ? 'Listo para programar' : 'Contenido no programable'; }
+      if (op !== 'volver') { c.previaId = r.previaId; toast('✓ "' + esc(c.n.slice(0, 40)) + '" pasó a ' + esc(c.lista), r.previaId ? () => cmHacer(id, 'volver', r.previaId) : null); }
+      try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(S.data)); } catch (e) {}
+      render();
+    } catch (e) { Object.assign(c, antes); render(); toast('✗ ' + esc(e.message || 'No se pudo')); }
+  }
+
   function vEquipoSM() {
     const D = S.data, P = ((D.prodsEq || {}).items || []).filter(x => pasa(x.marca)), E = (D.entregas || []).filter(c => pasa(c.m));
     const TIPO = { reel: 'Reel', historias: 'Historias', presencial: 'Presencial', otro: 'Otro' };
@@ -1494,6 +1548,7 @@
   /* ---------------- ayuda (23/10/2026): un "?" en cada pestaña, un recorrido corto por rol y un botón para preguntarle a Joaquín ----------------
      Cada texto dice para qué sirve la pantalla, qué se toca y qué pasa en Trello al tocarlo. Lo que no se entienda se pregunta desde acá. */
   const AYUDA = {
+    cmdia: ['Programar', 'Todo lo que sale hoy y mañana en tus marcas, por hora. <b>Programables</b>: se programan en Meta; cuando lo hagas tocá <b>Ya lo programé</b> y la tarjeta pasa a Programado en Trello. <b>A mano</b>: lo que no se puede programar (lleva la etiqueta (i) en el SCL); se publica en el momento y después tocás <b>Ya lo publiqué</b>. Si te equivocás, tocá el botón verde y vuelve. El nombre abre la tarjeta original del SCL, con el copy y los archivos. Lo que guardás para más adelante (portadas, recetas) va a la lista <b>Para más adelante (no se publica)</b> y no aparece acá.'],
     hoy: ['Hoy', 'Lo que te toca en el día. Arriba, los números (vencidas, inputs, por salir…): tocá uno para ir directo. Abajo, cada pestaña de color es un tipo de tarea; tocá el <b>círculo</b> de un renglón cuando la hiciste y queda registrado (Joaquín lo ve). El botón <b>Semana</b> de arriba abre el checklist de la semana.'],
     semana: ['Semana', 'Tu checklist: cada tarea tiene un cuadrito por día o por marca. Tocalo cuando la hacés. <b>Reportes</b> te lleva a cargar los que faltan. Nada de esto mueve tarjetas en Trello: queda anotado en el panel.'],
     inputs: ['Inputs', 'Lo que te cargaron en la lista INPUTS del SCL de tus marcas. Tocá <b>Revisar</b> para leerlo y decidir: usarlo, guardarlo para más adelante o archivarlo (archivar lo archiva en Trello). Hay que verlos dentro de las 24 h.'],
@@ -1536,8 +1591,9 @@
       ['El mes, en Plan', 'En <b>Plan</b> armás el mes en pasos (anual, ficha, entregas, reels y plan B). <b>Para hacer</b> te dice qué falta y te lleva directo.'],
       ['Tu equipo', 'En <b>Equipo</b> (en Más, en el celu) ves cuándo graba Bauti y qué entrega Diseño de tus marcas, para pedir a tiempo.'],
       ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba que explica cómo se usa. Si algo no se entiende o no anda, desde ahí le escribís a Joaquín.']],
-    cm: [['Empezá por Hoy', 'En <b>Hoy</b> ves lo que te toca: lo que se publica a mano y lo que falta programar.'],
-      ['Tildá lo que hacés', 'Tocá el círculo de cada tarea cuando la hacés: queda registrado.'],
+    cm: [['Empezá por Programar', 'En <b>Programar</b> ves todo lo que sale hoy y mañana, por hora, separado en <b>Programables</b> y <b>A mano</b>. Si algo quedó atrasado, aparece primero.'],
+      ['Marcá lo que hacés', 'Cuando programás algo en Meta tocá <b>Ya lo programé</b>; cuando publicás algo a mano, <b>Ya lo publiqué</b>. La tarjeta se mueve sola en Trello.'],
+      ['Tus rutinas', 'En <b>Hoy</b> están tus rutinas y reportes: tocá el círculo de cada una cuando la hacés.'],
       ['Avisos por Discord', 'A la mañana te llega por Discord qué publicás a mano hoy, y en el momento te avisa si entra algo para salir ya.'],
       ['Lo que guardás', 'Portadas de destacadas, recetas o lo que dejás para usar después: pasalo a la lista <b>Para más adelante (no se publica)</b> de tu tablero de CM. Ahí no te avisa nunca.'],
       ['¿Dudas?', 'Cada pantalla tiene un <b>?</b> arriba. Si algo no se entiende o no anda, desde ahí le escribís a Joaquín.']],
@@ -2528,6 +2584,9 @@
     root.querySelectorAll('[data-prod-nueva]').forEach(x => x.onclick = () => prodEditar());
     root.querySelectorAll('[data-perfil]').forEach(x => x.onclick = () => perfilEditar(false));
     root.querySelectorAll('[data-lin]').forEach(x => x.onclick = () => linVer());
+    root.querySelectorAll('[data-cmdia]').forEach(x => x.onclick = () => { S.cmDia = x.dataset.cmdia; render(); });
+    root.querySelectorAll('[data-cmop]').forEach(x => x.onclick = () => cmHacer(x.dataset.cm, x.dataset.cmop));
+    root.querySelectorAll('[data-cmvolver]').forEach(x => x.onclick = () => { const c = (S.data.cmDia || []).find(y => y.id === x.dataset.cmvolver); if (c) cmHacer(c.id, 'volver', c.previaId || ''); });
     root.querySelectorAll('[data-ayuda]').forEach(x => x.onclick = e => { e.stopPropagation(); ayudaVer(tabActualAyuda()); });
     root.querySelectorAll('[data-tourbtn]').forEach(x => x.onclick = () => tourVer());
     root.querySelectorAll('[data-pregunta]').forEach(x => x.onclick = () => ayudaVer(tabActualAyuda()));
@@ -3078,6 +3137,7 @@
       S.data = JSON.parse(JSON.stringify(Object.assign({}, window.PANEL_DEMO)));
       const p = S.data.equipo.find(x => x.clave === S.persona) || S.data.equipo[0];
       S.data.yo = p;
+      if (!/cm/i.test(p.rol || '')) S.data.cmDia = null;   // la pestaña Programar es solo del CM
       return;
     }
     const j = await get({ p: S.persona, k: S.key || S.pkey });
