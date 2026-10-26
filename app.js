@@ -1211,7 +1211,14 @@
           : [{ n: 'Publicación', cuando: c.due, archivos: [{ n: 'placa.jpg', tipo: 'imagen', url: c.ourl }], copy: 'Texto de ejemplo para copiar y pegar en Meta.' }] }
         : await get({ action: 'cmPiezas', card: id, p: S.persona, k: S.key || S.pkey });
       if (p.error) throw new Error(p.mensaje || p.error);
-    } catch (e) { $('.pz', m).innerHTML = '<p class="ay-t">✗ ' + esc(e.message || 'No pude leer la tarjeta') + '</p><div class="acts"><a class="btn ghost" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">Abrir la tarjeta del SCL ↗</a></div>'; return; }
+    } catch (e) {
+      // tarjetas cargadas directo en el CM (sin link al SCL): se abre la del CM y se marca igual
+      $('.pz', m).innerHTML = '<p class="ay-t"><b>' + esc(c.n) + '</b></p><p class="ay-t">' + esc(e.message || 'No pude leer la tarjeta') + '. Abrí la tarjeta para ver los archivos y el horario.</p>' +
+        '<div class="acts pz-acts"><a class="btn ghost" href="' + esc(c.ourl || c.url) + '" target="_blank" rel="noopener">Abrir la tarjeta ↗</a><button class="btn ghost" data-pzadel>Guardar para más adelante</button><button class="btn y" data-pzfin>' + (c.prog ? 'Ya lo programé' : 'Ya lo publiqué') + '</button></div>';
+      $('[data-pzfin]', m).onclick = () => { m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); };
+      $('[data-pzadel]', m).onclick = () => { m.remove(); cmHacer(id, 'adelante'); };
+      return;
+    }
     const T = cmTildes(id), guardar = () => { try { localStorage.setItem('pi:cmprog:' + id, JSON.stringify(T)); } catch (e) {} };
     const hora = s => { if (!s) return '—'; const d = new Date(s); return hm(d) + '<small>' + (ymdL(d) === ymdL(NOW) ? 'hoy' : corto(d)) + '</small>'; };
     const pintar = () => {
