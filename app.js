@@ -254,6 +254,8 @@
     if (S.tab === 'anual' && !S.data.anual) S.tab = film ? 'film' : 'hoy';
     // CM: entra directo a Programar (lo del día por hora); a nadie más le aparece
     if (!esCMyo() && S.tab === 'cmdia') S.tab = 'hoy';
+    // CM (pedido de Joaquín, 26/10/2026): sin Equipo ni Guiones
+    if (esCMyo() && (S.tab === 'equipo' || S.tab === 'guiones')) S.tab = 'cmdia';
     if (esCMyo() && !S._cmIni) { S._cmIni = 1; if (S.tab === 'hoy') S.tab = 'cmdia'; }
     // la agenda privada (ideamia.contacto) y Fotos son solo del project y dirección: a nadie más se le abren, aunque la pestaña haya quedado guardada en este navegador
     if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
@@ -270,7 +272,7 @@
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Agenda', I.pin, Df.visPend.length + prodPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
       ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : S.movil ? (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], conPlan && D.anual ? [] : [['discord', 'Discord', I.msg, dcSinVer().length, true]], [['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]).slice(0, 6)
-      : (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat([['reuniones', 'Reuniones', I.users, nReu, nReu > 0], ['equipo', 'Equipo', I.users, 0]].concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]));
+      : (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat([['reuniones', 'Reuniones', I.users, nReu, nReu > 0]].concat(esCMyo() ? [] : [['equipo', 'Equipo', I.users, 0]], conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]));
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'mas', 'colabs'].concat(S.movil ? ['reuniones', 'equipo'] : []).indexOf(S.tab) >= 0;
     const TIT = { cmdia: 'Programar', plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
@@ -610,8 +612,9 @@
   function costado(chico) {
     const fs = proximasFechas(30), L = S.data.links;
     const seVienen = fs.filter(f => f.tipo !== 'feriado' || diasA(f.d) <= 14).slice(0, chico ? 4 : 6);
-    return (seVienen.length ? '<div class="box sv-box"><h3><span class="spark">✦</span>Se vienen</h3><div class="sv-car">' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '</div><div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
-      (() => { const sg = sugerencias(), max = S.todasSug ? 99 : chico ? 3 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })() +
+    const cm = esCMyo();   // CM (pedido de Joaquín, 26/10/2026): sin Se vienen ni Sugerencias
+    return (!cm && seVienen.length ? '<div class="box sv-box"><h3><span class="spark">✦</span>Se vienen</h3><div class="sv-car">' + seVienen.map(f => '<button class="fecha" data-fecha="' + esc(fkey(f)) + '"><span class="fd"><b>' + f.d.getDate() + '</b><small>' + MESES[f.d.getMonth()].slice(0, 3) + '</small></span><span class="fn">' + esc(f.n) + '<small>' + (f.tipo === 'feriado' ? 'feriado' : f.tipo === 'sugerida' ? 'sugerida para ' + (f.marcas.length > 2 ? f.marcas.length + ' marcas' : f.marcas.map(s => (marca(s) || {}).nombre).join(', ')) : (marca(f.marcas[0]) || {}).nombre + (f.enCalendario ? '' : ' · no está en el calendario')) + '</small></span><span class="fq">' + cuando(f.d) + '</span></button>').join('') + '</div><div style="padding:8px 0 12px"><button class="btn ghost" data-fechas>Ver todas</button></div></div>' : '') +
+      (cm ? '' : (() => { const sg = sugerencias(), max = S.todasSug ? 99 : chico ? 3 : 6; return '<div class="box"><h3><span class="spark">✦</span>Sugerencias <small style="color:var(--dim);font-weight:500;letter-spacing:0;text-transform:none">· se calculan solas con Trello y el calendario</small></h3>' + sg.slice(0, max).map(s => '<div class="sug"><i class="' + s.c + '"></i><div>' + s.h + (s.go && s.a ? '<br><button class="a" data-tab="' + s.go + '">' + s.a + ' →</button>' : '') + '</div></div>').join('') + (sg.length > max ? '<div style="padding:6px 0 12px"><button class="btn ghost" id="mas">Ver ' + (sg.length - max) + ' más</button></div>' : '') + '</div>'; })()) +
       '<div class="box"><h3>Accesos</h3><div class="links">' +
       [[L.reportes, 'Reportes', 'semanal · mensual'], [L.brainstorming, 'Brainstorming', 'ideas y campañas'], [S.data.project, 'Trello Project', 'pedidos y urgencias'], [L.notion, 'Notion', 'operación'], [L.drive, 'Drive', 'material']].filter(x => x[0]).map(x => '<a class="lk" href="' + esc(x[0]) + '" target="_blank" rel="noopener"><span>' + x[1] + ' ↗</span><small>' + x[2] + '</small></a>').join('') +
       '</div></div>';
@@ -1687,19 +1690,19 @@
     return '<div class="mas-l">' +
       sec('Tu trabajo', [
         f('data-tab="reuniones"', I.users, 'Reuniones', nReu ? nReu + ' sin fecha' : 'todas con fecha', nReu),
-        f('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'al día', guionAtencion()),
+        esCMyo() ? '' : f('data-tab="guiones"', I.pen, 'Guiones', guionAtencion() ? guionAtencion() + ' para mirar' : 'al día', guionAtencion()),
         f('data-vencidas', I.flag, 'Vencidas', nVen ? nVen + ' pasadas de fecha' : 'nada vencido', nVen),
-        f('data-fechas', I.star, 'Fechas', nF + ' en 30 días'),
+        esCMyo() ? '' : f('data-fechas', I.star, 'Fechas', nF + ' en 30 días'),
         linL().length ? f('data-lin', I.pin, 'Mantener', linL().length + ' pedidos fijos') : '']) +
       sec('Equipo y marcas', [
-        f('data-tab="equipo"', I.users, 'Equipo', 'grabaciones y entregas'),
+        esCMyo() ? '' : f('data-tab="equipo"', I.users, 'Equipo', 'grabaciones y entregas'),
         f('data-tab="agenda"', I.cal, 'Agenda', 'próximos 14 días'),
         f('data-tab="marcas"', I.grid, 'Marcas', 'tableros y calendario'),
         f('data-tab="recursos"', I.clip, 'Recursos', 'logos y fichas'),
         f('data-tab="colabs"', I.users, 'Colaboradores', (S.data.colabs || []).length ? (S.data.colabs || []).length + ' cargados' : 'influencers'),
         S.data.prods ? f('data-tab="prods"', I.flag, 'Producciones', (() => { const l0 = ymdL(lunesDe(NOW, 0)), l1 = ymdL(lunesDe(NOW, 1)); return S.data.prods.items.filter(x => x.fecha >= l0 && x.fecha < l1).length + ' esta semana'; })()) : '',
         S.data.anual && !anualEnNav ? f('data-tab="anual"', I.cal, 'Anual', 'calendario del año') : '']) +
-      (S.movil ? sec('Para tener en cuenta', [
+      (S.movil ? sec('Para tener en cuenta', esCMyo() ? [f('data-mas-caja="0"', I.link, 'Accesos', 'Reportes, Trello, Notion')] : [
         f('data-mas-caja="0"', I.star, 'Se vienen', 'fechas próximas'),
         f('data-mas-caja="1"', I.flag, 'Sugerencias', 'qué conviene hacer'),
         f('data-mas-caja="2"', I.link, 'Accesos', 'Reportes, Trello, Notion')]) : '') +
@@ -3166,12 +3169,14 @@
       const p = S.data.equipo.find(x => x.clave === S.persona) || S.data.equipo[0];
       S.data.yo = p;
       if (!/cm/i.test(p.rol || '')) S.data.cmDia = null;   // la pestaña Programar es solo del CM
+      else S.data.cards = S.data.cards.filter(c => c.cat !== 'guion');
       return;
     }
     const j = await get({ p: S.persona, k: S.key || S.pkey });
     if (j.error === 'clave') throw Object.assign(new Error(j.mensaje), { gate: true });
     if (j.error) throw new Error(j.mensaje || j.error);
     if (!silencioso) S.marca = 'todas';
+    if (j.cmDia) j.cards = (j.cards || []).filter(c => c.cat !== 'guion');   // el CM no ve guiones
     S.data = j;
     S.falloCarga = null;
     perfilRecibido(j.yo.clave, j.yo.perfil);
