@@ -10,6 +10,15 @@ self.addEventListener('activate', e => e.waitUntil(
 self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET' || u.origin !== location.origin) return;
+  // 24/10/2026: los archivos con versión (app.js?v=109, styles.css?v=98…) nunca cambian: se sirven de la copia guardada al instante.
+  // Cuando sale una versión nueva cambia el número en index.html (que siempre se pide a internet), así que nadie queda con una vieja.
+  if (/[?&]v=/.test(u.search)) {
+    e.respondWith(caches.match(r).then(m => m || fetch(r).then(res => {
+      if (res && res.ok) { const copia = res.clone(); caches.open(CACHE).then(c => c.put(r, copia)); }
+      return res;
+    })));
+    return;
+  }
   e.respondWith(
     fetch(r).then(res => {
       if (res && res.ok) { const copia = res.clone(); caches.open(CACHE).then(c => c.put(r, copia)); }

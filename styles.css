@@ -2111,3 +2111,23 @@ button,a,.gtab,.mt-t{-webkit-tap-highlight-color:transparent}
 @media (max-width:700px){.gpasos{display:grid;grid-template-columns:1fr 1fr;overflow:visible}.gpasos span{min-width:0}.gpasos i{display:none}}
 /* la vista previa del input se lee entera (nada de "…"), también en la compu */
 .irow .desc{white-space:normal;overflow:visible;text-overflow:clip;max-width:70ch;flex-basis:100%}
+.kick .sal{white-space:nowrap}
+/* "En el día": el título en una línea; Por tipo / Por marca no lo aprietan */
+.sec-h h2{white-space:nowrap}
+@media (max-width:700px){.sec-h:has(.hoy-seg){flex-wrap:nowrap}.sec-h .hoy-seg{flex:0 1 auto;margin-left:auto}.sec-h .hoy-seg button{padding-left:10px;padding-right:10px}}
+/* ayuda y recorrido: en el celu una tarjeta centrada (son textos cortos, no hace falta toda la pantalla) */
+@media (max-width:700px){
+  .modal.lado.centro{align-items:center!important;justify-items:center;padding:16px!important;background:rgba(0,0,0,.6)}
+  .modal.lado.centro .mb{height:auto;max-height:calc(100dvh - 32px)!important;overflow:auto;border:1px solid var(--line);border-radius:16px!important;animation:popIn .32s var(--ease) both}
+  .modal.lado.centro.sale .mb{transform:scale(.96);opacity:0;transition:transform .2s,opacity .2s}
+  .modal.lado.centro .pf-h{border-radius:16px 16px 0 0}
+  .modal.lado.centro .tour{min-height:0}
+}
+@keyframes popIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+/* marcas del Project en el celu: la tira se desvanece a la derecha para que se note que sigue (sin cortar una marca en seco) */
+@media (max-width:700px){.mio-chips{-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent);padding-right:28px}}
+/* celu (26/10/2026): campos de 16 px para que el iPhone no haga zoom solo al tocarlos (quedaba "con zoom" y se movía de costado),
+   y nada puede correr la página hacia los lados */
+@media (max-width:700px){input,select,textarea{font-size:16px!important}}
+html,body{overflow-x:hidden;overflow-x:clip;max-width:100%;overscroll-behavior-x:none}
+@media (max-width:700px){.sec-h{flex-wrap:wrap;row-gap:8px}.sec-h>.btn{max-width:100%}}

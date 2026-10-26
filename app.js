@@ -93,6 +93,8 @@
   async function get(params) {
     if (DEMO) return null;
     const u = C.API_URL + '?' + new URLSearchParams(params).toString();
+    // el primer pedido ya salió desde index.html mientras bajaba este archivo: se usa ese
+    if (window.__pre && window.__pre.u === u) { const p = window.__pre.r; window.__pre = null; try { return await p; } catch (e) {} }
     const r = await fetch(u, { cache: 'no-store' });
     return r.json();
   }
@@ -270,9 +272,9 @@
     const TIT = { plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
-      ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '' + btnAyuda() + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
+      ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' <span class="sal">· ' + saludo + '</span></div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '' + btnAyuda() + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
       : '<div class="mtit">' + (!ivo && (['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'colabs'].indexOf(S.tab) >= 0 || (S.movil && ['reuniones', 'equipo'].indexOf(S.tab) >= 0)) ? '<button class="volver" data-tab="mas" aria-label="Volver">‹</button>' : '') + '<h1>' + TIT[S.tab] + '</h1>' + btnAyuda() + '<span>' + fecha + '</span></div>';
-    const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + btnAyuda() + '</p></div></section>' : head;
+    const headF = film && portada ? '<section class="mhead"><div><div class="kick">/ ' + fecha + ' <span class="sal">· ' + saludo + '</span></div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + resumenFilm() + btnAyuda() + '</p></div></section>' : head;
     const botonNav = x => '<button class="' + (S.movil ? '' : 'tab') + ((S.tab === x[0] || (x[0] === 'mas' && enMas) || (x[0] === 'hoy' && S.tab === 'semana')) ? ' on' : '') + '" data-tab="' + x[0] + '">' + (S.movil ? x[2] + '<span>' + x[1] + '</span>' + (x[3] ? '<em class="' + (x[4] ? 'hot' : '') + '">' + x[3] + '</em>' : '') : x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '')) + '</button>';
     const ctrl = '<div class="ctrl"><div class="ctrl-in">' + (S.movil ? '' : '<nav class="tabs">' + nav.map(botonNav).join('') + '</nav>') + (S.tab === 'mas' ? '' : selMarca) + '</div></div>';
     const hoySem = !ivo && !film && (S.tab === 'hoy' || S.tab === 'semana') ? '<div class="hoysem" role="tablist"><button role="tab" class="' + (S.tab === 'hoy' ? 'on' : '') + '" data-tab="hoy">Hoy<em>' + (tot - ok) + '</em></button><button role="tab" class="' + (S.tab === 'semana' ? 'on' : '') + '" data-tab="semana">Semana' + (nRep ? '<em class="hot">' + nRep + '</em>' : '') + '</button></div>' : '';
@@ -1559,7 +1561,7 @@
     const m = hoja('Cómo se usa · ' + a[0], '<p class="ay-t">' + a[1] + '</p>' +
       '<div class="ay-bts"><button class="btn ghost" data-tour>▶ Recorrido de 1 minuto</button></div>' +
       '<span class="lbl">¿Algo no se entiende o no anda?</span><div class="fi-c"><textarea id="ayQ" rows="3" maxlength="1500" placeholder="Contá qué querías hacer y qué pasó. Le llega a Joaquín por Discord."></textarea></div>' +
-      '<div class="err"></div><div class="acts"><button class="btn y" data-consulta="' + esc(k) + '">Mandar a Joaquín</button></div>');
+      '<div class="err"></div><div class="acts"><button class="btn y" data-consulta="' + esc(k) + '">Mandar a Joaquín</button></div>'); m.classList.add('centro');
     $('[data-tour]', m).onclick = () => { m.remove(); tourVer(); };
     $('[data-consulta]', m).onclick = async e => {
       const t = $('#ayQ', m).value.trim(); if (t.length < 5) return $('#ayQ', m).focus();
@@ -1570,7 +1572,7 @@
   }
   function tourVer() {
     const pasos = TOURS[rolTour()] || TOURS.sm; let i = 0;
-    const m = hoja('Cómo se usa tu panel', '<div class="tour"></div>');
+    const m = hoja('Cómo se usa tu panel', '<div class="tour"></div>'); m.classList.add('centro');
     const pintar = () => {
       const p = pasos[i];
       $('.tour', m).innerHTML = '<div class="tour-n">' + String(i + 1).padStart(2, '0') + ' / ' + String(pasos.length).padStart(2, '0') + '</div><h3>' + p[0] + '</h3><p>' + p[1] + '</p>' +
@@ -2137,7 +2139,7 @@
     if (tab === 'registro') return pagina(tit('Registro', 'Lo último que tildó o cargó cada uno.'), vistaEquipo(true));
     const pf = perfilDe(S.persona), nom = apodo();
     const resumen = !D ? 'Tu tablero Project de Trello' : n ? '<b>' + D.bandeja.length + '</b> en bandeja · <b>' + D.hoy.length + '</b> para hoy' : '<b>Bandeja vacía</b> y nada vence hoy';
-    const head = '<section class="mhead"><div>' + (pf.foto ? ava(pf, nom) : '') + '<div class="kick">/ ' + fecha + ' · ' + saludo + '</div><h1>Hola, <span class="nom">' + esc(nom) + '</span></h1><p>' + resumen + btnAyuda() + '</p></div></section>';
+    const head = '<section class="mhead"><div>' + (pf.foto ? ava(pf, nom) : '') + '<div class="kick">/ ' + fecha + ' <span class="sal">· ' + saludo + '</span></div><h1>Hola, <span class="nom">' + esc(nom) + '</span></h1><p>' + resumen + btnAyuda() + '</p></div></section>';
     return pagina(head, vistaMio());
   }
   /* ---------------- MI SEMANA (filmmaker) ----------------
