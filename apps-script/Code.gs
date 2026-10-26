@@ -239,6 +239,9 @@ function planCacheado_(clave, esProj, que, mes, forzar) {
 }
 function planCalentar_(t0) {
   const cat = catalogo_(), quienes = cat.equipo.filter(p => /project/i.test(p.rol) || cat.marcas.some(m => m.sm === p.clave));
+  // lo que se lee en cada apertura del panel queda listo (24/10/2026): así el primer pedido no espera a Drive ni a la planilla
+  try { estados_(); perfiles_(); reportesConfig_(); reportesEnviados_(); } catch (e) {}
+  try { const mk = cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })); anualProject_(mk, hoyAR_(), true); } catch (e) {}   // se rearma con las tarjetas recién leídas
   for (const p of quienes) for (const que of ['', 'campanas', 'ficha', 'planb', 'pauta']) {
     if (Date.now() - t0 > 4 * 60 * 1000) return;   // no pasarse del límite de 6 min de la ejecución
     planCacheado_(p.clave, /project/i.test(p.rol), que, '', true);
@@ -257,6 +260,13 @@ function rows_(name) {
   if (!sh || sh.getLastRow() < 2) return [];
   const v = sh.getDataRange().getDisplayValues();
   return v.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+}
+// solo las últimas n filas (el Registro tiene miles: leerlo entero hacía lenta la vista Project)
+function ultimasFilas_(name, n) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(name), ul = sh ? sh.getLastRow() : 0;
+  if (ul < 2) return [];
+  const desde = Math.max(2, ul - n + 1);
+  return sh.getRange(desde, 1, ul - desde + 1, sh.getLastColumn()).getDisplayValues().filter(r => r.some(c => String(c).trim() !== ''));
 }
 function config_() {
   const c = {};
@@ -1324,13 +1334,22 @@ function vistaProject_() {
       reportes: (pn.reportes || []).map(r => ({ label: r.label, marca: r.marca, vence: r.vence }))
     };
   });
-  const reg = rows_('Registro').slice(-60).reverse().map(r => ({ fecha: r[0], persona: r[1], tipo: r[2], clave: r[3], marca: r[4], estado: r[5], detalle: r[6] }));
+  const reg = ultimasFilas_('Registro', 60).reverse().map(r => ({ fecha: r[0], persona: r[1], tipo: r[2], clave: r[3], marca: r[4], estado: r[5], detalle: r[6] }));
   const marcas = cacheGet_('marcasLista') || catalogo_().marcas.map(m => ({ slug: m.slug, nombre: m.nombre }));
   // su propio tablero: si Trello falla, la vista del equipo se sigue viendo y "Mi día" muestra el motivo
   let mio; try { mio = miTablero_(); } catch (e) { mio = { error: String(e.message || e).slice(0, 200) }; }
   let fotos = null; try { fotos = fotosSalida_(marcas); } catch (e) {}
-  let anual = null; try { anual = anualSalida_(leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), marcas, hoy, leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json')); } catch (e) {}
+  let anual = null; try { anual = anualProject_(marcas, hoy); } catch (e) {}
   return { ok: true, hoy: ymd_(hoy), personas, registro: reg, marcas, mio, fotos, anual };
+}
+/* El anual de la vista Project leía dos archivos grandes de Drive en cada apertura (24/10/2026): ahora queda guardado
+   y se arma de nuevo cuando cambia algo del plan (PLAN_VER) o cuando lo calienta el trigger. */
+function anualProject_(marcas, hoy, forzar) {
+  const k = 'projAnual:' + ymd_(hoy) + ':' + (P.getProperty('PLAN_VER') || '') + ':' + (P.getProperty('PLAN_VER_project') || '');
+  if (!forzar) { const h = cacheGet_(k); if (h) return h; }
+  const a = anualSalida_(leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json'), marcas, hoy, leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'));
+  try { cachePut_(k, a); } catch (e) {}
+  return a;
 }
 
 /* ---------------- "Mi día" del project: su tablero Project de Trello, leído en vivo ----------------
