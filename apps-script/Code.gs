@@ -1903,7 +1903,7 @@ const AUTO_MARCAS = ['sfb'];
 const META_API = 'https://graph.facebook.com/v21.0';
 function cargarTokenMeta() { cambiarClave_('META_TOKEN', 'Meta · token del usuario del sistema (Configuración del negocio → Usuarios del sistema → Generar token)'); }
 const autoIgId_ = slug => String(config_()['IG_ID_' + String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_')] || '').trim();
-function autoPlan_(cmCardId) {
+function autoPlan_(cmCardId, alPublicar) {
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
   const c = (snap.cards || []).filter(x => x.id === String(cmCardId || '') && x.tipo === 'cm')[0];
   if (!c) return { error: 'tarjeta', mensaje: 'No encuentro esa tarjeta del CM. Tocá ↻ y probá de nuevo.' };
@@ -1942,11 +1942,25 @@ function autoPlan_(cmCardId) {
     items.push({ n: tipo === 'reel' ? 'Reel' : tipo === 'carrusel' ? 'Carrusel' : 'Publicación', cuando: due ? due.toISOString() : null, archivos: arch.map(a => ({ n: a.name, tipo: /^video/.test(a.mimeType) ? 'video' : 'imagen', url: a.url })), copy: copy.slice(0, 2200) });
   }
   const ahora = Date.now();
-  items.forEach(i => { if (i.cuando && new Date(i.cuando).getTime() < ahora + 5 * 6e4) faltas.push(i.n + ': la hora ya pasó o falta menos de 5 minutos'); });
+  if (!alPublicar) items.forEach(i => { if (i.cuando && new Date(i.cuando).getTime() < ahora + 5 * 6e4) faltas.push(i.n + ': la hora ya pasó o falta menos de 5 minutos'); });
   const igId = autoIgId_(c.m[0]), conMeta = !!P.getProperty('META_TOKEN') && !!igId;
   const cola = autoCola_(), enCola = cola.filter(x => x.cm === c.id && x.estado === 'pendiente').length > 0;
-  return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, items: items.map(i => Object.assign({}, i, { archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo })) })), faltas, listo: !faltas.length, conMeta, enCola };
+  return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, items: items.map(i => Object.assign({}, i, { archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo })) })), faltas, listo: !faltas.length, conMeta, enCola, modo: autoModo_(), cuenta: autoUser_(c.m[0]) };
 }
+/* FRENOS (26/10/2026, Joaquín: "me da miedo que suba mal, a otra cuenta, a otro horario o que no se programe"):
+   1. Arranca en ENSAYO: a la hora indicada no publica nada, le avisa a Ale por Discord qué hubiera publicado, en qué cuenta y con qué archivo.
+      Recién cuando Joaquín corre activarPublicacionReal() desde el editor empieza a publicar de verdad (volverAEnsayo() lo frena).
+   2. Cuenta correcta: cada marca tiene su ID y su @ en Config (IG_ID_SFB, IG_USER_SFB). Antes de cada publicación se le pregunta a Instagram
+      de quién es ese ID; si el @ no coincide, no se publica.
+   3. Horario: sale entre 2 minutos antes y 30 minutos después de la hora. Si por lo que sea se pasa de eso, NO se publica y se avisa.
+   4. Lo mismo que se aprobó: al momento de publicar se vuelve a leer la tarjeta del SCL; si cambió el archivo, el copy o la hora, no se publica y se avisa.
+   5. Sin doble publicación: si la tarjeta del CM ya está en Programado o Publicado (Ale lo hizo a mano), no se publica.
+   6. Si falla, se avisa por Discord en el momento para publicarla a mano. */
+const autoModo_ = () => P.getProperty('AUTO_MODO') === 'real' ? 'real' : 'ensayo';
+const autoUser_ = slug => String(config_()['IG_USER_' + String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_')] || '').trim().replace(/^@/, '').toLowerCase();
+const autoFirma_ = i => JSON.stringify([i.cuando, (i.archivos || []).map(a => a.n), String(i.copy || '').trim()]);
+function activarPublicacionReal() { P.setProperty('AUTO_MODO', 'real'); console.log('Publicación automática: REAL (publica en Instagram). Para frenarla: volverAEnsayo()'); }
+function volverAEnsayo() { P.deleteProperty('AUTO_MODO'); console.log('Publicación automática: ENSAYO (no publica nada, solo avisa qué hubiera hecho)'); }
 // cola de lo que se va a publicar (propiedad AUTO_COLA): se revisa en cada lectura automática (cada 10 min) y además con un disparador a la hora justa
 const autoCola_ = () => { try { return JSON.parse(P.getProperty('AUTO_COLA') || '[]'); } catch (e) { return []; } };
 const autoGuardarCola_ = l => P.setProperty('AUTO_COLA', JSON.stringify(l.slice(-60)));
@@ -1954,14 +1968,14 @@ function autoProgramar_(cmCardId, clave) {
   const plan = autoPlan_(cmCardId);
   if (plan.error) return plan;
   if (!plan.listo) return { error: 'faltan', mensaje: 'Todavía falta: ' + plan.faltas.join(' · ') };
-  if (!plan.conMeta) return { error: 'meta', mensaje: 'Falta conectar Instagram (token de Meta e IG_ID_' + plan.marca.toUpperCase() + '). Avisale a Joaquín.' };
+  if (plan.modo === 'real' && (!plan.conMeta || !plan.cuenta)) return { error: 'meta', mensaje: 'Falta conectar Instagram (token de Meta, IG_ID_' + plan.marca.toUpperCase() + ' e IG_USER_' + plan.marca.toUpperCase() + '). Avisale a Joaquín.' };
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), c = (snap.cards || []).filter(x => x.id === cmCardId)[0];
   const corto = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n) || [])[1];
   const o = trello_('/cards/' + corto, { fields: 'name', attachments: 'true', attachment_fields: 'name,url,mimeType,isUpload' });
   const urlDe = n => ((o.attachments || []).filter(a => a.name === n)[0] || {}).url || '';
   const cola = autoCola_().filter(x => !(x.cm === cmCardId && x.estado === 'pendiente'));
   plan.items.forEach((i, k) => cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
-    archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: urlDe(a.n) })), estado: 'pendiente', por: clave, titulo: plan.titulo }));
+    archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: urlDe(a.n) })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k }));
   autoGuardarCola_(cola);
   // un disparador a la hora de cada pieza (además del de cada 10 minutos), así sale puntual
   autoRehacerDisparadores_(cola);
@@ -1979,8 +1993,16 @@ function autoPublicarPendientes() {
     const cola = autoCola_(), ahora = Date.now(); let cambio = false;
     cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).forEach(x => {
       cambio = true;
-      if (ahora - new Date(x.cuando).getTime() > 3 * 3600 * 1000) { x.estado = 'vencida'; autoAvisar_(x, '⚠️ No salió a tiempo y la saqué de la cola (pasaron más de 3 horas). Publicala a mano.'); return; }
-      try { x.mediaId = autoPublicar_(x); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram.'); }
+      if (ahora - new Date(x.cuando).getTime() > 30 * 60 * 1000) { x.estado = 'vencida'; autoAvisar_(x, '⚠️ No salió a su hora y no la publiqué (ya pasaron más de 30 minutos). Publicala a mano.'); return; }
+      // freno 5: si Ale ya la programó o publicó a mano, no se duplica
+      try { const cmc = trello_('/cards/' + x.cm, { fields: 'idList', list: 'true' }), est = CM_ESTADO_((cmc.list || {}).name || '');
+        if (est === 'programado' || est === 'publicado') { x.estado = 'salteada'; autoAvisar_(x, 'ℹ️ No la publiqué: la tarjeta del CM ya estaba en "' + cmc.list.name + '".'); return; } } catch (e) {}
+      // freno 4: tiene que ser lo mismo que se dejó en la cola
+      try { const pl = autoPlan_(x.cm, true), it = pl.items && pl.items[x.k || 0];
+        if (pl.error || !it || autoFirma_(it) !== x.firma) { x.estado = 'cambio'; autoAvisar_(x, '⚠️ No la publiqué: la tarjeta del SCL cambió (archivo, copy u hora) desde que la dejaste en cola. Revisala y volvé a ponerla, o publicala a mano.'); return; } }
+      catch (e) { x.estado = 'fallo'; autoAvisar_(x, '❌ No la publiqué: no pude volver a leer la tarjeta del SCL (' + String(e.message).slice(0, 80) + '). Publicala a mano.'); return; }
+      if (autoModo_() !== 'real') { x.estado = 'ensayo'; autoAvisar_(x, '🧪 ENSAYO (no se publicó nada): ahora hubiera salido en ' + (autoUser_(x.marca) ? '@' + autoUser_(x.marca) : 'Instagram de la marca') + ' con ' + x.archivos.map(a => a.n).join(', ') + (x.copy ? ' y el copy "' + x.copy.slice(0, 60) + '…"' : '') + '. Si es lo que ibas a publicar, todo bien.'); return; }
+      try { x.mediaId = autoPublicar_(x); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram (@' + autoUser_(x.marca) + ').'); }
       catch (e) { x.intentos = (x.intentos || 0) + 1; x.error = String(e.message || e).slice(0, 300); if (x.intentos >= 3) { x.estado = 'fallo'; autoAvisar_(x, '❌ No se pudo publicar: ' + x.error + '. Publicala a mano.'); } }
     });
     if (cambio) autoGuardarCola_(cola);
@@ -2023,7 +2045,10 @@ function metaEsperar_(id) {   // los videos tardan en procesarse: se espera hast
   throw new Error('Meta tardó demasiado en procesar el video');
 }
 function autoPublicar_(x) {
-  const ig = autoIgId_(x.marca); if (!ig || !P.getProperty('META_TOKEN')) throw new Error('falta conectar Instagram');
+  const ig = autoIgId_(x.marca), user = autoUser_(x.marca); if (!ig || !user || !P.getProperty('META_TOKEN')) throw new Error('falta conectar Instagram');
+  // freno 2: ese ID tiene que ser la cuenta de la marca (si no coincide el @, no se publica)
+  const q = JSON.parse(UrlFetchApp.fetch(META_API + '/' + ig + '?fields=username&access_token=' + encodeURIComponent(P.getProperty('META_TOKEN')), { muteHttpExceptions: true }).getContentText() || '{}');
+  if (String(q.username || '').toLowerCase() !== user) throw new Error('la cuenta conectada es @' + (q.username || '?') + ' y tenía que ser @' + user + ': no publiqué nada');
   const temp = [];
   try {
     const pub = a => { const p = autoArchivoPublico_(a); temp.push(p.f); return p.url; };
