@@ -1180,15 +1180,17 @@
     const items = p.items.map(i => '<div class="au-i"><div class="au-h"><b>' + esc(i.n) + '</b><span>' + hora(i.cuando) + '</span></div>' +
       '<div class="au-f">' + (i.archivos.length ? i.archivos.map(a => '<span class="pill">' + (a.tipo === 'video' ? I.reel : I.cam) + ' ' + esc(a.n) + '</span>').join('') : '<span class="pill bad">sin archivo</span>') + '</div>' +
       (i.copy ? '<p class="au-c">' + escL(i.copy.slice(0, 600)) + (i.copy.length > 600 ? ' (sigue)' : '') + '</p>' : '') + '</div>').join('');
-    const estado = p.enCola ? '<div class="au-ok">✓ Está en la cola: se publica sola a la hora. Si cambia algo, sacala y volvé a ponerla.</div>'
+    const ensayo = p.modo !== 'real';
+    const modo = ensayo ? '<div class="au-ens"><b>🧪 Modo ensayo:</b> no se publica nada. A la hora indicada te llega un Discord con lo que <i>hubiera</i> publicado (cuenta, archivo y copy). <b>Programala en Meta como siempre</b>: el ensayo es para comprobar que acierta.</div>' : '';
+    const estado = p.enCola ? '<div class="au-ok">✓ Está en la cola. ' + (ensayo ? 'A la hora te aviso qué hubiera publicado.' : 'Se publica sola a la hora en @' + esc(p.cuenta || '') + '.') + ' Si cambia algo de la tarjeta no se publica y te aviso.</div>'
       : p.faltas.length ? '<div class="au-falta"><b>Para que salga sola falta:</b><ul>' + p.faltas.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>'
-      : !p.conMeta ? '<div class="au-falta"><b>Está todo listo</b>, pero todavía no está conectado Instagram (lo hace Joaquín). Mientras tanto, programala en Meta como siempre.</div>'
-      : '<div class="au-ok">✓ Está todo. Se publica sola a la hora indicada y te aviso por Discord.</div>';
-    $('.au', m).innerHTML = '<p class="ay-t">Lo que se publicaría, sacado de la tarjeta del SCL (<b>' + esc(p.tipo) + '</b>):</p>' + items + estado +
-      '<div class="err"></div><div class="acts">' + (p.enCola ? '<button class="btn ghost" data-auq="cancelar">Sacar de la cola</button>' : '<button class="btn y" data-auq="programar"' + (p.listo && p.conMeta ? '' : ' disabled') + '>Que salga sola</button>') + '</div>';
+      : !ensayo && !p.conMeta ? '<div class="au-falta"><b>Está todo listo</b>, pero todavía no está conectado Instagram (lo hace Joaquín). Mientras tanto, programala en Meta como siempre.</div>'
+      : '<div class="au-ok">✓ Está todo. ' + (ensayo ? 'Dejala en ensayo y a la hora te aviso qué hubiera publicado.' : 'Se publica sola en @' + esc(p.cuenta || '') + ' a la hora indicada y te aviso por Discord.') + '</div>';
+    $('.au', m).innerHTML = modo + '<p class="ay-t">Lo que se publicaría' + (p.cuenta ? ' en <b>@' + esc(p.cuenta) + '</b>' : '') + ', sacado de la tarjeta del SCL (<b>' + esc(p.tipo) + '</b>):</p>' + items + estado +
+      '<div class="err"></div><div class="acts">' + (p.enCola ? '<button class="btn ghost" data-auq="cancelar">Sacar de la cola</button>' : '<button class="btn y" data-auq="programar"' + (p.listo && (ensayo || p.conMeta) ? '' : ' disabled') + '>' + (ensayo ? 'Ensayar (no publica nada)' : 'Que salga sola') + '</button>') + '</div>';
     m.querySelectorAll('[data-auq]').forEach(b => b.onclick = async () => {
       b.disabled = true; $('.err', m).textContent = '';
-      try { const r = await post({ action: 'cmAuto', op: b.dataset.auq, cardId: id }); m.remove(); toast(b.dataset.auq === 'cancelar' ? '✓ Salió de la cola' : '✓ Queda en cola: se publica sola (' + (r.items || 1) + ')'); }
+      try { const r = await post({ action: 'cmAuto', op: b.dataset.auq, cardId: id }); m.remove(); toast(b.dataset.auq === 'cancelar' ? '✓ Salió de la cola' : ensayo ? '✓ En ensayo: a la hora te aviso por Discord qué hubiera publicado' : '✓ Queda en cola: se publica sola (' + (r.items || 1) + ')'); }
       catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
     });
   }
