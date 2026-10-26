@@ -11,6 +11,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap">
 <style>
+/* celu: sin zoom automatico del iPhone al tocar un campo, y la pagina no se corre de costado (26/10/2026) */
+@media (max-width:700px){input,select,textarea{font-size:16px!important}}
+html,body{overflow-x:hidden;overflow-x:clip;max-width:100%;overscroll-behavior-x:none}
+
 :root{--bg:#0A0A0A;--c1:#141414;--c2:#1C1C1C;--c3:#242424;--ln:#262626;--tx:#F5F5F5;--mu:#8C8C8C;--y:#FFF200;--ok:#5CE38A;--warn:#FFB454;--bad:#FF6B6B;--r:18px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;background:var(--bg);color:var(--tx);font:400 15px/1.45 Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:var(--y)}button,input{font:inherit;color:inherit}button{cursor:pointer}
@@ -109,7 +113,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
   // si el navegador mostró una copia vieja de la página, se pide la nueva una sola vez (cambiar VER en cada versión)
-  const VER = '8';
+  const VER = '9';
   try {
     fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
       const m = /const VER = '(\d+)'/.exec(t);
