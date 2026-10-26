@@ -217,6 +217,7 @@ function actualizarProgramado() {
   try { procesarAReels_(); } catch (e) { console.warn('procesarAReels_: ' + e.message); }
   try { if (autoCola_().some(x => x.estado === 'pendiente')) autoPublicarPendientes(); } catch (e) { console.warn('autoPublicarPendientes: ' + e.message); }
   actualizar();
+  if (h >= 6 && h < 22) try { autoEnsayoSolo_(); } catch (e) { console.warn('autoEnsayoSolo_: ' + e.message); }   // ensayo de publicación automática (SFB)
   if (h >= 8 && h < 21) try { planCalentar_(t0); } catch (e) { console.warn('planCalentar_: ' + e.message); }
 }
 /* ---------------- PLAN · respuestas guardadas (pedido de Joaquín, 20/10/2026: la página Plan tardaba 6 a 16 s por consulta) ----------------
@@ -1990,9 +1991,10 @@ function autoCancelar_(cmCardId) {
 function autoPublicarPendientes() {
   const lock = LockService.getScriptLock(); if (!lock.tryLock(20000)) return;
   try {
-    const cola = autoCola_(), ahora = Date.now(); let cambio = false;
+    const cola = autoCola_(), ahora = Date.now(), ensayo = autoModo_() !== 'real', informe = []; let cambio = false;
     cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).forEach(x => {
       cambio = true;
+      if (ensayo) { informe.push(autoEnsayar_(x, ahora)); return; }
       if (ahora - new Date(x.cuando).getTime() > 30 * 60 * 1000) { x.estado = 'vencida'; autoAvisar_(x, '⚠️ No salió a su hora y no la publiqué (ya pasaron más de 30 minutos). Publicala a mano.'); return; }
       // freno 5: si Ale ya la programó o publicó a mano, no se duplica
       try { const cmc = trello_('/cards/' + x.cm, { fields: 'idList', list: 'true' }), est = CM_ESTADO_((cmc.list || {}).name || '');
@@ -2006,12 +2008,59 @@ function autoPublicarPendientes() {
       catch (e) { x.intentos = (x.intentos || 0) + 1; x.error = String(e.message || e).slice(0, 300); if (x.intentos >= 3) { x.estado = 'fallo'; autoAvisar_(x, '❌ No se pudo publicar: ' + x.error + '. Publicala a mano.'); } }
     });
     if (cambio) autoGuardarCola_(cola);
+    if (informe.length) autoInformar_(informe);
     // si todas las piezas de una tarjeta salieron, la tarjeta del CM pasa a Publicado
     const porCard = {}; cola.forEach(x => (porCard[x.cm] = porCard[x.cm] || []).push(x));
     Object.keys(porCard).forEach(id => { const l = porCard[id]; if (l.every(x => x.estado === 'publicada') && !l[0].movida) { try { cmAccion_({ op: 'publicado', cardId: id }, 'project', true); l.forEach(x => x.movida = true); cambio = true; } catch (e) {} } });
     if (cambio) autoGuardarCola_(cola);
     autoRehacerDisparadores_(cola);
   } finally { lock.releaseLock(); }
+}
+/* ENSAYO AUTOMÁTICO (26/10/2026, Joaquín: "no quiero que el ensayo lo haga Ale"): Ale no toca nada. En cada lectura (cada 10 min) el sistema
+   toma solo lo programable de las marcas de prueba que sale hoy o mañana y lo pone en la cola de ensayo. A la hora de cada pieza revisa todo
+   como si fuera a publicar (cuenta, horario, que la tarjeta no haya cambiado) y, si ya está conectado Meta, le pide a Instagram que prepare
+   la publicación SIN publicarla (prueba que acepta la cuenta y el archivo). El resultado le llega a Joaquín por Discord, junto con lo que
+   hizo Ale con esa pieza (si ya la tenía programada), para comparar. */
+function autoEnsayoSolo_() {
+  if (autoModo_() === 'real') return;
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json'), cat = catalogo_(), hoy = hoyAR_();
+  const items = cmDia_(snap, cat.marcas.filter(m => AUTO_MARCAS.indexOf(m.slug) >= 0), hoy).filter(c => c.prog && c.estado !== 'publicado' && new Date(c.due).getTime() > Date.now());
+  const cola = autoCola_(), ya = {}; cola.forEach(x => ya[x.cm] = 1);
+  const nuevos = items.filter(c => !ya[c.id]).slice(0, 6), noListos = [];
+  nuevos.forEach(c => {
+    let plan; try { plan = autoPlan_(c.id); } catch (e) { return; }
+    if (plan.error) return;
+    if (!plan.listo) { cola.push({ id: c.id + ':x', cm: c.id, marca: plan.marca, n: plan.titulo, estado: 'no-listo', faltas: plan.faltas, cuando: c.due }); noListos.push('• **' + plan.titulo + '** (' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM HH:mm') + '): ' + plan.faltas.join(' · ')); return; }
+    plan.items.forEach((i, k) => cola.push({ id: c.id + ':' + k, cm: c.id, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
+      archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: '' })), estado: 'pendiente', por: 'ensayo', titulo: plan.titulo, firma: autoFirma_(i), k: k }));
+  });
+  if (!nuevos.length) return;
+  autoGuardarCola_(cola); autoRehacerDisparadores_(cola);
+  if (noListos.length) try { discordPrivado_(idJoaquin_(config_()), '🧪 Ensayo de publicación automática · esto NO se hubiera podido programar solo:\n' + noListos.join('\n'), 'equipo'); } catch (e) {}
+}
+// una pieza del ensayo, a su hora: todos los frenos como si fuera de verdad, y con Meta conectado, Instagram prepara pero no publica
+function autoEnsayar_(x, ahora) {
+  const hora = Utilities.formatDate(new Date(x.cuando), TZ, 'HH:mm'), linea = r => '• ' + hora + ' **' + String(x.titulo || '').slice(0, 40) + '** · ' + x.n + ': ' + r;
+  if (ahora - new Date(x.cuando).getTime() > 30 * 60 * 1000) { x.estado = 'vencida'; return linea('⏰ el sistema no llegó a su hora (no hubiera salido)'); }
+  let ale = '';
+  try { const cmc = trello_('/cards/' + x.cm, { fields: 'idList', list: 'true' }); ale = (cmc.list || {}).name || ''; } catch (e) {}
+  let pl; try { pl = autoPlan_(x.cm, true); } catch (e) { x.estado = 'fallo'; return linea('❌ no pude releer la tarjeta del SCL'); }
+  const it = pl.items && pl.items[x.k || 0];
+  if (pl.error || !it || autoFirma_(it) !== x.firma) { x.estado = 'cambio'; return linea('⚠️ la tarjeta cambió desde que entró a la cola (no hubiera salido; está bien que frene)'); }
+  // los archivos se buscan recién ahora (los links de Trello son de la tarjeta)
+  try { const corto = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec((leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json').cards || []).filter(c => c.id === x.cm).map(c => c.n)[0] || '') || [])[1];
+    const o = corto ? trello_('/cards/' + corto, { fields: 'name', attachments: 'true', attachment_fields: 'name,url' }) : null;
+    x.archivos.forEach(a => a.url = ((o && o.attachments) || []).filter(b => b.name === a.n).map(b => b.url)[0] || ''); } catch (e) {}
+  let meta = 'sin Meta conectado todavía';
+  if (P.getProperty('META_TOKEN') && autoIgId_(x.marca)) {
+    try { autoPublicar_(x, true); meta = '✅ Instagram aceptó la cuenta @' + autoUser_(x.marca) + ' y el archivo (no se publicó)'; }
+    catch (e) { meta = '❌ Instagram: ' + String(e.message || e).slice(0, 160); }
+  }
+  x.estado = 'ensayo';
+  return linea('hubiera salido con ' + x.archivos.map(a => a.n).join(', ') + ' · ' + meta + ' · Ale: ' + (ale ? '"' + ale + '"' : '?'));
+}
+function autoInformar_(lineas) {
+  try { discordPrivado_(idJoaquin_(config_()), '🧪 Ensayo de publicación automática (no se publicó nada):\n' + lineas.join('\n'), 'equipo'); } catch (e) {}
 }
 // un disparador por cada horario pendiente (Google permite pocos por proyecto): se borran los viejos y se crean los que faltan
 function autoRehacerDisparadores_(cola) {
@@ -2044,7 +2093,7 @@ function metaEsperar_(id) {   // los videos tardan en procesarse: se espera hast
   }
   throw new Error('Meta tardó demasiado en procesar el video');
 }
-function autoPublicar_(x) {
+function autoPublicar_(x, soloPreparar) {
   const ig = autoIgId_(x.marca), user = autoUser_(x.marca); if (!ig || !user || !P.getProperty('META_TOKEN')) throw new Error('falta conectar Instagram');
   // freno 2: ese ID tiene que ser la cuenta de la marca (si no coincide el @, no se publica)
   const q = JSON.parse(UrlFetchApp.fetch(META_API + '/' + ig + '?fields=username&access_token=' + encodeURIComponent(P.getProperty('META_TOKEN')), { muteHttpExceptions: true }).getContentText() || '{}');
@@ -2065,6 +2114,7 @@ function autoPublicar_(x) {
       const a = x.archivos[0]; crea = metaPost_('/' + ig + '/media', a.tipo === 'video' ? { media_type: 'REELS', video_url: pub(a), caption: x.copy } : { image_url: pub(a), caption: x.copy });
       if (a.tipo === 'video') metaEsperar_(crea.id);
     }
+    if (soloPreparar) return 'preparado ' + crea.id;   // ensayo: Instagram ya aceptó la cuenta y el archivo; sin media_publish no sale nada
     return metaPost_('/' + ig + '/media_publish', { creation_id: crea.id }).id;
   } finally { temp.forEach(f => { try { f.setTrashed(true); } catch (e) {} }); }
 }
