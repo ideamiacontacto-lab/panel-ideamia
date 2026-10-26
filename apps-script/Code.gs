@@ -1915,6 +1915,8 @@ function autoPlan_(cmCardId, alPublicar) {
   const o = trello_('/cards/' + corto, { fields: 'name,desc,due,labels,shortUrl', attachments: 'true', attachment_fields: 'name,url,mimeType,bytes,isUpload,date' });
   const desc = String(o.desc || ''), labs = (o.labels || []).map(x => norm_(x.name || '')), nom = norm_(o.name || '');
   const tipo = labs.some(x => /histori/.test(x)) || /histori/.test(nom) ? 'historias' : labs.some(x => /carrus/.test(x)) || /carrus/.test(nom) ? 'carrusel' : labs.some(x => /^reels?$/.test(x)) || /\breels?\b/.test(nom) ? 'reel' : 'publicacion';
+  // los reels no se programan solos (pedido de Joaquín, 26/10/2026): los publica Ale a mano
+  if (tipo === 'reel') return { error: 'reel', mensaje: 'Los reels no se programan solos: los publica Ale.', reel: true };
   const adj = (o.attachments || []).filter(a => a.isUpload && /^(image|video)\//.test(a.mimeType || ''))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { numeric: true }));
   const faltas = [], items = [], due = o.due ? new Date(o.due) : null;
@@ -2031,6 +2033,7 @@ function autoEnsayoSolo_() {
   const cola = autoCola_(), ya = {}; cola.forEach(x => ya[x.cm] = 1);
   const nuevos = items.filter(c => !ya[c.id]).slice(0, 6), noListos = [];
   nuevos.forEach(c => {
+    if (c.formato === 'reel') return;   // los reels no entran al ensayo
     let plan; try { plan = autoPlan_(c.id); } catch (e) { return; }
     if (plan.error) return;
     if (!plan.listo) { cola.push({ id: c.id + ':x', cm: c.id, marca: plan.marca, n: plan.titulo, estado: 'no-listo', faltas: plan.faltas, cuando: c.due }); noListos.push('• **' + plan.titulo + '** (' + Utilities.formatDate(new Date(c.due), TZ, 'dd/MM HH:mm') + '): ' + plan.faltas.join(' · ')); return; }
