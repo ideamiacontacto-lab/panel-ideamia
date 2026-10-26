@@ -1858,7 +1858,7 @@ function cmDia_(snap, marcas, hoy) {
     if (d > manS || d < hace7 || (d < hoyS && hecho)) return;
     const esI = (c.lab || []).some(x => /^\(i\)$/.test(String(x).trim()));
     const mm = /trello\.com\/c\/([A-Za-z0-9]+)/.exec(c0.n), o = mm && porLink[mm[1]];
-    out.push({ id: c.id, n: String(c.n || '').slice(0, 140), due: c.due, m: c.m[0], lista: c0.lista, estado: estado, prog: !esI && estado !== 'mano' && estado !== 'dia',
+    out.push({ id: c.id, n: String(c.n || '').slice(0, 140), due: c.due, m: c.m[0], lista: c0.lista, estado: estado, prog: estado === 'programado' || (!esI && estado !== 'mano' && estado !== 'dia'),
       formato: cmFormato_(c), url: c.url, ourl: o ? o.url : (mm ? 'https://trello.com/c/' + mm[1] : ''), lab: (c.lab || []).filter(x => !/^\(i\)$/.test(String(x).trim())).slice(0, 4) });
   });
   return out.sort((a, b) => String(a.due).localeCompare(String(b.due)));
