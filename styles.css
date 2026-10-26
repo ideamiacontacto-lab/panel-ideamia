@@ -2153,3 +2153,14 @@ html,body{overflow-x:hidden;overflow-x:clip;max-width:100%;overscroll-behavior-x
 .au-falta ul{margin:6px 0 0;padding-left:18px}
 .au-ok{background:rgba(80,200,120,.1);border:1px solid rgba(80,200,120,.35);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px}
 .au-ens{background:rgba(120,140,255,.1);border:1px solid rgba(120,140,255,.35);border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:14px;line-height:1.5}
+/* CM · ficha Programar: cada adjunto con su horario */
+.pz-i{display:grid;grid-template-columns:64px 1fr 40px;gap:10px;align-items:start;border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 8px;transition:opacity .2s,border-color .2s}
+.pz-i.ok{opacity:.55;border-color:rgba(80,200,120,.45)}
+.pz-h b{font-family:var(--f-d);font-size:26px;line-height:1;display:block}.pz-h small{display:block;font-size:11px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;font-family:var(--f-t)}
+.pz-n{font-weight:600;margin-bottom:6px}
+.pz-f{display:flex;flex-wrap:wrap;gap:6px}.pz-f a.pill{text-decoration:none}
+.pz-c{margin-top:8px}.pz-c p{font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 6px;white-space:pre-line}
+.pz-ok{width:36px;height:36px;border-radius:50%;border:2px solid var(--line2,var(--line));background:transparent;color:#0b0b0b;font-weight:700;cursor:pointer}
+.pz-i.ok .pz-ok{background:var(--ok,#4ccf7e);border-color:transparent}
+.pz-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between}
+@media (max-width:700px){.pz-acts .btn{flex:1 1 100%}}

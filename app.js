@@ -1137,7 +1137,7 @@
   const CM_FMT = { historia: ['Historia', 'story'], carrusel: ['Carrusel', 'grid'], reel: ['Reel', 'reel'], 'publicación': ['Publicación', 'cam'] };
   const esCMyo = () => !!(S.data && S.data.cmDia);
   function datosCM() {
-    const L = (S.data.cmDia || []).filter(c => pasa(c.m)), hoyS = ymdL(NOW), manS = ymdL(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + 1));
+    const L = (S.data.cmDia || []).filter(c => pasa(c.m) && c.estado), hoyS = ymdL(NOW), manS = ymdL(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + 1));
     const dia = c => ymdL(new Date(c.due)), hecho = c => c.estado === 'programado' || c.estado === 'publicado';
     return { L, hecho, atras: L.filter(c => dia(c) < hoyS && !hecho(c)), hoy: L.filter(c => dia(c) === hoyS), man: L.filter(c => dia(c) === manS) };
   }
@@ -1150,8 +1150,7 @@
     const fila = c => {
       const d = new Date(c.due), f = CM_FMT[c.formato] || CM_FMT['publicación'], e = CM_EST[c.estado] || [c.lista, ''], ok = Dc.hecho(c), pasada = !ok && d < NOW;
       const accion = ok ? '<button class="btn ghost cm-b" data-cmvolver="' + esc(c.id) + '" title="Deshacer">✓ ' + e[0] + '</button>'
-        : c.prog ? '<button class="btn y cm-b" data-cmop="programado" data-cm="' + esc(c.id) + '">Ya lo programé</button>'
-        : '<button class="btn y cm-b" data-cmop="publicado" data-cm="' + esc(c.id) + '">Ya lo publiqué</button>';
+        : '<button class="btn y cm-b" data-cmpz="' + esc(c.id) + '">' + (c.prog ? 'Programar' : 'Publicar') + '</button>';
       return '<div class="row cm-r' + (ok ? ' cm-ok' : '') + (pasada ? ' cm-tarde' : '') + '"><div class="when wl"><b>' + hm(d) + '</b><small>' + (cual === 'atras' ? corto(d) : pasada ? 'ya pasó' : f[0]) + '</small></div>' +
         '<div><div class="tt">' + (c.ourl ? '<a class="lnk" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a>' : esc(c.n)) + '</div>' +
         '<div class="mt">' + tagM(c.m) + '<span class="pill">' + (I[f[1]] || '') + ' ' + f[0] + '</span>' + (ok ? '' : '<span class="pill ' + e[1] + '">' + e[0] + '</span>') +
@@ -1195,14 +1194,51 @@
     });
   }
 
+  /* ---------------- CM · ficha "Programar" de una tarjeta (26/10/2026) ----------------
+     Cada adjunto con su horario (Historia 1 → H1 a las 6, Historia 2 → H2 a las 12…), sacado de la tarjeta del SCL: se abre el archivo,
+     se copia el texto y se tilda cuando quedó programado en Meta. Al final, "Ya lo programé todo" pasa la tarjeta a Programado.
+     "Guardar para más adelante" la pasa a la lista "Para más adelante (no se publica)" y deja de aparecer. */
+  const cmTildes = id => { try { return JSON.parse(localStorage.getItem('pi:cmprog:' + id) || '{}'); } catch (e) { return {}; } };
+  async function cmPiezasVer(id) {
+    const c = (S.data.cmDia || []).find(x => x.id === id); if (!c) return;
+    const verbo = c.prog ? 'Programar' : 'Publicar a mano';
+    const m = hoja(verbo + ' · ' + ((marca(c.m) || {}).nombre || c.m), '<div class="pz"><p class="ay-t">Leyendo la tarjeta del SCL…</p></div>');
+    m.classList.add('cm-pz');
+    let p;
+    try {
+      p = DEMO ? { ok: true, tipo: c.formato === 'historia' ? 'historias' : c.formato, titulo: c.n, original: c.ourl, faltas: [],
+        items: c.formato === 'historia' ? [{ n: 'Historia 1', cuando: c.due, archivos: [{ n: 'H1.jpg', tipo: 'imagen', url: c.ourl }], copy: '' }, { n: 'Historia 2', cuando: new Date(new Date(c.due).getTime() + 3 * 36e5).toISOString(), archivos: [{ n: 'H2.jpg', tipo: 'imagen', url: c.ourl }], copy: '' }]
+          : [{ n: 'Publicación', cuando: c.due, archivos: [{ n: 'placa.jpg', tipo: 'imagen', url: c.ourl }], copy: 'Texto de ejemplo para copiar y pegar en Meta.' }] }
+        : await get({ action: 'cmPiezas', card: id, p: S.persona, k: S.key || S.pkey });
+      if (p.error) throw new Error(p.mensaje || p.error);
+    } catch (e) { $('.pz', m).innerHTML = '<p class="ay-t">✗ ' + esc(e.message || 'No pude leer la tarjeta') + '</p><div class="acts"><a class="btn ghost" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">Abrir la tarjeta del SCL ↗</a></div>'; return; }
+    const T = cmTildes(id), guardar = () => { try { localStorage.setItem('pi:cmprog:' + id, JSON.stringify(T)); } catch (e) {} };
+    const hora = s => { if (!s) return '—'; const d = new Date(s); return hm(d) + '<small>' + (ymdL(d) === ymdL(NOW) ? 'hoy' : corto(d)) + '</small>'; };
+    const pintar = () => {
+      const hechos = p.items.filter((_, k) => T[k]).length, todo = hechos === p.items.length;
+      $('.pz', m).innerHTML = '<p class="ay-t"><b>' + esc(p.titulo || c.n) + '</b> · ' + p.items.length + (p.items.length === 1 ? ' pieza' : ' piezas') + (p.original ? ' · <a class="lnk" href="' + esc(p.original) + '" target="_blank" rel="noopener">tarjeta del SCL ↗</a>' : '') + '</p>' +
+        (p.faltas && p.faltas.length ? '<div class="au-falta"><b>Ojo:</b><ul>' + p.faltas.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>' : '') +
+        p.items.map((i, k) => '<div class="pz-i' + (T[k] ? ' ok' : '') + '"><div class="pz-h"><b>' + hora(i.cuando) + '</b></div><div class="pz-b"><div class="pz-n">' + esc(i.n) + '</div>' +
+          '<div class="pz-f">' + (i.archivos.length ? i.archivos.map(a => '<a class="pill" href="' + esc(a.url || p.original || '#') + '" target="_blank" rel="noopener">' + (a.tipo === 'video' ? I.reel : I.cam) + ' ' + esc(a.n) + ' ↗</a>').join('') : '<span class="pill bad">sin archivo</span>') + '</div>' +
+          (i.copy ? '<div class="pz-c"><p>' + escL(i.copy.slice(0, 400)) + (i.copy.length > 400 ? ' (sigue)' : '') + '</p><button class="btn ghost" data-pzcopy="' + k + '">Copiar texto</button></div>' : '') + '</div>' +
+          '<button class="pz-ok" data-pzok="' + k + '" aria-label="Marcar como hecha">' + (T[k] ? '✓' : '') + '</button></div>').join('') +
+        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button><button class="btn y" data-pzfin' + (todo ? '' : ' disabled') + '>' + (c.prog ? 'Ya lo programé todo' : 'Ya lo publiqué todo') + (todo ? '' : ' (' + hechos + '/' + p.items.length + ')') + '</button></div>';
+      m.querySelectorAll('[data-pzok]').forEach(b => b.onclick = () => { const k = b.dataset.pzok; T[k] = !T[k]; guardar(); pintar(); });
+      m.querySelectorAll('[data-pzcopy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(p.items[b.dataset.pzcopy].copy); b.textContent = '✓ Copiado'; } catch (e) { b.textContent = 'No pude copiar'; } });
+      $('[data-pzfin]', m).onclick = () => { m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); };
+      $('[data-pzadel]', m).onclick = () => { m.remove(); cmHacer(id, 'adelante'); };
+    };
+    pintar();
+  }
+
   async function cmHacer(id, op, listaId) {
     const c = (S.data.cmDia || []).find(x => x.id === id); if (!c) return;
     const antes = { lista: c.lista, estado: c.estado };
-    if (op !== 'volver') { c.estado = op; c.lista = op === 'programado' ? 'Programado' : 'Publicado'; }
+    if (op !== 'volver') { c.estado = op === 'adelante' ? '' : op; c.lista = op === 'programado' ? 'Programado' : op === 'publicado' ? 'Publicado' : 'Para más adelante (no se publica)'; }
     render();
     try {
       const r = await post({ action: 'cmAccion', cardId: id, op: op, listaId: listaId || '', a: c.prog ? 'listo' : 'mano' });
-      if (r.lista) { c.lista = r.lista; c.estado = r.estado; } else if (op === 'volver') { c.estado = c.prog ? 'listo' : 'mano'; c.lista = c.prog ? 'Listo para programar' : 'Contenido no programable'; }
+      if (r.lista) { c.lista = r.lista; c.estado = r.estado || ''; } else if (op === 'volver') { c.estado = c.prog ? 'listo' : 'mano'; c.lista = c.prog ? 'Listo para programar' : 'Contenido no programable'; }
       if (op !== 'volver') { c.previaId = r.previaId; toast('✓ "' + esc(c.n.slice(0, 40)) + '" pasó a ' + esc(c.lista), r.previaId ? () => cmHacer(id, 'volver', r.previaId) : null); }
       try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(S.data)); } catch (e) {}
       render();
@@ -2618,6 +2654,7 @@
     root.querySelectorAll('[data-lin]').forEach(x => x.onclick = () => linVer());
     root.querySelectorAll('[data-cmdia]').forEach(x => x.onclick = () => { S.cmDia = x.dataset.cmdia; render(); });
     root.querySelectorAll('[data-cmop]').forEach(x => x.onclick = () => cmHacer(x.dataset.cm, x.dataset.cmop));
+    root.querySelectorAll('[data-cmpz]').forEach(x => x.onclick = () => cmPiezasVer(x.dataset.cmpz));
     root.querySelectorAll('[data-cmauto]').forEach(x => x.onclick = () => cmAutoVer(x.dataset.cmauto));
     root.querySelectorAll('[data-cmvolver]').forEach(x => x.onclick = () => { const c = (S.data.cmDia || []).find(y => y.id === x.dataset.cmvolver); if (c) cmHacer(c.id, 'volver', c.previaId || ''); });
     root.querySelectorAll('[data-ayuda]').forEach(x => x.onclick = e => { e.stopPropagation(); ayudaVer(tabActualAyuda()); });
