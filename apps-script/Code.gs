@@ -1903,7 +1903,8 @@ function cmAccion_(b, clave, esProj) {
 const AUTO_MARCAS = ['sfb'];
 const META_API = 'https://graph.facebook.com/v21.0';
 function cargarTokenMeta() { cambiarClave_('META_TOKEN', 'Meta · token del usuario del sistema (Configuración del negocio → Usuarios del sistema → Generar token)'); }
-const autoIgId_ = slug => String(config_()['IG_ID_' + String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_')] || '').trim();
+const autoK_ = slug => String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+const autoIgId_ = slug => String(config_()['IG_ID_' + autoK_(slug)] || P.getProperty('IG_ID_' + autoK_(slug)) || '').trim();
 function autoPlan_(cmCardId, alPublicar) {
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
   const c = (snap.cards || []).filter(x => x.id === String(cmCardId || '') && x.tipo === 'cm')[0];
@@ -1958,7 +1959,9 @@ function autoPlan_(cmCardId, alPublicar) {
    5. Sin doble publicación: si la tarjeta del CM ya está en Programado o Publicado (Ale lo hizo a mano), no se publica.
    6. Si falla, se avisa por Discord en el momento para publicarla a mano. */
 const autoModo_ = () => P.getProperty('AUTO_MODO') === 'real' ? 'real' : 'ensayo';
-const autoUser_ = slug => String(config_()['IG_USER_' + String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_')] || '').trim().replace(/^@/, '').toLowerCase();
+const autoUser_ = slug => String(config_()['IG_USER_' + autoK_(slug)] || P.getProperty('IG_USER_' + autoK_(slug)) || '').trim().replace(/^@/, '').toLowerCase();
+// cuenta de Instagram de SFB (26/10/2026, sacada de buscarCuentasIG: SkilfulBlack Gimnasio Premium → @skilfulblack)
+function configurarCuentaSFB() { P.setProperties({ IG_ID_SFB: '17841461138359161', IG_USER_SFB: 'skilfulblack' }); console.log('SFB → @skilfulblack · ID 17841461138359161'); }
 const autoFirma_ = i => JSON.stringify([i.cuando, (i.archivos || []).map(a => a.n), String(i.copy || '').trim()]);
 function activarPublicacionReal() { P.setProperty('AUTO_MODO', 'real'); console.log('Publicación automática: REAL (publica en Instagram). Para frenarla: volverAEnsayo()'); }
 function volverAEnsayo() { P.deleteProperty('AUTO_MODO'); console.log('Publicación automática: ENSAYO (no publica nada, solo avisa qué hubiera hecho)'); }
@@ -2081,14 +2084,20 @@ function autoArchivoPublico_(a) {
   f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return { f, url: 'https://drive.google.com/uc?export=download&id=' + f.getId() };
 }
+// el token de Meta va siempre en el encabezado Authorization: si fuera en la dirección, un error lo copiaría entero en el registro
+const metaHdr_ = () => ({ Authorization: 'Bearer ' + P.getProperty('META_TOKEN') });
+function metaGet_(path, fields) {
+  const r = UrlFetchApp.fetch(META_API + path + (fields ? '?fields=' + encodeURIComponent(fields) : ''), { headers: metaHdr_(), muteHttpExceptions: true });
+  let j = {}; try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) {}
+  if (j.error) throw new Error('Meta: ' + (j.error.error_user_msg || j.error.message || 'error')); return j;
+}
 function metaPost_(path, payload) {
-  const r = UrlFetchApp.fetch(META_API + path, { method: 'post', payload: Object.assign({ access_token: P.getProperty('META_TOKEN') }, payload), muteHttpExceptions: true });
+  const r = UrlFetchApp.fetch(META_API + path, { method: 'post', headers: metaHdr_(), payload: payload, muteHttpExceptions: true });
   const j = JSON.parse(r.getContentText() || '{}'); if (j.error) throw new Error('Meta: ' + (j.error.error_user_msg || j.error.message || 'error')); return j;
 }
 function metaEsperar_(id) {   // los videos tardan en procesarse: se espera hasta ~4 minutos
   for (let i = 0; i < 24; i++) {
-    const r = UrlFetchApp.fetch(META_API + '/' + id + '?fields=status_code,status&access_token=' + encodeURIComponent(P.getProperty('META_TOKEN')), { muteHttpExceptions: true });
-    const j = JSON.parse(r.getContentText() || '{}'); if (j.status_code === 'FINISHED') return; if (j.status_code === 'ERROR') throw new Error('Meta no pudo procesar el archivo: ' + (j.status || ''));
+    const j = metaGet_('/' + id, 'status_code,status'); if (j.status_code === 'FINISHED') return; if (j.status_code === 'ERROR') throw new Error('Meta no pudo procesar el archivo: ' + (j.status || ''));
     Utilities.sleep(10000);
   }
   throw new Error('Meta tardó demasiado en procesar el video');
@@ -2096,7 +2105,7 @@ function metaEsperar_(id) {   // los videos tardan en procesarse: se espera hast
 function autoPublicar_(x, soloPreparar) {
   const ig = autoIgId_(x.marca), user = autoUser_(x.marca); if (!ig || !user || !P.getProperty('META_TOKEN')) throw new Error('falta conectar Instagram');
   // freno 2: ese ID tiene que ser la cuenta de la marca (si no coincide el @, no se publica)
-  const q = JSON.parse(UrlFetchApp.fetch(META_API + '/' + ig + '?fields=username&access_token=' + encodeURIComponent(P.getProperty('META_TOKEN')), { muteHttpExceptions: true }).getContentText() || '{}');
+  const q = metaGet_('/' + ig, 'username');
   if (String(q.username || '').toLowerCase() !== user) throw new Error('la cuenta conectada es @' + (q.username || '?') + ' y tenía que ser @' + user + ': no publiqué nada');
   const temp = [];
   try {
@@ -2121,8 +2130,7 @@ function autoPublicar_(x, soloPreparar) {
 // con el token cargado: lista las páginas y cuentas de Instagram que ve, para copiar el ID de cada marca a Config (IG_ID_SFB…). No publica nada.
 function buscarCuentasIG() {
   const tk = P.getProperty('META_TOKEN'); if (!tk) return console.log('Falta el token de Meta (menú Panel Ideamia → Cargar el token de Meta)');
-  const r = UrlFetchApp.fetch(META_API + '/me/accounts?fields=name,instagram_business_account{id,username}&limit=100&access_token=' + encodeURIComponent(tk), { muteHttpExceptions: true });
-  const j = JSON.parse(r.getContentText() || '{}'); if (j.error) return console.log('Meta: ' + j.error.message);
+  let j; try { j = metaGet_('/me/accounts', 'name,instagram_business_account{id,username}'); } catch (e) { return console.log(e.message); }
   (j.data || []).forEach(p => console.log(p.name + ' → Instagram: ' + (p.instagram_business_account ? '@' + p.instagram_business_account.username + ' · ID ' + p.instagram_business_account.id : 'no tiene cuenta profesional vinculada')));
 }
 // prueba sin publicar: ¿el token anda y ve la cuenta de Instagram de la marca? (no publica nada)
@@ -2130,8 +2138,7 @@ function probarMeta() {
   const ig = autoIgId_('sfb'), tk = P.getProperty('META_TOKEN');
   if (!tk) return console.log('Falta el token de Meta (menú Panel Ideamia → Cargar el token de Meta)');
   if (!ig) return console.log('Falta IG_ID_SFB en la pestaña Config');
-  const r = UrlFetchApp.fetch(META_API + '/' + ig + '?fields=username,name&access_token=' + encodeURIComponent(tk), { muteHttpExceptions: true });
-  console.log(r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
+  try { const q = metaGet_('/' + ig, 'username,name'); console.log('OK: la cuenta conectada es @' + q.username + ' (' + (q.name || '') + ')' + (autoUser_('sfb') && q.username.toLowerCase() !== autoUser_('sfb') ? ' · NO coincide con IG_USER_SFB' : '')); } catch (e) { console.log(e.message); }
 }
 function cmRecordatorios_(snap, cat, cfg, ahora) {
   const hoyS = ymd_(ahora), real = cmReal_(snap), porCM = {};
