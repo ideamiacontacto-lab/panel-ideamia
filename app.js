@@ -1147,7 +1147,7 @@
     const fila = c => {
       const d = new Date(c.due), f = CM_FMT[c.formato] || CM_FMT['publicación'], e = CM_EST[c.estado] || [c.lista, ''], ok = Dc.hecho(c), pasada = !ok && d < NOW;
       const accion = ok ? '<button class="btn ghost cm-b" data-cmvolver="' + esc(c.id) + '" title="Deshacer">✓ ' + e[0] + '</button>'
-        : c.prog ? '<button class="btn y cm-b" data-cmop="programado" data-cm="' + esc(c.id) + '">Ya lo programé</button>'
+        : c.prog ? (c.auto ? '<button class="btn ghost cm-b cm-au" data-cmauto="' + esc(c.id) + '">⚡ Que salga sola</button>' : '') + '<button class="btn y cm-b" data-cmop="programado" data-cm="' + esc(c.id) + '">Ya lo programé</button>'
         : '<button class="btn y cm-b" data-cmop="publicado" data-cm="' + esc(c.id) + '">Ya lo publiqué</button>';
       return '<div class="row cm-r' + (ok ? ' cm-ok' : '') + (pasada ? ' cm-tarde' : '') + '"><div class="when wl"><b>' + hm(d) + '</b><small>' + (cual === 'atras' ? corto(d) : pasada ? 'ya pasó' : f[0]) + '</small></div>' +
         '<div><div class="tt">' + (c.ourl ? '<a class="lnk" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a>' : esc(c.n)) + '</div>' +
@@ -1163,6 +1163,33 @@
       sec('A mano', mano, 'Nada para publicar a mano ' + cuando + '.', 'No se pueden programar (historias con stickers, encuestas, colabs…): se publican en el momento. Después tocá <b>Ya lo publiqué</b>.') +
       '</div>';
   }
+  // publicación automática (prueba con Skilful Black): muestra qué se publicaría, cuándo y qué falta; si está todo, queda en cola y sale sola
+  async function cmAutoVer(id) {
+    const c = (S.data.cmDia || []).find(x => x.id === id); if (!c) return;
+    const m = hoja('Publicar sola · ' + ((marca(c.m) || {}).nombre || c.m), '<div class="au"><p class="ay-t">Leyendo la tarjeta del SCL…</p></div>');
+    let p;
+    try {
+      p = DEMO ? { ok: true, tipo: 'historias', titulo: c.n, items: [{ n: 'Historia 1', cuando: c.due, archivos: [{ n: 'H1.jpg', tipo: 'imagen' }], copy: '' }, { n: 'Historia 2', cuando: new Date(new Date(c.due).getTime() + 6 * 36e5).toISOString(), archivos: [], copy: '' }], faltas: ['falta el archivo de la historia 2 (adjuntalo como H2)'], listo: false, conMeta: false }
+        : await get({ action: 'cmAuto', card: id, p: S.persona, k: S.key || S.pkey });
+      if (p.error) throw new Error(p.mensaje || p.error);
+    } catch (e) { $('.au', m).innerHTML = '<p class="ay-t">✗ ' + esc(e.message || 'No pude leer la tarjeta') + '</p>'; return; }
+    const hora = s => { if (!s) return 'sin hora'; const d = new Date(s); return (ymdL(d) === ymdL(NOW) ? 'hoy' : corto(d)) + ' ' + hm(d); };
+    const items = p.items.map(i => '<div class="au-i"><div class="au-h"><b>' + esc(i.n) + '</b><span>' + hora(i.cuando) + '</span></div>' +
+      '<div class="au-f">' + (i.archivos.length ? i.archivos.map(a => '<span class="pill">' + (a.tipo === 'video' ? I.reel : I.cam) + ' ' + esc(a.n) + '</span>').join('') : '<span class="pill bad">sin archivo</span>') + '</div>' +
+      (i.copy ? '<p class="au-c">' + escL(i.copy.slice(0, 600)) + (i.copy.length > 600 ? ' (sigue)' : '') + '</p>' : '') + '</div>').join('');
+    const estado = p.enCola ? '<div class="au-ok">✓ Está en la cola: se publica sola a la hora. Si cambia algo, sacala y volvé a ponerla.</div>'
+      : p.faltas.length ? '<div class="au-falta"><b>Para que salga sola falta:</b><ul>' + p.faltas.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>'
+      : !p.conMeta ? '<div class="au-falta"><b>Está todo listo</b>, pero todavía no está conectado Instagram (lo hace Joaquín). Mientras tanto, programala en Meta como siempre.</div>'
+      : '<div class="au-ok">✓ Está todo. Se publica sola a la hora indicada y te aviso por Discord.</div>';
+    $('.au', m).innerHTML = '<p class="ay-t">Lo que se publicaría, sacado de la tarjeta del SCL (<b>' + esc(p.tipo) + '</b>):</p>' + items + estado +
+      '<div class="err"></div><div class="acts">' + (p.enCola ? '<button class="btn ghost" data-auq="cancelar">Sacar de la cola</button>' : '<button class="btn y" data-auq="programar"' + (p.listo && p.conMeta ? '' : ' disabled') + '>Que salga sola</button>') + '</div>';
+    m.querySelectorAll('[data-auq]').forEach(b => b.onclick = async () => {
+      b.disabled = true; $('.err', m).textContent = '';
+      try { const r = await post({ action: 'cmAuto', op: b.dataset.auq, cardId: id }); m.remove(); toast(b.dataset.auq === 'cancelar' ? '✓ Salió de la cola' : '✓ Queda en cola: se publica sola (' + (r.items || 1) + ')'); }
+      catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
+    });
+  }
+
   async function cmHacer(id, op, listaId) {
     const c = (S.data.cmDia || []).find(x => x.id === id); if (!c) return;
     const antes = { lista: c.lista, estado: c.estado };
@@ -2586,6 +2613,7 @@
     root.querySelectorAll('[data-lin]').forEach(x => x.onclick = () => linVer());
     root.querySelectorAll('[data-cmdia]').forEach(x => x.onclick = () => { S.cmDia = x.dataset.cmdia; render(); });
     root.querySelectorAll('[data-cmop]').forEach(x => x.onclick = () => cmHacer(x.dataset.cm, x.dataset.cmop));
+    root.querySelectorAll('[data-cmauto]').forEach(x => x.onclick = () => cmAutoVer(x.dataset.cmauto));
     root.querySelectorAll('[data-cmvolver]').forEach(x => x.onclick = () => { const c = (S.data.cmDia || []).find(y => y.id === x.dataset.cmvolver); if (c) cmHacer(c.id, 'volver', c.previaId || ''); });
     root.querySelectorAll('[data-ayuda]').forEach(x => x.onclick = e => { e.stopPropagation(); ayudaVer(tabActualAyuda()); });
     root.querySelectorAll('[data-tourbtn]').forEach(x => x.onclick = () => tourVer());
