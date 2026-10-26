@@ -1877,6 +1877,7 @@ function cmAccion_(b, clave, esProj) {
   let dest = null;
   if (b.op === 'programado') dest = listas.filter(l => CM_ESTADO_(l.n) === 'programado')[0];
   else if (b.op === 'publicado') dest = listas.filter(l => CM_ESTADO_(l.n) === 'publicado')[0];
+  else if (b.op === 'adelante') dest = listas.filter(l => /mas adelante/.test(norm_(l.n)))[0];
   else if (b.op === 'volver') dest = listas.filter(l => l.id === String(b.listaId || ''))[0] || listas.filter(l => CM_ESTADO_(l.n) === (b.a === 'mano' ? 'mano' : 'listo'))[0];
   if (!dest) return { error: 'lista', mensaje: 'En el tablero ' + c.tablero + ' no encuentro la lista para eso' };
   const r = trello_('/cards/' + c.id, { idList: dest.id, pos: 'top' }, 'put');
@@ -1905,18 +1906,18 @@ const META_API = 'https://graph.facebook.com/v21.0';
 function cargarTokenMeta() { cambiarClave_('META_TOKEN', 'Meta · token del usuario del sistema (Configuración del negocio → Usuarios del sistema → Generar token)'); }
 const autoK_ = slug => String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_');
 const autoIgId_ = slug => String(config_()['IG_ID_' + autoK_(slug)] || P.getProperty('IG_ID_' + autoK_(slug)) || '').trim();
-function autoPlan_(cmCardId, alPublicar) {
+function autoPlan_(cmCardId, alPublicar, ver) {
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
   const c = (snap.cards || []).filter(x => x.id === String(cmCardId || '') && x.tipo === 'cm')[0];
   if (!c) return { error: 'tarjeta', mensaje: 'No encuentro esa tarjeta del CM. Tocá ↻ y probá de nuevo.' };
-  if (AUTO_MARCAS.indexOf(c.m[0]) < 0) return { error: 'marca', mensaje: 'La publicación automática por ahora es solo de prueba con Skilful Black' };
+  if (!ver && AUTO_MARCAS.indexOf(c.m[0]) < 0) return { error: 'marca', mensaje: 'La publicación automática por ahora es solo de prueba con Skilful Black' };
   const corto = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n) || [])[1];
   if (!corto) return { error: 'original', mensaje: 'Esta tarjeta del CM no tiene el link a la tarjeta del SCL' };
   const o = trello_('/cards/' + corto, { fields: 'name,desc,due,labels,shortUrl', attachments: 'true', attachment_fields: 'name,url,mimeType,bytes,isUpload,date' });
   const desc = String(o.desc || ''), labs = (o.labels || []).map(x => norm_(x.name || '')), nom = norm_(o.name || '');
   const tipo = labs.some(x => /histori/.test(x)) || /histori/.test(nom) ? 'historias' : labs.some(x => /carrus/.test(x)) || /carrus/.test(nom) ? 'carrusel' : labs.some(x => /^reels?$/.test(x)) || /\breels?\b/.test(nom) ? 'reel' : 'publicacion';
   // los reels no se programan solos (pedido de Joaquín, 26/10/2026): los publica Ale a mano
-  if (tipo === 'reel') return { error: 'reel', mensaje: 'Los reels no se programan solos: los publica Ale.', reel: true };
+  if (tipo === 'reel' && !ver) return { error: 'reel', mensaje: 'Los reels no se programan solos: los publica Ale.', reel: true };
   const adj = (o.attachments || []).filter(a => a.isUpload && /^(image|video)\//.test(a.mimeType || ''))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { numeric: true }));
   const faltas = [], items = [], due = o.due ? new Date(o.due) : null;
@@ -1949,7 +1950,7 @@ function autoPlan_(cmCardId, alPublicar) {
   if (!alPublicar) items.forEach(i => { if (i.cuando && new Date(i.cuando).getTime() < ahora + 5 * 6e4) faltas.push(i.n + ': la hora ya pasó o falta menos de 5 minutos'); });
   const igId = autoIgId_(c.m[0]), conMeta = !!P.getProperty('META_TOKEN') && !!igId;
   const cola = autoCola_(), enCola = cola.filter(x => x.cm === c.id && x.estado === 'pendiente').length > 0;
-  return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, items: items.map(i => Object.assign({}, i, { archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo })) })), faltas, listo: !faltas.length, conMeta, enCola, modo: autoModo_(), cuenta: autoUser_(c.m[0]) };
+  return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, items: items.map(i => Object.assign({}, i, { archivos: i.archivos.map(a => ver ? { n: a.n, tipo: a.tipo, url: a.url } : { n: a.n, tipo: a.tipo }) })), faltas, listo: !faltas.length, conMeta, enCola, modo: autoModo_(), cuenta: autoUser_(c.m[0]) };
 }
 /* FRENOS (26/10/2026, Joaquín: "me da miedo que suba mal, a otra cuenta, a otro horario o que no se programe"):
    1. Arranca en ENSAYO: a la hora indicada no publica nada, le avisa a Ale por Discord qué hubiera publicado, en qué cuenta y con qué archivo.
@@ -5942,6 +5943,12 @@ function doGet(e) {
     if (q.action === 'revision') { // lo que está en revisión AHORA (para quien revisa): lectura directa de Trello
       if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
       try { return json_(revisionViva_(), q.cb); } catch (e) { return json_({ error: 'trello', mensaje: 'No se pudo leer Trello en vivo: ' + String(e.message || e).slice(0, 200) }, q.cb); }
+    }
+    if (q.action === 'cmPiezas') { // CM: "Programar" de una tarjeta, cada adjunto con su horario (cualquier marca)
+      if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
+      const yo = catalogo_().equipo.filter(x => x.clave === norm_(q.p || ''))[0];
+      if (!yo || !/cm|project/i.test(yo.rol)) return json_({ error: 'permiso', mensaje: 'Solo para quien lleva el CM' }, q.cb);
+      try { return json_(autoPlan_(q.card, true, true), q.cb); } catch (e) { return json_({ error: 'trello', mensaje: String(e.message || e).slice(0, 200) }, q.cb); }
     }
     if (q.action === 'cmAuto') { // CM: qué se publicaría solo (ensayo), leyendo la tarjeta original del SCL
       if (!claveOk_(q.k)) return json_({ error: 'clave', mensaje: 'Clave del equipo incorrecta' }, q.cb);
