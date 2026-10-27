@@ -2164,3 +2164,9 @@ html,body{overflow-x:hidden;overflow-x:clip;max-width:100%;overscroll-behavior-x
 .pz-i.ok .pz-ok{background:var(--ok,#4ccf7e);border-color:transparent}
 .pz-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between}
 @media (max-width:700px){.pz-acts .btn{flex:1 1 100%}}
+.pz-b1{grid-column:1/-1;justify-self:stretch}
+.pz-i{grid-template-columns:64px 1fr}
+div.pz-b1{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pz-conf{background:var(--y-soft,rgba(255,242,0,.08));border:1px solid var(--y);border-radius:10px;padding:10px}
+.pz-conf p{margin:0 0 8px;width:100%;font-size:14px;line-height:1.5}
+.pz-cuenta{font-size:13px;color:var(--dim);margin:6px 0 8px}

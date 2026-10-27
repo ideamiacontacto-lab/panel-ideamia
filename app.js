@@ -1150,7 +1150,7 @@
     const fila = c => {
       const d = new Date(c.due), f = CM_FMT[c.formato] || CM_FMT['publicación'], e = CM_EST[c.estado] || [c.lista, ''], ok = Dc.hecho(c), pasada = !ok && d < NOW;
       const accion = ok ? '<button class="btn ghost cm-b" data-cmvolver="' + esc(c.id) + '" title="Deshacer">✓ ' + e[0] + '</button>'
-        : '<button class="btn y cm-b" data-cmpz="' + esc(c.id) + '">' + (c.prog ? 'Programar' : 'Publicar') + '</button>';
+        : (() => { const t = Object.values(cmTildes(c.id)).filter(Boolean).length; return (t ? '<span class="pill y">' + t + (c.prog ? ' ya programada' : ' ya publicada') + (t > 1 ? 's' : '') + '</span>' : '') + '<button class="btn y cm-b" data-cmpz="' + esc(c.id) + '">' + (c.prog ? 'Programar' : 'Publicar') + '</button>'; })();
       return '<div class="row cm-r' + (ok ? ' cm-ok' : '') + (pasada ? ' cm-tarde' : '') + '"><div class="when wl"><b>' + hm(d) + '</b><small>' + (cual === 'atras' ? corto(d) : pasada ? 'ya pasó' : f[0]) + '</small></div>' +
         '<div><div class="tt">' + (c.ourl ? '<a class="lnk" href="' + esc(c.ourl) + '" target="_blank" rel="noopener">' + esc(c.n) + '</a>' : esc(c.n)) + '</div>' +
         '<div class="mt">' + tagM(c.m) + '<span class="pill">' + (I[f[1]] || '') + ' ' + f[0] + '</span>' + (ok ? '' : '<span class="pill ' + e[1] + '">' + e[0] + '</span>') +
@@ -1204,9 +1204,11 @@
     const verbo = c.prog ? 'Programar' : 'Publicar a mano';
     const m = hoja(verbo + ' · ' + ((marca(c.m) || {}).nombre || c.m), '<div class="pz"><p class="ay-t">Leyendo la tarjeta del SCL…</p></div>');
     m.classList.add('cm-pz');
+    // en el celu, el mismo toque que abrió la ficha caía sobre un botón de adentro: los primeros 450 ms no se puede tocar nada
+    const mb = $('.mb', m); if (mb) { mb.style.pointerEvents = 'none'; setTimeout(() => { mb.style.pointerEvents = ''; }, 450); }
     let p;
     try {
-      p = DEMO ? { ok: true, tipo: c.formato === 'historia' ? 'historias' : c.formato, titulo: c.n, original: c.ourl, faltas: [],
+      p = DEMO ? { ok: true, ig: !!c.auto && c.prog, cuenta: 'skilfulblack', tipo: c.formato === 'historia' ? 'historias' : c.formato, titulo: c.n, original: c.ourl, faltas: [],
         items: c.formato === 'historia' ? [{ n: 'Historia 1', cuando: c.due, archivos: [{ n: 'H1.jpg', tipo: 'imagen', url: c.ourl }], copy: '' }, { n: 'Historia 2', cuando: new Date(new Date(c.due).getTime() + 3 * 36e5).toISOString(), archivos: [{ n: 'H2.jpg', tipo: 'imagen', url: c.ourl }], copy: '' }]
           : [{ n: 'Publicación', cuando: c.due, archivos: [{ n: 'placa.jpg', tipo: 'imagen', url: c.ourl }], copy: 'Texto de ejemplo para copiar y pegar en Meta.' }] }
         : await get({ action: 'cmPiezas', card: id, p: S.persona, k: S.key || S.pkey });
@@ -1221,19 +1223,53 @@
     }
     const T = cmTildes(id), guardar = () => { try { localStorage.setItem('pi:cmprog:' + id, JSON.stringify(T)); } catch (e) {} };
     const hora = s => { if (!s) return '—'; const d = new Date(s); return hm(d) + '<small>' + (ymdL(d) === ymdL(NOW) ? 'hoy' : corto(d)) + '</small>'; };
+    // estado de cada pieza en Instagram (cola del servidor): pendiente = programada, publicada, o con problema
+    const enIg = i => i.cola && (i.cola.estado === 'pendiente' || i.cola.estado === 'publicada');
+    const botonPieza = (i, k) => {
+      if (p.ig && c.prog) {
+        if (i.cola && i.cola.estado === 'publicada') return '<span class="pill ok pz-b1">✓ Publicada en Instagram</span>';
+        if (i.cola && i.cola.estado === 'pendiente') return '<div class="pz-b1"><span class="pill ok">⏳ Programada · sale ' + hm(new Date(i.cuando)) + '</span><button class="btn ghost" data-pzcan="' + k + '">Cancelar</button></div>';
+        if (S._pzConf === id + ':' + k) return '<div class="pz-conf pz-b1"><p>Se publica <b>sola</b> ' + (ymdL(new Date(i.cuando)) === ymdL(NOW) ? 'hoy' : corto(new Date(i.cuando))) + ' a las <b>' + hm(new Date(i.cuando)) + '</b> en <b>@' + esc(p.cuenta || '') + '</b> con <b>' + i.archivos.map(a => esc(a.n)).join(', ') + '</b>.</p><button class="btn y" data-pzig="' + k + '">Confirmar</button><button class="btn ghost" data-pzno>No</button></div>';
+        return '<button class="btn y pz-b1" data-pzpre="' + k + '"' + (i.archivos.length ? '' : ' disabled') + '>Programar en Instagram</button>' + (i.cola && /fallo|cambio|vencida/.test(i.cola.estado) ? '<span class="pill bad">' + esc(i.cola.error || 'no salió: revisala') + '</span>' : '');
+      }
+      return '<button class="btn ' + (T[k] ? 'ghost pz-hecha' : 'y') + ' pz-b1" data-pzok="' + k + '">' + (T[k] ? '✓ ' + (c.prog ? 'Programada' : 'Publicada') : (c.prog ? 'Ya la programé' : 'Ya la publiqué')) + '</button>';
+    };
     const pintar = () => {
+      if (p.ig && c.prog) p.items.forEach((i, k) => { T[k] = enIg(i); });
       const hechos = p.items.filter((_, k) => T[k]).length, todo = hechos === p.items.length;
       $('.pz', m).innerHTML = '<p class="ay-t"><b>' + esc(p.titulo || c.n) + '</b> · ' + p.items.length + (p.items.length === 1 ? ' pieza' : ' piezas') + (p.original ? ' · <a class="lnk" href="' + esc(p.original) + '" target="_blank" rel="noopener">tarjeta del SCL ↗</a>' : '') + '</p>' +
         (p.faltas && p.faltas.length ? '<div class="au-falta"><b>Ojo:</b><ul>' + p.faltas.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>' : '') +
         p.items.map((i, k) => '<div class="pz-i' + (T[k] ? ' ok' : '') + '"><div class="pz-h"><b>' + hora(i.cuando) + '</b></div><div class="pz-b"><div class="pz-n">' + esc(i.n) + '</div>' +
           '<div class="pz-f">' + (i.archivos.length ? i.archivos.map(a => '<a class="pill" href="' + esc(a.url || p.original || '#') + '" target="_blank" rel="noopener">' + (a.tipo === 'video' ? I.reel : I.cam) + ' ' + esc(a.n) + ' ↗</a>').join('') : '<span class="pill bad">sin archivo</span>') + '</div>' +
           (i.copy ? '<div class="pz-c"><p>' + escL(i.copy.slice(0, 400)) + (i.copy.length > 400 ? ' (sigue)' : '') + '</p><button class="btn ghost" data-pzcopy="' + k + '">Copiar texto</button></div>' : '') + '</div>' +
-          '<button class="pz-ok" data-pzok="' + k + '" aria-label="Marcar como hecha">' + (T[k] ? '✓' : '') + '</button></div>').join('') +
-        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button><button class="btn y" data-pzfin' + (todo ? '' : ' disabled') + '>' + (c.prog ? 'Ya lo programé todo' : 'Ya lo publiqué todo') + (todo ? '' : ' (' + hechos + '/' + p.items.length + ')') + '</button></div>';
-      m.querySelectorAll('[data-pzok]').forEach(b => b.onclick = () => { const k = b.dataset.pzok; T[k] = !T[k]; guardar(); pintar(); });
+          botonPieza(i, k) + '</div>').join('') +
+        '<p class="pz-cuenta">' + (p.ig && c.prog ? '<b>Instagram conectado (@' + esc(p.cuenta || '') + ')</b>: cada pieza se publica sola a su hora. ' : '') + hechos + ' de ' + p.items.length + (c.prog ? ' programadas' : ' publicadas') + (p.items.length > 1 ? ' · con la última, la tarjeta pasa sola a ' + (c.prog ? 'Programado' : 'Publicado') : '') + '</p>' +
+        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button>' + (p.items.length > 1 && !todo && !(p.ig && c.prog) ? '<button class="btn ghost" data-pzfin>Marcar todas</button>' : '') + '</div>';
+      m.querySelectorAll('[data-pzok]').forEach(b => b.onclick = () => {
+        const k = b.dataset.pzok; T[k] = !T[k]; guardar();
+        if (p.items.every((_, j) => T[j])) { m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); return; }   // la última: la tarjeta pasa sola
+        if (T[k]) toast('✓ ' + esc(p.items[k].n) + (c.prog ? ' programada' : ' publicada'));
+        pintar(); render();
+      });
+      m.querySelectorAll('[data-pzpre]').forEach(b => b.onclick = () => { S._pzConf = id + ':' + b.dataset.pzpre; pintar(); });
+      m.querySelectorAll('[data-pzno]').forEach(b => b.onclick = () => { S._pzConf = null; pintar(); });
+      m.querySelectorAll('[data-pzig]').forEach(b => b.onclick = async () => {
+        const k = Number(b.dataset.pzig); b.disabled = true; b.textContent = 'Programando…'; $('.err', m).textContent = '';
+        try { const r = await post({ action: 'cmAuto', op: 'item', cardId: id, k: k });
+          p.items[k].cola = { estado: 'pendiente' }; S._pzConf = null; p.cuenta = r.cuenta || p.cuenta;
+          toast('✓ ' + esc(p.items[k].n) + ' programada: sale ' + hm(new Date(r.cuando || p.items[k].cuando)) + ' en @' + esc(r.cuenta || p.cuenta || ''));
+          if (r.movida) { c.estado = 'programado'; c.lista = 'Programado'; render(); }
+          pintar();
+        } catch (e) { $('.err', m).textContent = e.message; b.disabled = false; b.textContent = 'Confirmar'; }
+      });
+      m.querySelectorAll('[data-pzcan]').forEach(b => b.onclick = async () => {
+        const k = Number(b.dataset.pzcan); b.disabled = true;
+        try { await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, k: k }); p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar(); }
+        catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
+      });
       m.querySelectorAll('[data-pzcopy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(p.items[b.dataset.pzcopy].copy); b.textContent = '✓ Copiado'; } catch (e) { b.textContent = 'No pude copiar'; } });
-      $('[data-pzfin]', m).onclick = () => { m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); };
-      $('[data-pzadel]', m).onclick = () => { m.remove(); cmHacer(id, 'adelante'); };
+      const fin = $('[data-pzfin]', m); if (fin) fin.onclick = () => { p.items.forEach((_, j) => T[j] = true); guardar(); m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); };
+      $('[data-pzadel]', m).onclick = () => { if (confirm('¿Guardar "' + (p.titulo || c.n) + '" para más adelante? Deja de aparecer en Programar.')) { m.remove(); cmHacer(id, 'adelante'); } };
     };
     pintar();
   }

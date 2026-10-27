@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://script.google.com">
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@300;500;600;700;800&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=104">
+<link rel="stylesheet" href="styles.css?v=105">
 <script src="config.js?v=76"></script>
 <script>/* los datos se piden ya, mientras baja app.js (unos 400 ms antes) */(function(){try{var q=new URLSearchParams(location.search);if(q.get('demo')==='1')return;var C=window.PANEL_CONFIG||{};if(!C.API_URL)return;var g=function(k){var v=localStorage.getItem('pi:'+k);return v==null?null:JSON.parse(v)};var per=q.get('p')||g('persona')||(localStorage.getItem('ideamia:persona')!=='project'?localStorage.getItem('ideamia:persona'):null);if(!per)return;var key=g('key')||localStorage.getItem('ideamia:clave')||'',pk=g('pkey')||'';var proj=(q.get('vista')==='project'||per==='project')&&!q.get('p');var pr=proj?{action:'project',k:pk||key}:{p:per,k:key||pk};if(!pr.k)return;var u=C.API_URL+'?'+new URLSearchParams(pr).toString();window.__pre={u:u,r:fetch(u,{cache:'no-store'}).then(function(r){return r.json()})}}catch(e){}})();</script>
 <script>/* los datos de ejemplo solo se bajan en modo demo */if(/[?&]demo=1/.test(location.search)||!(window.PANEL_CONFIG||{}).API_URL)document.write('<script src="demo.js?v=79"><\/script>')</script>
@@ -32,7 +32,7 @@
 </div></header>
 <main class="wrap" id="app"><div class="loading"><b>Cargando</b>Trayendo tus tarjetas, reuniones y calendario…</div></main>
 <div class="toast" id="toast"></div>
-<script src="app.js?v=117"></script>
+<script src="app.js?v=118"></script>
 <script src="recordatorios.js?v=2" defer></script>
 <script src="ideamia-nav.js?v=7" defer></script>
 <script src="pwa.js?v=78" defer></script>
