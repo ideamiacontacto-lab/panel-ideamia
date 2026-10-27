@@ -1950,7 +1950,9 @@ function autoPlan_(cmCardId, alPublicar, ver) {
   if (!alPublicar) items.forEach(i => { if (i.cuando && new Date(i.cuando).getTime() < ahora + 5 * 6e4) faltas.push(i.n + ': la hora ya pasó o falta menos de 5 minutos'); });
   const igId = autoIgId_(c.m[0]), conMeta = !!P.getProperty('META_TOKEN') && !!igId;
   const cola = autoCola_(), enCola = cola.filter(x => x.cm === c.id && x.estado === 'pendiente').length > 0;
-  return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, items: items.map(i => Object.assign({}, i, { archivos: i.archivos.map(a => ver ? { n: a.n, tipo: a.tipo, url: a.url } : { n: a.n, tipo: a.tipo }) })), faltas, listo: !faltas.length, conMeta, enCola, modo: autoModo_(), cuenta: autoUser_(c.m[0]) };
+  const igOk = AUTO_MARCAS.indexOf(c.m[0]) >= 0 && tipo !== 'reel' && conMeta && !!autoUser_(c.m[0]);
+  const enColaK = k => { const x = cola.filter(y => y.id === c.id + ':' + k && y.real).slice(-1)[0]; return x ? { estado: x.estado, error: x.error || '' } : null; };
+  return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, ig: igOk, items: items.map((i, k) => Object.assign({}, i, { cola: ver ? enColaK(k) : null, archivos: i.archivos.map(a => ver ? { n: a.n, tipo: a.tipo, url: a.url } : { n: a.n, tipo: a.tipo }) })), faltas, listo: !faltas.length, conMeta, enCola, modo: autoModo_(), cuenta: autoUser_(c.m[0]) };
 }
 /* FRENOS (26/10/2026, Joaquín: "me da miedo que suba mal, a otra cuenta, a otro horario o que no se programe"):
    1. Arranca en ENSAYO: a la hora indicada no publica nada, le avisa a Ale por Discord qué hubiera publicado, en qué cuenta y con qué archivo.
@@ -1988,6 +1990,34 @@ function autoProgramar_(cmCardId, clave) {
   autoRehacerDisparadores_(cola);
   return { ok: true, items: plan.items.length };
 }
+/* PROGRAMAR DESDE EL PANEL (26/10/2026, Joaquín: "programar quiero que pueda hacerlo desde el panel, para eso hicimos la API de Meta"):
+   quien lleva el CM toca "Programar en Instagram" en una pieza (un adjunto con su horario) y confirma. Esa pieza queda en la cola de verdad
+   (real: true) y se publica sola a su hora, con todos los frenos: @ de la cuenta, horario (-2/+30 min), que la tarjeta del SCL no haya cambiado,
+   y que no esté ya publicada. Cuando todas las piezas de la tarjeta están en cola, la tarjeta del CM pasa a Programado; cuando salieron todas, a Publicado.
+   El ensayo automático no toca estas tarjetas. */
+function autoProgramarItem_(cmCardId, k, clave) {
+  const plan = autoPlan_(cmCardId, false, true);
+  if (plan.error) return plan;
+  if (!plan.ig) return { error: 'meta', mensaje: 'Esta marca todavía no está conectada a Instagram (por ahora solo Skilful Black, y los reels van a mano).' };
+  const i = plan.items[k]; if (!i) return { error: 'pieza', mensaje: 'No encuentro esa pieza en la tarjeta' };
+  if (!i.cuando) return { error: 'hora', mensaje: 'Esa pieza no tiene horario' };
+  if (new Date(i.cuando).getTime() < Date.now() + 5 * 6e4) return { error: 'hora', mensaje: 'La hora de esa pieza ya pasó o falta menos de 5 minutos: publicala a mano.' };
+  if (!i.archivos.length) return { error: 'archivo', mensaje: 'A esa pieza le falta el archivo' };
+  if (plan.tipo !== 'historias' && !i.copy) return { error: 'copy', mensaje: 'Falta el texto (COPY:) en la tarjeta del SCL' };
+  const cola = autoCola_().filter(x => !(x.id === cmCardId + ':' + k && x.estado === 'pendiente'));
+  cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
+    archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: a.url })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k, real: true });
+  autoGuardarCola_(cola); autoRehacerDisparadores_(cola);
+  // si ya están todas las piezas en cola, la tarjeta del CM pasa a Programado
+  const todas = plan.items.every((_, j) => cola.some(x => x.id === cmCardId + ':' + j && x.real && (x.estado === 'pendiente' || x.estado === 'publicada')));
+  let movida = false; if (todas) { try { const r = cmAccion_({ op: 'programado', cardId: cmCardId }, 'project', true); movida = !!r.ok; } catch (e) {} }
+  return { ok: true, cuando: i.cuando, cuenta: autoUser_(plan.marca), todas: todas, movida: movida };
+}
+function autoCancelarItem_(cmCardId, k) {
+  const cola = autoCola_(); let n = 0;
+  cola.forEach(x => { if (x.id === cmCardId + ':' + k && x.estado === 'pendiente') { x.estado = 'cancelada'; n++; } });
+  autoGuardarCola_(cola); autoRehacerDisparadores_(cola); return { ok: true, canceladas: n };
+}
 function autoCancelar_(cmCardId) {
   const cola = autoCola_(); let n = 0;
   cola.forEach(x => { if (x.cm === cmCardId && x.estado === 'pendiente') { x.estado = 'cancelada'; n++; } });
@@ -2000,16 +2030,16 @@ function autoPublicarPendientes() {
     const cola = autoCola_(), ahora = Date.now(), ensayo = autoModo_() !== 'real', informe = []; let cambio = false;
     cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).forEach(x => {
       cambio = true;
-      if (ensayo) { informe.push(autoEnsayar_(x, ahora)); return; }
+      if (ensayo && !x.real) { informe.push(autoEnsayar_(x, ahora)); return; }
       if (ahora - new Date(x.cuando).getTime() > 30 * 60 * 1000) { x.estado = 'vencida'; autoAvisar_(x, '⚠️ No salió a su hora y no la publiqué (ya pasaron más de 30 minutos). Publicala a mano.'); return; }
       // freno 5: si Ale ya la programó o publicó a mano, no se duplica
       try { const cmc = trello_('/cards/' + x.cm, { fields: 'idList', list: 'true' }), est = CM_ESTADO_((cmc.list || {}).name || '');
-        if (est === 'programado' || est === 'publicado') { x.estado = 'salteada'; autoAvisar_(x, 'ℹ️ No la publiqué: la tarjeta del CM ya estaba en "' + cmc.list.name + '".'); return; } } catch (e) {}
+        if (est === 'publicado' || (est === 'programado' && !x.real)) { x.estado = 'salteada'; autoAvisar_(x, 'ℹ️ No la publiqué: la tarjeta del CM ya estaba en "' + cmc.list.name + '".'); return; } } catch (e) {}
       // freno 4: tiene que ser lo mismo que se dejó en la cola
       try { const pl = autoPlan_(x.cm, true), it = pl.items && pl.items[x.k || 0];
         if (pl.error || !it || autoFirma_(it) !== x.firma) { x.estado = 'cambio'; autoAvisar_(x, '⚠️ No la publiqué: la tarjeta del SCL cambió (archivo, copy u hora) desde que la dejaste en cola. Revisala y volvé a ponerla, o publicala a mano.'); return; } }
       catch (e) { x.estado = 'fallo'; autoAvisar_(x, '❌ No la publiqué: no pude volver a leer la tarjeta del SCL (' + String(e.message).slice(0, 80) + '). Publicala a mano.'); return; }
-      if (autoModo_() !== 'real') { x.estado = 'ensayo'; autoAvisar_(x, '🧪 ENSAYO (no se publicó nada): ahora hubiera salido en ' + (autoUser_(x.marca) ? '@' + autoUser_(x.marca) : 'Instagram de la marca') + ' con ' + x.archivos.map(a => a.n).join(', ') + (x.copy ? ' y el copy "' + x.copy.slice(0, 60) + '…"' : '') + '. Si es lo que ibas a publicar, todo bien.'); return; }
+      if (autoModo_() !== 'real' && !x.real) { x.estado = 'ensayo'; autoAvisar_(x, '🧪 ENSAYO (no se publicó nada): ahora hubiera salido en ' + (autoUser_(x.marca) ? '@' + autoUser_(x.marca) : 'Instagram de la marca') + ' con ' + x.archivos.map(a => a.n).join(', ') + (x.copy ? ' y el copy "' + x.copy.slice(0, 60) + '…"' : '') + '. Si es lo que ibas a publicar, todo bien.'); return; }
       try { x.mediaId = autoPublicar_(x); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram (@' + autoUser_(x.marca) + ').'); }
       catch (e) { x.intentos = (x.intentos || 0) + 1; x.error = String(e.message || e).slice(0, 300); if (x.intentos >= 3) { x.estado = 'fallo'; autoAvisar_(x, '❌ No se pudo publicar: ' + x.error + '. Publicala a mano.'); } }
     });
@@ -6207,6 +6237,8 @@ function doPost__(e) {
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
         if (!yo || !/cm|project/i.test(yo.rol)) return json_({ error: 'permiso', mensaje: 'Solo para quien lleva el CM' });
         if (/project/i.test(yo.rol) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
+        if (b.op === 'item') return json_(autoProgramarItem_(String(b.cardId || ''), Number(b.k || 0), yo.clave));
+        if (b.op === 'cancelarItem') return json_(autoCancelarItem_(String(b.cardId || ''), Number(b.k || 0)));
         return json_(b.op === 'cancelar' ? autoCancelar_(String(b.cardId || '')) : autoProgramar_(String(b.cardId || ''), yo.clave));
       }
       case 'mioAccion': // mover, fecha, etiquetas o comentario en una tarjeta de Project: solo con la clave del project
