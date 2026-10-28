@@ -167,6 +167,7 @@ h1{font-weight:700;text-transform:uppercase;letter-spacing:-.01em}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 /* embebido en el panel (pestañas Plan y Objetivos): sin título propio */
 .pb-armar{margin-top:10px;font-size:13px;padding:8px 14px}@media(max-width:760px){.modal{place-items:center!important;padding:16px}.modal .box{border-radius:6px!important;max-height:86vh}}.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}@media(max-width:760px){.paso{padding:10px 12px;cursor:pointer;grid-template-columns:28px 1fr;gap:10px}.paso>i{width:28px;height:28px;line-height:28px}.paso p{display:none}.paso.ver p{display:block}.paso>div>b:after{content:' ?';color:var(--y,#FFF200);font-weight:400}.paso.ver>div>b:after{content:''}.fold .fh{padding-top:10px;padding-bottom:10px}.embed .top{margin:0 0 8px}.embed .top .ayuda{font-size:11.5px;padding:6px 10px}}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
+.reu-f[hidden]{display:none!important}.reu-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%;margin-top:8px}.reu-f input{background:var(--c2,#151515);color:inherit;border:1px solid var(--c3,#2a2a2a);border-radius:6px;padding:7px 8px;font:inherit;font-size:16px}.ck3{flex-wrap:wrap}.hero.hecho .kick{color:var(--ok,#4ccf7e)}
 </style>
 <script>/* desde el 22/10/2026 esta página vive adentro del panel (pestaña Plan): abierta sola, redirige al panel con los mismos datos */
 if (window.self === window.top && !/[?&](embed|solo|demo)=1/.test(location.search)) { const q = new URLSearchParams(location.search), r = new URLSearchParams({ tab: 'plan' }); ['p', 'marca', 'vista'].forEach(k => { if (q.get(k)) r.set(k, q.get(k)); }); location.replace('../?' + r.toString()); }
@@ -180,7 +181,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '19';
+  const VER = '20';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -857,10 +858,12 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   function detalleEnt(e) {
     const prox = e.estado === 'proxima', mesR = MES[Number(e.f.slice(5, 7)) % 12];
     if (e.tipo === 'calendario') return (prox ? 'Tenés que cargar hasta el ' : 'Tenías que cargar hasta el ') + dm(e.obj) + (e.hasta ? ' · ' + (prox ? 'hoy llega al ' : 'llegó al ') + dm(e.hasta) : prox ? ' · hoy no hay nada cargado' : '');
-    if (e.tipo === 'planb') return 'El plan B de cada reel de ' + mesR + (e.obj != null ? ' · ' + (prox ? 'hoy ' : '') + e.n + ' de ' + e.obj : '');
+    if (e.tipo === 'planb') return 'El plan B de cada reel de ' + mesR + (yaLista(e) ? ' · ✓ ya están los ' + e.obj : e.obj != null ? ' · ' + (prox ? 'hoy ' : '') + e.n + ' de ' + e.obj : '');
     return (prox ? 'Tenés que tener ' : 'Tenías que tener ') + 'los ' + e.obj + ' reels de ' + mesR + (e.n != null ? ' · ' + (prox ? 'hoy hay ' : 'había ') + e.n : '');
   }
-  const filaE = (e, ent) => { const s = ESTE[e.estado] || ESTE['sin medir'], n = entre(hoyD(), e.f); return '<div class="row"><div><b>' + nombreEnt(e, ent) + '</b> <span class="m">· ' + diaDe(e.f) + ' ' + dm(e.f) + (e.estado === 'proxima' ? ' · ' + enDias(n) : '') + '</span><div class="m">' + detalleEnt(e) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
+  // 28/10/2026: si la entrega todavía no venció pero ya está completa (todos los reels con plan B), se ve como hecha
+  const yaLista = e => e.estado === 'proxima' && e.tipo === 'planb' && e.obj > 0 && e.n >= e.obj;
+  const filaE = (e, ent) => { const s = yaLista(e) ? ['ok', '✓ Ya está'] : ESTE[e.estado] || ESTE['sin medir'], n = entre(hoyD(), e.f); return '<div class="row"><div><b>' + nombreEnt(e, ent) + '</b> <span class="m">· ' + diaDe(e.f) + ' ' + dm(e.f) + (e.estado === 'proxima' ? ' · ' + enDias(n) : '') + '</span><div class="m">' + detalleEnt(e) + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
   /* ---------- Paso 3: entregas (cuenta regresiva + lo del mes) ---------- */
   const CHK = [['reunion', 'Reunión con el cliente', 'Del 1 al 10: cómo viene la marca, qué se viene y qué necesitás de ellos.', 10],
     ['visita', 'Visita presencial al local', 'Una vez por mes: ver cómo está el local, sacar material y hablar con el equipo.', 0],
@@ -877,7 +880,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
         '<div class="pbar"><i class="' + (ok ? 'ok' : '') + '" style="width:' + pct + '%"></i></div><div class="m">' + (ok ? '✓ Ya está cargado hasta el ' + dm(P.cal.hasta) : P.cal.hasta ? 'Hoy llega al ' + dm(P.cal.hasta) + ': faltan ' + entre(P.cal.hasta, P.cal.obj) + ' días por cargar' : 'Todavía no hay nada cargado') + '</div></div>');
     }
     if (P.reels) { const n = entre(hoy, P.reels.f), ok = P.reels.n >= P.reels.obj; heros.push('<div class="hero"><div class="kick">Próxima entrega de reels</div><div class="big ' + (ok ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.reels.f) + ' ' + dm(P.reels.f) + ' · ' + P.reels.obj + ' reels de ' + MES[Number(P.reels.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (ok ? 'ok' : '') + '" style="width:' + Math.min(100, P.reels.n / Math.max(1, P.reels.obj) * 100) + '%"></i></div><div class="m">' + (ok ? '✓ Ya están los ' + P.reels.obj : 'Hoy hay ' + P.reels.n + ' de ' + P.reels.obj) + '</div></div>'); }
-    if (P.planb) { const n = entre(hoy, P.planb.f), PB = pbDe(m.slug), fal = pbFaltan(PB), tot = PB ? PB.reels.filter(r => r.due.slice(0, 7) === mesSig()).length : 0; heros.push('<div class="hero"><div class="kick">Próxima entrega de plan B</div><div class="big ' + (!fal ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.planb.f) + ' ' + dm(P.planb.f) + ' · plan B de cada reel de ' + MES[Number(P.planb.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (!fal ? 'ok' : '') + '" style="width:' + (tot ? (tot - fal) / tot * 100 : 0) + '%"></i></div><div class="m">' + (fal ? fal + ' reel' + (fal === 1 ? '' : 's') + ' sin plan B' : '✓ Todos con plan B') + '</div></div>'); }
+    if (P.planb) { const n = entre(hoy, P.planb.f), PB = pbDe(m.slug), fal = pbFaltan(PB), tot = PB ? PB.reels.filter(r => r.due.slice(0, 7) === mesSig()).length : 0; heros.push('<div class="hero' + (!fal && tot ? ' hecho' : '') + '"><div class="kick">' + (!fal && tot ? '✓ Plan B listo · entrega' : 'Próxima entrega de plan B') + '</div><div class="big ' + (!fal ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.planb.f) + ' ' + dm(P.planb.f) + ' · plan B de cada reel de ' + MES[Number(P.planb.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (!fal ? 'ok' : '') + '" style="width:' + (tot ? (tot - fal) / tot * 100 : 0) + '%"></i></div><div class="m">' + (fal ? fal + ' reel' + (fal === 1 ? '' : 's') + ' sin plan B' : '✓ Todos con plan B') + '</div></div>'); }
     if (heros.length) h += '<div class="heros u' + heros.length + '">' + heros.join('') + '</div>';
     const ent = m.entregas;
     h += fold('ee:' + m.slug, '', 'Entregas de ' + MES[Number(D.mes.slice(5)) - 1], ent.length, '<div class="rows">' + (ent.length ? ent.map(e => filaE(e, ent)).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', true);
@@ -886,6 +889,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     const PB = pbDe(m.slug), r15 = PB ? PB.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoy, r.due) >= 0 && entre(hoy, r.due) <= 15 && r.viable !== 'si').length : 0;
     h += fold('ck:' + m.slug, pend ? 'amar' : '', 'Lo del mes · ' + MES[Number(D.mes.slice(5)) - 1], pend ? pend + ' por resolver' : '✓', '<div class="rows">' + CHK.map(([id, t, d, lim]) => {
       const x = ck[id], tarde = !x && lim && dia > lim;
+      if (id === 'reunion') return '<div class="ck3"><div><b>' + t + '</b>' + (tarde ? ' <span class="ch bad">venció el ' + lim + '</span>' : '') + '<div class="m">' + (x ? (x.v === 'hecho' ? '✓ Organizada' + (x.fecha ? ' para el ' + diaDe(x.fecha) + ' ' + dm(x.fecha) + (x.hora ? ' a las ' + x.hora : '') : '') : 'No aplica este mes') : d) + '</div></div><div class="seg2" data-reu="' + m.slug + '">' + (x ? '<button data-reucambiar>' + (x.v === 'hecho' ? 'Cambiar' : 'Deshacer') + '</button>' : '<button data-reuorg>Ya la organicé</button><button data-reuna>No aplica</button>') + '</div>' + (x ? '' : '<div class="reu-f" hidden><input type="date" data-reufecha><input type="time" data-reuhora value="11:00"><button class="btn y" data-reuok>Guardar</button></div>') + '</div>';
       return '<div class="ck3"><div><b>' + t + '</b>' + (tarde ? ' <span class="ch bad">venció el ' + lim + '</span>' : '') + '<div class="m">' + (x ? (x.v === 'hecho' ? '✓ Hecho' : 'No aplica este mes') + ' · ' + dm(x.t.slice(0, 10)) : d) + '</div></div><div class="seg2" data-chk="' + id + '"><button data-v="hecho" class="' + (x && x.v === 'hecho' ? 'on' : '') + '">Hecho</button><button data-v="na" class="' + (x && x.v === 'na' ? 'on' : '') + '">No aplica</button></div></div>';
     }).join('') + (PB ? '<div class="ck3"><div><b>Reels: confirmar 15 días antes</b>' + (r15 ? ' <span class="ch mid">' + r15 + ' por confirmar</span>' : '') + '<div class="m">' + (r15 ? 'Hay reels que salen en 15 días o menos sin confirmar si se hacen.' : 'Todos los reels de los próximos 15 días están confirmados.') + '</div></div><button class="btn g" data-ir="' + m.slug + '|reels">Ir a Reels</button></div>' : '') + '</div>', true);
     h += fold('re:' + m.slug, '', 'Reportes', m.reportes.length, '<div class="rows">' + (m.reportes.length ? m.reportes.map(filaR).join('') : '<div class="row"><div class="m">Esta marca no tiene reportes en el sistema de Reportes.</div></div>') + '</div>', true);
@@ -893,6 +897,19 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   }
   const filaR = r => { const s = ESTR[r.estado]; return '<div class="row"><div>Reporte ' + r.tipo + (r.tipo === 'semanal' ? ' · semana del ' + dm(r.per) : ' · ' + esc(r.per)) + '<div class="m">Vence ' + diaDe(r.vence.slice(0, 10)) + ' ' + dm(r.vence.slice(0, 10)) + (r.env ? ' · cargado el ' + dm(r.env.slice(0, 10)) : '') + '</div></div><span class="st ' + s[0] + '">' + s[1] + '</span></div>'; };
   function bindEntregas(m) {
+    // reunión con el cliente: "Ya la organicé" pide fecha y hora; queda también agendada en Reuniones del panel
+    const reuMandar = async (v, fecha, hora) => {
+      const r = /[?&]demo=1/.test(location.search) ? { ok: true, chk: Object.assign({}, m.chk, { reunion: v ? { v: v, t: new Date().toISOString(), fecha: fecha, hora: hora } : undefined }) } : await fetch(C.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'planCheck', k: clave(), persona: S.persona, marca: m.slug, mes: S.data.mes, id: 'reunion', v: v, fecha: fecha || '', hora: hora || '' }) }).then(x => x.json());
+      if (r.error) throw new Error(r.mensaje || r.error);
+      m.chk = r.chk || {}; pintar();
+    };
+    app.querySelectorAll('[data-reu]').forEach(box => {
+      const fila = box.closest('.ck3'), f = fila.querySelector('.reu-f');
+      const org = box.querySelector('[data-reuorg]'); if (org) org.onclick = () => { f.hidden = !f.hidden; const fi = f.querySelector('[data-reufecha]'); if (!fi.value) fi.value = hoyD(); fi.focus(); };
+      const na = box.querySelector('[data-reuna]'); if (na) na.onclick = async () => { try { await reuMandar('na'); } catch (e) { toast(e.message); } };
+      const cam = box.querySelector('[data-reucambiar]'); if (cam) cam.onclick = async () => { try { await reuMandar(''); } catch (e) { toast(e.message); } };
+      const ok = fila.querySelector('[data-reuok]'); if (ok) ok.onclick = async () => { const fe = f.querySelector('[data-reufecha]').value, ho = f.querySelector('[data-reuhora]').value; if (!fe || !ho) return toast('Poné fecha y hora'); ok.disabled = true; try { await reuMandar('hecho', fe, ho); toast('✓ Reunión organizada: ' + dm(fe) + ' ' + ho); } catch (e) { toast(e.message); ok.disabled = false; } };
+    });
     app.querySelectorAll('[data-chk] button').forEach(b => b.onclick = async () => {
       const id = b.parentElement.dataset.chk, cur = (m.chk || {})[id], v = cur && cur.v === b.dataset.v ? '' : b.dataset.v;
       b.parentElement.querySelectorAll('button').forEach(z => z.disabled = true);
