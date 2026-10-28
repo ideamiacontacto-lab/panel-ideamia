@@ -4494,7 +4494,10 @@ function planVista_(quien, esProject, mes) {
       const estado = e.f > hoyS || (e.f === hoyS && ahora.getHours() < 21) ? 'proxima' : e.f < PLAN_DESDE ? 'sin medir' : x ? (x.ok ? 'cumplida' : x.corregida ? 'tarde' : 'incumplida') : 'sin medir';
       const r = { f: e.f, tipo: e.tipo, estado: estado };
       if (e.tipo === 'calendario') { r.obj = x ? x.obj : planMasUnMes_(e.f); r.hasta = x ? x.hasta : (estado === 'proxima' ? planCobertura_(snap, m.slug) : ''); }
-      else if (e.tipo === 'planb') { const y = x ? null : estado === 'proxima' ? planbContar_(snap, gPB, m.slug, e.f) : null; r.obj = x ? x.obj : y ? y.n : null; r.n = x ? x.n : y ? y.c : null; }
+      else if (e.tipo === 'planb') { const y = x ? null : estado === 'proxima' ? planbContar_(snap, gPB, m.slug, e.f) : null; r.obj = x ? x.obj : y ? y.n : null; r.n = x ? x.n : y ? y.c : null;
+        // 28/10/2026: si quedó incumplida pero el social media los completó después, se ve como completada (tarde) y deja de pedirse
+        if (estado === 'incumplida') { const z = planbContar_(snap, gPB, m.slug, e.f); if (z.n > 0 && z.c >= z.n) { r.estado = 'completada'; r.n = z.c; r.obj = z.n; } }
+      }
       else { r.obj = m.reels; r.n = x ? x.n : (estado === 'proxima' ? planReelsMes_(snap, m.slug, e.f) : null); }
       return r;
     });
