@@ -181,7 +181,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '20';
+  const VER = '21';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -844,7 +844,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   const kpi = (v, l, d, pronto) => '<div class="kpi' + (pronto ? ' pronto' : '') + '"><div class="v ' + (pronto ? 'nd' : cls(v)) + '">' + (pronto ? '—' : v == null ? '—' : v + ' %') + '</div><div class="l">' + l + '</div><div class="d">' + d + '</div></div>';
   const kpiPlan = m => { const e = m.planMes; if (D_mes() < '2026-11') return kpi(null, 'Plan del mes', 'se mide desde noviembre', true); if (!e || !e.items) return kpi(null, 'Plan del mes', 'sin campañas ni ficha aprobada', true); return kpi(m.ind.planMes, 'Plan del mes', e.aTiempo ? 'completo a tiempo' : e.completo ? 'completo después del ' + dm(e.limite) : e.hechos + ' de ' + e.items + ' · cierra el ' + dm(e.limite)); };
   const D_mes = () => (S.data && S.data.mes) || '';
-  const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
+  const ESTE = { cumplida: ['ok', 'Cumplida'], incumplida: ['bad', 'Incumplida'], tarde: ['mid', 'Completada al día siguiente'], completada: ['ok', '✓ Completada (tarde)'], proxima: ['prox', 'Próxima'], 'sin medir': ['nd', 'Sin medir'] };
   const ESTR = { 'a tiempo': ['ok', 'A tiempo'], tarde: ['mid', 'Tarde'], falta: ['bad', 'Falta'], proximo: ['prox', 'Vence pronto'] };
   // en el celu las carpetas son un acordeón: de entrada se abre solo la primera y al abrir una se cierran las otras (menos scroll)
   const MOVIL = () => matchMedia('(max-width:760px)').matches, FOLD1 = { ya: false };
