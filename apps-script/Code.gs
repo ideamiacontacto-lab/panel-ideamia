@@ -4478,6 +4478,7 @@ function planVista_(quien, esProject, mes) {
   const ents = planEntregas_(cfg, ini, fin), rcfg = reportesConfig_(), rep = planRepPrimeros_(), est = rows_('Registro');
   const marcasIn = {}; est.forEach(r => { if (r[2] === 'input' && /^inp:/.test(r[3])) { const id = r[3].slice(4); if (!marcasIn[id]) marcasIn[id] = r[0]; } });
   const gPB = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]);
+  const rcli = reuClienteDef_(catalogo_()), estR = estados_();   // reunión con el cliente agendada desde Reuniones
   // 5) plan del mes (Fase 4): el plan de las campañas atacadas de este mes, ¿se completó antes del cierre?
   const pmG = leerJson_(PLANES_ARCH[0], PLANES_ARCH[1]), pmC = leerJson_('CAMP_FILE_ID', 'panel-ideamia-campanas.json'), pmD = leerJson_('ANUAL_FILE_ID', 'panel-ideamia-anual.json');
   // próximas entregas (aunque sean del mes siguiente): para la cuenta regresiva de Plan → Entregas
@@ -4485,7 +4486,8 @@ function planVista_(quien, esProject, mes) {
   const out = marcas.map(m => {
     const pc = proxE.filter(e => e.tipo === 'calendario')[0], pr = m.reels ? proxE.filter(e => e.tipo === 'reels')[0] : null, pp = m.reels ? proxE.filter(e => e.tipo === 'planb')[0] : null;
     const prox = { cal: pc ? { f: pc.f, obj: planMasUnMes_(pc.f), hasta: planCobertura_(snap, m.slug) } : null, reels: pr ? { f: pr.f, obj: m.reels, n: planReelsMes_(snap, m.slug, pr.f) } : null, planb: pp ? { f: pp.f } : null };
-    const chk = ((g.chk || {})[m.slug] || {})[mesS] || {};
+    const chk = Object.assign({}, ((g.chk || {})[m.slug] || {})[mesS] || {});
+    if (!chk.reunion && rcli) { const e2 = estR['reu:' + rcli.id + ':' + m.slug + ':' + mesS]; if (e2 && e2.estado === 'agendada') { const dt = String(e2.detalle || ''); chk.reunion = { v: 'hecho', t: e2.fecha || '', fecha: dt.slice(0, 10), hora: dt.slice(11, 16), desde: 'reuniones' }; } }
     // 1 y 2) entregas del mes
     const entregas = ents.filter(e => e.tipo === 'calendario' || ((e.tipo === 'reels' || e.tipo === 'planb') && m.reels)).map(e => {
       const x = g.ent[e.f + '|' + e.tipo + '|' + m.slug];
@@ -4532,6 +4534,8 @@ function planVista_(quien, esProject, mes) {
 /* Plan → Entregas: lo que hay que resolver cada mes además de las entregas (reunión con el cliente del 1 al 10, visita al local,
    producción trimestral, revisar la publicación, colaboradores). Se marca "hecho" o "no aplica" por marca y por mes. */
 const PLAN_CHK = ['reunion', 'visita', 'trimestral', 'publica', 'colab'];
+// la reunión mensual con el cliente (pestaña Reuniones): la que es por marca, del social media, y dice "cliente"
+const reuClienteDef_ = cat => cat.reuniones.filter(r => r.porMarca && /cliente/.test(norm_(r.nombre)) && String(r.rol).toLowerCase() === 'sm')[0] || null;
 function planCheckAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
   if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
@@ -4541,6 +4545,12 @@ function planCheckAccion_(b, quien, esProject) {
   try {
     const g = leerJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json'), C = g.chk = g.chk || {}, cm = C[m.slug] = C[m.slug] || {}, x = cm[mes] = cm[mes] || {};
     if (v) x[id] = { v: v, t: new Date().toISOString(), quien: norm_(quien), nota: String(b.nota || '').trim().slice(0, 200) }; else delete x[id];
+    // 28/10/2026: la reunión con el cliente se marca "Ya la organicé" con fecha y hora, y queda agendada también en Reuniones del panel
+    if (id === 'reunion' && v === 'hecho' && /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || ''))) {
+      x[id].fecha = String(b.fecha); x[id].hora = /^\d{2}:\d{2}$/.test(String(b.hora || '')) ? String(b.hora) : '';
+      try { const rr = reuClienteDef_(cat); if (rr) { const ev = evaluarCuando_(rr.cuando, hoyAR_(), rr.avisar), per = ev ? ev.periodo : mes;
+        registrar_(norm_(quien), 'reunion', 'reu:' + rr.id + ':' + m.slug + ':' + per, m.slug, 'agendada', x[id].fecha + ' ' + x[id].hora + ' · organizada desde Plan', per); } } catch (e) {}
+    }
     guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
     return { ok: true, chk: x };
   } finally { lock.releaseLock(); }
