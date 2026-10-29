@@ -181,7 +181,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '21';
+  const VER = '22';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -569,7 +569,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   }
   async function recargarPB() { if (/[?&]demo=1/.test(location.search)) return pintar(); const c = await fetch(C.API_URL + '?' + new URLSearchParams({ action: 'plan', k: clave(), p: S.persona, que: 'planb' }), { cache: 'no-store' }).then(r => r.json()); if (c && c.ok) { S.pb = c; pintar(); } }
   const mesSig = () => { const d = new Date(); d.setMonth(d.getMonth() + 1, 1); return d.toISOString().slice(0, 7); };
-  const pbFaltan = P => P ? P.reels.filter(r => r.due.slice(0, 7) === mesSig() && !r.completo).length : 0;
+  const pbFaltan = P => P ? P.reels.filter(r => r.due.slice(0, 7) === mesSig() && !r.completo && !r.prueba).length : 0;
   /* ---------- Paso 4: reels de este mes y del siguiente (qué le falta a cada uno, si se pueden hacer y su plan B) ---------- */
   const hoyS = () => (S.pb && S.pb.hoy) || new Date().toISOString().slice(0, 10);
   const diasA = f => Math.round((new Date(f + 'T12:00:00') - new Date(hoyS() + 'T12:00:00')) / 864e5);
@@ -582,7 +582,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     if (r.viable === 'no') L.push(['bad', 'No se puede hacer: activá el plan B']);
     else if (n != null && n <= 15 && r.viable !== 'si') L.push([n <= 7 ? 'bad' : 'mid', 'Confirmá si se hace']);
     if (!r.due) L.push(['mid', 'Falta fecha']);
-    if (!r.completo) L.push(['bad', r.pb ? 'Plan B a medias' : 'Falta plan B']);
+    if (r.prueba) L.push(['ok', '🧪 De prueba']); else if (!r.completo) L.push(['bad', r.pb ? 'Plan B a medias' : 'Falta plan B']);
     if (r.guion === 'falta') L.push(['mid', 'Falta guion']); else if (r.guion === 'fede') L.push(['', 'Guion con Fede']);
     if (r.copy === 'falta') L.push(['mid', 'Falta copy']);
     if (n != null && n <= 15 && !r.prod && r.viable !== 'no') L.push([n <= 7 ? 'bad' : 'mid', 'Sin pedido a producción']);
@@ -599,7 +599,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
       const fx = faltasReel(r), vivo = !r.hecho && !(r.pb && r.pb.activado) && !(r.due && diasA(r.due) < 0);
       return '<div class="rr" role="button" tabindex="0" data-reel="' + r.id + '"><div><div class="n">' + esc(r.n) + '</div><div class="m">' + (r.due ? diaDe(r.due) + ' ' + dm(r.due) + ' · ' + enDias(diasA(r.due)) : 'Sin fecha') + ' · ' + esc(r.lista) + '</div><div class="chips">' + fx.map(x => '<span class="ch ' + x[0] + '">' + x[1] + '</span>').join('') + '</div>' +
         // 23/10/2026: el botón a la vista (antes había que tocar el reel y adivinar que adentro estaba "Armar plan B")
-        (vivo && !r.completo ? '<button class="btn y pb-armar" data-armpb="' + r.id + '">' + (r.pb ? 'Completar plan B' : 'Armar plan B') + '</button>' : '') + '</div>' +
+        (vivo && !r.completo && !r.prueba ? '<button class="btn y pb-armar" data-armpb="' + r.id + '">' + (r.pb ? 'Completar plan B' : 'Armar plan B') + '</button>' : '') + '</div>' +
         (preg && vivo ? '<div class="seg2" data-rv="' + r.id + '"><button data-v="si" class="' + (r.viable === 'si' ? 'on' : '') + '">Se hace</button><button data-v="no" class="' + (r.viable === 'no' ? 'on' : '') + '">No se puede</button></div>' : '<span class="m" style="color:var(--mu)">›</span>') + '</div>';
     };
     const bloque = (c, L) => {
@@ -629,16 +629,21 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
       li(r.guion === 'ok' ? true : r.guion === 'fede' ? null : false, r.guion === 'ok' ? 'Tiene guion' : r.guion === 'fede' ? 'El guion está con Fede' : 'Falta el guion', r.guion === 'falta' ? 'En la descripción de la tarjeta o en el tablero de guiones' : '') +
       li(r.copy === 'ok', r.copy === 'ok' ? 'Tiene copy' : 'Falta el copy', r.copy === 'ok' ? '' : 'La descripción del posteo: sumala en la tarjeta con "COPY:"') +
       li(r.prod ? true : n != null && n <= 15 ? false : null, r.prod ? 'Producción pedida' + (r.prod === 'revision' ? ' (grabado, en revisión)' : '') : 'Sin pedido a producción', r.prod ? '' : 'A 15 días de salir tiene que estar planificada la grabación') +
-      li(r.completo ? true : false, r.completo ? 'Plan B listo' + (x && x.que ? ': ' + esc(x.que) : '') : x ? 'Plan B a medias' : 'Sin plan B', x && x.activado ? 'Activado el ' + dm(x.activado.slice(0, 10)) : '') +
+      (r.prueba ? li(true, '🧪 Reel de prueba', 'No necesita plan B ni cuenta para la entrega de plan B') : '') +
+      (r.prueba ? '' : li(r.completo ? true : false, r.completo ? 'Plan B listo' + (x && x.que ? ': ' + esc(x.que) : '') : x ? 'Plan B a medias' : 'Sin plan B', x && x.activado ? 'Activado el ' + dm(x.activado.slice(0, 10)) : '')) +
       (vivo ? li(r.viable === 'si' ? true : r.viable === 'no' ? false : null, r.viable === 'si' ? 'Confirmado: se hace' : r.viable === 'no' ? 'No se puede hacer' + (r.motivo ? ': ' + esc(r.motivo) : '') : '¿Se puede hacer?', r.viable ? '' : 'Respondelo abajo') : '') +
       '</div>' +
       (vivo ? '<div class="seg2" data-dv style="margin-top:12px"><button data-v="si" class="' + (r.viable === 'si' ? 'on' : '') + '">Sí, se hace</button><button data-v="no" class="' + (r.viable === 'no' ? 'on' : '') + '">No se puede</button></div>' : '') +
       '<div class="acc" style="flex-wrap:wrap"><a class="btn g" href="' + esc(r.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Abrir en Trello ↗</a>' +
       (x && x.url ? '<a class="btn g" href="' + esc(x.url) + '" target="_blank" rel="noopener" style="text-decoration:none">Ver plan B ↗</a>' : '') +
-      (x && x.activado ? '' : '<button class="btn' + (r.completo ? ' g' : '') + '" data-dpb>' + (x ? (r.completo ? 'Editar plan B' : 'Completar plan B') : 'Armar plan B') + '</button>') +
+      (!(x && x.activado) && !r.completo ? '<button class="btn g" data-dprueba>' + (r.prueba ? 'Ya no es de prueba' : '🧪 Es de prueba') + '</button>' : '') +
+      (x && x.activado || r.prueba ? '' : '<button class="btn' + (r.completo ? ' g' : '') + '" data-dpb>' + (x ? (r.completo ? 'Editar plan B' : 'Completar plan B') : 'Armar plan B') + '</button>') +
       (r.completo && vivo && !(x && x.activado) ? '<button class="btn" data-dact>Activar plan B</button>' : '') + '</div></div>';
     o.onclick = e => { if (e.target === o) o.remove(); };
     const dpb = o.querySelector('[data-dpb]'); if (dpb) dpb.onclick = () => { o.remove(); formPB(r); };
+    const dpr = o.querySelector('[data-dprueba]'); if (dpr) dpr.onclick = async () => { const v = !r.prueba; dpr.disabled = true;
+      try { if (!/[?&]demo=1/.test(location.search)) await enviarPB({ accion: 'prueba', reel: r.id, valor: v }); r.prueba = v; o.remove(); toast(v ? '🧪 Marcado como de prueba: no pide plan B' : 'Ya no es de prueba'); pintar(); }
+      catch (e) { toast(e.message); dpr.disabled = false; } };
     const dact = o.querySelector('[data-dact]'); if (dact) dact.onclick = () => { o.remove(); activarPB(r); };
     o.querySelectorAll('[data-dv] button').forEach(b => b.onclick = async () => { const ok = await marcarViable([r], b.dataset.v === r.viable ? '' : b.dataset.v); if (ok) o.remove(); });
     document.body.appendChild(o);
@@ -880,7 +885,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
         '<div class="pbar"><i class="' + (ok ? 'ok' : '') + '" style="width:' + pct + '%"></i></div><div class="m">' + (ok ? '✓ Ya está cargado hasta el ' + dm(P.cal.hasta) : P.cal.hasta ? 'Hoy llega al ' + dm(P.cal.hasta) + ': faltan ' + entre(P.cal.hasta, P.cal.obj) + ' días por cargar' : 'Todavía no hay nada cargado') + '</div></div>');
     }
     if (P.reels) { const n = entre(hoy, P.reels.f), ok = P.reels.n >= P.reels.obj; heros.push('<div class="hero"><div class="kick">Próxima entrega de reels</div><div class="big ' + (ok ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.reels.f) + ' ' + dm(P.reels.f) + ' · ' + P.reels.obj + ' reels de ' + MES[Number(P.reels.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (ok ? 'ok' : '') + '" style="width:' + Math.min(100, P.reels.n / Math.max(1, P.reels.obj) * 100) + '%"></i></div><div class="m">' + (ok ? '✓ Ya están los ' + P.reels.obj : 'Hoy hay ' + P.reels.n + ' de ' + P.reels.obj) + '</div></div>'); }
-    if (P.planb) { const n = entre(hoy, P.planb.f), PB = pbDe(m.slug), fal = pbFaltan(PB), tot = PB ? PB.reels.filter(r => r.due.slice(0, 7) === mesSig()).length : 0; heros.push('<div class="hero' + (!fal && tot ? ' hecho' : '') + '"><div class="kick">' + (!fal && tot ? '✓ Plan B listo · entrega' : 'Próxima entrega de plan B') + '</div><div class="big ' + (!fal ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.planb.f) + ' ' + dm(P.planb.f) + ' · plan B de cada reel de ' + MES[Number(P.planb.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (!fal ? 'ok' : '') + '" style="width:' + (tot ? (tot - fal) / tot * 100 : 0) + '%"></i></div><div class="m">' + (fal ? fal + ' reel' + (fal === 1 ? '' : 's') + ' sin plan B' : '✓ Todos con plan B') + '</div></div>'); }
+    if (P.planb) { const n = entre(hoy, P.planb.f), PB = pbDe(m.slug), fal = pbFaltan(PB), tot = PB ? PB.reels.filter(r => r.due.slice(0, 7) === mesSig() && !r.prueba).length : 0; heros.push('<div class="hero' + (!fal && tot ? ' hecho' : '') + '"><div class="kick">' + (!fal && tot ? '✓ Plan B listo · entrega' : 'Próxima entrega de plan B') + '</div><div class="big ' + (!fal ? 'ok' : n <= 2 ? 'bad' : '') + '">' + big(n) + '</div><div class="t">' + diaDe(P.planb.f) + ' ' + dm(P.planb.f) + ' · plan B de cada reel de ' + MES[Number(P.planb.f.slice(5, 7)) % 12] + '</div><div class="pbar"><i class="' + (!fal ? 'ok' : '') + '" style="width:' + (tot ? (tot - fal) / tot * 100 : 0) + '%"></i></div><div class="m">' + (fal ? fal + ' reel' + (fal === 1 ? '' : 's') + ' sin plan B' : '✓ Todos con plan B') + '</div></div>'); }
     if (heros.length) h += '<div class="heros u' + heros.length + '">' + heros.join('') + '</div>';
     const ent = m.entregas;
     h += fold('ee:' + m.slug, '', 'Entregas de ' + MES[Number(D.mes.slice(5)) - 1], ent.length, '<div class="rows">' + (ent.length ? ent.map(e => filaE(e, ent)).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', true);
