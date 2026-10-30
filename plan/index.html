@@ -181,7 +181,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '22';
+  const VER = '23';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -890,9 +890,9 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
     const ent = m.entregas;
     h += fold('ee:' + m.slug, '', 'Entregas de ' + MES[Number(D.mes.slice(5)) - 1], ent.length, '<div class="rows">' + (ent.length ? ent.map(e => filaE(e, ent)).join('') : '<div class="row"><div class="m">No hay entregas este mes en el calendario.</div></div>') + '</div>', true);
     // lo del mes
-    const ck = m.chk || {}, dia = Number(hoy.slice(8)), pend = CHK.filter(c => !ck[c[0]]).length;
+    const ck = m.chk || {}, dia = Number(hoy.slice(8)), CHKm = m.sinReunion ? CHK.filter(c => c[0] !== 'reunion') : CHK, pend = CHKm.filter(c => !ck[c[0]]).length;
     const PB = pbDe(m.slug), r15 = PB ? PB.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoy, r.due) >= 0 && entre(hoy, r.due) <= 15 && r.viable !== 'si').length : 0;
-    h += fold('ck:' + m.slug, pend ? 'amar' : '', 'Lo del mes · ' + MES[Number(D.mes.slice(5)) - 1], pend ? pend + ' por resolver' : '✓', '<div class="rows">' + CHK.map(([id, t, d, lim]) => {
+    h += fold('ck:' + m.slug, pend ? 'amar' : '', 'Lo del mes · ' + MES[Number(D.mes.slice(5)) - 1], pend ? pend + ' por resolver' : '✓', '<div class="rows">' + CHKm.map(([id, t, d, lim]) => {
       const x = ck[id], tarde = !x && lim && dia > lim;
       if (id === 'reunion') return '<div class="ck3"><div><b>' + t + '</b>' + (tarde ? ' <span class="ch bad">venció el ' + lim + '</span>' : '') + '<div class="m">' + (x ? (x.v === 'hecho' ? '✓ Organizada' + (x.fecha ? ' para el ' + diaDe(x.fecha) + ' ' + dm(x.fecha) + (x.hora ? ' a las ' + x.hora : '') : '') : 'No aplica este mes') : d) + '</div></div><div class="seg2" data-reu="' + m.slug + '">' + (x ? '<button data-reucambiar>' + (x.v === 'hecho' ? 'Cambiar' : 'Deshacer') + '</button>' : '<button data-reuorg>Ya la organicé</button><button data-reuna>No aplica</button>') + '</div>' + (x ? '' : '<div class="reu-f" hidden><input type="date" data-reufecha><input type="time" data-reuhora value="11:00"><button class="btn y" data-reuok>Guardar</button></div>') + '</div>';
       return '<div class="ck3"><div><b>' + t + '</b>' + (tarde ? ' <span class="ch bad">venció el ' + lim + '</span>' : '') + '<div class="m">' + (x ? (x.v === 'hecho' ? '✓ Hecho' : 'No aplica este mes') + ' · ' + dm(x.t.slice(0, 10)) : d) + '</div></div><div class="seg2" data-chk="' + id + '"><button data-v="hecho" class="' + (x && x.v === 'hecho' ? 'on' : '') + '">Hecho</button><button data-v="na" class="' + (x && x.v === 'na' ? 'on' : '') + '">No aplica</button></div></div>';
@@ -933,7 +933,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
       if (e.estado === 'incumplida') it(0, (e.tipo === 'calendario' ? 'Completar el calendario de ' : e.tipo === 'planb' ? 'Completar el plan B de los reels de ' : 'Cargar los reels del mes que viene de ') + m.nombre + ' (la entrega del ' + dm(e.f) + ' quedó incumplida)', m.slug, 'entregas');
       else if (e.estado === 'proxima' && e.f <= en7 && e.tipo !== 'planb') it(2, (e.tipo === 'calendario' ? 'Entrega de calendario de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': tenés que cargar hasta el ' + dm(e.obj) + (e.hasta ? ' (hoy llega al ' + dm(e.hasta) + ')' : '') : 'Entrega de reels de ' + m.nombre + ' el ' + diaDe(e.f) + ' ' + dm(e.f) + ': ' + e.obj + ' reels del mes que viene' + (e.n != null ? ' (hoy hay ' + e.n + ')' : '')), m.slug, 'entregas');
     }));
-    if (!D.project && S.data.mes === hoy.slice(0, 7)) D.marcas.forEach(m => { const ck = m.chk || {}; if (!ck.reunion) it(Number(hoy.slice(8)) > 10 ? 1 : 2, 'Reunión del mes con el cliente de ' + m.nombre + (Number(hoy.slice(8)) > 10 ? ' (era del 1 al 10)' : ' (del 1 al 10)'), m.slug, 'entregas'); });
+    if (!D.project && S.data.mes === hoy.slice(0, 7)) D.marcas.forEach(m => { const ck = m.chk || {}; if (!ck.reunion && !m.sinReunion) it(Number(hoy.slice(8)) > 10 ? 1 : 2, 'Reunión del mes con el cliente de ' + m.nombre + (Number(hoy.slice(8)) > 10 ? ' (era del 1 al 10)' : ' (del 1 al 10)'), m.slug, 'entregas'); });
     if (S.pb && !D.project) S.pb.marcas.forEach(k => {
       const n = pbFaltan(k); if (n) it(S.pb.entrega && S.pb.entrega <= en7 ? 1 : 3, 'Armar el plan B de ' + n + ' reel' + (n === 1 ? '' : 's') + ' de ' + k.nombre + (S.pb.entrega ? ' (entrega el ' + diaDe(S.pb.entrega) + ' ' + dm(S.pb.entrega) + ')' : ''), k.slug, 'reels');
       k.reels.filter(r => !r.hecho && !(r.pb && r.pb.activado) && entre(hoy, r.due) >= 0).forEach(r => { const d = entre(hoy, r.due);
