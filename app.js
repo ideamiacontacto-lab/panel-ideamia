@@ -135,6 +135,7 @@
     D.cards.forEach(c => {
       if (!['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) && c.tipo !== 'project') return;
       if (c.tipo === 'project' && !c.due) return;
+      if (hecho(c) && c.estado.fecha && c.estado.fecha.slice(0, 10) < ymdL(NOW)) return; // la marcó hecha otro día: no vuelve a aparecer
       const d = c.due ? new Date(c.due) : null, n = d ? diasA(d) : 99;
       if (c.cat !== 'corr' && n > D.ajustes.porVencer) return;
       if (c.cat === 'corr' && n > D.ajustes.porVencer && n !== 99) return;
@@ -771,7 +772,8 @@
   // reels, carruseles y piezas del calendario que salen en los próximos días (para chequear que estén ok)
   const porSalir = () => S.data.cards.filter(c => c.due && !c.dc && (!c.tipo || c.tipo === 'scl') && pasa(c.m) && ['input', 'recursos', 'fichas', 'efem', 'brainstorming', 'guion'].indexOf(c.cat) < 0 && diasA(new Date(c.due)) >= 0 && diasA(new Date(c.due)) <= S.data.ajustes.porVencer).sort((a, b) => new Date(a.due) - new Date(b.due));
   const formato = c => { const t = (c.n + ' ' + (c.lab || []).join(' ')).toLowerCase(); return /reel|video/.test(t) ? 'Reel' : /carrus|carousel/.test(t) ? 'Carrusel' : /histori|story/.test(t) ? 'Historia' : 'Pieza'; };
-  const vencidas = () => S.data.cards.filter(c => c.due && !c.dc && diasA(new Date(c.due)) < 0 && pasa(c.m) && (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project'));
+  // 30/10/2026: si la persona ya la marcó hecha en el panel, deja de contar como vencida (aunque en Trello siga sin tilde)
+  const vencidas = () => S.data.cards.filter(c => c.due && !c.dc && !hecho(c) && diasA(new Date(c.due)) < 0 && pasa(c.m) && (['corr', 'trabajo', 'urgente', 'espera'].includes(c.cat) || c.tipo === 'project'));
   const fkey = f => norm(f.n) + '|' + f.d.toDateString() + '|' + f.tipo;
   function panelLateral(titulo, html) {
     cerrarPanel();
