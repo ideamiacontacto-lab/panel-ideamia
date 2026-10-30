@@ -1012,7 +1012,7 @@ function panel_(personaClave, ctx) {
   const reuniones = [];
   cat.reuniones.filter(r => !soloRevisa && (esProject || r.rol.toLowerCase() === (esCM ? 'cm' : 'sm'))).forEach(r => {
     const ev = evaluarCuando_(r.cuando, hoy, r.avisar); if (!ev) return;
-    (r.porMarca ? misMarcas : [null]).forEach(m => {
+    (r.porMarca ? misMarcas.filter(m => !sinReuSM_(r, m.slug)) : [null]).forEach(m => {
       const clave = 'reu:' + r.id + ':' + (m ? m.slug : yo.clave) + ':' + ev.periodo;
       reuniones.push({ clave, id: r.id, nombre: r.nombre, con: r.con, marca: m ? m.slug : '', desde: ev.desde, hasta: ev.hasta, periodo: ev.periodo, vencida: !!ev.vencida, duracion: r.duracion, estado: est[clave] || null });
     });
@@ -2982,6 +2982,7 @@ function tareasDelMesArmar_(p, cat, fecha, snap) {
     const v = ventana(r.cuando); if (v && !v.fuera) mensual.push({ o: v.a, t: '• ' + v.txt + ' · ' + r.tarea + cola });
   });
   cat.reuniones.filter(r => r.rol.toLowerCase() === (esCM ? 'cm' : 'sm')).forEach(r => {
+    if (r.porMarca && mias.every(m => sinReuSM_(r, m.slug))) return;
     const mm = marcasDe(r.porMarca), v = ventana(r.cuando); if (!mm || !v || v.fuera) return;
     mensual.push({ o: v.a, t: '• ' + v.txt + ' · ' + r.nombre + (r.con ? ' (con ' + r.con + ')' : '') + (mm.txt ? ' · ' + mm.txt : '') + ' · hay que ponerle fecha' });
   });
@@ -4529,7 +4530,7 @@ function planVista_(quien, esProject, mes) {
     let pmE = null; try { pmE = planMesEstado_(cfg, pmG, pmC[m.slug] || {}, pmD, m, mesS); } catch (e) {}
     // se mide desde noviembre de 2026 (el primer mes que se planifica con el formulario)
     const pmInd = !pmE || !pmE.items || mesS < '2026-11' ? null : pmE.aTiempo ? 100 : pmE.limite < hoyS || pmE.completo ? 0 : null;
-    return { slug: m.slug, nombre: m.nombre, sm: m.sm, reels: m.reels, entregas: entregas, prox: prox, chk: chk, inputs: { total: insMed.length, ok: insMed.filter(x => x.ok).length, tarde: insMed.filter(x => !x.ok).map(x => x.horas) }, reportes: reps, planMes: pmE,
+    return { slug: m.slug, nombre: m.nombre, sm: m.sm, reels: m.reels, entregas: entregas, prox: prox, chk: chk, sinReunion: REU_SIN_MARCAS.indexOf(m.slug) >= 0, inputs: { total: insMed.length, ok: insMed.filter(x => x.ok).length, tarde: insMed.filter(x => !x.ok).map(x => x.horas) }, reportes: reps, planMes: pmE,
       ind: { entregas: pct(entMed.filter(e => e.estado === 'cumplida').length, entMed.length), inputs: pct(insMed.filter(x => x.ok).length, insMed.length), reportes: pct(repMed.filter(r => r.estado === 'a tiempo').length, repMed.length), planMes: pmInd } };
   });
   return { ok: true, hoy: hoyS, mes: mesS, desde: PLAN_DESDE, project: !!esProject, marcas: out };
@@ -4538,6 +4539,9 @@ function planVista_(quien, esProject, mes) {
    producción trimestral, revisar la publicación, colaboradores). Se marca "hecho" o "no aplica" por marca y por mes. */
 const PLAN_CHK = ['reunion', 'visita', 'trimestral', 'publica', 'colab'];
 // la reunión mensual con el cliente (pestaña Reuniones): la que es por marca, del social media, y dice "cliente"
+// marcas sin reuniones de social media (30/10/2026, pedido de Joaquín: SFB). No aparecen en Reuniones ni en Plan → Lo del mes.
+const REU_SIN_MARCAS = ['sfb'];
+const sinReuSM_ = (r, slug) => String(r.rol).toLowerCase() === 'sm' && REU_SIN_MARCAS.indexOf(slug) >= 0;
 const reuClienteDef_ = cat => cat.reuniones.filter(r => r.porMarca && /cliente/.test(norm_(r.nombre)) && String(r.rol).toLowerCase() === 'sm')[0] || null;
 function planCheckAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
@@ -5152,10 +5156,12 @@ const esReel_ = c => /\breels?\b/.test(norm_((c.lab || []).join(' ') + ' ' + c.n
 /* Reels del SCL de una marca con fecha entre dos días (yyyy-MM-dd). */
 function planbReels_(snap, slug, desdeS, hastaS) {
   return (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl' && c.due && ['trabajo', 'hecho', 'corr', 'urgente', 'espera', 'mover'].indexOf(c.cat) >= 0 && esReel_(c))
-    .map(c => ({ id: c.id, n: c.n, due: ymd_(new Date(c.due)), url: c.url, lista: c.lista, hecho: c.cat === 'hecho' && !!c.dc })).filter(c => c.due >= desdeS && c.due <= hastaS)
+    .map(c => ({ id: c.id, n: c.n, due: ymd_(new Date(c.due)), url: c.url, lista: c.lista, hecho: c.cat === 'hecho' && !!c.dc, prueba: /\bprueba\b/i.test(c.n) || (c.lab || []).some(x => /prueba/i.test(x)) }))   // de prueba: por nombre ("Reel prueba #1"), etiqueta o el botón de Plan.filter(c => c.due >= desdeS && c.due <= hastaS)
     .sort((a, b) => a.due.localeCompare(b.due));
 }
 const planbCompleto_ = x => !!(x && x.pb && x.que && x.formato && x.fecha && x.material);
+// reels de prueba (29/10/2026): marcados desde Plan → Reels o con una etiqueta "prueba" en Trello. No piden plan B ni cuentan para la entrega.
+const esPrueba_ = (g, slug, r) => !!(r.prueba || (((g || {})._prueba || {})[slug] || {})[r.id]);
 /* Vincula solo las tarjetas de "Plan B" que nombran o enlazan un reel en la descripción (las creadas a mano con el link del reel). */
 function planbAuto_(snap, g, slug, reels) {
   const pm = g[slug] = g[slug] || {}, usadas = {}; Object.keys(pm).forEach(k => usadas[pm[k].pb] = 1);
@@ -5171,7 +5177,8 @@ function planbContar_(snap, g, slug, f) {
   const d = new Date(f + 'T12:00:00'), ini = new Date(d.getFullYear(), d.getMonth() + 1, 1, 12), fin = new Date(d.getFullYear(), d.getMonth() + 2, 0, 12);
   const reels = planbReels_(snap, slug, ymd_(ini), ymd_(fin)), pm = (g || {})[slug] || {}, vivas = {};
   (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl').forEach(c => vivas[c.id] = 1);
-  return { n: reels.length, c: reels.filter(r => planbCompleto_(pm[r.id]) && (vivas[pm[r.id].pb] || pm[r.id].activado)).length };
+  const cuentan = reels.filter(r => !esPrueba_(g, slug, r));
+  return { n: cuentan.length, c: cuentan.filter(r => planbCompleto_(pm[r.id]) && (vivas[pm[r.id].pb] || pm[r.id].activado)).length };
 }
 /* Qué tiene la descripción de un reel: guion (texto largo, escenas, tomas o el link al guion) y copy (la descripción del posteo, "COPY:"). */
 function reelDesc_(d) {
@@ -5201,7 +5208,7 @@ function planbVista_(quien, esProject) {
     const sinFecha = (snap.cards || []).filter(c => c.m[0] === m.slug && c.tipo === 'scl' && !c.due && ['trabajo', 'hecho', 'corr', 'urgente', 'espera', 'mover'].indexOf(c.cat) >= 0 && esReel_(c))
       .sort((a, b2) => String(b2.act).localeCompare(String(a.act))).slice(0, 15).map(c => Object.assign({ id: c.id, n: c.n, url: c.url, lista: c.lista }, falta(c)));
     return { slug: m.slug, nombre: m.nombre, sm: m.sm, req: m.reels, tieneLista: !!(b && (b.listas || []).some(l => l.cat === 'planb')),
-      reels: reels.map(r => { const x = pm[r.id] || null, c = x && cards[x.pb]; return Object.assign(r, falta(cards[r.id] || r), { pb: x ? Object.assign({}, x, { lista: c ? c.lista : '', existe: !!c || !!x.activado }) : null, completo: planbCompleto_(x) && (!!c || !!(x && x.activado)) }); }),
+      reels: reels.map(r => { const x = pm[r.id] || null, c = x && cards[x.pb]; return Object.assign(r, falta(cards[r.id] || r), { pb: x ? Object.assign({}, x, { lista: c ? c.lista : '', existe: !!c || !!x.activado }) : null, completo: planbCompleto_(x) && (!!c || !!(x && x.activado)), prueba: esPrueba_(g, m.slug, r) }); }),
       sinFecha: sinFecha,
       sueltas: (snap.cards || []).filter(c => c.m[0] === m.slug && c.cat === 'planb' && !usadas[c.id]).map(c => ({ id: c.id, n: c.n, url: c.url, due: c.due ? ymd_(new Date(c.due)) : '' })) };
   });
@@ -5211,6 +5218,15 @@ function planbVista_(quien, esProject) {
 function planbAccion_(b, quien, esProject) {
   const cat = catalogo_(), m = cat.marcas.filter(x => x.slug === String(b.marca || ''))[0];
   if (!m || (!esProject && m.sm !== norm_(quien))) return { error: 'permiso', mensaje: 'Esa marca no es tuya' };
+  if (b.accion === 'prueba') {   // reel de prueba: no necesita plan B (y se puede desmarcar)
+    const id = String(b.reel || ''); if (!/^[0-9a-f]{24}$/.test(id)) return { error: 'datos', mensaje: 'Falta el reel' };
+    const lock = LockService.getScriptLock(); lock.waitLock(15000);
+    try {
+      const g = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]), P = g._prueba = g._prueba || {}, pm = P[m.slug] = P[m.slug] || {};
+      if (b.valor) pm[id] = { t: new Date().toISOString(), quien: norm_(quien) }; else delete pm[id];
+      guardarJson_(PLANB_ARCH[0], PLANB_ARCH[1], g); return { ok: true, prueba: !!b.valor };
+    } finally { lock.releaseLock(); }
+  }
   if (b.accion === 'viable') {   // "¿se puede hacer?" de uno o varios reels (Plan → Reels). Si alguno no, le llega a Joaquín.
     const ids = (Array.isArray(b.reels) ? b.reels : [b.reel]).map(String).filter(x => /^[0-9a-f]{24}$/.test(x)).slice(0, 20);
     if (!ids.length) return { error: 'datos', mensaje: 'Falta el reel' };
@@ -5867,7 +5883,7 @@ function agenteAprobarPlan_(p, d, m, quien) {
 /* 3) Plan B: para cada reel de acá a 45 días sin plan B, propone uno (una propuesta por reel). */
 function agentePlanB_(m, snap, quien) {
   const hoy = hoyAR_(), g = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1])[m.slug] || {};
-  const reels = planbReels_(snap, m.slug, ymd_(hoy), ymd_(new Date(hoy.getTime() + 45 * 864e5))).filter(r => !planbCompleto_(g[r.id])).slice(0, 10);
+  const reels = planbReels_(snap, m.slug, ymd_(hoy), ymd_(new Date(hoy.getTime() + 45 * 864e5))).filter(r => !planbCompleto_(g[r.id]) && !r.prueba).slice(0, 10);
   if (!reels.length) return { ok: true, nuevas: 0, mensaje: 'Todos los reels de ' + m.nombre + ' de los próximos 45 días ya tienen plan B' };
   const cards = {}; (snap.cards || []).forEach(c => cards[c.id] = c);
   const pedido = 'TAREA: plan B de los reels. Hoy es ' + ymd_(hoy) + '.\nPara cada reel: de qué depende (cliente, colaboración, promo, proveedor o nada de afuera), qué se publica en su lugar si se cae, en qué formato, ' +
@@ -5898,7 +5914,7 @@ function agenteControlDatos_(m, snap) {
   const fin = ymd_(new Date(hoy.getTime() + 21 * 864e5)), cal = scl.filter(c => c.due && ['trabajo', 'urgente', 'hecho', 'mover'].indexOf(c.cat) >= 0 && ymd_(new Date(c.due)) >= hoyS && ymd_(new Date(c.due)) <= fin);
   X.calendario = cal.length + ' piezas con fecha en las próximas 3 semanas';
   const gB = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1])[m.slug] || {};
-  X.sinPlanB = planbReels_(snap, m.slug, hoyS, ymd_(new Date(hoy.getTime() + 30 * 864e5))).filter(r => !planbCompleto_(gB[r.id])).map(r => r.n + ' (' + r.due + ')');
+  X.sinPlanB = planbReels_(snap, m.slug, hoyS, ymd_(new Date(hoy.getTime() + 30 * 864e5))).filter(r => !planbCompleto_(gB[r.id]) && !r.prueba).map(r => r.n + ' (' + r.due + ')');
   try {
     const cv = campVista_(m.sm, true).marcas.filter(x => x.slug === m.slug)[0];
     if (cv) {
