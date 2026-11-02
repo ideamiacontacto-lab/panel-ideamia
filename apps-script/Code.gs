@@ -6266,8 +6266,9 @@ function doPost__(e) {
         const yo = catalogo_().equipo.filter(x => x.clave === norm_(quien))[0];
         if (!yo || !/cm|project/i.test(yo.rol)) return json_({ error: 'permiso', mensaje: 'Solo para quien lleva el CM' });
         if (/project/i.test(yo.rol) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
-        if (b.op === 'item') return json_(autoProgramarItem_(String(b.cardId || ''), Number(b.k || 0), yo.clave));
-        if (b.op === 'cancelarItem') return json_(autoCancelarItem_(String(b.cardId || ''), Number(b.k || 0)));
+        // la pieza viaja en 'pieza' (2/11/2026: antes iba en 'k' y pisaba la clave del panel → "Clave incorrecta")
+        if (b.op === 'item') return json_(autoProgramarItem_(String(b.cardId || ''), Number(b.pieza || 0), yo.clave));
+        if (b.op === 'cancelarItem') return json_(autoCancelarItem_(String(b.cardId || ''), Number(b.pieza || 0)));
         return json_(b.op === 'cancelar' ? autoCancelar_(String(b.cardId || '')) : autoProgramar_(String(b.cardId || ''), yo.clave));
       }
       case 'mioAccion': // mover, fecha, etiquetas o comentario en una tarjeta de Project: solo con la clave del project
