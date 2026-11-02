@@ -1232,6 +1232,7 @@
         if (i.cola && i.cola.estado === 'publicada') return '<span class="pill ok pz-b1">✓ Publicada en Instagram</span>';
         if (i.cola && i.cola.estado === 'pendiente') return '<div class="pz-b1"><span class="pill ok">⏳ Programada · sale ' + hm(new Date(i.cuando)) + '</span><button class="btn ghost" data-pzcan="' + k + '">Cancelar</button></div>';
         if (S._pzConf === id + ':' + k) return '<div class="pz-conf pz-b1"><p>Se publica <b>sola</b> ' + (ymdL(new Date(i.cuando)) === ymdL(NOW) ? 'hoy' : corto(new Date(i.cuando))) + ' a las <b>' + hm(new Date(i.cuando)) + '</b> en <b>@' + esc(p.cuenta || '') + '</b> con <b>' + i.archivos.map(a => esc(a.n)).join(', ') + '</b>.</p><button class="btn y" data-pzig="' + k + '">Confirmar</button><button class="btn ghost" data-pzno>No</button></div>';
+        if (i.cola && /^(publicando|dudosa)$/.test(i.cola.estado)) return '<div class="pz-b1"><span class="pill bad">' + (i.cola.estado === 'publicando' ? '⏳ Publicándose ahora' : '⚠️ No sé si salió: fijate en @' + esc(p.cuenta || '')) + '</span><button class="btn ghost" data-pzok="' + k + '">Ya está en Instagram</button></div>';
         if (T['m' + k]) return '<button class="btn ghost pz-hecha pz-b1" data-pzok="' + k + '">✓ Programada a mano</button>';
         return '<div class="pz-b1"><button class="btn y" data-pzpre="' + k + '"' + (i.archivos.length ? '' : ' disabled') + '>Programar en Instagram</button><button class="btn ghost" data-pzok="' + k + '">Ya la programé en Meta</button></div>' + (i.cola && /fallo|cambio|vencida|dudosa/.test(i.cola.estado) ? '<span class="pill bad">' + esc(i.cola.error || 'no salió: revisala') + '</span>' : '');
       }
@@ -1247,7 +1248,7 @@
           (i.copy ? '<div class="pz-c"><p>' + escL(i.copy.slice(0, 400)) + (i.copy.length > 400 ? ' (sigue)' : '') + '</p><button class="btn ghost" data-pzcopy="' + k + '">Copiar texto</button></div>' : '') + '</div>' +
           botonPieza(i, k) + '</div>').join('') +
         '<p class="pz-cuenta">' + (p.ig && c.prog ? '<b>Instagram conectado (@' + esc(p.cuenta || '') + ')</b>: cada pieza se publica sola a su hora. ' : '') + hechos + ' de ' + p.items.length + (c.prog ? ' programadas' : ' publicadas') + (p.items.length > 1 ? ' · con la última, la tarjeta pasa sola a ' + (c.prog ? 'Programado' : 'Publicado') : '') + '</p>' +
-        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button>' + (p.items.length > 1 && !todo ? '<button class="btn ghost" data-pzfin>' + (p.ig && c.prog ? 'Ya las programé todas en Meta' : 'Marcar todas') + '</button>' : '') + '</div>';
+        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button>' + (p.items.length > 1 && !todo ? '<button class="btn ghost" data-pzfin>' + (p.ig && c.prog ? 'Las que faltan ya las programé en Meta' : 'Marcar todas') + '</button>' : '') + '</div>';
       m.querySelectorAll('[data-pzok]').forEach(b => b.onclick = () => {
         const k = b.dataset.pzok; if (p.ig && c.prog) { T['m' + k] = !T['m' + k]; T[k] = enIg(p.items[k]) || T['m' + k]; } else T[k] = !T[k]; guardar();
         if (p.items.every((_, j) => T[j])) { m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); return; }   // la última: la tarjeta pasa sola
@@ -1267,7 +1268,9 @@
       });
       m.querySelectorAll('[data-pzcan]').forEach(b => b.onclick = async () => {
         const k = Number(b.dataset.pzcan); b.disabled = true;
-        try { await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, pieza: k }); p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar();
+        try { const r = await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, pieza: k });
+          if (!r.canceladas) { toast('Ya se estaba publicando: no se pudo cancelar'); b.disabled = false; return; }
+          p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar();
           if (c.estado === 'programado') cmHacer(id, 'volver', c.previaId || ''); }
         catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
       });
@@ -3319,7 +3322,7 @@
   setInterval(() => { if (document.visibilityState === 'visible') refrescar(); }, 5 * 60 * 1000);
   // 2/11/2026: NOW es la hora en que se abrió la página; si al volver ya es otro día, se recarga entera (si no, "hoy" sería ayer)
   const otroDia = () => !DEMO && ymdL(new Date()) !== ymdL(NOW);
-  setInterval(() => { if (document.visibilityState === 'visible' && otroDia() && !$('.modal')) location.reload(); }, 60 * 1000);
+  setInterval(() => { if (document.visibilityState === 'visible' && otroDia() && !$('.modal') && !$('#drawer')) location.reload(); }, 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (otroDia() && !$('.modal')) return location.reload(); if (Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
   window.matchMedia('(max-width:700px)').addEventListener('change', e => { S.movil = e.matches; if (S.data) render(); });
   inicio();
