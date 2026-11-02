@@ -1257,7 +1257,7 @@
       m.querySelectorAll('[data-pzno]').forEach(b => b.onclick = () => { S._pzConf = null; pintar(); });
       m.querySelectorAll('[data-pzig]').forEach(b => b.onclick = async () => {
         const k = Number(b.dataset.pzig); b.disabled = true; b.textContent = 'Programando…'; $('.err', m).textContent = '';
-        try { const r = await post({ action: 'cmAuto', op: 'item', cardId: id, k: k });
+        try { const r = await post({ action: 'cmAuto', op: 'item', cardId: id, pieza: k });
           p.items[k].cola = { estado: 'pendiente' }; S._pzConf = null; p.cuenta = r.cuenta || p.cuenta;
           toast('✓ ' + esc(p.items[k].n) + ' programada: sale ' + hm(new Date(r.cuando || p.items[k].cuando)) + ' en @' + esc(r.cuenta || p.cuenta || ''));
           if (r.movida) { c.estado = 'programado'; c.lista = 'Programado'; render(); }
@@ -1266,7 +1266,7 @@
       });
       m.querySelectorAll('[data-pzcan]').forEach(b => b.onclick = async () => {
         const k = Number(b.dataset.pzcan); b.disabled = true;
-        try { await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, k: k }); p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar(); }
+        try { await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, pieza: k }); p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar(); }
         catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
       });
       m.querySelectorAll('[data-pzcopy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(p.items[b.dataset.pzcopy].copy); b.textContent = '✓ Copiado'; } catch (e) { b.textContent = 'No pude copiar'; } });
