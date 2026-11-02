@@ -1915,11 +1915,12 @@ function autoPlan_(cmCardId, alPublicar, ver) {
   if (!corto) return { error: 'original', mensaje: 'Esta tarjeta del CM no tiene el link a la tarjeta del SCL' };
   const o = trello_('/cards/' + corto, { fields: 'name,desc,due,labels,shortUrl', attachments: 'true', attachment_fields: 'name,url,mimeType,bytes,isUpload,date' });
   const desc = String(o.desc || ''), labs = (o.labels || []).map(x => norm_(x.name || '')), nom = norm_(o.name || '');
-  const tipo = labs.some(x => /histori/.test(x)) || /histori/.test(nom) ? 'historias' : labs.some(x => /carrus/.test(x)) || /carrus/.test(nom) ? 'carrusel' : labs.some(x => /^reels?$/.test(x)) || /\breels?\b/.test(nom) ? 'reel' : 'publicacion';
+  let tipo = labs.some(x => /histori/.test(x)) || /histori/.test(nom) ? 'historias' : labs.some(x => /carrus/.test(x)) || /carrus/.test(nom) ? 'carrusel' : labs.some(x => /^reels?$/.test(x)) || /\breels?\b/.test(nom) ? 'reel' : 'publicacion';
   // los reels no se programan solos (pedido de Joaquín, 26/10/2026): los publica Ale a mano
   if (tipo === 'reel' && !ver) return { error: 'reel', mensaje: 'Los reels no se programan solos: los publica Ale.', reel: true };
   const adj = (o.attachments || []).filter(a => a.isUpload && /^(image|video)\//.test(a.mimeType || ''))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { numeric: true }));
+  if (tipo === 'publicacion' && adj.length && adj.every(a => /^video\//.test(a.mimeType))) { tipo = 'reel'; if (!ver) return { error: 'reel', mensaje: 'Es un video: los reels no se programan solos, los publica Ale.', reel: true }; }
   const faltas = [], items = [], due = o.due ? new Date(o.due) : null;
   if (!due) faltas.push('la tarjeta del SCL no tiene fecha');
   const conHora = (h, m) => { if (!due) return null; const d = new Date(due); const dia = Utilities.formatDate(d, TZ, 'yyyy-MM-dd'); return new Date(dia + 'T' + ('0' + h).slice(-2) + ':' + ('0' + (m || 0)).slice(-2) + ':00-03:00'); };
@@ -1927,6 +1928,7 @@ function autoPlan_(cmCardId, alPublicar, ver) {
   if (tipo === 'historias') {
     const bloques = desc.split(/(?=historia\s*\d+\s*:)/i).filter(b => /^historia\s*\d+\s*:/i.test(b.trim()));
     const lista = bloques.length ? bloques.map(b => ({ n: Number(/historia\s*(\d+)/i.exec(b)[1]), t: b })) : [{ n: 1, t: desc }];
+    if (!bloques.length && adj.length > 1) faltas.push('hay ' + adj.length + ' archivos pero la descripción no separa "Historia 1:", "Historia 2:"…');
     lista.forEach(h => {
       const hm = /horario\s*:?\s*(\d{1,2})(?:\s*[:.]\s*(\d{2}))?\s*(am|pm|h|hs)?/i.exec(h.t);
       if (hm && /pm/i.test(hm[3] || '') && Number(hm[1]) < 12) hm[1] = String(Number(hm[1]) + 12);
@@ -1967,12 +1969,20 @@ const autoModo_ = () => P.getProperty('AUTO_MODO') === 'real' ? 'real' : 'ensayo
 const autoUser_ = slug => String(config_()['IG_USER_' + autoK_(slug)] || P.getProperty('IG_USER_' + autoK_(slug)) || '').trim().replace(/^@/, '').toLowerCase();
 // cuenta de Instagram de SFB (26/10/2026, sacada de buscarCuentasIG: SkilfulBlack Gimnasio Premium → @skilfulblack)
 function configurarCuentaSFB() { P.setProperties({ IG_ID_SFB: '17841461138359161', IG_USER_SFB: 'skilfulblack' }); console.log('SFB → @skilfulblack · ID 17841461138359161'); }
-const autoFirma_ = i => JSON.stringify([i.cuando, (i.archivos || []).map(a => a.n), String(i.copy || '').trim()]);
+const autoFirmaVieja_ = i => JSON.stringify([i.cuando, (i.archivos || []).map(a => a.n), String(i.copy || '').trim()]);
+// 2/11/2026: la firma es un hash (antes guardaba el copy entero). autoFirmaOk_ acepta también las de antes, para lo que ya estaba en cola.
+const autoFirma_ = i => Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, autoFirmaVieja_(i), Utilities.Charset.UTF_8));
+const autoFirmaOk_ = (i, f) => f === autoFirma_(i) || f === autoFirmaVieja_(i);
 function activarPublicacionReal() { P.setProperty('AUTO_MODO', 'real'); console.log('Publicación automática: REAL (publica en Instagram). Para frenarla: volverAEnsayo()'); }
 function volverAEnsayo() { P.deleteProperty('AUTO_MODO'); console.log('Publicación automática: ENSAYO (no publica nada, solo avisa qué hubiera hecho)'); }
 // cola de lo que se va a publicar (propiedad AUTO_COLA): se revisa en cada lectura automática (cada 10 min) y además con un disparador a la hora justa
-const autoCola_ = () => { try { return JSON.parse(P.getProperty('AUTO_COLA') || '[]'); } catch (e) { return []; } };
-const autoGuardarCola_ = l => P.setProperty('AUTO_COLA', JSON.stringify(l.slice(-60)));
+// 2/11/2026: la cola vive en un JSON de Drive (la propiedad AUTO_COLA tenía un máximo de 9 KB y al llenarse fallaba el guardado:
+// una pieza ya publicada podía quedar "pendiente" y salir dos veces). La primera vez se migra desde la propiedad.
+const autoCola_ = () => { const g = leerJson_('AUTO_FILE_ID', 'panel-ideamia-autocola.json'); if (Array.isArray(g.l)) return g.l;
+  try { return JSON.parse(P.getProperty('AUTO_COLA') || '[]'); } catch (e) { return []; } };
+const autoGuardarCola_ = l => { const viejas = Date.now() - 4 * 864e5;
+  guardarJson_('AUTO_FILE_ID', 'panel-ideamia-autocola.json', { l: l.filter(x => x.estado === 'pendiente' || x.estado === 'publicando' || new Date(x.cuando || 0).getTime() > viejas).slice(-300) });
+  try { P.deleteProperty('AUTO_COLA'); } catch (e) {} };
 function autoProgramar_(cmCardId, clave) {
   const plan = autoPlan_(cmCardId);
   if (plan.error) return plan;
@@ -2004,6 +2014,8 @@ function autoProgramarItem_(cmCardId, k, clave) {
   if (new Date(i.cuando).getTime() < Date.now() + 5 * 6e4) return { error: 'hora', mensaje: 'La hora de esa pieza ya pasó o falta menos de 5 minutos: publicala a mano.' };
   if (!i.archivos.length) return { error: 'archivo', mensaje: 'A esa pieza le falta el archivo' };
   if (plan.tipo !== 'historias' && !i.copy) return { error: 'copy', mensaje: 'Falta el texto (COPY:) en la tarjeta del SCL' };
+  const bloq = (plan.faltas || []).filter(f => /archivos|máximo es 10|2\.200|carrusel necesita/.test(f));
+  if (bloq.length) return { error: 'faltan', mensaje: 'No la programo así: ' + bloq.join(' · ') };
   const cola = autoCola_().filter(x => !(x.id === cmCardId + ':' + k && x.estado === 'pendiente'));
   cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
     archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: a.url })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k, real: true });
@@ -2025,11 +2037,22 @@ function autoCancelar_(cmCardId) {
 }
 // publica lo que ya está en hora (hasta 2 minutos antes). Lo llama el disparador de la hora justa y la lectura de cada 10 minutos.
 function autoPublicarPendientes() {
-  const lock = LockService.getScriptLock(); if (!lock.tryLock(20000)) return;
+  const lock = LockService.getScriptLock();
+  // si otra tarea tiene el lock (la lectura de Trello o un audio de reunión), se reintenta en 90 segundos en vez de saltear la hora
+  if (!lock.tryLock(20000)) { try { ScriptApp.newTrigger('autoPublicarPendientes').timeBased().after(90 * 1000).create(); } catch (e) {} return; }
   try {
-    const cola = autoCola_(), ahora = Date.now(), ensayo = autoModo_() !== 'real', informe = []; let cambio = false;
-    cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).forEach(x => {
-      cambio = true;
+    const cola = autoCola_(), ahora = Date.now(), ensayo = autoModo_() !== 'real', informe = [], toc = {}; let cambio = false;
+    const clave = x => x.id + '|' + x.cuando;
+    // guarda releyendo la cola: lo que tocó este publicador manda; lo demás (cancelaciones o piezas nuevas de Ale mientras tanto) se respeta
+    const guardar = () => { const fresca = autoCola_(), vistos = {};
+      const out = fresca.map(y => { const t = toc[clave(y)]; vistos[clave(y)] = 1;
+        return t && (y.estado === 'pendiente' || /^(publicada|publicando|dudosa)$/.test(t.estado)) ? t : y; });
+      cola.forEach(x => { if (!vistos[clave(x)] && toc[clave(x)]) out.push(x); });
+      autoGuardarCola_(out); };
+    cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).sort((a, b) => (b.real ? 1 : 0) - (a.real ? 1 : 0)).forEach(x => {
+      cambio = true; toc[clave(x)] = x;
+      // si Ale la canceló mientras tanto, no sale
+      if (x.real) { const f = autoCola_().filter(y => clave(y) === clave(x))[0]; if (f && f.estado === 'cancelada') { x.estado = 'cancelada'; return; } }
       if (ensayo && !x.real) { informe.push(autoEnsayar_(x, ahora)); return; }
       if (ahora - new Date(x.cuando).getTime() > 30 * 60 * 1000) { x.estado = 'vencida'; autoAvisar_(x, '⚠️ No salió a su hora y no la publiqué (ya pasaron más de 30 minutos). Publicala a mano.'); return; }
       // freno 5: si Ale ya la programó o publicó a mano, no se duplica
@@ -2037,19 +2060,26 @@ function autoPublicarPendientes() {
         if (est === 'publicado' || (est === 'programado' && !x.real)) { x.estado = 'salteada'; autoAvisar_(x, 'ℹ️ No la publiqué: la tarjeta del CM ya estaba en "' + cmc.list.name + '".'); return; } } catch (e) {}
       // freno 4: tiene que ser lo mismo que se dejó en la cola
       try { const pl = autoPlan_(x.cm, true), it = pl.items && pl.items[x.k || 0];
-        if (pl.error || !it || autoFirma_(it) !== x.firma) { x.estado = 'cambio'; autoAvisar_(x, '⚠️ No la publiqué: la tarjeta del SCL cambió (archivo, copy u hora) desde que la dejaste en cola. Revisala y volvé a ponerla, o publicala a mano.'); return; } }
+        if (pl.error || !it || !autoFirmaOk_(it, x.firma)) { x.estado = 'cambio'; autoAvisar_(x, '⚠️ No la publiqué: la tarjeta del SCL cambió (archivo, copy u hora) desde que la dejaste en cola. Revisala y volvé a ponerla, o publicala a mano.'); return; } }
       catch (e) { x.estado = 'fallo'; autoAvisar_(x, '❌ No la publiqué: no pude volver a leer la tarjeta del SCL (' + String(e.message).slice(0, 80) + '). Publicala a mano.'); return; }
       if (autoModo_() !== 'real' && !x.real) { x.estado = 'ensayo'; autoAvisar_(x, '🧪 ENSAYO (no se publicó nada): ahora hubiera salido en ' + (autoUser_(x.marca) ? '@' + autoUser_(x.marca) : 'Instagram de la marca') + ' con ' + x.archivos.map(a => a.n).join(', ') + (x.copy ? ' y el copy "' + x.copy.slice(0, 60) + '…"' : '') + '. Si es lo que ibas a publicar, todo bien.'); return; }
-      try { x.mediaId = autoPublicar_(x); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram (@' + autoUser_(x.marca) + ').'); }
-      catch (e) { x.intentos = (x.intentos || 0) + 1; x.error = String(e.message || e).slice(0, 300); if (x.intentos >= 3) { x.estado = 'fallo'; autoAvisar_(x, '❌ No se pudo publicar: ' + x.error + '. Publicala a mano.'); } }
+      // justo antes de media_publish queda "publicando" y guardado: si algo falla después, NO se reintenta (podría salir dos veces)
+      try { x.mediaId = autoPublicar_(x, false, () => { x.estado = 'publicando'; guardar(); }); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram (@' + autoUser_(x.marca) + ').'); }
+      catch (e) { x.error = String(e.message || e).slice(0, 300);
+        if (x.estado === 'publicando') { x.estado = 'dudosa'; autoAvisar_(x, '⚠️ Instagram respondió con error al publicar (' + x.error.slice(0, 80) + '). No sé si salió: fijate en la cuenta antes de publicarla a mano.'); }
+        else { x.intentos = (x.intentos || 0) + 1; if (x.intentos >= 3) { x.estado = 'fallo'; autoAvisar_(x, '❌ No se pudo publicar: ' + x.error + '. Publicala a mano.'); } } }
+      guardar();
     });
-    if (cambio) autoGuardarCola_(cola);
+    if (cambio) guardar();
     if (informe.length) autoInformar_(informe);
     // si todas las piezas de una tarjeta salieron, la tarjeta del CM pasa a Publicado
-    const porCard = {}; cola.forEach(x => (porCard[x.cm] = porCard[x.cm] || []).push(x));
-    Object.keys(porCard).forEach(id => { const l = porCard[id]; if (l.every(x => x.estado === 'publicada') && !l[0].movida) { try { cmAccion_({ op: 'publicado', cardId: id }, 'project', true); l.forEach(x => x.movida = true); cambio = true; } catch (e) {} } });
-    if (cambio) autoGuardarCola_(cola);
-    autoRehacerDisparadores_(cola);
+    // (solo cuentan las piezas programadas de verdad, la última de cada una; el ensayo, lo no-listo y lo cancelado no)
+    const final = autoCola_(), porCard = {}; final.filter(x => x.real && x.estado !== 'cancelada').forEach(x => { const c = porCard[x.cm] = porCard[x.cm] || {}; c[x.id] = x; });
+    let movio = false;
+    Object.keys(porCard).forEach(id => { const l = Object.keys(porCard[id]).map(k => porCard[id][k]);
+      if (l.length && l.every(x => x.estado === 'publicada') && !l.some(x => x.movida)) { try { cmAccion_({ op: 'publicado', cardId: id }, 'project', true); l.forEach(x => x.movida = true); movio = true; } catch (e) {} } });
+    if (movio) autoGuardarCola_(final);
+    autoRehacerDisparadores_(final);
   } finally { lock.releaseLock(); }
 }
 /* ENSAYO AUTOMÁTICO (26/10/2026, Joaquín: "no quiero que el ensayo lo haga Ale"): Ale no toca nada. En cada lectura (cada 10 min) el sistema
@@ -2136,7 +2166,7 @@ function metaEsperar_(id) {   // los videos tardan en procesarse: se espera hast
   }
   throw new Error('Meta tardó demasiado en procesar el video');
 }
-function autoPublicar_(x, soloPreparar) {
+function autoPublicar_(x, soloPreparar, antesDePublicar) {
   const ig = autoIgId_(x.marca), user = autoUser_(x.marca); if (!ig || !user || !P.getProperty('META_TOKEN')) throw new Error('falta conectar Instagram');
   // freno 2: ese ID tiene que ser la cuenta de la marca (si no coincide el @, no se publica)
   const q = metaGet_('/' + ig, 'username');
@@ -2158,6 +2188,7 @@ function autoPublicar_(x, soloPreparar) {
       if (a.tipo === 'video') metaEsperar_(crea.id);
     }
     if (soloPreparar) return 'preparado ' + crea.id;   // ensayo: Instagram ya aceptó la cuenta y el archivo; sin media_publish no sale nada
+    if (antesDePublicar) antesDePublicar();
     return metaPost_('/' + ig + '/media_publish', { creation_id: crea.id }).id;
   } finally { temp.forEach(f => { try { f.setTrashed(true); } catch (e) {} }); }
 }
@@ -3946,18 +3977,22 @@ function reunionTexto_(res, fecha) {
   if (mar.length) lineas.push('', 'Marcas: ' + mar.join(', '));
   return { encabezado: '📋 **' + String(res.titulo || 'Reunión').slice(0, 120) + '** · ' + fecha, lineas: lineas };
 }
+// 2/11/2026: los audios ya procesados van en un JSON de Drive (la propiedad REUNIONES_HECHOS tiene un máximo de 9 KB)
+const reuHechos_ = () => { const g = leerJson_('REU_HECHOS_FILE_ID', 'panel-ideamia-reuniones-hechos.json'); if (g && g.h) return g.h;
+  try { return JSON.parse(P.getProperty('REUNIONES_HECHOS') || '{}'); } catch (e) { return {}; } };
+const reuGuardarHechos_ = h => { guardarJson_('REU_HECHOS_FILE_ID', 'panel-ideamia-reuniones-hechos.json', { h: h }); try { P.deleteProperty('REUNIONES_HECHOS'); } catch (e) {} };
 function reunionesProcesar() {
   const lock = LockService.getScriptLock(); if (!lock.tryLock(1000)) return;
   try {
     if (!P.getProperty('GEMINI_KEY') || !P.getProperty('REUNIONES_WEBHOOK')) return;
     const audios = carpetaReuniones_('REUNIONES_AUDIOS', 'Reuniones · audios'), salida = carpetaReuniones_('REUNIONES_RESUMENES', 'Reuniones · resúmenes');
-    const hechos = JSON.parse(P.getProperty('REUNIONES_HECHOS') || '{}'), pend = [];
+    const hechos = reuHechos_(), pend = [];
     carpetasEntradaReuniones_().forEach(c => { const it = c.getFiles(); while (it.hasNext()) { const f = it.next(); const v = hechos[f.getId()]; if (v === 'ok' || v === 'no' || Number(v) >= 3) continue; pend.push(f); } });
     pend.sort((a, b) => a.getDateCreated() - b.getDateCreated());
     const f = pend[0]; if (!f) return;   // uno por vez: cada audio puede llevar varios minutos
     try {
       const pistas = pistasReunion_(f);
-      if (!pistas.length) { hechos[f.getId()] = 'no'; P.setProperty('REUNIONES_HECHOS', JSON.stringify(hechos)); return; }   // no es audio (p. ej. un .txt de Craig)
+      if (!pistas.length) { hechos[f.getId()] = 'no'; reuGuardarHechos_(hechos); return; }   // no es audio (p. ej. un .txt de Craig)
       const res = geminiAudio_(pistas);
       const fecha = Utilities.formatDate(f.getDateCreated(), TZ, 'dd/MM/yyyy HH:mm');
       const t = reunionTexto_(res, fecha);
@@ -3975,12 +4010,12 @@ function reunionesProcesar() {
       hechos[f.getId()] = (Number(hechos[f.getId()]) || 0) + 1;
       P.setProperty('REUNIONES_NOTA', new Date().toISOString() + ' · ' + String(e.message || e).replace(/key=[\w-]+/g, 'key=…').slice(0, 300));
     }
-    P.setProperty('REUNIONES_HECHOS', JSON.stringify(hechos));
+    reuGuardarHechos_(hechos);
   } finally { lock.releaseLock(); }
 }
 /* PRUEBA sin efectos: qué audios están esperando, si están las claves y el último error. No llama a Gemini ni publica. */
 function probarReuniones() {
-  const hechos = JSON.parse(P.getProperty('REUNIONES_HECHOS') || '{}');
+  const hechos = reuHechos_();
   console.log('Clave de Gemini: ' + (P.getProperty('GEMINI_KEY') ? 'cargada' : 'FALTA') + ' · webhook: ' + (P.getProperty('REUNIONES_WEBHOOK') ? 'cargado' : 'FALTA') +
     ' · disparador: ' + (ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'reunionesProcesar') ? 'instalado' : 'FALTA (correr instalarReuniones)'));
   carpetasEntradaReuniones_().forEach(c => {
@@ -4555,7 +4590,7 @@ function planCheckAccion_(b, quien, esProject) {
     // 28/10/2026: la reunión con el cliente se marca "Ya la organicé" con fecha y hora, y queda agendada también en Reuniones del panel
     if (id === 'reunion' && v === 'hecho' && /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || ''))) {
       x[id].fecha = String(b.fecha); x[id].hora = /^\d{2}:\d{2}$/.test(String(b.hora || '')) ? String(b.hora) : '';
-      try { const rr = reuClienteDef_(cat); if (rr) { const ev = evaluarCuando_(rr.cuando, hoyAR_(), rr.avisar), per = ev ? ev.periodo : mes;
+      try { const rr = reuClienteDef_(cat); if (rr) { const ev = evaluarCuando_(rr.cuando, hoyAR_(), rr.avisar), per = ev && !/^\d{4}-\d{2}$/.test(ev.periodo) ? ev.periodo : mes;
         registrar_(norm_(quien), 'reunion', 'reu:' + rr.id + ':' + m.slug + ':' + per, m.slug, 'agendada', x[id].fecha + ' ' + x[id].hora + ' · organizada desde Plan', per); } } catch (e) {}
     }
     guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
@@ -5156,7 +5191,8 @@ const esReel_ = c => /\breels?\b/.test(norm_((c.lab || []).join(' ') + ' ' + c.n
 /* Reels del SCL de una marca con fecha entre dos días (yyyy-MM-dd). */
 function planbReels_(snap, slug, desdeS, hastaS) {
   return (snap.cards || []).filter(c => c.m[0] === slug && c.tipo === 'scl' && c.due && ['trabajo', 'hecho', 'corr', 'urgente', 'espera', 'mover'].indexOf(c.cat) >= 0 && esReel_(c))
-    .map(c => ({ id: c.id, n: c.n, due: ymd_(new Date(c.due)), url: c.url, lista: c.lista, hecho: c.cat === 'hecho' && !!c.dc, prueba: /\bprueba\b/i.test(c.n) || (c.lab || []).some(x => /prueba/i.test(x)) }))   // de prueba: por nombre ("Reel prueba #1"), etiqueta o el botón de Plan.filter(c => c.due >= desdeS && c.due <= hastaS)
+    .map(c => ({ id: c.id, n: c.n, due: ymd_(new Date(c.due)), url: c.url, lista: c.lista, hecho: c.cat === 'hecho' && !!c.dc, prueba: /\bprueba\b/i.test(c.n) || (c.lab || []).some(x => /prueba/i.test(x)) }))   // de prueba: por nombre ("Reel prueba #1"), etiqueta o el botón de Plan
+    .filter(c => c.due >= desdeS && c.due <= hastaS)
     .sort((a, b) => a.due.localeCompare(b.due));
 }
 const planbCompleto_ = x => !!(x && x.pb && x.que && x.formato && x.fecha && x.material);
@@ -5882,8 +5918,8 @@ function agenteAprobarPlan_(p, d, m, quien) {
 
 /* 3) Plan B: para cada reel de acá a 45 días sin plan B, propone uno (una propuesta por reel). */
 function agentePlanB_(m, snap, quien) {
-  const hoy = hoyAR_(), g = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1])[m.slug] || {};
-  const reels = planbReels_(snap, m.slug, ymd_(hoy), ymd_(new Date(hoy.getTime() + 45 * 864e5))).filter(r => !planbCompleto_(g[r.id]) && !r.prueba).slice(0, 10);
+  const hoy = hoyAR_(), gT = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]), g = gT[m.slug] || {};
+  const reels = planbReels_(snap, m.slug, ymd_(hoy), ymd_(new Date(hoy.getTime() + 45 * 864e5))).filter(r => !planbCompleto_(g[r.id]) && !esPrueba_(gT, m.slug, r)).slice(0, 10);
   if (!reels.length) return { ok: true, nuevas: 0, mensaje: 'Todos los reels de ' + m.nombre + ' de los próximos 45 días ya tienen plan B' };
   const cards = {}; (snap.cards || []).forEach(c => cards[c.id] = c);
   const pedido = 'TAREA: plan B de los reels. Hoy es ' + ymd_(hoy) + '.\nPara cada reel: de qué depende (cliente, colaboración, promo, proveedor o nada de afuera), qué se publica en su lugar si se cae, en qué formato, ' +
@@ -5913,8 +5949,8 @@ function agenteControlDatos_(m, snap) {
   X.vencidas = scl.filter(c => c.due && !c.dc && ymd_(new Date(c.due)) < hoyS && ['trabajo', 'urgente', 'corr', 'espera'].indexOf(c.cat) >= 0).map(c => c.n + ' (vencía ' + ymd_(new Date(c.due)) + ', lista ' + c.lista + ')').slice(0, 20);
   const fin = ymd_(new Date(hoy.getTime() + 21 * 864e5)), cal = scl.filter(c => c.due && ['trabajo', 'urgente', 'hecho', 'mover'].indexOf(c.cat) >= 0 && ymd_(new Date(c.due)) >= hoyS && ymd_(new Date(c.due)) <= fin);
   X.calendario = cal.length + ' piezas con fecha en las próximas 3 semanas';
-  const gB = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1])[m.slug] || {};
-  X.sinPlanB = planbReels_(snap, m.slug, hoyS, ymd_(new Date(hoy.getTime() + 30 * 864e5))).filter(r => !planbCompleto_(gB[r.id]) && !r.prueba).map(r => r.n + ' (' + r.due + ')');
+  const gBT = leerJson_(PLANB_ARCH[0], PLANB_ARCH[1]), gB = gBT[m.slug] || {};
+  X.sinPlanB = planbReels_(snap, m.slug, hoyS, ymd_(new Date(hoy.getTime() + 30 * 864e5))).filter(r => !planbCompleto_(gB[r.id]) && !esPrueba_(gBT, m.slug, r)).map(r => r.n + ' (' + r.due + ')');
   try {
     const cv = campVista_(m.sm, true).marcas.filter(x => x.slug === m.slug)[0];
     if (cv) {
@@ -6301,6 +6337,7 @@ function doPost__(e) {
       case 'borrarAdjunto': { // quien revisa borra un archivo de la tarjeta (en Trello no se puede deshacer)
         const yoA = catalogo_().equipo.filter(p => p.clave === norm_(quien))[0];
         if (!yoA || !/project|direcc|creativ/i.test(yoA.rol)) return json_({ error: 'permiso', mensaje: 'Solo dirección y el project pueden borrar archivos de una tarjeta' });
+        if (/project/i.test(yoA.rol) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         if (!b.cardId || !b.attId) return json_({ error: 'datos', mensaje: 'Falta la tarjeta o el archivo' });
         // se comprueba que el archivo sea de esa tarjeta antes de borrarlo
         const a = trello_('/cards/' + b.cardId + '/attachments/' + b.attId, { fields: 'name,isUpload' });
