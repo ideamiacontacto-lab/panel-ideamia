@@ -242,18 +242,24 @@ function planCacheado_(clave, esProj, que, mes, forzar) {
 }
 function planCalentar_(t0) {
   const cat = catalogo_(), quienes = cat.equipo.filter(p => /project/i.test(p.rol) || cat.marcas.some(m => m.sm === p.clave));
+  // 2/11/2026: antes recalculaba todo cada 10 minutos (3 a 4 minutos de ejecución). Ahora fuerza solo si cambiaron las tarjetas o el día.
+  const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
+  const sig = ymd_(hoyAR_()) + '|' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(snap.cards || []), Utilities.Charset.UTF_8));
+  const forzar = P.getProperty('PLAN_CAL_SIG') !== sig;
   // lo que se lee en cada apertura del panel queda listo (24/10/2026): así el primer pedido no espera a Drive ni a la planilla
   try { estados_(); perfiles_(); reportesConfig_(); reportesEnviados_(); } catch (e) {}
-  try { const mk = cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })); anualProject_(mk, hoyAR_(), true); } catch (e) {}   // se rearma con las tarjetas recién leídas
+  if (forzar) try { const mk = cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })); anualProject_(mk, hoyAR_(), true); } catch (e) {}   // se rearma con las tarjetas recién leídas
   for (const p of quienes) for (const que of ['', 'campanas', 'ficha', 'planb', 'pauta']) {
     if (Date.now() - t0 > 4 * 60 * 1000) return;   // no pasarse del límite de 6 min de la ejecución
-    planCacheado_(p.clave, /project/i.test(p.rol), que, '', true);
+    planCacheado_(p.clave, /project/i.test(p.rol), que, '', forzar);
   }
   // Objetivos: también quedan listos (22/10/2026)
   for (const p of quienes) {
     if (Date.now() - t0 > 4.5 * 60 * 1000) return;
-    try { const ov = okrVista_(p.clave, /project/i.test(p.rol)), sv = JSON.stringify(ov); if (sv.length < 95000) CacheService.getScriptCache().put('okr:' + p.clave + ':' + (P.getProperty('OKR_VER') || ''), sv, 1500); } catch (e) {}
+    const ko = 'okr:' + p.clave + ':' + (P.getProperty('OKR_VER') || ''); if (!forzar && CacheService.getScriptCache().get(ko)) continue;
+    try { const ov = okrVista_(p.clave, /project/i.test(p.rol)), sv = JSON.stringify(ov); if (sv.length < 95000) CacheService.getScriptCache().put(ko, sv, 1500); } catch (e) {}
   }
+  P.setProperty('PLAN_CAL_SIG', sig);   // solo si llegó al final
 }
 const PLAN_ACCIONES = ['planmes', 'planb', 'campana', 'ficha', 'pauta', 'okrAnotar', 'agente', 'planCheck'];   // solo lo que cambia el plan (los tildes del día no: si no, el cache no duraba nada)
 
@@ -1878,7 +1884,11 @@ function cmAccion_(b, clave, esProj) {
   if (b.op === 'programado') dest = listas.filter(l => CM_ESTADO_(l.n) === 'programado')[0];
   else if (b.op === 'publicado') dest = listas.filter(l => CM_ESTADO_(l.n) === 'publicado')[0];
   else if (b.op === 'adelante') dest = listas.filter(l => /mas adelante/.test(norm_(l.n)))[0];
-  else if (b.op === 'volver') dest = listas.filter(l => l.id === String(b.listaId || ''))[0] || listas.filter(l => CM_ESTADO_(l.n) === (b.a === 'mano' ? 'mano' : 'listo'))[0];
+  else if (b.op === 'volver') {
+    let pid = String(b.listaId || '');
+    if (!pid) try { const ac = trello_('/cards/' + c.id + '/actions', { filter: 'updateCard:idList', limit: 1 })[0]; pid = (((ac || {}).data || {}).listBefore || {}).id || ''; } catch (e) {}
+    dest = listas.filter(l => l.id === pid)[0] || listas.filter(l => CM_ESTADO_(l.n) === (b.a === 'mano' ? 'mano' : 'listo'))[0];
+  }
   if (!dest) return { error: 'lista', mensaje: 'En el tablero ' + c.tablero + ' no encuentro la lista para eso' };
   const r = trello_('/cards/' + c.id, { idList: dest.id, pos: 'top' }, 'put');
   if (!r || r.idList !== dest.id) return { error: 'trello', mensaje: 'Trello no confirmó el movimiento' };
@@ -1978,7 +1988,8 @@ function volverAEnsayo() { P.deleteProperty('AUTO_MODO'); console.log('Publicaci
 // cola de lo que se va a publicar (propiedad AUTO_COLA): se revisa en cada lectura automática (cada 10 min) y además con un disparador a la hora justa
 // 2/11/2026: la cola vive en un JSON de Drive (la propiedad AUTO_COLA tenía un máximo de 9 KB y al llenarse fallaba el guardado:
 // una pieza ya publicada podía quedar "pendiente" y salir dos veces). La primera vez se migra desde la propiedad.
-const autoCola_ = () => { const g = leerJson_('AUTO_FILE_ID', 'panel-ideamia-autocola.json'); if (Array.isArray(g.l)) return g.l;
+const autoCola_ = () => { const id = P.getProperty('AUTO_FILE_ID');
+  if (id) { const g = JSON.parse(DriveApp.getFileById(id).getBlob().getDataAsString() || '{}'); if (Array.isArray(g.l)) return g.l; }   // si Drive falla, tira error: nunca pisar la cola con []
   try { return JSON.parse(P.getProperty('AUTO_COLA') || '[]'); } catch (e) { return []; } };
 const autoGuardarCola_ = l => { const viejas = Date.now() - 4 * 864e5;
   guardarJson_('AUTO_FILE_ID', 'panel-ideamia-autocola.json', { l: l.filter(x => x.estado === 'pendiente' || x.estado === 'publicando' || new Date(x.cuando || 0).getTime() > viejas).slice(-300) });
@@ -1992,7 +2003,7 @@ function autoProgramar_(cmCardId, clave) {
   const corto = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n) || [])[1];
   const o = trello_('/cards/' + corto, { fields: 'name', attachments: 'true', attachment_fields: 'name,url,mimeType,isUpload' });
   const urlDe = n => ((o.attachments || []).filter(a => a.name === n)[0] || {}).url || '';
-  const cola = autoCola_().filter(x => !(x.cm === cmCardId && x.estado === 'pendiente'));
+  const cola = autoCola_().filter(x => !(x.cm === cmCardId && /^(pendiente|cancelada)$/.test(x.estado)));
   plan.items.forEach((i, k) => cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
     archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: urlDe(a.n) })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k }));
   autoGuardarCola_(cola);
@@ -2016,7 +2027,10 @@ function autoProgramarItem_(cmCardId, k, clave) {
   if (plan.tipo !== 'historias' && !i.copy) return { error: 'copy', mensaje: 'Falta el texto (COPY:) en la tarjeta del SCL' };
   const bloq = (plan.faltas || []).filter(f => /archivos|máximo es 10|2\.200|carrusel necesita/.test(f));
   if (bloq.length) return { error: 'faltan', mensaje: 'No la programo así: ' + bloq.join(' · ') };
-  const cola = autoCola_().filter(x => !(x.id === cmCardId + ':' + k && x.estado === 'pendiente'));
+  // 3) si la pieza quedó a medio publicar, no se deja reprogramar (podría salir dos veces)
+  const prev = autoCola_().filter(x => x.id === cmCardId + ':' + k && x.real).slice(-1)[0];
+  if (prev && /^(publicando|dudosa)$/.test(prev.estado)) return { error: 'dudosa', mensaje: 'Esa pieza puede haber salido ya: fijate en Instagram antes de volver a programarla.' };
+  const cola = autoCola_().filter(x => !(x.id === cmCardId + ':' + k && /^(pendiente|cancelada)$/.test(x.estado)));
   cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
     archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: a.url })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k, real: true });
   autoGuardarCola_(cola); autoRehacerDisparadores_(cola);
@@ -2049,10 +2063,12 @@ function autoPublicarPendientes() {
         return t && (y.estado === 'pendiente' || /^(publicada|publicando|dudosa)$/.test(t.estado)) ? t : y; });
       cola.forEach(x => { if (!vistos[clave(x)] && toc[clave(x)]) out.push(x); });
       autoGuardarCola_(out); };
+    cola.filter(x => x.estado === 'publicando' && ahora - new Date(x.publicandoDesde || x.cuando).getTime() > 15 * 6e4).forEach(x => { x.estado = 'dudosa'; toc[clave(x)] = x; cambio = true;
+      autoAvisar_(x, '⚠️ Quedó a medio publicar: fijate en la cuenta si salió antes de publicarla a mano.'); });
     cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).sort((a, b) => (b.real ? 1 : 0) - (a.real ? 1 : 0)).forEach(x => {
       cambio = true; toc[clave(x)] = x;
       // si Ale la canceló mientras tanto, no sale
-      if (x.real) { const f = autoCola_().filter(y => clave(y) === clave(x))[0]; if (f && f.estado === 'cancelada') { x.estado = 'cancelada'; return; } }
+      if (x.real) { const fr = autoCola_().filter(y => clave(y) === clave(x)); if (fr.length && !fr.some(y => y.estado === 'pendiente')) { x.estado = 'cancelada'; return; } }
       if (ensayo && !x.real) { informe.push(autoEnsayar_(x, ahora)); return; }
       if (ahora - new Date(x.cuando).getTime() > 30 * 60 * 1000) { x.estado = 'vencida'; autoAvisar_(x, '⚠️ No salió a su hora y no la publiqué (ya pasaron más de 30 minutos). Publicala a mano.'); return; }
       // freno 5: si Ale ya la programó o publicó a mano, no se duplica
@@ -2064,9 +2080,11 @@ function autoPublicarPendientes() {
       catch (e) { x.estado = 'fallo'; autoAvisar_(x, '❌ No la publiqué: no pude volver a leer la tarjeta del SCL (' + String(e.message).slice(0, 80) + '). Publicala a mano.'); return; }
       if (autoModo_() !== 'real' && !x.real) { x.estado = 'ensayo'; autoAvisar_(x, '🧪 ENSAYO (no se publicó nada): ahora hubiera salido en ' + (autoUser_(x.marca) ? '@' + autoUser_(x.marca) : 'Instagram de la marca') + ' con ' + x.archivos.map(a => a.n).join(', ') + (x.copy ? ' y el copy "' + x.copy.slice(0, 60) + '…"' : '') + '. Si es lo que ibas a publicar, todo bien.'); return; }
       // justo antes de media_publish queda "publicando" y guardado: si algo falla después, NO se reintenta (podría salir dos veces)
-      try { x.mediaId = autoPublicar_(x, false, () => { x.estado = 'publicando'; guardar(); }); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram (@' + autoUser_(x.marca) + ').'); }
+      try { x.mediaId = autoPublicar_(x, false, () => { const fr = autoCola_().filter(y => clave(y) === clave(x)); if (fr.length && !fr.some(y => y.estado === 'pendiente')) throw new Error('CANCELADA');
+          x.estado = 'publicando'; x.publicandoDesde = new Date().toISOString(); try { guardar(); } catch (e) { x.estado = 'pendiente'; throw e; } }); x.estado = 'publicada'; x.cuandoSalio = new Date().toISOString(); autoAvisar_(x, '✅ Se publicó en Instagram (@' + autoUser_(x.marca) + ').'); }
       catch (e) { x.error = String(e.message || e).slice(0, 300);
-        if (x.estado === 'publicando') { x.estado = 'dudosa'; autoAvisar_(x, '⚠️ Instagram respondió con error al publicar (' + x.error.slice(0, 80) + '). No sé si salió: fijate en la cuenta antes de publicarla a mano.'); }
+        if (/CANCELADA/.test(x.error)) { x.estado = 'cancelada'; x.error = ''; }
+        else if (x.estado === 'publicando') { x.estado = 'dudosa'; autoAvisar_(x, '⚠️ Instagram respondió con error al publicar (' + x.error.slice(0, 80) + '). No sé si salió: fijate en la cuenta antes de publicarla a mano.'); }
         else { x.intentos = (x.intentos || 0) + 1; if (x.intentos >= 3) { x.estado = 'fallo'; autoAvisar_(x, '❌ No se pudo publicar: ' + x.error + '. Publicala a mano.'); } } }
       guardar();
     });
@@ -2113,7 +2131,7 @@ function autoEnsayar_(x, ahora) {
   try { const cmc = trello_('/cards/' + x.cm, { fields: 'idList', list: 'true' }); ale = (cmc.list || {}).name || ''; } catch (e) {}
   let pl; try { pl = autoPlan_(x.cm, true); } catch (e) { x.estado = 'fallo'; return linea('❌ no pude releer la tarjeta del SCL'); }
   const it = pl.items && pl.items[x.k || 0];
-  if (pl.error || !it || autoFirma_(it) !== x.firma) { x.estado = 'cambio'; return linea('⚠️ la tarjeta cambió desde que entró a la cola (no hubiera salido; está bien que frene)'); }
+  if (pl.error || !it || !autoFirmaOk_(it, x.firma)) { x.estado = 'cambio'; return linea('⚠️ la tarjeta cambió desde que entró a la cola (no hubiera salido; está bien que frene)'); }
   // los archivos se buscan recién ahora (los links de Trello son de la tarjeta)
   try { const corto = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec((leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json').cards || []).filter(c => c.id === x.cm).map(c => c.n)[0] || '') || [])[1];
     const o = corto ? trello_('/cards/' + corto, { fields: 'name', attachments: 'true', attachment_fields: 'name,url' }) : null;
@@ -2134,6 +2152,8 @@ function autoRehacerDisparadores_(cola) {
   ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'autoPublicarPendientes').forEach(t => { try { ScriptApp.deleteTrigger(t); } catch (e) {} });
   const horas = {}; cola.filter(x => x.estado === 'pendiente').forEach(x => { const t = new Date(x.cuando).getTime() - 60 * 1000; if (t > Date.now() + 60 * 1000) horas[Math.round(t / 6e4)] = t; });
   Object.keys(horas).sort().slice(0, 12).forEach(k => { try { ScriptApp.newTrigger('autoPublicarPendientes').timeBased().at(new Date(horas[k])).create(); } catch (e) {} });
+  if (cola.some(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= Date.now() + 2 * 6e4 && Date.now() - new Date(x.cuando).getTime() < 30 * 6e4))
+    try { ScriptApp.newTrigger('autoPublicarPendientes').timeBased().after(90 * 1000).create(); } catch (e) {}
 }
 function autoAvisar_(x, texto) {
   try { const cfg = config_(), m = catalogo_().marcas.filter(y => y.slug === x.marca)[0], id = idDiscord_(cfg, (m && m.cm) || 'ale');
@@ -3978,7 +3998,8 @@ function reunionTexto_(res, fecha) {
   return { encabezado: '📋 **' + String(res.titulo || 'Reunión').slice(0, 120) + '** · ' + fecha, lineas: lineas };
 }
 // 2/11/2026: los audios ya procesados van en un JSON de Drive (la propiedad REUNIONES_HECHOS tiene un máximo de 9 KB)
-const reuHechos_ = () => { const g = leerJson_('REU_HECHOS_FILE_ID', 'panel-ideamia-reuniones-hechos.json'); if (g && g.h) return g.h;
+const reuHechos_ = () => { const id = P.getProperty('REU_HECHOS_FILE_ID');
+  if (id) { const g = JSON.parse(DriveApp.getFileById(id).getBlob().getDataAsString() || '{}'); if (g.h) return g.h; }   // si Drive falla, tira error (no reprocesar todo)
   try { return JSON.parse(P.getProperty('REUNIONES_HECHOS') || '{}'); } catch (e) { return {}; } };
 const reuGuardarHechos_ = h => { guardarJson_('REU_HECHOS_FILE_ID', 'panel-ideamia-reuniones-hechos.json', { h: h }); try { P.deleteProperty('REUNIONES_HECHOS'); } catch (e) {} };
 function reunionesProcesar() {
@@ -4588,11 +4609,13 @@ function planCheckAccion_(b, quien, esProject) {
     const g = leerJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json'), C = g.chk = g.chk || {}, cm = C[m.slug] = C[m.slug] || {}, x = cm[mes] = cm[mes] || {};
     if (v) x[id] = { v: v, t: new Date().toISOString(), quien: norm_(quien), nota: String(b.nota || '').trim().slice(0, 200) }; else delete x[id];
     // 28/10/2026: la reunión con el cliente se marca "Ya la organicé" con fecha y hora, y queda agendada también en Reuniones del panel
-    if (id === 'reunion' && v === 'hecho' && /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || ''))) {
-      x[id].fecha = String(b.fecha); x[id].hora = /^\d{2}:\d{2}$/.test(String(b.hora || '')) ? String(b.hora) : '';
-      try { const rr = reuClienteDef_(cat); if (rr) { const ev = evaluarCuando_(rr.cuando, hoyAR_(), rr.avisar), per = ev && !/^\d{4}-\d{2}$/.test(ev.periodo) ? ev.periodo : mes;
-        registrar_(norm_(quien), 'reunion', 'reu:' + rr.id + ':' + m.slug + ':' + per, m.slug, 'agendada', x[id].fecha + ' ' + x[id].hora + ' · organizada desde Plan', per); } } catch (e) {}
-    }
+    if (id === 'reunion') { const rr = reuClienteDef_(cat);   // 2/11/2026: "No aplica" y "Cambiar" también se reflejan en Reuniones
+      if (rr) try { const ev = evaluarCuando_(rr.cuando, hoyAR_(), rr.avisar), per = ev && !/^\d{4}-\d{2}$/.test(ev.periodo) ? ev.periodo : mes, kR = 'reu:' + rr.id + ':' + m.slug + ':' + per;
+        if (v === 'hecho' && /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || ''))) { x[id].fecha = String(b.fecha); x[id].hora = /^\d{2}:\d{2}$/.test(String(b.hora || '')) ? String(b.hora) : '';
+          registrar_(norm_(quien), 'reunion', kR, m.slug, 'agendada', x[id].fecha + ' ' + x[id].hora + ' · organizada desde Plan', per); }
+        else if (v === 'na') registrar_(norm_(quien), 'reunion', kR, m.slug, 'hecho', '', per);
+        else if (!v && estados_()[kR]) registrar_(norm_(quien), 'reunion', kR, m.slug, 'deshacer', 'desde Plan', per);
+      } catch (e) {} }
     guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
     return { ok: true, chk: x };
   } finally { lock.releaseLock(); }
