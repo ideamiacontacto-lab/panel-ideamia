@@ -1144,7 +1144,7 @@
     return { L, hecho, atras: L.filter(c => dia(c) < hoyS && !hecho(c)), hoy: L.filter(c => dia(c) === hoyS), man: L.filter(c => dia(c) === manS) };
   }
   function vCmDia() {
-    const Dc = datosCM(), cual = S.cmDia || (Dc.atras.length ? 'atras' : 'hoy');
+    const Dc = datosCM(), cual = S.cmDia === 'atras' && !Dc.atras.length ? 'hoy' : S.cmDia || (Dc.atras.length ? 'atras' : 'hoy');
     const L = cual === 'atras' ? Dc.atras : cual === 'man' ? Dc.man : Dc.hoy;
     const nFalta = l => l.filter(c => !Dc.hecho(c)).length;
     const seg = '<div class="seg cm-seg" role="tablist">' + (Dc.atras.length ? '<button class="' + (cual === 'atras' ? 'on' : '') + '" data-cmdia="atras">Atrasadas<em class="rojo">' + Dc.atras.length + '</em></button>' : '') +
@@ -1207,7 +1207,7 @@
     const m = hoja(verbo + ' · ' + ((marca(c.m) || {}).nombre || c.m), '<div class="pz"><p class="ay-t">Leyendo la tarjeta del SCL…</p></div>');
     m.classList.add('cm-pz');
     // en el celu, el mismo toque que abrió la ficha caía sobre un botón de adentro: los primeros 450 ms no se puede tocar nada
-    const mb = $('.mb', m); if (mb) { mb.style.pointerEvents = 'none'; setTimeout(() => { mb.style.pointerEvents = ''; }, 450); }
+    const t0 = Date.now(); m.addEventListener('click', e => { if (Date.now() - t0 < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
     let p;
     try {
       p = DEMO ? { ok: true, ig: !!c.auto && c.prog, cuenta: 'skilfulblack', tipo: c.formato === 'historia' ? 'historias' : c.formato, titulo: c.n, original: c.ourl, faltas: [],
@@ -1232,12 +1232,13 @@
         if (i.cola && i.cola.estado === 'publicada') return '<span class="pill ok pz-b1">✓ Publicada en Instagram</span>';
         if (i.cola && i.cola.estado === 'pendiente') return '<div class="pz-b1"><span class="pill ok">⏳ Programada · sale ' + hm(new Date(i.cuando)) + '</span><button class="btn ghost" data-pzcan="' + k + '">Cancelar</button></div>';
         if (S._pzConf === id + ':' + k) return '<div class="pz-conf pz-b1"><p>Se publica <b>sola</b> ' + (ymdL(new Date(i.cuando)) === ymdL(NOW) ? 'hoy' : corto(new Date(i.cuando))) + ' a las <b>' + hm(new Date(i.cuando)) + '</b> en <b>@' + esc(p.cuenta || '') + '</b> con <b>' + i.archivos.map(a => esc(a.n)).join(', ') + '</b>.</p><button class="btn y" data-pzig="' + k + '">Confirmar</button><button class="btn ghost" data-pzno>No</button></div>';
-        return '<button class="btn y pz-b1" data-pzpre="' + k + '"' + (i.archivos.length ? '' : ' disabled') + '>Programar en Instagram</button>' + (i.cola && /fallo|cambio|vencida/.test(i.cola.estado) ? '<span class="pill bad">' + esc(i.cola.error || 'no salió: revisala') + '</span>' : '');
+        if (T['m' + k]) return '<button class="btn ghost pz-hecha pz-b1" data-pzok="' + k + '">✓ Programada a mano</button>';
+        return '<div class="pz-b1"><button class="btn y" data-pzpre="' + k + '"' + (i.archivos.length ? '' : ' disabled') + '>Programar en Instagram</button><button class="btn ghost" data-pzok="' + k + '">Ya la programé en Meta</button></div>' + (i.cola && /fallo|cambio|vencida|dudosa/.test(i.cola.estado) ? '<span class="pill bad">' + esc(i.cola.error || 'no salió: revisala') + '</span>' : '');
       }
       return '<button class="btn ' + (T[k] ? 'ghost pz-hecha' : 'y') + ' pz-b1" data-pzok="' + k + '">' + (T[k] ? '✓ ' + (c.prog ? 'Programada' : 'Publicada') : (c.prog ? 'Ya la programé' : 'Ya la publiqué')) + '</button>';
     };
     const pintar = () => {
-      if (p.ig && c.prog) p.items.forEach((i, k) => { T[k] = enIg(i); });
+      if (p.ig && c.prog) p.items.forEach((i, k) => { T[k] = enIg(i) || !!T['m' + k]; });
       const hechos = p.items.filter((_, k) => T[k]).length, todo = hechos === p.items.length;
       $('.pz', m).innerHTML = '<p class="ay-t"><b>' + esc(p.titulo || c.n) + '</b> · ' + p.items.length + (p.items.length === 1 ? ' pieza' : ' piezas') + (p.original ? ' · <a class="lnk" href="' + esc(p.original) + '" target="_blank" rel="noopener">tarjeta del SCL ↗</a>' : '') + '</p>' +
         (p.faltas && p.faltas.length ? '<div class="au-falta"><b>Ojo:</b><ul>' + p.faltas.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>' : '') +
@@ -1246,9 +1247,9 @@
           (i.copy ? '<div class="pz-c"><p>' + escL(i.copy.slice(0, 400)) + (i.copy.length > 400 ? ' (sigue)' : '') + '</p><button class="btn ghost" data-pzcopy="' + k + '">Copiar texto</button></div>' : '') + '</div>' +
           botonPieza(i, k) + '</div>').join('') +
         '<p class="pz-cuenta">' + (p.ig && c.prog ? '<b>Instagram conectado (@' + esc(p.cuenta || '') + ')</b>: cada pieza se publica sola a su hora. ' : '') + hechos + ' de ' + p.items.length + (c.prog ? ' programadas' : ' publicadas') + (p.items.length > 1 ? ' · con la última, la tarjeta pasa sola a ' + (c.prog ? 'Programado' : 'Publicado') : '') + '</p>' +
-        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button>' + (p.items.length > 1 && !todo && !(p.ig && c.prog) ? '<button class="btn ghost" data-pzfin>Marcar todas</button>' : '') + '</div>';
+        '<div class="err"></div><div class="acts pz-acts"><button class="btn ghost" data-pzadel>Guardar para más adelante</button>' + (p.items.length > 1 && !todo ? '<button class="btn ghost" data-pzfin>' + (p.ig && c.prog ? 'Ya las programé todas en Meta' : 'Marcar todas') + '</button>' : '') + '</div>';
       m.querySelectorAll('[data-pzok]').forEach(b => b.onclick = () => {
-        const k = b.dataset.pzok; T[k] = !T[k]; guardar();
+        const k = b.dataset.pzok; if (p.ig && c.prog) { T['m' + k] = !T['m' + k]; T[k] = enIg(p.items[k]) || T['m' + k]; } else T[k] = !T[k]; guardar();
         if (p.items.every((_, j) => T[j])) { m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); return; }   // la última: la tarjeta pasa sola
         if (T[k]) toast('✓ ' + esc(p.items[k].n) + (c.prog ? ' programada' : ' publicada'));
         pintar(); render();
@@ -1266,11 +1267,12 @@
       });
       m.querySelectorAll('[data-pzcan]').forEach(b => b.onclick = async () => {
         const k = Number(b.dataset.pzcan); b.disabled = true;
-        try { await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, pieza: k }); p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar(); }
+        try { await post({ action: 'cmAuto', op: 'cancelarItem', cardId: id, pieza: k }); p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar();
+          if (c.estado === 'programado') cmHacer(id, 'volver', c.previaId || ''); }
         catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
       });
       m.querySelectorAll('[data-pzcopy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(p.items[b.dataset.pzcopy].copy); b.textContent = '✓ Copiado'; } catch (e) { b.textContent = 'No pude copiar'; } });
-      const fin = $('[data-pzfin]', m); if (fin) fin.onclick = () => { p.items.forEach((_, j) => T[j] = true); guardar(); m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); };
+      const fin = $('[data-pzfin]', m); if (fin) fin.onclick = () => { p.items.forEach((_, j) => { T[j] = true; T['m' + j] = true; }); guardar(); m.remove(); cmHacer(id, c.prog ? 'programado' : 'publicado'); };
       $('[data-pzadel]', m).onclick = () => { if (confirm('¿Guardar "' + (p.titulo || c.n) + '" para más adelante? Deja de aparecer en Programar.')) { m.remove(); cmHacer(id, 'adelante'); } };
     };
     pintar();
@@ -1283,6 +1285,7 @@
     render();
     try {
       const r = await post({ action: 'cmAccion', cardId: id, op: op, listaId: listaId || '', a: c.prog ? 'listo' : 'mano' });
+      if (op === 'volver' || op === 'adelante') try { localStorage.removeItem('pi:cmprog:' + id); } catch (e) {}
       if (r.lista) { c.lista = r.lista; c.estado = r.estado || ''; } else if (op === 'volver') { c.estado = c.prog ? 'listo' : 'mano'; c.lista = c.prog ? 'Listo para programar' : 'Contenido no programable'; }
       if (op !== 'volver') { c.previaId = r.previaId; toast('✓ "' + esc(c.n.slice(0, 40)) + '" pasó a ' + esc(c.lista), r.previaId ? () => cmHacer(id, 'volver', r.previaId) : null); }
       try { localStorage.setItem('pi:cache:' + S.persona, JSON.stringify(S.data)); } catch (e) {}
@@ -3314,7 +3317,10 @@
   const refrescarProj = () => { if (!DEMO && S.proj && !S.data && !S.sync && !$('.modal') && (S.projTab || 'mio') === 'mio') { ultimaCarga = Date.now(); refrescarMio(true); } };
   const refrescar = () => { if (S.proj && !S.data) return refrescarProj(); if (DEMO || !S.data || S.sync || $('.modal') || $('#drawer')) return; ultimaCarga = Date.now(); S.sync = true; renderTop(); cargar(true).then(() => { S.sync = false; render(); }).catch(e => { S.sync = false; S.falloCarga = { msg: e.message || 'sin conexión', cuando: new Date().toISOString() }; render(); }); };
   setInterval(() => { if (document.visibilityState === 'visible') refrescar(); }, 5 * 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
+  // 2/11/2026: NOW es la hora en que se abrió la página; si al volver ya es otro día, se recarga entera (si no, "hoy" sería ayer)
+  const otroDia = () => !DEMO && ymdL(new Date()) !== ymdL(NOW);
+  setInterval(() => { if (document.visibilityState === 'visible' && otroDia() && !$('.modal')) location.reload(); }, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (otroDia() && !$('.modal')) return location.reload(); if (Date.now() - ultimaCarga > 2 * 60 * 1000) refrescar(); });
   window.matchMedia('(max-width:700px)').addEventListener('change', e => { S.movil = e.matches; if (S.data) render(); });
   inicio();
 })();
