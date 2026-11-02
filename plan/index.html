@@ -181,7 +181,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '23';
+  const VER = '24';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -571,7 +571,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   const mesSig = () => { const d = new Date(); d.setMonth(d.getMonth() + 1, 1); return d.toISOString().slice(0, 7); };
   const pbFaltan = P => P ? P.reels.filter(r => r.due.slice(0, 7) === mesSig() && !r.completo && !r.prueba).length : 0;
   /* ---------- Paso 4: reels de este mes y del siguiente (qué le falta a cada uno, si se pueden hacer y su plan B) ---------- */
-  const hoyS = () => (S.pb && S.pb.hoy) || new Date().toISOString().slice(0, 10);
+  const hoyS = () => (S.pb && S.pb.hoy) || (d => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2))(new Date());
   const diasA = f => Math.round((new Date(f + 'T12:00:00') - new Date(hoyS() + 'T12:00:00')) / 864e5);
   const enDias = n => n === 0 ? 'hoy' : n === 1 ? 'mañana' : n === -1 ? 'ayer' : n > 0 ? 'en ' + n + ' días' : 'hace ' + (-n) + ' días';
   /* lo que le falta a un reel, de lo más grave a lo menos: [clase, texto] */
@@ -855,7 +855,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   const MOVIL = () => matchMedia('(max-width:760px)').matches, FOLD1 = { ya: false };
   const fold = (id, cl, t, n, cuerpo, abierto) => { let open = S.folds[id] != null ? S.folds[id] : abierto; if (MOVIL() && id !== 'ph') { if (open && FOLD1.ya) open = false; if (open) FOLD1.ya = true; } return '<div class="fold ' + cl + (open ? ' open' : '') + '"><button class="fh" data-fold="' + id + '"><span class="t">' + t + '</span>' + (n != null ? '<span class="cnt">' + n + '</span>' : '') + CHEV + '</button><div class="fb"><div>' + cuerpo + '</div></div></div>'; };
   const paso = (n, t, txt) => '<div class="paso"><i' + (/^\d$/.test(n) ? '' : ' class="s"') + '>' + (n || '·') + '</i><div><b>' + t + '</b><p>' + txt + '</p></div></div>';
-  const hoyD = () => new Date().toISOString().slice(0, 10);
+  const hoyD = () => { const d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
   const entre = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
   /* ---------- entregas: nombre y detalle de cada una ---------- */
   const ORD = ['Primera', 'Segunda', 'Tercera', 'Cuarta', 'Quinta'];
