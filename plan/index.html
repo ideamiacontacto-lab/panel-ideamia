@@ -183,7 +183,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '25';
+  const VER = '26';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -193,7 +193,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   const vistaOk = v => { v = ALIAS[v] || v; return VISTAS.indexOf(v) >= 0 ? v : ''; };
   const QS = new URLSearchParams(location.search);
   const S = { persona: QS.get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null, marca: QS.get('marca') || lsGet('plan:marca'), mes: 'actual', folds: jget('plan:folds') || {}, vista: vistaOk(QS.get('vista')) || vistaOk(lsGet('plan:vista')) || 'anual', ficha: null, draft: {}, rvNo: {} };
-  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín', joaco: 'Joaquín (prueba)' };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // íconos de línea (v2: reemplazan a los emojis)
   const IC = {
