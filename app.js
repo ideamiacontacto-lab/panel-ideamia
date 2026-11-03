@@ -1611,7 +1611,7 @@
     return f;
   }
   function embFondo(f) { try { const r = f.contentDocument.documentElement.style, de = document.documentElement.style; ['--bg', '--s1', '--s2', '--s3', '--bg-rgb'].forEach(v => { const x = de.getPropertyValue(v); if (x) r.setProperty(v, x); else r.removeProperty(v); }); f.contentDocument.body.style.background = 'var(--bg)'; } catch (e) {} }
-  const conPlanYo = () => S.data && !esRevisa() && !esFilm() && (['orne', 'rama', 'joaco'].indexOf((S.data.yo || {}).clave) >= 0 || /project/i.test((S.data.yo || {}).rol || ''));
+  const conPlanYo = () => S.data && !esRevisa() && !esFilm() && (['orne', 'rama'].indexOf((S.data.yo || {}).clave) >= 0 || /project/i.test((S.data.yo || {}).rol || ''));
   // 22/10/2026: lo que más tarda se pide de fondo apenas el panel terminó de cargar, así al tocar la pestaña ya está
   function precargar() {
     if (S._precargo) return; S._precargo = 1;
