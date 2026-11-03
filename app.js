@@ -1112,7 +1112,7 @@
     const row = r => {
       const ag = hecho(r), det = r.estado && r.estado.detalle ? r.estado.detalle : '';
       const d = det ? ymdD(det.slice(0, 10)) : null;
-      return '<div class="row reu"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(r.nombre) + '</div><div class="mt">' + tagM(r.marca) + '<span>con ' + esc(r.con) + '</span><span>' + (ag ? 'agendada ' + hace(r.estado.fecha || '') : r.vencida ? '<span class="pill bad">se pasó: tenía que ser hasta el ' + r.hasta + '</span>' : 'hasta el ' + r.hasta) + '</span></div></div>' +
+      return '<div class="row reu"><span class="ico">' + I.users + '</span><div><div class="tt">' + esc(r.nombre) + '</div><div class="mt">' + tagM(r.marca) + '<span>con ' + esc(r.con) + '</span><span>' + (ag ? (r.estado.estado === 'hecho' && !det ? 'no aplica este mes' : 'agendada ' + hace(r.estado.fecha || '')) : r.vencida ? '<span class="pill bad">se pasó: tenía que ser hasta el ' + r.hasta + '</span>' : 'hasta el ' + r.hasta) + '</span></div></div>' +
         '<div>' + (ag ? '<div class="when">' + (d ? corto(d) : '') + '<small>' + esc(det.slice(11, 16)) + (/evento creado/.test(det) ? ' · en calendario' : '') + '</small></div>' : '<button class="btn y" data-agendar="' + esc(r.clave) + '">' + I.cal + 'Ponerle fecha</button>') + '</div></div>';
     };
     // v6 (22/10/2026): Reuniones es una pestaña con lo que viene (calendario y brainstormings), lo que falta agendar y lo agendado
@@ -1232,7 +1232,8 @@
         if (i.cola && i.cola.estado === 'publicada') return '<span class="pill ok pz-b1">✓ Publicada en Instagram</span>';
         if (i.cola && i.cola.estado === 'pendiente') return '<div class="pz-b1"><span class="pill ok">⏳ Programada · sale ' + hm(new Date(i.cuando)) + '</span><button class="btn ghost" data-pzcan="' + k + '">Cancelar</button></div>';
         if (S._pzConf === id + ':' + k) return '<div class="pz-conf pz-b1"><p>Se publica <b>sola</b> ' + (ymdL(new Date(i.cuando)) === ymdL(NOW) ? 'hoy' : corto(new Date(i.cuando))) + ' a las <b>' + hm(new Date(i.cuando)) + '</b> en <b>@' + esc(p.cuenta || '') + '</b> con <b>' + i.archivos.map(a => esc(a.n)).join(', ') + '</b>.</p><button class="btn y" data-pzig="' + k + '">Confirmar</button><button class="btn ghost" data-pzno>No</button></div>';
-        if (i.cola && /^(publicando|dudosa)$/.test(i.cola.estado)) return '<div class="pz-b1"><span class="pill bad">' + (i.cola.estado === 'publicando' ? '⏳ Publicándose ahora' : '⚠️ No sé si salió: fijate en @' + esc(p.cuenta || '')) + '</span><button class="btn ghost" data-pzok="' + k + '">Ya está en Instagram</button></div>';
+        if (i.cola && i.cola.estado === 'publicando') return '<span class="pill warn pz-b1">⏳ Publicándose ahora</span>';
+        if (i.cola && i.cola.estado === 'dudosa') return '<div class="pz-b1"><span class="pill bad">⚠️ No sé si salió: fijate en @' + esc(p.cuenta || '') + '</span><button class="btn ghost" data-pzres="' + k + '" data-salio="1">Sí, está en Instagram</button><button class="btn ghost" data-pzres="' + k + '" data-salio="">No salió</button></div>';
         if (T['m' + k]) return '<button class="btn ghost pz-hecha pz-b1" data-pzok="' + k + '">✓ Programada a mano</button>';
         return '<div class="pz-b1"><button class="btn y" data-pzpre="' + k + '"' + (i.archivos.length ? '' : ' disabled') + '>Programar en Instagram</button><button class="btn ghost" data-pzok="' + k + '">Ya la programé en Meta</button></div>' + (i.cola && /fallo|cambio|vencida|dudosa/.test(i.cola.estado) ? '<span class="pill bad">' + esc(i.cola.error || 'no salió: revisala') + '</span>' : '');
       }
@@ -1272,6 +1273,11 @@
           if (!r.canceladas) { toast('Ya se estaba publicando: no se pudo cancelar'); b.disabled = false; return; }
           p.items[k].cola = { estado: 'cancelada' }; toast('Cancelada: no se va a publicar'); pintar();
           if (c.estado === 'programado') cmHacer(id, 'volver', c.previaId || ''); }
+        catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
+      });
+      m.querySelectorAll('[data-pzres]').forEach(b => b.onclick = async () => {
+        const k = Number(b.dataset.pzres), salio = !!b.dataset.salio; b.disabled = true;
+        try { await post({ action: 'cmAuto', op: 'resolverItem', cardId: id, pieza: k, salio: salio }); p.items[k].cola = { estado: salio ? 'publicada' : 'cancelada' }; toast(salio ? '✓ Anotada como publicada' : 'Listo: la podés volver a programar'); pintar(); }
         catch (e) { $('.err', m).textContent = e.message; b.disabled = false; }
       });
       m.querySelectorAll('[data-pzcopy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(p.items[b.dataset.pzcopy].copy); b.textContent = '✓ Copiado'; } catch (e) { b.textContent = 'No pude copiar'; } });
