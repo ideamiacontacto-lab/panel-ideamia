@@ -1991,7 +1991,7 @@
       '<div class="mio-top"><div class="chips mio-chips"><button class="chip' + (!S.projMarca ? ' on' : '') + '" data-mio-marca="">Todas</button>' + marcas.map(e => '<button class="chip' + (S.projMarca === e.n ? ' on' : '') + '" data-mio-marca="' + esc(e.n) + '"><span class="dot" style="background:' + colorEt(e.c) + '"></span>' + esc(e.n) + '</button>').join('') + '</div>' +
       '<button class="btn y mio-add" data-mio-nuevo>+ Pedido</button></div>' +
       '<div class="gtabs mio-tabs" role="tablist">' + G.map((g, i) => '<button role="tab" aria-selected="' + (g[0] === sel) + '" class="gtab' + (g[0] === sel ? ' on' : '') + (g[2].length && g[6] ? ' t-' + g[6] : '') + '" data-mio-ir="' + g[0] + '"><i class="gtab-n">' + String(i + 1).padStart(2, '0') + '</i><span class="gtab-t">' + g[1] + '</span><b>' + g[2].length + '</b></button>').join('') + '</div>' +
-      '<div class="gpanel mio-panel" role="tabpanel"><p class="mio-hint">' + g0[4] + '</p>' + (g0[2].length ? '<div class="mio-list">' + g0[2].map(g0[3]).join('') + '</div>' : '<div class="empty">' + g0[5] + '</div>') + '</div>' +
+      '<div class="gpanel mio-panel" role="tabpanel"><p class="mio-hint">' + g0[4] + '</p>' + (g0[2].length ? '<div class="mio-list">' + (S.movil && !(S.mioTodas || {})[sel] ? g0[2].slice(0, 10) : g0[2]).map(g0[3]).join('') + '</div>' + (S.movil && g0[2].length > 10 && !(S.mioTodas || {})[sel] ? '<button class="btn ghost mio-mas" data-mio-mas="' + sel + '">Ver las ' + (g0[2].length - 10) + ' que faltan</button>' : '') : '<div class="empty">' + g0[5] + '</div>') + '</div>' +
       '<p class="ayuda">Tocá una tarjeta para cambiarle la etapa, la fecha o las etiquetas, o comentarla; el círculo la pasa a Listo. Todo queda en tu tablero <a class="lnk" href="' + esc(M.url || '#') + '" target="_blank" rel="noopener">Project de Trello ↗</a>.</p>';
   }
   /* ---------------- tarjetas de Project que se pueden tocar (22/10/2026) ----------------
@@ -2692,6 +2692,8 @@
     root.querySelectorAll('[data-mio-marca]').forEach(x => x.onclick = () => { S.projMarca = x.dataset.mioMarca; render(); });
     root.querySelectorAll('[data-mio-nuevo]').forEach(x => x.onclick = nuevoPedido);
     root.querySelectorAll('[data-mio-rf]').forEach(x => x.onclick = () => refrescarMio());
+    // 3/11/2026: en el celu cada lista muestra 10 tareas y el resto con "Ver las que faltan" (menos scroll)
+    root.querySelectorAll('[data-mio-mas]').forEach(x => x.onclick = () => { S.mioTodas = Object.assign({}, S.mioTodas, { [x.dataset.mioMas]: true }); render(); });
     root.querySelectorAll('[data-mio-ir]').forEach(x => x.onclick = () => { LS.set('miosel', x.dataset.mioIr); render(); const g = $('.gpanel'); if (g) g.classList.add('entra'); });
     root.querySelectorAll('[data-anm]').forEach(x => x.onclick = () => { LS.set('anmarca', x.dataset.anm); render(); const g = $('.gpanel'); if (g) g.classList.add('entra'); });
     root.querySelectorAll('[data-anmes]').forEach(x => x.onclick = () => { S.anMes = +x.dataset.anmes; render(); });

@@ -2187,4 +2187,14 @@ div.pz-b1{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .mio-r .mio-t b{font-size:14px}
   .mtit{padding:10px 0 6px}
   .mtit h1{font-size:30px}
+  /* cada tarea en una línea: el título se corta con … y las etiquetas van en una fila chica abajo (la ficha completa se abre tocándola) */
+  .mio-r{padding:7px 2px;gap:9px}
+  .mio-r .mio-t b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mio-r .mio-m{flex-wrap:nowrap;overflow:hidden;margin-top:2px;gap:5px;font-size:11px}
+  .mio-r .mio-et{padding:0 6px;font-size:10.5px}
+  .mio-r .pill{padding:0 6px;font-size:10.5px}
+  .mio-r .mio-go{display:none}
+  .mio-ok{width:22px;height:22px}
+  .mio-panel+.ayuda,.mio-panel~.ayuda{display:none}
+  .mio-mas{width:100%;margin:8px 0 4px}
 }
