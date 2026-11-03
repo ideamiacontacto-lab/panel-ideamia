@@ -168,6 +168,8 @@ h1{font-weight:700;text-transform:uppercase;letter-spacing:-.01em}
 /* embebido en el panel (pestañas Plan y Objetivos): sin título propio */
 .pb-armar{margin-top:10px;font-size:13px;padding:8px 14px}@media(max-width:760px){.modal{place-items:center!important;padding:16px}.modal .box{border-radius:6px!important;max-height:86vh}}.embed .top .kick,.embed .top h1,.embed .top+.sub{display:none}@media(max-width:760px){.paso{padding:10px 12px;cursor:pointer;grid-template-columns:28px 1fr;gap:10px}.paso>i{width:28px;height:28px;line-height:28px}.paso p{display:none}.paso.ver p{display:block}.paso>div>b:after{content:' ?';color:var(--y,#FFF200);font-weight:400}.paso.ver>div>b:after{content:''}.fold .fh{padding-top:10px;padding-bottom:10px}.embed .top{margin:0 0 8px}.embed .top .ayuda{font-size:11.5px;padding:6px 10px}}.embed .top{justify-content:flex-end;margin-top:4px}.embed .wrap{padding-top:10px}
 .reu-f[hidden]{display:none!important}.reu-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%;margin-top:8px}.reu-f input{background:var(--c2,#151515);color:inherit;border:1px solid var(--c3,#2a2a2a);border-radius:6px;padding:7px 8px;font:inherit;font-size:16px}.ck3{flex-wrap:wrap}.hero.hecho .kick{color:var(--ok,#4ccf7e)}
+/* 3/11/2026: en el celu, menos cosas antes del contenido (encabezado chico y pestañas en una sola fila que se desliza) */
+@media(max-width:700px){.top{align-items:center}.top .kick,.sub{display:none}.top h1{font-size:30px;margin:0}.top .bts{gap:6px}.ayuda{font-size:12px;padding:6px 9px}.seg.vseg{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;width:auto;margin:0 -16px;padding:0 16px}.seg.vseg::-webkit-scrollbar{display:none}.vseg button{flex:0 0 auto!important;padding:10px 12px 11px}}
 </style>
 <script>/* desde el 22/10/2026 esta página vive adentro del panel (pestaña Plan): abierta sola, redirige al panel con los mismos datos */
 if (window.self === window.top && !/[?&](embed|solo|demo)=1/.test(location.search)) { const q = new URLSearchParams(location.search), r = new URLSearchParams({ tab: 'plan' }); ['p', 'marca', 'vista'].forEach(k => { if (q.get(k)) r.set(k, q.get(k)); }); location.replace('../?' + r.toString()); }
@@ -181,7 +183,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
 <script>
 (function () {
   const C = window.PANEL_CONFIG || {}, app = document.getElementById('app');
-  const VER = '24';
+  const VER = '25';
   try { fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => { const m = /const VER = '(\d+)'/.exec(t); if (m && m[1] !== VER && sessionStorage.getItem('plan:recargo') !== m[1]) { sessionStorage.setItem('plan:recargo', m[1]); location.replace(location.pathname + '?' + (s => { s.set('v', m[1]); return s.toString(); })(new URLSearchParams(location.search))); } }).catch(() => {}); } catch (e) {}
   const lsGet = k => { try { const v = localStorage.getItem(k); return v == null ? '' : v; } catch (e) { return ''; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
