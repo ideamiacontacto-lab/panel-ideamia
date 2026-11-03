@@ -215,7 +215,7 @@ function actualizarProgramado() {
   if ((h < 8 || h >= 21) && m >= 10) return;
   const t0 = Date.now();
   try { procesarAReels_(); } catch (e) { console.warn('procesarAReels_: ' + e.message); }
-  try { if (autoCola_().some(x => x.estado === 'pendiente')) autoPublicarPendientes(); } catch (e) { console.warn('autoPublicarPendientes: ' + e.message); }
+  try { if (autoCola_().some(x => /^(pendiente|publicando)$/.test(x.estado))) autoPublicarPendientes(); } catch (e) { console.warn('autoPublicarPendientes: ' + e.message); }
   actualizar();
   if (h >= 6 && h < 22) try { autoEnsayoSolo_(); } catch (e) { console.warn('autoEnsayoSolo_: ' + e.message); }   // ensayo de publicación automática (SFB)
   if (h >= 8 && h < 21) try { planCalentar_(t0); } catch (e) { console.warn('planCalentar_: ' + e.message); }
@@ -245,10 +245,14 @@ function planCalentar_(t0) {
   // 2/11/2026: antes recalculaba todo cada 10 minutos (3 a 4 minutos de ejecución). Ahora fuerza solo si cambiaron las tarjetas o el día.
   const snap = leerJson_('SNAP_FILE_ID', 'panel-ideamia-trello.json');
   const sig = ymd_(hoyAR_()) + '|' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(snap.cards || []), Utilities.Charset.UTF_8));
-  const forzar = P.getProperty('PLAN_CAL_SIG') !== sig;
+  // 3/11/2026: en horario de trabajo casi siempre cambia alguna tarjeta: se recalcula todo como mucho cada 30 min (o si cambió el día);
+  // en el medio se usa lo guardado y solo se rearma lo vencido. Lo que alguien guarda en el Plan igual se ve al instante (PLAN_VER).
+  const ultimo = Number(P.getProperty('PLAN_CAL_T') || 0), mismoDia = String(P.getProperty('PLAN_CAL_SIG') || '').slice(0, 10) === sig.slice(0, 10);
+  const forzar = P.getProperty('PLAN_CAL_SIG') !== sig && (!mismoDia || Date.now() - ultimo > 30 * 6e4);
   // lo que se lee en cada apertura del panel queda listo (24/10/2026): así el primer pedido no espera a Drive ni a la planilla
   try { estados_(); perfiles_(); reportesConfig_(); reportesEnviados_(); } catch (e) {}
-  if (forzar) try { const mk = cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })); anualProject_(mk, hoyAR_(), true); } catch (e) {}   // se rearma con las tarjetas recién leídas
+  if (forzar) { P.setProperties({ PLAN_CAL_SIG: sig, PLAN_CAL_T: String(Date.now()) });   // al arrancar: si se corta por tiempo, lo que falte se rearma por vencimiento
+    try { const mk = cat.marcas.map(m => ({ slug: m.slug, nombre: m.nombre })); anualProject_(mk, hoyAR_(), true); } catch (e) {} }   // se rearma con las tarjetas recién leídas
   for (const p of quienes) for (const que of ['', 'campanas', 'ficha', 'planb', 'pauta']) {
     if (Date.now() - t0 > 4 * 60 * 1000) return;   // no pasarse del límite de 6 min de la ejecución
     planCacheado_(p.clave, /project/i.test(p.rol), que, '', forzar);
@@ -259,7 +263,6 @@ function planCalentar_(t0) {
     const ko = 'okr:' + p.clave + ':' + (P.getProperty('OKR_VER') || ''); if (!forzar && CacheService.getScriptCache().get(ko)) continue;
     try { const ov = okrVista_(p.clave, /project/i.test(p.rol)), sv = JSON.stringify(ov); if (sv.length < 95000) CacheService.getScriptCache().put(ko, sv, 1500); } catch (e) {}
   }
-  P.setProperty('PLAN_CAL_SIG', sig);   // solo si llegó al final
 }
 const PLAN_ACCIONES = ['planmes', 'planb', 'campana', 'ficha', 'pauta', 'okrAnotar', 'agente', 'planCheck'];   // solo lo que cambia el plan (los tildes del día no: si no, el cache no duraba nada)
 
@@ -1961,7 +1964,8 @@ function autoPlan_(cmCardId, alPublicar, ver) {
   const ahora = Date.now();
   if (!alPublicar) items.forEach(i => { if (i.cuando && new Date(i.cuando).getTime() < ahora + 5 * 6e4) faltas.push(i.n + ': la hora ya pasó o falta menos de 5 minutos'); });
   const igId = autoIgId_(c.m[0]), conMeta = !!P.getProperty('META_TOKEN') && !!igId;
-  const cola = autoCola_(), enCola = cola.filter(x => x.cm === c.id && x.estado === 'pendiente').length > 0;
+  let cola = []; try { cola = autoCola_(); } catch (e) { if (!alPublicar) throw e; }
+  const enCola = cola.filter(x => x.cm === c.id && x.estado === 'pendiente').length > 0;
   const igOk = AUTO_MARCAS.indexOf(c.m[0]) >= 0 && tipo !== 'reel' && conMeta && !!autoUser_(c.m[0]);
   const enColaK = k => { const x = cola.filter(y => y.id === c.id + ':' + k && y.real).slice(-1)[0]; return x ? { estado: x.estado, error: x.error || '' } : null; };
   return { ok: true, marca: c.m[0], titulo: o.name, original: o.shortUrl, tipo, ig: igOk, items: items.map((i, k) => Object.assign({}, i, { cola: ver ? enColaK(k) : null, archivos: i.archivos.map(a => ver ? { n: a.n, tipo: a.tipo, url: a.url } : { n: a.n, tipo: a.tipo }) })), faltas, listo: !faltas.length, conMeta, enCola, modo: autoModo_(), cuenta: autoUser_(c.m[0]) };
@@ -1991,6 +1995,9 @@ function volverAEnsayo() { P.deleteProperty('AUTO_MODO'); console.log('Publicaci
 const autoCola_ = () => { const id = P.getProperty('AUTO_FILE_ID');
   if (id) { const g = JSON.parse(DriveApp.getFileById(id).getBlob().getDataAsString() || '{}'); if (Array.isArray(g.l)) return g.l; }   // si Drive falla, tira error: nunca pisar la cola con []
   try { return JSON.parse(P.getProperty('AUTO_COLA') || '[]'); } catch (e) { return []; } };
+// lee la cola, la cambia y la guarda sin que otro la pise en el medio (3/11/2026)
+function autoColaCambiar_(fn) { const l = LockService.getDocumentLock(); l.waitLock(15000);
+  try { const c = autoCola_(); const r = fn(c); autoGuardarCola_(c); return { cola: c, r: r }; } finally { l.releaseLock(); } }
 const autoGuardarCola_ = l => { const viejas = Date.now() - 4 * 864e5;
   guardarJson_('AUTO_FILE_ID', 'panel-ideamia-autocola.json', { l: l.filter(x => x.estado === 'pendiente' || x.estado === 'publicando' || new Date(x.cuando || 0).getTime() > viejas).slice(-300) });
   try { P.deleteProperty('AUTO_COLA'); } catch (e) {} };
@@ -2003,10 +2010,9 @@ function autoProgramar_(cmCardId, clave) {
   const corto = (/trello\.com\/c\/([A-Za-z0-9]+)/.exec(c.n) || [])[1];
   const o = trello_('/cards/' + corto, { fields: 'name', attachments: 'true', attachment_fields: 'name,url,mimeType,isUpload' });
   const urlDe = n => ((o.attachments || []).filter(a => a.name === n)[0] || {}).url || '';
-  const cola = autoCola_().filter(x => !(x.cm === cmCardId && /^(pendiente|cancelada)$/.test(x.estado)));
-  plan.items.forEach((i, k) => cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
-    archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: urlDe(a.n) })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k }));
-  autoGuardarCola_(cola);
+  const { cola } = autoColaCambiar_(c => { for (let j = c.length - 1; j >= 0; j--) if (c[j].cm === cmCardId && /^(pendiente|cancelada)$/.test(c[j].estado)) c.splice(j, 1);
+    plan.items.forEach((i, k) => c.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
+      archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: urlDe(a.n) })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k })); });
   // un disparador a la hora de cada pieza (además del de cada 10 minutos), así sale puntual
   autoRehacerDisparadores_(cola);
   return { ok: true, items: plan.items.length };
@@ -2030,24 +2036,28 @@ function autoProgramarItem_(cmCardId, k, clave) {
   // 3) si la pieza quedó a medio publicar, no se deja reprogramar (podría salir dos veces)
   const prev = autoCola_().filter(x => x.id === cmCardId + ':' + k && x.real).slice(-1)[0];
   if (prev && /^(publicando|dudosa)$/.test(prev.estado)) return { error: 'dudosa', mensaje: 'Esa pieza puede haber salido ya: fijate en Instagram antes de volver a programarla.' };
-  const cola = autoCola_().filter(x => !(x.id === cmCardId + ':' + k && /^(pendiente|cancelada)$/.test(x.estado)));
-  cola.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
-    archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: a.url })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k, real: true });
-  autoGuardarCola_(cola); autoRehacerDisparadores_(cola);
+  const { cola } = autoColaCambiar_(c => { for (let j = c.length - 1; j >= 0; j--) if (c[j].id === cmCardId + ':' + k && /^(pendiente|cancelada)$/.test(c[j].estado)) c.splice(j, 1);
+    c.push({ id: cmCardId + ':' + k, cm: cmCardId, marca: plan.marca, tipo: plan.tipo, n: i.n, cuando: i.cuando, copy: i.copy || '',
+      archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: a.url })), estado: 'pendiente', por: clave, titulo: plan.titulo, firma: autoFirma_(i), k: k, real: true }); });
+  autoRehacerDisparadores_(cola);
   // si ya están todas las piezas en cola, la tarjeta del CM pasa a Programado
   const todas = plan.items.every((_, j) => cola.some(x => x.id === cmCardId + ':' + j && x.real && (x.estado === 'pendiente' || x.estado === 'publicada')));
   let movida = false; if (todas) { try { const r = cmAccion_({ op: 'programado', cardId: cmCardId }, 'project', true); movida = !!r.ok; } catch (e) {} }
   return { ok: true, cuando: i.cuando, cuenta: autoUser_(plan.marca), todas: todas, movida: movida };
 }
 function autoCancelarItem_(cmCardId, k) {
-  const cola = autoCola_(); let n = 0;
-  cola.forEach(x => { if (x.id === cmCardId + ':' + k && x.estado === 'pendiente') { x.estado = 'cancelada'; n++; } });
-  autoGuardarCola_(cola); autoRehacerDisparadores_(cola); return { ok: true, canceladas: n };
+  let n = 0; const { cola } = autoColaCambiar_(c => c.forEach(x => { if (x.id === cmCardId + ':' + k && x.estado === 'pendiente') { x.estado = 'cancelada'; n++; } }));
+  autoRehacerDisparadores_(cola); return { ok: true, canceladas: n };
 }
 function autoCancelar_(cmCardId) {
-  const cola = autoCola_(); let n = 0;
-  cola.forEach(x => { if (x.cm === cmCardId && x.estado === 'pendiente') { x.estado = 'cancelada'; n++; } });
-  autoGuardarCola_(cola); autoRehacerDisparadores_(cola); return { ok: true, canceladas: n };
+  let n = 0; const { cola } = autoColaCambiar_(c => c.forEach(x => { if (x.cm === cmCardId && x.estado === 'pendiente') { x.estado = 'cancelada'; n++; } }));
+  autoRehacerDisparadores_(cola); return { ok: true, canceladas: n };
+}
+// 5) una pieza "dudosa" (no se sabe si salió): Ale confirma si está en Instagram (publicada) o si no salió (se puede volver a programar)
+function autoResolverItem_(cmCardId, k, salio) {
+  let n = 0; const { cola } = autoColaCambiar_(c => { const x = c.filter(y => y.id === cmCardId + ':' + k && y.real && /^(publicando|dudosa)$/.test(y.estado)).slice(-1)[0];
+    if (x) { x.estado = salio ? 'publicada' : 'cancelada'; x.manual = true; n = 1; } });
+  autoRehacerDisparadores_(cola); return { ok: true, resueltas: n };
 }
 // publica lo que ya está en hora (hasta 2 minutos antes). Lo llama el disparador de la hora justa y la lectura de cada 10 minutos.
 function autoPublicarPendientes() {
@@ -2058,11 +2068,11 @@ function autoPublicarPendientes() {
     const cola = autoCola_(), ahora = Date.now(), ensayo = autoModo_() !== 'real', informe = [], toc = {}; let cambio = false;
     const clave = x => x.id + '|' + x.cuando;
     // guarda releyendo la cola: lo que tocó este publicador manda; lo demás (cancelaciones o piezas nuevas de Ale mientras tanto) se respeta
-    const guardar = () => { const fresca = autoCola_(), vistos = {};
+    const guardar = () => { const lk = LockService.getDocumentLock(); lk.waitLock(15000); try { const fresca = autoCola_(), vistos = {};
       const out = fresca.map(y => { const t = toc[clave(y)]; vistos[clave(y)] = 1;
         return t && (y.estado === 'pendiente' || /^(publicada|publicando|dudosa)$/.test(t.estado)) ? t : y; });
       cola.forEach(x => { if (!vistos[clave(x)] && toc[clave(x)]) out.push(x); });
-      autoGuardarCola_(out); };
+      autoGuardarCola_(out); } finally { lk.releaseLock(); } };
     cola.filter(x => x.estado === 'publicando' && ahora - new Date(x.publicandoDesde || x.cuando).getTime() > 15 * 6e4).forEach(x => { x.estado = 'dudosa'; toc[clave(x)] = x; cambio = true;
       autoAvisar_(x, '⚠️ Quedó a medio publicar: fijate en la cuenta si salió antes de publicarla a mano.'); });
     cola.filter(x => x.estado === 'pendiente' && new Date(x.cuando).getTime() <= ahora + 2 * 60 * 1000).sort((a, b) => (b.real ? 1 : 0) - (a.real ? 1 : 0)).forEach(x => {
@@ -2120,7 +2130,9 @@ function autoEnsayoSolo_() {
       archivos: i.archivos.map(a => ({ n: a.n, tipo: a.tipo, url: '' })), estado: 'pendiente', por: 'ensayo', titulo: plan.titulo, firma: autoFirma_(i), k: k }));
   });
   if (!nuevos.length) return;
-  autoGuardarCola_(cola); autoRehacerDisparadores_(cola);
+  const nuevas = cola.filter(x => nuevos.some(c => c.id === x.cm) && (x.por === 'ensayo' || x.estado === 'no-listo'));
+  const fin = autoColaCambiar_(c => { const ya2 = {}; c.forEach(x => ya2[x.cm] = 1); nuevas.forEach(x => { if (!ya2[x.cm]) c.push(x); }); }).cola;
+  autoRehacerDisparadores_(fin);
   if (noListos.length) try { discordPrivado_(idJoaquin_(config_()), '🧪 Ensayo de publicación automática · esto NO se hubiera podido programar solo:\n' + noListos.join('\n'), 'equipo'); } catch (e) {}
 }
 // una pieza del ensayo, a su hora: todos los frenos como si fuera de verdad, y con Meta conectado, Instagram prepara pero no publica
@@ -4614,7 +4626,7 @@ function planCheckAccion_(b, quien, esProject) {
         if (v === 'hecho' && /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || ''))) { x[id].fecha = String(b.fecha); x[id].hora = /^\d{2}:\d{2}$/.test(String(b.hora || '')) ? String(b.hora) : '';
           registrar_(norm_(quien), 'reunion', kR, m.slug, 'agendada', x[id].fecha + ' ' + x[id].hora + ' · organizada desde Plan', per); }
         else if (v === 'na') registrar_(norm_(quien), 'reunion', kR, m.slug, 'hecho', '', per);
-        else if (!v && estados_()[kR]) registrar_(norm_(quien), 'reunion', kR, m.slug, 'deshacer', 'desde Plan', per);
+        else if (!v && estados_()[kR] && (estados_()[kR].estado === 'hecho' || /desde Plan/.test(estados_()[kR].detalle || ''))) registrar_(norm_(quien), 'reunion', kR, m.slug, 'deshacer', 'desde Plan', per);
       } catch (e) {} }
     guardarJson_('PLAN_FILE_ID', 'panel-ideamia-plan.json', g);
     return { ok: true, chk: x };
@@ -6327,6 +6339,7 @@ function doPost__(e) {
         if (/project/i.test(yo.rol) && !claveOk_(b.k, true)) return json_({ error: 'clave', mensaje: 'Clave del project incorrecta' });
         // la pieza viaja en 'pieza' (2/11/2026: antes iba en 'k' y pisaba la clave del panel → "Clave incorrecta")
         if (b.op === 'item') return json_(autoProgramarItem_(String(b.cardId || ''), Number(b.pieza || 0), yo.clave));
+        if (b.op === 'resolverItem') return json_(autoResolverItem_(String(b.cardId || ''), Number(b.pieza || 0), !!b.salio));
         if (b.op === 'cancelarItem') return json_(autoCancelarItem_(String(b.cardId || ''), Number(b.pieza || 0)));
         return json_(b.op === 'cancelar' ? autoCancelar_(String(b.cardId || '')) : autoProgramar_(String(b.cardId || ''), yo.clave));
       }
