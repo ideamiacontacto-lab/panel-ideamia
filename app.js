@@ -1618,6 +1618,7 @@
     const ocioso = g => (window.requestIdleCallback || (h => setTimeout(h, 1500)))(g, { timeout: 4000 });
     ocioso(() => {
       if (S.pkey && ((S.proj && !S.data) || (S.data && esRevisa()))) agpCargar(false, true);   // agenda privada: project y dirección
+      if ((S.pkey || DEMO) && S.proj && !S.data) frlCargar(false, true);   // freelance: solo el project (para el número de la pestaña)
       if (conPlanYo()) setTimeout(() => { if (S.data) { embFrame('plan'); embFrame('okr'); } }, 2500);   // Plan y Objetivos, escondidos
     });
   }
@@ -1699,7 +1700,8 @@
     prods: ['Producciones', 'Lo que anotó Bauti para grabar, por día.'],
     // vista Project
     p_mio: ['Mi día', 'Tu tablero Project de Trello. Los números de arriba son pestañas (Bandeja, Para hoy, Minuta…). El <b>círculo</b> pasa la tarjeta a Listo; tocando la tarjeta abrís su ficha para cambiar la etapa, la fecha, las etiquetas, comentar o <b>enviarla</b> a Diseño, Social media, Fotografía, Reel o Historia.'],
-    p_agenda: ['Agenda', 'El calendario de ideamia.contacto. <b>Agendar reunión</b> crea el evento y manda las invitaciones.'],
+    p_freelance: ['Freelance', 'Lo lee de tu Gmail (ideamia.contacto). Arriba, lo que te escribieron los portales; abajo, los trabajos del <b>Radar</b> de hoy con la propuesta lista: <b>Copiar propuesta</b>, la pegás en el portal y tocás <b>La mandé</b>. Para responder a un cliente, <b>Copiar para que Claude arme la respuesta</b> y lo pegás en tu chat.'],
+    p_agenda: ['Agenda','El calendario de ideamia.contacto. <b>Agendar reunión</b> crea el evento y manda las invitaciones.'],
     p_equipo: ['Equipo', 'Qué tiene pendiente cada persona del equipo: rutinas, inputs sin tocar y reuniones sin fecha. Tocá a alguien para ver el detalle o abrir su panel.'],
     p_registro: ['Registro', 'Lo último que tildó o cargó cada uno. Filtrá por persona arriba.'],
     p_fotos: ['Fotos', 'Última producción de fotos de cada marca y cuándo toca la próxima.'],
@@ -2283,7 +2285,90 @@
       render(); toast('✓ Invitados guardados' + (mas || menos ? ': ' + [mas ? mas + (mas === 1 ? ' sumado' : ' sumados') : '', menos ? menos + (menos === 1 ? ' sacado' : ' sacados') : ''].filter(Boolean).join(', ') : ' (sin cambios)') + '.' + (r.sinAviso ? '<br>Google no les mandó mail: avisales vos.' : ''));
     });
   }
+  /* ---------------- FREELANCE (project, 03/11/2026) ----------------
+     Los trabajos del mail "[Radar freelance]" de cada día, con la propuesta para copiar, y los avisos de los portales
+     que llegan a ideamia.contacto. Se lee con la clave del project (como la agenda privada). */
+  const FRL = { data: null, cargando: false, error: '', verRuido: false };
+  const frlCache = { get() { try { return JSON.parse(localStorage.getItem('pi:frl') || 'null'); } catch (e) { return null; } }, set(d) { try { localStorage.setItem('pi:frl', JSON.stringify(d)); } catch (e) {} } };
+  function frlDemo() {
+    const d = h => new Date(Date.now() - h * 36e5).toISOString();
+    return { ok: true, leido: new Date().toISOString(), radar: [{ id: 'r1', fecha: d(3), resumen: 'Hoy quedaron 2 trabajos, los dos en Freelancer.com. El mejor es una identidad completa de USD 750 a 1.500.', doc: '#', trabajos: [
+      { id: 'r1:0', t: 'Senior Graphic Designer Needed for Complete Brand Identity Project', plat: 'Freelancer.com', monto: 'USD 750 a 1.500 (sugerido USD 1.200, 25 días hábiles)', cierra: 'Sí. Identidad Visual completa. Riesgo: cliente nuevo sin pago verificado.', link: '#', prop: 'Hi, you want a modern-minimalist refresh built on clean geometry...\n\nJoaquín, Estudio Ideamia', est: '' },
+      { id: 'r1:1', t: 'Brand Awareness Campaign Brief', plat: 'Freelancer.com', monto: 'INR 500.000 a 1.000.000', cierra: 'Sí, sobra. Riesgo alto: presupuesto sospechoso.', link: '#', prop: 'Hi, you need an awareness-only campaign brief...', est: 'descartada' }] }],
+      avisos: [{ id: 'a1', asunto: 'Max sent you a message about Graphic Designer for Cycling Apparel Line', de: 'Contra', dom: 'contra.com', fecha: d(1), tipo: 'mensaje', texto: 'Hey Joaquín, thanks for the proposal. Do you have experience with sublimated jerseys?', n: 1, est: '', link: '#' },
+        { id: 'a2', asunto: 'New projects for you', de: 'Freelancer', dom: 'freelancer.com', fecha: d(5), tipo: 'ruido', texto: '...', n: 1, est: '', link: '#' }] };
+  }
+  async function frlCargar(fresco, callado) {
+    if (FRL.cargando) return;
+    if (!FRL.data && !DEMO) FRL.data = frlCache.get();
+    FRL.cargando = true; FRL.error = '';
+    try {
+      if (DEMO) FRL.data = FRL.data || frlDemo();
+      else {
+        const j = await get(Object.assign({ action: 'freelance', k: S.pkey, p: 'project' }, fresco ? { fresco: 1 } : {}));
+        if (j.error === 'clave') { S.pkey = ''; LS.set('pkey', ''); FRL.data = null; FRL.error = 'Esa no es la clave del project. Probá de nuevo.'; }
+        else if (j.error) FRL.error = j.mensaje || j.error;
+        else if (!j.radar || !j.avisos) FRL.error = 'Falta un paso: autorizar el permiso de Gmail en Apps Script y publicar la versión nueva del servidor.';
+        else { FRL.data = j; frlCache.set(j); }
+      }
+    } catch (e) { if (!FRL.data) FRL.error = 'No se pudo leer el Gmail. Revisá la conexión y tocá "Volver a leer".'; }
+    FRL.cargando = false;
+    if (!callado || (S.proj && !S.data && S.projTab === 'freelance')) render();
+  }
+  // lo que pide atención: trabajos del Radar sin marcar y mensajes de clientes sin ver
+  const frlPend = () => { const D = FRL.data; if (!D || !D.radar) return 0; return (D.radar[0] ? D.radar[0].trabajos.filter(t => !t.est).length : 0) + D.avisos.filter(a => !a.est && ['contrato', 'invitacion', 'mensaje'].indexOf(a.tipo) >= 0).length; };
+  function vFreelance() {
+    if (!DEMO && !S.pkey) return '<div class="agp-key"><label class="field"><span>Clave del project</span><input type="password" id="frlK" autocomplete="off" placeholder="La misma con la que se entra a la vista Project"></label><button class="btn y" data-frl-key>Entrar</button>' + (FRL.error ? '<div class="err">' + esc(FRL.error) + '</div>' : '') + '</div>';
+    if (!FRL.data && !FRL.error && !DEMO) FRL.data = frlCache.get();
+    if (FRL.data && !FRL.cargando && !DEMO && Date.now() - new Date(FRL.data.leido) > 5 * 60e3) setTimeout(() => frlCargar(false, true), 0);
+    if (!FRL.data && !FRL.error) { if (!FRL.cargando) setTimeout(frlCargar, 0); return '<div class="loading"><b>Cargando</b>Leyendo tu Gmail…</div>'; }
+    const D = FRL.data || { radar: [], avisos: [] };
+    const barra = '<div class="agp-bar"><button class="btn ghost" data-frl-leer>' + (FRL.cargando ? 'Leyendo…' : 'Volver a leer') + '</button>' + (FRL.data ? '<span class="agp-leido">leído ' + hm(new Date(FRL.data.leido)) + '</span>' : '') + '</div>';
+    const cuando = iso => { const f = new Date(iso), n = diasA(f); return (n === 0 ? 'hoy' : n === -1 ? 'ayer' : corto(f)) + ' ' + hm(f); };
+    const ESTT = { mandada: ['✓ Mandada', 'ok'], descartada: ['Descartada', ''], respondio: ['Me respondieron', 'y'], visto: ['Visto', ''] };
+    const chip = e => e && ESTT[e] ? '<span class="frl-est ' + ESTT[e][1] + '">' + ESTT[e][0] + '</span>' : '';
+    const trabajo = t => '<div class="frl-t' + (t.est === 'descartada' ? ' ya' : '') + '"><div class="frl-tt"><b>' + esc(t.t) + '</b>' + chip(t.est) + '</div>' +
+      '<div class="frl-mt">' + esc(t.plat) + (t.monto ? ' · ' + esc(t.monto) : '') + '</div>' + (t.cierra ? '<p class="frl-ci">' + esc(t.cierra) + '</p>' : '') +
+      (t.prop ? '<details class="frl-prop"><summary>Ver la propuesta</summary><pre>' + esc(t.prop) + '</pre></details>' : '') +
+      '<div class="frl-acts">' + (t.prop ? '<button class="btn y" data-frl-copiar="' + esc(t.id) + '">Copiar propuesta</button>' : '') + (t.link && t.link !== '#' ? '<a class="btn ghost" href="' + esc(t.link) + '" target="_blank" rel="noopener">Abrir el trabajo ↗</a>' : '') +
+      (t.est !== 'mandada' ? '<button class="lnk" data-frl-est="' + esc(t.id) + '" data-v="mandada">La mandé</button>' : '') + (t.est !== 'respondio' && t.est === 'mandada' ? '<button class="lnk" data-frl-est="' + esc(t.id) + '" data-v="respondio">Me respondieron</button>' : '') +
+      (t.est !== 'descartada' && t.est !== 'mandada' ? '<button class="lnk" data-frl-est="' + esc(t.id) + '" data-v="descartada">Descartar</button>' : '') + (t.est ? '<button class="lnk" data-frl-est="' + esc(t.id) + '" data-v="">Deshacer</button>' : '') + '</div></div>';
+    const TIPO = { contrato: '🎉 Contrato u oferta', invitacion: 'Invitación', mensaje: 'Mensaje', cerrado: 'Cerrado', aviso: 'Aviso', ruido: 'Publicidad' };
+    const aviso = a => '<div class="frl-a' + (a.est ? ' ya' : '') + ' t-' + a.tipo + '"><div class="frl-tt"><span class="frl-tipo">' + TIPO[a.tipo] + '</span><b>' + esc(a.asunto) + '</b></div>' +
+      '<div class="frl-mt">' + esc(a.de) + ' · ' + cuando(a.fecha) + (a.n > 1 ? ' · ' + a.n + ' mails' : '') + '</div>' +
+      (a.tipo !== 'ruido' ? '<details class="frl-prop"><summary>Ver el mail</summary><pre>' + esc(a.texto) + '</pre></details>' : '') +
+      '<div class="frl-acts"><a class="btn ghost" href="' + esc(a.link) + '" target="_blank" rel="noopener">Abrir en Gmail ↗</a>' + (a.tipo !== 'ruido' ? '<button class="btn" data-frl-resp="' + esc(a.id) + '">Copiar para que Claude arme la respuesta</button>' : '') +
+      (a.est ? '<button class="lnk" data-frl-est="m:' + esc(a.id) + '" data-v="">Marcar sin ver</button>' : '<button class="lnk" data-frl-est="m:' + esc(a.id) + '" data-v="visto">Ya lo vi</button>') + '</div></div>';
+    const r0 = D.radar[0], viejos = D.radar.slice(1);
+    const importantes = D.avisos.filter(a => a.tipo !== 'ruido'), ruido = D.avisos.filter(a => a.tipo === 'ruido');
+    const ORD = { contrato: 0, invitacion: 1, mensaje: 2, aviso: 3, cerrado: 4 };
+    importantes.sort((a, b) => (!!a.est - !!b.est) || (ORD[a.tipo] - ORD[b.tipo]) || (new Date(b.fecha) - new Date(a.fecha)));
+    const secA = '<h3 class="agp-d">Respuestas y avisos de los portales<small>' + importantes.filter(a => !a.est).length + '</small></h3>' +
+      (importantes.length ? importantes.map(aviso).join('') : '<div class="empty">Ningún cliente te escribió en los últimos 14 días. Cuando llegue un mensaje de Contra, Upwork, Freelancer, Workana o Dribbble, aparece acá.</div>') +
+      (ruido.length ? '<button class="lnk frl-ruido" data-frl-ruido>' + (FRL.verRuido ? 'Ocultar' : 'Ver') + ' ' + ruido.length + ' de publicidad y avisos automáticos</button>' + (FRL.verRuido ? ruido.map(aviso).join('') : '') : '');
+    const secR = '<h3 class="agp-d">Radar de hoy' + (r0 ? ' · ' + cuando(r0.fecha) : '') + '<small>' + (r0 ? r0.trabajos.length : 0) + '</small></h3>' +
+      (r0 ? '<p class="frl-res">' + esc(r0.resumen) + (r0.doc ? ' <a class="lnk" href="' + esc(r0.doc) + '" target="_blank" rel="noopener">Doc completo ↗</a>' : '') + '</p>' + r0.trabajos.map(trabajo).join('')
+        : '<div class="empty">No llegó ningún mail del Radar en los últimos 7 días. El Radar corre de lunes a sábado a las 7:47 y solo manda mail si encontró algo.</div>') +
+      viejos.map(r => tarjeta('frl-' + r.id, 'Radar del ' + cuando(r.fecha), r.trabajos.length, '', false, () => r.trabajos.map(trabajo).join(''), I.inbox)).join('');
+    return barra + (FRL.error ? '<div class="empty">' + esc(FRL.error) + '</div>' : '') + secA + secR;
+  }
+  function frlBuscar(id) { const D = FRL.data || {}; for (const r of D.radar || []) { const t = r.trabajos.find(x => x.id === id); if (t) return t; } return (D.avisos || []).find(a => 'm:' + a.id === id || a.id === id); }
+  function frlBind(root) {
+    root.querySelectorAll('[data-frl-leer]').forEach(b => b.onclick = () => { frlCargar(true); render(); });
+    root.querySelectorAll('[data-frl-ruido]').forEach(b => b.onclick = () => { FRL.verRuido = !FRL.verRuido; render(); });
+    root.querySelectorAll('[data-frl-copiar]').forEach(b => b.onclick = () => { const t = frlBuscar(b.dataset.frlCopiar); if (t) copiar(t.prop, 'Propuesta copiada. Pegala en el portal con Ctrl+V.'); });
+    root.querySelectorAll('[data-frl-resp]').forEach(b => b.onclick = () => { const a = frlBuscar(b.dataset.frlResp); if (!a) return;
+      copiar('Me llegó esto de ' + a.de + ' por un trabajo freelance. Armame la respuesta en el idioma del cliente y explicame en español qué dice.\n\nAsunto: ' + a.asunto + '\n\n' + a.texto, 'Copiado. Pegalo en tu chat con Claude.'); });
+    root.querySelectorAll('[data-frl-est]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.frlEst, v = b.dataset.v, x = frlBuscar(id); if (!x) return;
+      const antes = x.est; x.est = v; frlCache.set(FRL.data); render();
+      try { const r = DEMO ? { ok: true } : await post({ action: 'freelanceMarcar', k: S.pkey, persona: 'project', id, estado: v }); if (r.error) throw new Error(r.mensaje || r.error); }
+      catch (e) { x.est = antes; frlCache.set(FRL.data); render(); toast('✗ No se pudo guardar: ' + esc(e.message)); }
+    });
+    root.querySelectorAll('[data-frl-key]').forEach(b => b.onclick = () => { const v = ($('#frlK', root) || {}).value || ''; if (!v.trim()) return; S.pkey = v.trim(); LS.set('pkey', S.pkey); FRL.error = ''; FRL.data = null; render(); });
+  }
   function agpBind(root) {
+    frlBind(root);
     root.querySelectorAll('[data-agp-nueva]').forEach(b => b.onclick = agpNueva);
     root.querySelectorAll('[data-agp-inv]').forEach(b => b.onclick = () => agpInvitados(b.dataset.agpInv));
     root.querySelectorAll('[data-agp-leer]').forEach(b => b.onclick = () => { agpCargar(true); render(); });
@@ -2303,7 +2388,7 @@
     const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
     const NAV = S.movil
       ? [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['pmas', 'Más', I.grid, fotosPend(), true]]
-      : [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
+      : [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['freelance', 'Freelance', I.msg, frlPend(), true], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
     const fecha = DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()];
     const saludo = NOW.getHours() < 13 ? 'buen día' : NOW.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const ctrl = S.movil ? '' : '<div class="ctrl"><div class="ctrl-in"><nav class="tabs">' + NAV.map(x => '<button class="tab' + (tab === x[0] ? ' on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '') + '</button>').join('') + '</nav></div></div>';
@@ -2312,10 +2397,11 @@
     const pagina = (head, cuerpo) => (S.movil ? head : ctrl + head) + '<div class="view" id="view">' + cuerpo + '</div>' + bnav;
     if (tab === 'plan' || tab === 'okr') return pagina(tit(tab === 'plan' ? 'Plan' : 'Objetivos'), '<div class="emb-ph" aria-hidden="true"></div>');
     if (tab === 'pmas') { const f = (go, ico, t, l) => '<button class="ml-r" ' + go + '><span class="ic">' + ico + '</span><span class="ml-t"><b>' + t + '</b><small>' + l + '</small></span><i class="ml-go">›</i></button>';
-      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') + f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
+      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="freelance"', I.msg, 'Freelance', frlPend() ? frlPend() + ' para atender' : 'trabajos del Radar y clientes') + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') +f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
     if (tab === 'anual') return pagina(tit('Anual', 'Fechas del calendario anual de cada marca, mes por mes.'), vAnual());
     if (tab === 'fotos') return pagina(tit('Fotos', 'Última producción de cada marca y cuándo toca la próxima.'), vFotos());
     if (tab === 'agenda') return pagina(tit('Agenda'), vAgendaPriv());
+    if (tab === 'freelance') return pagina(tit('Freelance', 'Los trabajos del Radar con la propuesta lista y lo que te escriben los portales.'), vFreelance());
     if (tab === 'equipo') return pagina(tit('Equipo', 'Qué tiene pendiente cada uno. Tocá a una persona.'), vistaEquipo(false));
     if (tab === 'registro') return pagina(tit('Registro', 'Lo último que tildó o cargó cada uno.'), vistaEquipo(true));
     const pf = perfilDe(S.persona), nom = apodo();
