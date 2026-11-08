@@ -2222,3 +2222,36 @@ div.pz-b1{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .frl-acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .frl-acts .btn{text-decoration:none}
 .frl-ruido{display:block;margin:4px 0 14px}
+
+/* ---------------- Campañas con dueña (8/11/2026): bloque en Hoy (social media) y semáforo del project ---------------- */
+.cmp{margin:18px 0 22px}
+.cmp-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cmp-h h2{font-family:var(--f-d);font-size:26px;letter-spacing:.02em;margin:0;text-transform:uppercase}
+.cmp-h span{color:var(--muted);font-size:13px}
+.cmp-h .rojo{color:var(--bad)}
+.cmp-h .lnk{margin-left:auto}
+.cmp-l{display:grid;gap:8px}
+.cmp-c{background:var(--s1);border:1px solid var(--line);border-left:3px solid var(--ok);border-radius:var(--r);padding:12px 14px;display:grid;gap:7px;min-width:0}
+.cmp-c.e-cliente,.cmp-c.e-atrasado{border-left-color:var(--bad)}
+.cmp-c.e-pronto,.cmp-c.e-espera{border-left-color:var(--warn)}
+.cmp-c.e-sinkit,.cmp-c.e-lista{border-left-color:var(--line2)}
+.cmp-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.cmp-top b{font-size:15px;display:flex;align-items:center;gap:7px;min-width:0}
+.cmp-top>span{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.cmp-n{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--y);border:1px solid var(--y);border-radius:3px;padding:0 4px}
+.cmp-paso{font-size:14.5px;line-height:1.4}
+.cmp-f{display:inline-block;font-family:var(--f-t);font-weight:700;font-size:12px;color:var(--y);margin-right:8px;text-transform:uppercase;letter-spacing:.04em}
+.cmp-mt{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill.cmp-p.ok{background:rgba(92,227,138,.12);color:var(--ok)}
+.cmp-sm{font-size:12px;color:var(--muted)}
+.cmp-bar{flex:1;min-width:60px;max-width:180px;height:4px;background:var(--s3);border-radius:4px;overflow:hidden}
+.cmp-bar i{display:block;height:100%;background:var(--text);opacity:.7}
+.cmp-cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cmp-tt{margin:0;font-size:13px;color:var(--bad)}
+.cmp-acts{display:flex;gap:8px;flex-wrap:wrap}
+.cmp-toca .cmp-h h2{color:var(--bad)}
+.cmp-tira{width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.35);color:var(--text);border-radius:var(--r);padding:12px 14px;margin:0 0 16px;cursor:pointer;font:inherit}
+.cmp-tira b{color:var(--bad);font-family:var(--f-t);text-transform:uppercase;letter-spacing:.06em;font-size:13px;white-space:nowrap}
+.cmp-tira span{flex:1;font-size:13.5px;color:var(--muted)}
+.cmp-tira i{font-style:normal;color:var(--bad);font-size:20px}
+@media (max-width:700px){.cmp-h h2{font-size:22px}.cmp-top>span{white-space:normal}.cmp-tira{flex-wrap:wrap}}

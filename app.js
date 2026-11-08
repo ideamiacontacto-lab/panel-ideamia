@@ -466,7 +466,7 @@
     const festejo = t.length && !pend.length ? '<div class="festejo"><b>¡Día<br>completo!</b><span>Terminaste todo lo de hoy. ' + (S.movil ? 'En <b>Más</b> tenés' : 'Al costado tenés') + ' fechas y sugerencias para adelantar.</span></div>' : '';
     const md = miDia(t, pend, done);
     // una pantalla, una pregunta: ¿qué hago ahora? Primero la tarea; los avisos son chips chicos (solo los que no están en cero)
-    return festejo + md.arranque + '<div class="hoy1">' + md.cuerpo + '</div>';
+    return festejo + md.arranque + cmpHoy() + '<div class="hoy1">' + md.cuerpo + '</div>';
   }
   // "Para mantener todos los meses" (22/10/2026): pedidos fijos de cada marca que se cargan en Trello con una etiqueta
   const linL = () => ((S.data || {}).lineamientos || []).filter(x => pasa(x.m));
@@ -1706,6 +1706,7 @@
     p_registro: ['Registro', 'Lo último que tildó o cargó cada uno. Filtrá por persona arriba.'],
     p_fotos: ['Fotos', 'Última producción de fotos de cada marca y cuándo toca la próxima.'],
     p_anual: ['Anual', 'El calendario anual de cada marca, mes por mes.'],
+    p_campanas: ['Campañas', 'Cada tarjeta "Campaña" de los SCL con su próximo paso y quién lo tiene. Arriba, <b>Te toca a vos</b>: clientes que no mandaron lo que se les pidió y pasos atrasados 3 días o más. Los viernes, este es el orden del día: primero las rojas. Los pasos los tildan las social media desde su Hoy o en Trello.'],
     p_plan: ['Plan', 'El plan de todas las marcas. Acá aprobás o rechazás lo que te proponen las social media (fechas que no se atacan, fichas) y ves el cumplimiento.'],
     p_okr: ['Objetivos', 'Los OKR de todas las marcas.'],
     p_pmas: ['Más', 'Fotos, Anual, Registro y tu perfil.']
@@ -2367,8 +2368,112 @@
     });
     root.querySelectorAll('[data-frl-key]').forEach(b => b.onclick = () => { const v = ($('#frlK', root) || {}).value || ''; if (!v.trim()) return; S.pkey = v.trim(); LS.set('pkey', S.pkey); FRL.error = ''; FRL.data = null; render(); });
   }
+  /* ---------------- CAMPAÑAS CON DUEÑA (8/11/2026) ----------------
+     Las tarjetas "Campaña · …" de cada SCL con su "Kit de campaña" (pasos con fecha). La social media ve en Hoy el próximo
+     paso de cada campaña de sus marcas y lo marca hecho; el project ve el semáforo de todas y "Te toca a vos". Lo lee Campanas.gs. */
+  const CMP = { data: null, cargando: false, error: '', quien: '' };
+  const cmpYo = () => S.data ? { k: S.key, p: (S.data.yo || {}).clave } : { k: S.pkey, p: 'project' };
+  const cmpCache = { get(p) { try { return JSON.parse(localStorage.getItem('pi:cmp:' + p) || 'null'); } catch (e) { return null; } }, set(p, d) { try { localStorage.setItem('pi:cmp:' + p, JSON.stringify(d)); } catch (e) {} } };
+  function cmpDemo() {
+    const d = n => { const x = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+    const c = (id, n, nivel, slug, marca, sm, due, hechos, total, estado, dias, t) => ({ id, url: '#', n, nivel, slug, marca, sm, due: d(due) + 'T12:00:00Z', hechos, total, estado, dias, paso: { id: id + 'p', cl: 'c', t, f: d(dias) } });
+    return { ok: true, leido: new Date().toISOString(), campanas: [
+      c('a1', 'Navidad y Año Nuevo', 'N1', 'gabriel-varisco', 'Gabriel Varisco', 'orne', 46, 3, 11, 'cliente', -2, 'Recibir lo de Guido (si no llegó, avisarle a Joaquín)'),
+      c('a2', 'Black Friday', 'N1', 'isco', 'Isco', 'orne', 19, 2, 10, 'atrasado', -4, 'Presentar la campaña en la reunión del viernes'),
+      c('a3', 'Partido de Miami Heat', 'N2', 'vice-burger', 'Vice', 'orne', 10, 1, 6, 'pronto', 1, 'Pedirle a Chivo el OK del evento, el premio y si consigue el aro'),
+      c('a4', 'Navidad', 'N1', 'quality-tienda', 'Quality', 'rama', 32, 2, 11, 'espera', 3, 'Recibir lo de Vero (si no llegó, avisarle a Joaquín)'),
+      c('a5', 'Fiestas (Navidad y Año Nuevo)', 'N1', '1talquecocina', '1tal', 'rama', 46, 0, 9, 'ok', 5, 'Brainstorming con el equipo')], teToca: ['a1', 'a2'], fallas: [] };
+  }
+  async function cmpCargar(fresco) {
+    const yo = cmpYo();
+    if (CMP.cargando || !yo.p) return;
+    if (CMP.quien !== yo.p) { CMP.quien = yo.p; CMP.data = DEMO ? null : cmpCache.get(yo.p); CMP.error = ''; }
+    CMP.cargando = true;
+    try {
+      if (DEMO) CMP.data = CMP.data || cmpDemo();
+      else {
+        const j = await get(Object.assign({ action: 'campanas', k: yo.k, p: yo.p }, fresco ? { fresco: 1 } : {}));
+        if (j.error) CMP.error = j.mensaje || j.error; else { CMP.data = j; CMP.error = ''; cmpCache.set(yo.p, j); }
+      }
+    } catch (e) { if (!CMP.data) CMP.error = 'No se pudieron leer las campañas.'; }
+    CMP.cargando = false; render();
+  }
+  // se pide sola al abrir la vista y otra vez si tiene más de 10 minutos
+  function cmpAsegurar() {
+    const yo = cmpYo(); if (!yo.p) return;
+    if (CMP.quien !== yo.p) { CMP.quien = yo.p; CMP.data = DEMO ? null : cmpCache.get(yo.p); CMP.error = ''; }
+    if (!CMP.cargando && (!CMP.data || (!DEMO && Date.now() - new Date(CMP.data.leido) > 10 * 60e3))) setTimeout(() => cmpCargar(false), 0);
+  }
+  const cmpFecha = iso => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return DIAS[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1); };
+  const CMP_EST = { cliente: ['El cliente no respondió', 'bad'], atrasado: ['Atrasado', 'bad'], pronto: ['Esta semana', 'warn'], espera: ['Esperando al cliente', 'warn'], ok: ['Al día', 'ok'], sinkit: ['Sin pasos', ''], lista: ['Lista', 'ok'] };
+  function cmpPill(c) {
+    const e = CMP_EST[c.estado] || ['', ''], n = c.dias;
+    const extra = c.estado === 'atrasado' || c.estado === 'cliente' ? ' · ' + (-n) + (n === -1 ? ' día' : ' días') : c.estado === 'espera' && c.paso && c.paso.f ? ' · vence ' + cmpFecha(c.paso.f) : '';
+    return '<span class="pill cmp-p ' + e[1] + '">' + e[0] + extra + '</span>';
+  }
+  const cmpEsRecibir = c => c.paso && /recibir/i.test(c.paso.t);
+  function cmpFila(c, proj) {
+    const dd = c.due ? diasA(new Date(c.due)) : null, pct = c.total ? Math.round(c.hechos / c.total * 100) : 0;
+    const cuandoEv = dd == null ? '' : dd < 0 ? 'fue el ' + cmpFecha(c.due) : dd === 0 ? 'es hoy' : cmpFecha(c.due) + ' · en ' + dd + (dd === 1 ? ' día' : ' días');
+    const boton = !c.paso || proj ? '' : c._guardando ? '<button class="btn y" disabled>Guardando…</button>' : '<button class="btn y" data-cmp-hecho="' + esc(c.id) + '">' + (cmpEsRecibir(c) ? 'Llegó' : 'Ya lo hice') + '</button>';
+    const ayuda = proj && c.estado === 'cliente' ? '<p class="cmp-tt">Insistile al cliente: la social media lo pidió y no llegó.</p>' : !proj && c.estado === 'cliente' ? '<p class="cmp-tt">No llegó a tiempo: avisale a Joaquín hoy para que insista.</p>' : '';
+    return '<div class="cmp-c e-' + c.estado + '"><div class="cmp-top"><b><span class="dotm" style="background:' + color(c.slug) + '"></span>' + esc(c.n) + ' · ' + esc(c.marca) + (c.nivel ? ' <em class="cmp-n">' + esc(c.nivel) + '</em>' : '') + '</b><span>' + cuandoEv + '</span></div>' +
+      (c.paso ? '<div class="cmp-paso">' + (c.paso.f ? '<span class="cmp-f">' + cmpFecha(c.paso.f) + '</span>' : '') + esc(c.paso.t) + '</div>' : '<div class="cmp-paso">' + (c.estado === 'lista' ? 'Todos los pasos hechos.' : 'La tarjeta no tiene pasos: cargale el kit de campaña.') + '</div>') +
+      '<div class="cmp-mt">' + cmpPill(c) + (proj ? '<span class="cmp-sm">' + esc(c.sm === 'orne' ? 'Orne' : c.sm === 'rama' ? 'Rama' : c.sm) + '</span>' : '') + '<span class="cmp-bar" title="' + c.hechos + ' de ' + c.total + ' pasos"><i style="width:' + pct + '%"></i></span><span class="cmp-cnt">' + c.hechos + '/' + c.total + '</span></div>' + ayuda +
+      '<div class="cmp-acts">' + boton + '<a class="btn ghost" href="' + esc(c.url) + '" target="_blank" rel="noopener">Abrir la tarjeta ↗</a></div></div>';
+  }
+  // social media: bloque en Hoy (solo sus marcas, y la marca elegida arriba)
+  function cmpHoy() {
+    if (!conPlanYo() || esCMyo()) return '';
+    cmpAsegurar();
+    const D = CMP.data;
+    if (!D) return CMP.error ? '<section class="cmp"><div class="cmp-h"><h2>Campañas</h2></div><div class="err">' + esc(CMP.error) + '</div></section>' : '';
+    const L = D.campanas.filter(c => pasa(c.slug) && c.estado !== 'lista'), rojas = L.filter(c => c.estado === 'cliente' || c.estado === 'atrasado').length;
+    if (!L.length) return '';
+    const ver = S.movil && !S.abiertos.cmp ? L.slice(0, 4) : L;
+    return '<section class="cmp"><div class="cmp-h"><h2>Campañas</h2><span>' + (rojas ? '<b class="rojo">' + rojas + ' en rojo</b> · ' : '') + L.length + ' en las próximas 8 semanas</span><button class="lnk" data-cmp-leer>' + (CMP.cargando ? 'Leyendo…' : 'Actualizar') + '</button></div>' +
+      '<div class="cmp-l">' + ver.map(c => cmpFila(c, false)).join('') + '</div>' + (ver.length < L.length ? '<button class="vermas" data-pliegue="cmp">Ver ' + (L.length - ver.length) + ' más</button>' : '') + '</section>';
+  }
+  // project: tira "Te toca a vos" arriba de Mi día
+  function cmpTira() {
+    cmpAsegurar();
+    const D = CMP.data; if (!D || !D.teToca || !D.teToca.length) return '';
+    return '<button class="cmp-tira" data-projtab="campanas"><b>Te toca a vos</b><span>' + D.teToca.length + (D.teToca.length === 1 ? ' campaña trabada' : ' campañas trabadas') + ': cliente que no respondió o paso muy atrasado</span><i>›</i></button>';
+  }
+  // project: semáforo de todas las marcas (pestaña Campañas)
+  function vCampanas() {
+    cmpAsegurar();
+    const D = CMP.data;
+    if (!D) return CMP.error ? '<div class="err">' + esc(CMP.error) + '</div>' : '<div class="loading"><b>Cargando</b>Leyendo las campañas de Trello…</div>';
+    const toca = D.campanas.filter(c => D.teToca.indexOf(c.id) >= 0), resto = D.campanas.filter(c => D.teToca.indexOf(c.id) < 0);
+    const f = S.cmpFiltro || 'todas', pasaF = c => f === 'todas' || c.sm === f;
+    const chips = '<div class="chips">' + [['todas', 'Todas'], ['orne', 'Orne'], ['rama', 'Rama']].map(x => '<button class="chip' + (f === x[0] ? ' on' : '') + '" data-cmp-filtro="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>';
+    const leyenda = '<p class="ayuda">Rojo: vencido, de ellas o del cliente. Amarillo: esta semana o esperando al cliente en plazo. Verde: va bien. Los viernes, este es el orden del día: primero las rojas.</p>';
+    return '<div class="agp-bar"><button class="btn ghost" data-cmp-leer>' + (CMP.cargando ? 'Leyendo…' : 'Volver a leer') + '</button><span class="agp-leido">leído ' + hm(new Date(D.leido)) + '</span></div>' +
+      (toca.filter(pasaF).length ? '<section class="cmp cmp-toca"><div class="cmp-h"><h2>Te toca a vos</h2><span>' + toca.filter(pasaF).length + '</span></div><div class="cmp-l">' + toca.filter(pasaF).map(c => cmpFila(c, true)).join('') + '</div></section>' : '') +
+      chips + '<section class="cmp"><div class="cmp-h"><h2>Todas las campañas</h2><span>' + resto.filter(pasaF).length + ' en las próximas 8 semanas</span></div><div class="cmp-l">' + (resto.filter(pasaF).map(c => cmpFila(c, true)).join('') || '<div class="empty">Nada más por ahora.</div>') + '</div></section>' +
+      (D.fallas && D.fallas.length ? '<p class="ayuda">No se pudo leer: ' + esc(D.fallas.join(', ')) + '. Tocá "Volver a leer".</p>' : '') + leyenda;
+  }
+  function cmpBind(root) {
+    root.querySelectorAll('[data-cmp-leer]').forEach(b => b.onclick = () => cmpCargar(true));
+    root.querySelectorAll('[data-cmp-filtro]').forEach(b => b.onclick = () => { S.cmpFiltro = b.dataset.cmpFiltro; render(); });
+    root.querySelectorAll('[data-cmp-hecho]').forEach(b => b.onclick = async () => {
+      const D = CMP.data, c = D && D.campanas.find(x => x.id === b.dataset.cmpHecho); if (!c || !c.paso) return;
+      const yo = cmpYo(), antes = JSON.parse(JSON.stringify(D)), paso = c.paso;
+      c._guardando = true; render();   // se ve al instante; la respuesta del servidor trae el próximo paso
+      const marcar = async hecho => {
+        const r = DEMO ? { ok: true } : await post({ action: 'campanaPaso', k: yo.k, persona: yo.p, card: c.id, item: paso.id, hecho });
+        if (r && r.vista) { CMP.data = r.vista; cmpCache.set(yo.p, r.vista); }
+        else if (DEMO) { const x = CMP.data.campanas.find(y => y.id === c.id); if (x) { x._guardando = false; x.hechos += hecho ? 1 : -1; x.estado = 'ok'; x.dias = 2; x.paso = hecho ? { id: paso.id + 'n', t: '(demo) el paso siguiente del kit', f: paso.f } : paso; } }
+        render();
+      };
+      try { await marcar(true); toast('✓ "' + esc(paso.t.slice(0, 60)) + '" hecho', async () => { try { await marcar(false); } catch (e) { toast('✗ No se pudo deshacer'); } }); }
+      catch (e) { CMP.data = antes; CMP.data.campanas.forEach(x => delete x._guardando); render(); toast('✗ No se pudo marcar: ' + esc(e.message || '')); }
+    });
+  }
   function agpBind(root) {
     frlBind(root);
+    cmpBind(root);
     root.querySelectorAll('[data-agp-nueva]').forEach(b => b.onclick = agpNueva);
     root.querySelectorAll('[data-agp-inv]').forEach(b => b.onclick = () => agpInvitados(b.dataset.agpInv));
     root.querySelectorAll('[data-agp-leer]').forEach(b => b.onclick = () => { agpCargar(true); render(); });
@@ -2386,9 +2491,10 @@
     // saludo grande solo en "Mi día" y en las demás un título corto (sin párrafos que empujen todo para abajo)
     const sinTocar = (S.proj.personas || []).reduce((s, p) => s + ((p.inputs || {}).sinTocar || 0), 0);
     const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
+    const nCmp = CMP.data && CMP.quien === 'project' ? (CMP.data.teToca || []).length : 0;
     const NAV = S.movil
-      ? [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['pmas', 'Más', I.grid, fotosPend(), true]]
-      : [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['freelance', 'Freelance', I.msg, frlPend(), true], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
+      ? [['mio', 'Mi día', I.check, n, true], ['campanas', 'Campañas', I.flag, nCmp, true], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['pmas', 'Más', I.grid, fotosPend(), true]]
+      : [['mio', 'Mi día', I.check, n, true], ['campanas', 'Campañas', I.flag, nCmp, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['freelance', 'Freelance', I.msg, frlPend(), true], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
     const fecha = DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()];
     const saludo = NOW.getHours() < 13 ? 'buen día' : NOW.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const ctrl = S.movil ? '' : '<div class="ctrl"><div class="ctrl-in"><nav class="tabs">' + NAV.map(x => '<button class="tab' + (tab === x[0] ? ' on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '') + '</button>').join('') + '</nav></div></div>';
@@ -2397,7 +2503,8 @@
     const pagina = (head, cuerpo) => (S.movil ? head : ctrl + head) + '<div class="view" id="view">' + cuerpo + '</div>' + bnav;
     if (tab === 'plan' || tab === 'okr') return pagina(tit(tab === 'plan' ? 'Plan' : 'Objetivos'), '<div class="emb-ph" aria-hidden="true"></div>');
     if (tab === 'pmas') { const f = (go, ico, t, l) => '<button class="ml-r" ' + go + '><span class="ic">' + ico + '</span><span class="ml-t"><b>' + t + '</b><small>' + l + '</small></span><i class="ml-go">›</i></button>';
-      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="freelance"', I.msg, 'Freelance', frlPend() ? frlPend() + ' para atender' : 'trabajos del Radar y clientes') + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') +f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
+      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="agenda"', I.cal, 'Agenda', 'calendario de ideamia.contacto') + f('data-projtab="freelance"', I.msg, 'Freelance', frlPend() ? frlPend() + ' para atender' : 'trabajos del Radar y clientes') + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') +f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
+    if (tab === 'campanas') return pagina(tit('Campañas', 'El semáforo de todas las marcas: el próximo paso de cada campaña y quién lo tiene.'), vCampanas());
     if (tab === 'anual') return pagina(tit('Anual', 'Fechas del calendario anual de cada marca, mes por mes.'), vAnual());
     if (tab === 'fotos') return pagina(tit('Fotos', 'Última producción de cada marca y cuándo toca la próxima.'), vFotos());
     if (tab === 'agenda') return pagina(tit('Agenda'), vAgendaPriv());
@@ -2407,7 +2514,7 @@
     const pf = perfilDe(S.persona), nom = apodo();
     const resumen = !D ? 'Tu tablero Project de Trello' : n ? '<b>' + D.bandeja.length + '</b> en bandeja · <b>' + D.hoy.length + '</b> para hoy' : '<b>Bandeja vacía</b> y nada vence hoy';
     const head = '<section class="mhead"><div>' + (pf.foto ? ava(pf, nom) : '') + '<div class="kick">/ ' + fecha + ' <span class="sal">· ' + saludo + '</span></div><h1>Hola, <span class="nom">' + esc(nom) + '</span></h1><p>' + resumen + btnAyuda() + '</p></div></section>';
-    return pagina(head, vistaMio());
+    return pagina(head, cmpTira() + vistaMio());
   }
   /* ---------------- MI SEMANA (filmmaker) ----------------
      Qué tiene que filmar y editar por marca (esta semana y la que viene), a qué marcas le toca ir,
