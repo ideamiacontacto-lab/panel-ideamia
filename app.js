@@ -1632,7 +1632,7 @@
     capa.querySelectorAll('iframe').forEach(x => x.classList.toggle('on', x === f));
     window.scrollTo(0, 0);
     document.body.classList.add('con-emb'); capa.classList.add('on');
-    const ref = $(S.movil ? '.mtit' : '.ctrl'), bn = $('.bnav');
+    const ref = (t === 'identidad' && $('.psub')) || $(S.movil ? '.mtit' : '.ctrl'), bn = $('.bnav');   // Identidad: deja ver el link "Abrir en otra pestaña"
     capa.style.top = (ref ? Math.max(0, ref.getBoundingClientRect().bottom) : 0) + 'px';
     capa.style.bottom = (bn && S.movil ? bn.getBoundingClientRect().height : 0) + 'px';
   }
