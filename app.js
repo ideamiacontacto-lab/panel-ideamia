@@ -2429,7 +2429,7 @@
     if (tab === 'anual') return pagina(tit('Anual', 'Fechas del calendario anual de cada marca, mes por mes.'), vAnual());
     if (tab === 'fotos') return pagina(tit('Fotos', 'Última producción de cada marca y cuándo toca la próxima.'), vFotos());
     if (tab === 'agenda') return pagina(tit('Agenda'), vAgendaPriv());
-    if (tab === 'identidad') return pagina(tit('Identidad'), vIdentidad());
+    if (tab === 'identidad') return pagina(tit('Identidad', IDN.link ? '<a class="lnk" href="' + esc(IDN.link) + '" target="_blank" rel="noopener">Abrir en otra pestaña ↗</a>' : ''), vIdentidad());
     if (tab === 'freelance') return pagina(tit('Freelance', 'Los trabajos del Radar con la propuesta lista y lo que te escriben los portales.'), vFreelance());
     if (tab === 'equipo') return pagina(tit('Equipo', 'Qué tiene pendiente cada uno. Tocá a una persona.'), vistaEquipo(false));
     if (tab === 'registro') return pagina(tit('Registro', 'Lo último que tildó o cargó cada uno.'), vistaEquipo(true));
