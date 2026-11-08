@@ -29,6 +29,26 @@
   window.IdeamiaSesion = { clave: () => ls.get('clave'), persona: () => ls.get('persona'), nombre: () => ls.get('nombre'), guardar: o => Object.keys(o).forEach(k => ls.set(k, o[k])) };
 
   const quien = PRUEBA ? 'joaco' : (() => { try { const v = localStorage.getItem('pi:persona'); return (v ? JSON.parse(v) : '') || ls.get('persona'); } catch (e) { return ls.get('persona'); } })();
+
+  /* Identidad (8/11/2026): el panel de identidad corporativa es otro servicio, aparte del panel diario. Solo lo ven
+     Joaquín e Ivo: el botón aparece solo en un navegador donde ya se cargó la clave del project (Agenda), y el link
+     secreto no está en este archivo (es público): lo da el servidor del panel, que vuelve a revisar clave y rol. */
+  const pkey = (() => { try { const v = localStorage.getItem('pi:pkey'); return v ? JSON.parse(v) : ''; } catch (e) { return ''; } })();
+  if (!PRUEBA && pkey) SITIOS.push({ id: 'identidad', n: 'Identidad', u: '#identidad' });
+  async function irIdentidad(a) {
+    let link = ls.get('idn');
+    if (!link) {
+      const api = (window.PANEL_CONFIG || {}).API_URL || 'https://script.google.com/macros/s/AKfycbwCxld4KNBsNMSGGluIA138f1vaKBo2TnqMIXsO2Y8iV87k4d7NUic47-MpvEgYehZJ/exec';
+      const yo = quien && quien !== 'project' && quien !== '__project' ? quien : 'project';
+      a.style.opacity = '.5';
+      try {
+        const j = await fetch(api + '?action=identidad&k=' + encodeURIComponent(pkey) + '&p=' + encodeURIComponent(yo)).then(r => r.json());
+        if (!j.link) { a.style.opacity = ''; alert(j.mensaje || 'Todavía no está cargado el link del panel de identidad.'); return; }
+        link = j.link; ls.set('idn', link);
+      } catch (e) { a.style.opacity = ''; alert('No se pudo abrir el panel de identidad. Revisá la conexión.'); return; }
+    }
+    location.href = link;
+  }
   const css = '#ideamia-nav .ct{display:none}#ideamia-nav{font:600 12.5px/1 Outfit,system-ui,sans-serif;background:#0A0A0A;color:#8C8C8C;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px;padding:0 16px;height:40px;position:relative;z-index:60;-webkit-font-smoothing:antialiased}' +
     '#ideamia-nav .w{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#F5F5F5;text-decoration:none;flex:none}#ideamia-nav .w b{color:#FFF200;font-weight:700}' +
     '#ideamia-nav .l{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}#ideamia-nav .l::-webkit-scrollbar{display:none}' +
@@ -38,6 +58,7 @@
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   const bar = document.createElement('nav'); bar.id = 'ideamia-nav'; bar.setAttribute('aria-label', 'Webs de Ideamia');
   bar.innerHTML = '<a class="w" href="' + SITIOS[0].u + '">Idea<b>mia</b>' + (PRUEBA ? ' <span style="color:#FF8AD8">· prueba</span>' : '') + '</a><div class="l">' + SITIOS.filter(s => !s.solo || s.solo.indexOf(quien) >= 0 || s.id === actual).map(s => '<a class="s' + (s.id === actual ? ' on' : '') + '" href="' + s.u + '"><span class="lg">' + s.n + '</span><span class="ct">' + (s.c || s.n) + '</span></a>').join('') + '</div>';
+  const bi = bar.querySelector('a[href="#identidad"]'); if (bi) bi.onclick = e => { e.preventDefault(); irIdentidad(bi); };
   const poner = () => document.body.prepend(bar);
   document.body ? poner() : document.addEventListener('DOMContentLoaded', poner);
 })();
