@@ -49,7 +49,7 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:6px 4px
 details summary{cursor:pointer;color:var(--mu);font-size:13px}
 </style>
 <script src="../config.js?v=2"></script>
-<script src="../ideamia-nav.js?v=5" defer></script>
+<script src="../ideamia-nav.js?v=6" defer></script>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Cargando…</div></div>
@@ -61,7 +61,7 @@ details summary{cursor:pointer;color:var(--mu);font-size:13px}
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = t => { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 5000); };
-  const PERMITIDAS = { joaco: 'Joaquín (prueba)', orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
   const S = { persona: new URLSearchParams(location.search).get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', d: null, ed: {}, ver: false };
   const clave = () => S.persona === 'project' ? (S.pkey || S.key) : S.key;
   const TXT = {
