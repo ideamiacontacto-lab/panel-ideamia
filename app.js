@@ -259,23 +259,23 @@
     if (esCMyo() && (S.tab === 'equipo' || S.tab === 'guiones')) S.tab = 'cmdia';
     if (esCMyo() && !S._cmIni) { S._cmIni = 1; if (S.tab === 'hoy') S.tab = 'cmdia'; }
     // la agenda privada (ideamia.contacto) y Fotos son solo del project y dirección: a nadie más se le abren, aunque la pestaña haya quedado guardada en este navegador
-    if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp')) S.tab = film ? 'film' : 'hoy';
-    if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual'].indexOf(S.tab) < 0) S.tab = 'revision';
+    if (!esRevisa() && (S.tab === 'fotos' || S.tab === 'agp' || S.tab === 'identidad')) S.tab = film ? 'film' : 'hoy';
+    if (ivo && ['revision', 'guiones', 'discord', 'agp', 'fotos', 'anual', 'identidad'].indexOf(S.tab) < 0) S.tab = 'revision';
     if (!ivo && S.tab === 'revision') S.tab = 'hoy';
     const conPlan = conPlanYo();
     if ((S.tab === 'plan' || S.tab === 'okr') && !conPlan) S.tab = 'hoy';
     const Rv = ivo ? datosRevision() : null;
     const resumenIvo = ivo ? (Rv.atras.length ? '<b class="rojo">Faltó entregar ' + Rv.atras.length + '</b> · tocá Entregas' : 'Tocá cada recuadro para ver lo suyo') : '';
-    const vista = ({ cmdia: vCmDia, hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb, equipo: vEquipoSM }[S.tab] || vHoy)(t);
+    const vista = ({ cmdia: vCmDia, hoy: vHoy, semana: vSemana, inputs: vInputs, reuniones: vReuniones, agenda: vAgenda, recursos: vRecursos, colabs: vColabs, marcas: vMarcas, guiones: vGuiones, discord: vDiscord, revision: vRevision, mas: vMas, anual: vAnual, agp: vAgendaPriv, identidad: vIdentidad, fotos: vFotos, film: vFilm, fhist: vFilm, fgui: vFilm, fpres: vFilm, prods: vProds, plan: vEmb, okr: vEmb, equipo: vEquipoSM }[S.tab] || vHoy)(t);
     // la misma navegación en la compu y en el celular: Hoy · Semana · Inputs · Discord · Más (Ivo: Revisión · Guiones · Discord)
     const nMas = guionAtencion() + nReu;
     const Df = film ? datosFilm() : null, nSemF = es => Df.porHacer.filter(c => Df.sem(c) === 0 && es(c)).length;
     const nav = film ? [['film', 'Reels', I.reel, nSemF(c => c.formato !== 'historia'), true], ['fhist', 'Historias', I.story, nSemF(c => c.formato === 'historia'), true], ['fgui', 'Guiones', I.doc, Df.guiones.filter(x => x.gest === 'revisar').length], ['fpres', 'Agenda', I.pin, Df.visPend.length + prodPend(), true], ['discord', 'Discord', I.msg, dcSinVer().length, true]] : ivo
-      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
+      ? [['revision', 'Revisión', I.pen, Rv.rev.length, true], ['guiones', 'Guiones', I.flag, guionAtencion(), true], ['agp', 'Agenda', I.cal, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['identidad', 'Identidad', I.grid, 0], ['discord', 'Discord', I.msg, dcSinVer().length, true]]
       : S.movil ? (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat(conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], conPlan && D.anual ? [] : [['discord', 'Discord', I.msg, dcSinVer().length, true]], [['mas', 'Más', I.grid, nMas + dcSinVer().length, nMas + dcSinVer().length > 0]]).slice(0, 6)
       : (esCMyo() ? [['cmdia', 'Programar', I.cal, datosCM().hoy.filter(c => !datosCM().hecho(c)).length + datosCM().atras.length, datosCM().atras.length > 0]] : []).concat([['hoy', 'Hoy', I.check, tot - ok]], esCMyo() ? [] : [['inputs', 'Inputs', I.inbox, nInp, true]]).concat([['reuniones', 'Reuniones', I.users, nReu, nReu > 0]].concat(esCMyo() ? [] : [['equipo', 'Equipo', I.users, 0]], conPlan ? [['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0]] : [], D.anual ? [['anual', 'Anual', I.cal, 0]] : [], [ ['discord', 'Discord', I.msg, dcSinVer().length, true], ['mas', 'Más', I.grid, nMas, nMas > 0]]));
     const enMas = !ivo && ['agenda', 'recursos', 'marcas', 'guiones', 'prods', 'mas', 'colabs'].concat(S.movil ? ['reuniones', 'equipo'] : []).indexOf(S.tab) >= 0;
-    const TIT = { cmdia: 'Programar', plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', fotos: 'Fotografía' };
+    const TIT = { cmdia: 'Programar', plan: 'Plan', okr: 'Objetivos', film: 'Reels', fhist: 'Historias', fgui: 'Guiones', fpres: 'Agenda', prods: 'Producciones', equipo: 'Equipo', semana: 'Semana', anual: 'Calendario anual', inputs: 'Inputs', reuniones: 'Reuniones', agenda: 'Agenda', recursos: 'Recursos', colabs: 'Colaboradores', marcas: 'Marcas', guiones: 'Guiones', discord: 'Discord', revision: 'Revisión', mas: 'Más', agp: 'Agenda privada', identidad: 'Identidad', fotos: 'Fotografía' };
     const portada = S.tab === (film ? 'film' : ivo ? 'revision' : 'hoy');
     const head = portada
       ? '<section class="mhead"><div>' + (pfYo.foto ? ava(pfYo, nombre) : '') + '<div class="kick">/ ' + fecha + ' <span class="sal">· ' + saludo + '</span></div><h1>Hola, <span class="nom">' + esc(nombre) + '</span></h1><p>' + (ivo ? resumenIvo : tot - ok ? 'Te quedan <b>' + (tot - ok) + '</b> · ' + ok + ' de ' + tot + ' hechas' : '<b>Todo listo</b> por hoy') + (!ivo && racha() > 1 ? ' · <span class="racha">🔥 ' + racha() + ' días seguidos</span>' : '') + '' + btnAyuda() + '</p></div>' + (ivo ? '' : anillo(ok, tot)) + '</section>' + (ivo ? '' : avisos())
@@ -1597,14 +1597,14 @@
   // arma (una sola vez) el iframe de Plan u Objetivos; también se usa para precargarlos escondidos
   function embFrame(t) {
     let capa = document.getElementById('embCapa');
-    if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (tabEmb() === 'plan' || tabEmb() === 'okr') embSync(); }); }
+    if (!capa) { capa = document.createElement('div'); capa.id = 'embCapa'; document.body.appendChild(capa); window.addEventListener('resize', () => { if (embOn()) embSync(); }); }
     // privacidad (22/10/2026): cada ventana se abre SIEMPRE con la persona actual; si quedó una de otra persona, se tira
     const yoC = S.data ? ((S.data.yo || {}).clave || '') : (S.persona || 'project');
     capa.querySelectorAll('iframe').forEach(x => { if (x.dataset.p !== yoC) x.remove(); });
     let f = capa.querySelector('iframe[data-t="' + t + '"]');
     if (!f) {
-      f = document.createElement('iframe'); f.dataset.t = t; f.dataset.p = yoC; f.title = t === 'plan' ? 'Plan' : 'Objetivos';
-      f.src = (t === 'plan' ? 'plan/' : 'objetivos/') + '?embed=1&p=' + encodeURIComponent(yoC) + (DEMO ? '&demo=1' : '') + ((S.embExtra || {})[t] || '');
+      f = document.createElement('iframe'); f.dataset.t = t; f.dataset.p = yoC; f.title = t === 'plan' ? 'Plan' : t === 'identidad' ? 'Identidad' : 'Objetivos';
+      f.src = t === 'identidad' ? IDN.link : (t === 'plan' ? 'plan/' : 'objetivos/') + '?embed=1&p=' + encodeURIComponent(yoC) + (DEMO ? '&demo=1' : '') + ((S.embExtra || {})[t] || '');
       f.onload = () => embFondo(f);   // el mismo color de fondo que eligió la persona
       capa.appendChild(f);
     }
@@ -1623,8 +1623,9 @@
     });
   }
   const tabEmb = () => S.proj && !S.data ? S.projTab : S.tab;
+  const embOn = () => { const t = tabEmb(); return t === 'plan' || t === 'okr' || (t === 'identidad' && !!IDN.link); };
   function embSync() {
-    const t = tabEmb(), on = t === 'plan' || t === 'okr';
+    const t = tabEmb(), on = embOn();
     let capa = document.getElementById('embCapa');
     if (!on) { if (capa) capa.classList.remove('on'); document.body.classList.remove('con-emb'); return; }
     const f = embFrame(t); capa = document.getElementById('embCapa');
@@ -2201,6 +2202,33 @@
     AGP.cargando = false;
     if (!callado || S.tab === 'agp' || (S.proj && !S.data && S.projTab === 'agenda')) render();
   }
+  /* ---------------- Identidad (8/11/2026): el panel de identidad corporativa, solo project y dirección ----------------
+     El panel vive en el Apps Script del brief y abre solo con un link secreto. Ese link NO va en este repo (es público):
+     lo guarda la fila LINK_IDENTIDAD de Config y el servidor lo da solo con la clave del project. */
+  const IDN = { link: '', error: '', cargando: false };
+  try { IDN.link = LS.get('idnlink') || ''; } catch (e) {}
+  async function idnCargar() {
+    if (IDN.cargando || DEMO) return;
+    IDN.cargando = true; IDN.error = '';
+    try {
+      const j = await get({ action: 'identidad', k: S.pkey, p: S.data ? S.data.yo.clave : 'project' });
+      if (j.error === 'clave') { S.pkey = ''; LS.set('pkey', ''); IDN.link = ''; IDN.error = 'Esa no es la clave del project. Probá de nuevo.'; }
+      else if (j.error) IDN.error = j.mensaje || j.error;
+      else if (!j.link) IDN.error = 'Falta un paso: pegar el link del panel de identidad en la fila LINK_IDENTIDAD de la pestaña Config del Sheet del panel.';
+      else { const nuevo = j.link !== IDN.link; IDN.link = j.link; LS.set('idnlink', j.link); if (nuevo) { const v = document.querySelector('#embCapa iframe[data-t="identidad"]'); if (v) v.remove(); } }
+    } catch (e) { if (!IDN.link) IDN.error = 'No se pudo conectar. Revisá la conexión y volvé a abrir la pestaña.'; }
+    IDN.cargando = false;
+    if (tabEmb() === 'identidad') render();
+  }
+  function vIdentidad() {
+    if (!DEMO && S.data && !esRevisa()) return '<div class="empty">Esta pantalla es solo para el project y dirección.</div>';
+    if (DEMO) return '<div class="empty">En el modo prueba no se abre el panel de identidad.</div>';
+    if (!S.pkey) return '<p class="mio-que">El panel de identidad corporativa: briefs de los clientes y fechas de entrega. Solo lo ven Joaquín e Ivo.</p><div class="agp-key"><label class="field"><span>Clave del project</span><input type="password" id="agpK" autocomplete="off" placeholder="La misma con la que se entra a la vista Project"></label><button class="btn y" data-agp-key>Entrar</button>' + (IDN.error ? '<div class="err">' + esc(IDN.error) + '</div>' : '') + '</div>';
+    if (!S._idnPedido) { S._idnPedido = 1; setTimeout(idnCargar, 0); }   // una vez por sesión: si el link cambió, lo trae
+    if (!IDN.link) return IDN.error ? '<div class="empty">' + esc(IDN.error) + '</div>' : '<div class="loading"><b>Cargando</b>Abriendo el panel de identidad…</div>';
+    return '<div class="emb-ph" aria-hidden="true"></div>';
+  }
+
   function vAgendaPriv() {
     if (!DEMO && S.data && !esRevisa()) { AGP.data = null; return '<div class="empty">Esta pantalla es solo para el project y dirección.</div>'; }
     const que = '<p class="mio-que">Calendario <b>ideamia.contacto</b>: solo lo ven Joaquín e Ivo (pide la clave del project). Lo que agendes acá se crea en Google Calendar y les llega la invitación a quienes elijas.</p>';
@@ -2388,7 +2416,7 @@
     const nAgp = AGP.data ? AGP.data.eventos.filter(e => diasA(new Date(e.s)) === 0 && new Date(e.f) > new Date()).length : 0;
     const NAV = S.movil
       ? [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['pmas', 'Más', I.grid, fotosPend(), true]]
-      : [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['freelance', 'Freelance', I.msg, frlPend(), true], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
+      : [['mio', 'Mi día', I.check, n, true], ['agenda', 'Agenda', I.cal, nAgp], ['plan', 'Plan', I.flag, 0], ['okr', 'Objetivos', I.star, 0], ['freelance', 'Freelance', I.msg, frlPend(), true], ['identidad', 'Identidad', I.grid, 0], ['fotos', 'Fotos', I.cam, fotosPend(), true], ['anual', 'Anual', I.star, 0], ['equipo', 'Equipo', I.users, sinTocar, true], ['registro', 'Registro', I.inbox, 0]];
     const fecha = DIAS_L[NOW.getDay()] + ' ' + NOW.getDate() + ' de ' + MESES[NOW.getMonth()];
     const saludo = NOW.getHours() < 13 ? 'buen día' : NOW.getHours() < 20 ? 'buenas tardes' : 'buenas noches';
     const ctrl = S.movil ? '' : '<div class="ctrl"><div class="ctrl-in"><nav class="tabs">' + NAV.map(x => '<button class="tab' + (tab === x[0] ? ' on' : '') + '" data-projtab="' + x[0] + '">' + x[1] + (x[3] ? '<span class="badge' + (x[4] ? ' hot' : '') + '">' + x[3] + '</span>' : '') + '</button>').join('') + '</nav></div></div>';
@@ -2397,10 +2425,11 @@
     const pagina = (head, cuerpo) => (S.movil ? head : ctrl + head) + '<div class="view" id="view">' + cuerpo + '</div>' + bnav;
     if (tab === 'plan' || tab === 'okr') return pagina(tit(tab === 'plan' ? 'Plan' : 'Objetivos'), '<div class="emb-ph" aria-hidden="true"></div>');
     if (tab === 'pmas') { const f = (go, ico, t, l) => '<button class="ml-r" ' + go + '><span class="ic">' + ico + '</span><span class="ml-t"><b>' + t + '</b><small>' + l + '</small></span><i class="ml-go">›</i></button>';
-      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="freelance"', I.msg, 'Freelance', frlPend() ? frlPend() + ' para atender' : 'trabajos del Radar y clientes') + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') +f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
+      return pagina(tit('Más'), '<div class="mas-l"><div class="ml-s"><div class="ml-g">' + f('data-projtab="freelance"', I.msg, 'Freelance', frlPend() ? frlPend() + ' para atender' : 'trabajos del Radar y clientes') + f('data-projtab="identidad"', I.grid, 'Identidad', 'briefs y entregas de identidad') + f('data-projtab="fotos"', I.cam, 'Fotos', fotosPend() ? fotosPend() + ' para atender' : 'al día') +f('data-projtab="anual"', I.cal, 'Anual', 'calendario de cada marca') + f('data-projtab="registro"', I.inbox, 'Registro', 'lo último del equipo') + f('data-tourbtn', I.star, 'Cómo se usa', 'recorrido de 1 minuto') + f('data-perfil', I.users, 'Mi perfil', 'apodo, foto y fondo') + '</div></div></div>'); }
     if (tab === 'anual') return pagina(tit('Anual', 'Fechas del calendario anual de cada marca, mes por mes.'), vAnual());
     if (tab === 'fotos') return pagina(tit('Fotos', 'Última producción de cada marca y cuándo toca la próxima.'), vFotos());
     if (tab === 'agenda') return pagina(tit('Agenda'), vAgendaPriv());
+    if (tab === 'identidad') return pagina(tit('Identidad'), vIdentidad());
     if (tab === 'freelance') return pagina(tit('Freelance', 'Los trabajos del Radar con la propuesta lista y lo que te escriben los portales.'), vFreelance());
     if (tab === 'equipo') return pagina(tit('Equipo', 'Qué tiene pendiente cada uno. Tocá a una persona.'), vistaEquipo(false));
     if (tab === 'registro') return pagina(tit('Registro', 'Lo último que tildó o cargó cada uno.'), vistaEquipo(true));
