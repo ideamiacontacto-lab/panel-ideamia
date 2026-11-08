@@ -125,7 +125,7 @@ if (window.self !== window.top || /[?&]embed=1/.test(location.search)) document.
   const jget = k => { const v = lsGet(k); try { return v ? JSON.parse(v) : ''; } catch (e) { return v; } };
   const S = { persona: new URLSearchParams(location.search).get('p') || jget('pi:persona') || lsGet('ideamia:persona') || '', key: jget('pi:key') || lsGet('ideamia:clave') || '', pkey: jget('pi:pkey') || '', data: null,
     marca: lsGet('okr:marca'), per: jget('okr:per') || {}, abiertos: jget('okr:abiertos') || {}, folds: jget('okr:folds') || {} };
-  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín', joaco: 'Joaquín (prueba)' };
+  const PERMITIDAS = { orne: 'Orne', rama: 'Rama', project: 'Joaquín' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = n => n == null ? '–' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1 });
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'], MESL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
