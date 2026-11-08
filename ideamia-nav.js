@@ -11,18 +11,7 @@
     { id: 'brain', n: 'Brainstormings', c: 'Ideas', u: 'https://ideamiacontacto-lab.github.io/brainstormings-ideamia/' },
     // Plan y Objetivos (OKR) ahora son pestañas del panel (22/10/2026): arriba quedan solo Reportes y Brainstormings
   ];
-  // plataforma de prueba de Joaquín (?p=joaco o /prueba/): todos los links quedan dentro de la prueba
-  // también si en el panel se eligió "Joaquín (prueba)" (persona guardada joaco), aunque la dirección no diga ?p=joaco
-  const guardada = (() => { try { const v = localStorage.getItem('pi:persona'); return (v ? JSON.parse(v) : '') || localStorage.getItem('ideamia:persona') || ''; } catch (e) { return ''; } })();
-  const qp = new URLSearchParams(location.search).get('p');
-  const PRUEBA = qp === 'joaco' || /\/prueba\//.test(location.pathname) || (!qp && guardada === 'joaco' && /panel-ideamia/.test(location.pathname));
-  if (PRUEBA) {
-    const B = 'https://ideamiacontacto-lab.github.io/panel-ideamia/';
-    SITIOS.splice(0, SITIOS.length,
-      { id: 'inicio', n: 'Prueba · Inicio', c: 'Inicio', u: B + 'prueba/' },
-      { id: 'panel', n: 'Panel diario', c: 'Panel', u: B + '?p=joaco' },
-      { id: 'reportes', n: 'Reportes', u: B + 'prueba/reportes/?resp=joaco' });
-  }
+  const PRUEBA = false;   // 8/11/2026: la plataforma de prueba de Joaquín se borró
   const p = location.pathname + ' ' + location.host;
   const actual = /\/prueba\/reportes/.test(location.pathname) ? 'reportes' : /\/prueba\/?$/.test(location.pathname) ? 'inicio' : /objetivos/.test(location.pathname) ? 'okr' : /\/plan\//.test(location.pathname) ? 'plan' : /panel-ideamia|localhost:5190/.test(p) ? 'panel' : /reportes-ideamia/.test(p) ? 'reportes' : /brainstormings-ideamia/.test(p) ? 'brain' : '';
   const ls = { get: k => { try { return localStorage.getItem('ideamia:' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { v ? localStorage.setItem('ideamia:' + k, v) : localStorage.removeItem('ideamia:' + k); } catch (e) {} } };
@@ -34,7 +23,9 @@
      Joaquín e Ivo: el botón aparece solo en un navegador donde ya se cargó la clave del project (Agenda), y el link
      secreto no está en este archivo (es público): lo da el servidor del panel, que vuelve a revisar clave y rol. */
   const pkey = (() => { try { const v = localStorage.getItem('pi:pkey'); return v ? JSON.parse(v) : ''; } catch (e) { return ''; } })();
-  if (!PRUEBA && pkey) SITIOS.push({ id: 'identidad', n: 'Identidad', u: '#identidad' });
+  // 8/11/2026: además de la clave del project, la persona elegida tiene que ser Joaquín (project) o Ivo: así no aparece
+  // en un celu o compu compartida donde después entró otra persona del equipo
+  if (!PRUEBA && pkey && ['', 'project', '__project', 'ivo'].indexOf(quien || '') >= 0) SITIOS.push({ id: 'identidad', n: 'Identidad', u: '#identidad' });
   async function irIdentidad(a) {
     let link = ls.get('idn');
     if (!link) {
